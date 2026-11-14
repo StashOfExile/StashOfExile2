@@ -29,8 +29,10 @@ CELL = 70
 COLS, ROWS = 12, 10
 EDGE = 5                                   # px left off each side of a cell when comparing (the cell's frame)
 SIDE = 48                                  # cells are compared at this size
-MATCH_MIN = {"learned": 0.72, "shipped": 0.72, "icon": 0.72}  # 2.129.0 (feedback: a junk unique, Sacred Bloom and an omen all priced
+MATCH_MIN = {"learned": 0.72, "shipped": 0.72, "icon": 0.72, "exchange": 0.60}  # 2.129.0 (feedback: a junk unique, Sacred Bloom and an omen all priced
 MATCH_BY = 0.10                            # 4.6d): a picture must score this and beat the next-best item by this.
+MATCH_BY_KIND = {"exchange": 0.12}         # 2.142.2: the Currency Exchange's icons (map profit only): the right item
+#                                            0.64-0.90 on the user's inventory, by 0.15-0.27; gear under 0.45
 MATCH_SURE, MATCH_BY_SURE = 0.80, 0.06      # (a very close match may beat the next by less: Greater Exaltation and
                                            # Refreshment are the same hand in gold / teal)
 CLEAR = (0.50, 0.25)                       # 2.129.1: or far ahead of every other item (a gray, sealed reward - the
@@ -290,7 +292,7 @@ class Refs:
             return None, 0.0, 0.0
         top, name, src = top3[0][:3]
         nxt = top3[1][0] if len(top3) > 1 else -1.0
-        by = MATCH_BY_SURE if top >= MATCH_SURE else MATCH_BY
+        by = MATCH_BY_SURE if top >= MATCH_SURE else MATCH_BY_KIND.get(src, MATCH_BY)
         sure = top >= MATCH_MIN.get(src, 0.72) and top - nxt >= by
         if top >= CLEAR[0] and top - nxt < CLEAR[1]:      # ("far ahead" of the items whose pictures are of the
             same = [s_ for s_, _n, k in self.ranked(f, len(self.items))[1:] if k == src]    # same kind: an idol's
@@ -530,7 +532,7 @@ def ninja_items(parts):
     return out
 
 
-def build_refs(items):
+def build_refs(items, exchange=False):
     """{id: (name, path)} -> Refs from the pictures learned on this PC: Scan stash (each slot of your Ritual,
     Currency ... tabs) and your price check key on a reward. 2.129.0: poe.ninja's official art is no longer used - on
     the user's own windows it scored up to 0.64 for the wrong item and never sure for the right one."""
@@ -569,7 +571,20 @@ def build_refs(items):
         if known and name not in known:
             continue
         refs.add(name, art_box(bgr, corner=False), "icon", "box")
+    if exchange:                                          # 2.142.2: every exchange item, by its exchange icon
+        for name, bgr in shipped_exchange().items():
+            if known and name not in known:
+                continue
+            refs.add(name, art_box(bgr[3:-3, 3:-3], corner=False), "exchange", "box")
     return refs
+
+
+def shipped_exchange():
+    """2.142.2 (feedback: "I shouldn't have to ctrl+c to teach it"): {name: 50 x 50 icon} - every item as the game's
+    Currency Exchange lists it (templates/exchange_icons.png + .json, cut from the user's own screenshots of its
+    "I Want" lists: currency, essences, omens, runes, soul cores, fragments...). Map profit only - an exchange icon
+    isn't drawn like a Favours cell."""
+    return _strip("exchange_icons")
 
 
 def shipped_icons():

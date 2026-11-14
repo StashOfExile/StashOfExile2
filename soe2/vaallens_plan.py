@@ -237,13 +237,11 @@ def combo(fam, hand=()):
     if fam not in PARTNER:
         return []
     pay = fam if fam in ("Corruption Chamber", "Sacrificial Chamber", "Alchemy Lab", "Smithy") else PARTNER[fam][0]
-    up = "Quipolatl's Medallion" in (hand or ())
-    lock = "Juatalotli's Medallion" in (hand or ())
     steps = []
     if pay != fam:
         steps.append(("+", f"Then {pay} on +, beside it"))
-    steps.append(("▲", f"Upgrade {pay} to tier 3" + (" (Quipolatl's)" if up else "")))
-    steps.append(("■", "Lock it" + (" (Juatalotli's)" if lock else "")))
+    steps.append(("▲", f"Upgrade {pay} to tier 3"))         # (2.142.2: no medallion names - fewer words)
+    steps.append(("■", "Lock it"))
     return steps
 
 
@@ -259,61 +257,98 @@ SHORT = {"Thaumaturge": "TH", "Corruption Chamber": "CC", "Alchemy Lab": "AL", "
          "Generator": "GE", "Smithy": "SM", "Golem Works": "GW"}
 
 
+def _safe(b, n, lane):
+    """A free tile a room can go on: inside, off the gold path's lane, not the entrance or Atziri, touching no reward
+    room."""
+    return inside(n) and not b.get(n) and n not in lane and n not in (ATZIRI, ENTRANCE) and not touches_reward(b, n)
+
+
 def _open_tiles(b, lane):
-    net = network(b)
-    out = set()
-    for c in net:
-        for n in near(c):
-            if not b.get(n) and n not in lane and n not in (ATZIRI, ENTRANCE) and not touches_reward(b, n):
-                out.add(n)
-    return out
+    """Free safe tiles joined to your paths and rooms."""
+    return {n for c in network(b) for n in near(c) if _safe(b, n, lane)}
+
+
+def _room_for(b, t, lane):
+    """With a room on t: how many safe free tiles beside it (2.142.2 feedback: a Thaumaturge put where the next room
+    beside it would touch a reward room - only safe sides count)."""
+    nb = dict(b)
+    nb[t] = "Room"
+    return sum(1 for n in near(t) if _safe(nb, n, lane))
+
+
+ANCHORS = {"Thaumaturge": ("Corruption Chamber", "Sacrificial Chamber", "Alchemy Lab")}
 
 
 def hand_plan(board, fams):
     """board: a read board; fams: room families in hand (cards and medallions, repeats allowed).
-    -> [(tile, family, why)] in the order to place them (only the rooms of the chains above)."""
+    -> [(tile, family, why)] in the order to place them: each Thaumaturge first, on a tile with safe room beside it
+    for the rooms it raises that you hold; then those rooms beside a Thaumaturge (yours or one already placed). A room
+    with no Thaumaturge to go beside isn't planned. Every tile safe (no reward room touched, off the lane)."""
     taken = names(board)
     lane = spine(taken)
     b = dict(taken)
-    left = [f for f in fams if f in ORDER]
-    left.sort(key=ORDER.index)
     plan = []
-    for fam in left:
-        best = None
-        for t in _open_tiles(b, lane):
-            pals = [b[n] for n in near(t) if b.get(n) in PARTNER.get(fam, ()) or b.get(n) in TOUCH.get(fam, ())]
-            free = sum(1 for n in near(t) if not b.get(n) and n not in lane and inside(n))
-            score = len(pals) * 10 + free * (3 if fam == "Thaumaturge" else 1) - abs(t[0]) * 0.2
-            if fam != "Thaumaturge" and "Thaumaturge" in PARTNER.get(fam, ()) and not pals and any(
-                    f == "Thaumaturge" for f in b.values()):
-                score -= 20                              # it wants a Thaumaturge beside it: keep looking
-            if best is None or score > best[0]:
-                best = (score, t, pals)
-        if best is None:
-            continue
-        _s, t, pals = best
-        b[t] = fam
-        why = ("beside " + ", ".join(sorted(set(pals)))) if pals else "room beside it for its chain"
-        plan.append((t, fam, why))
+    for anchor, partners in ANCHORS.items():
+        want = [f for f in fams if f in partners]
+        want.sort(key=partners.index)
+        for _k in range(sum(1 for f in fams if f == anchor)):
+            need = min(len(want), 3)
+            best = None
+            for t in _open_tiles(b, lane):
+                room = _room_for(b, t, lane)
+                if room < min(need, 2):
+                    continue
+                pals = sum(1 for n in near(t) if b.get(n) in partners)
+                score = pals * 10 + min(room, need + 1) * 3 - abs(t[0]) * 0.2
+                if best is None or score > best[0]:
+                    best = (score, t)
+            if best is None:
+                continue
+            b[best[1]] = anchor
+            plan.append((best[1], anchor, "room beside it"))
+        anchors = [c for c, f in b.items() if f == anchor]
+        for fam in want:
+            best = None
+            for a_ in anchors:
+                for n in near(a_):
+                    if not _safe(b, n, lane):
+                        continue
+                    k = sum(1 for m in near(n) if b.get(m) == anchor)     # beside two Thaumaturges: better
+                    score = k * 10 + _room_for(b, n, lane)
+                    if best is None or score > best[0]:
+                        best = (score, n)
+            if best is None:
+                continue
+            b[best[1]] = fam
+            plan.append((best[1], fam, "beside " + anchor))
     return plan
 
 
-def with_plan(marks, plan, lit, what):
-    """The plan on the board: each planned tile marked with its room's short name ("p"); with a card picked whose
-    room is in the plan and its tile lit, that tile is 1 (the ranked best moves to 2)."""
-    out = dict(marks)
+def card_title(name):
+    """An OCR'd card name ("THAUMATURGE'S LABORATORY") -> as the game prints it ("Thaumaturge's Laboratory")."""
+    low = " ".join(str(name or "").lower().replace("’", "'").split())
+    for fam, names_ in ROOMS.items():
+        for n in names_:
+            if n.lower() == low:
+                return n
+    return " ".join(w[:1].upper() + w[1:] for w in low.split()) if low else ""
+
+
+def with_plan(marks, plan, lit, what, card=None):
+    """The marks over the game (2.142.2, feedback: "I want it to be self-explanatory of what to place where"): each
+    planned tile -> ("p", (step, family)), drawn with that room's own picture and its step; the picked card's tile ->
+    ("now", (step or None, family or card name)): its planned tile when lit, else its best tile; ✕ tiles stay."""
+    out = {t: v for t, v in marks.items() if v[0] == "x"}
     fam = what[1] if what and what[0] == "room" else None
-    mine = next((t for t, f, _w in plan if f == fam and t in lit), None)
+    key = fam or (str(card or "").lower() or None)
+    mine = next(((k + 1, t) for k, (t, f, _w) in enumerate(plan) if f == fam and t in lit), None)
     if mine is not None:
-        ranked = [t for t, (m, _w) in sorted(out.items(), key=lambda kv: kv[1][0]) if m in ("1", "2")]
-        for t in [t for t, (m, _w) in out.items() if m in ("1", "2", "+")]:
-            del out[t]
-        why = next(w for t, f, w in plan if t == mine)
-        out[mine] = ("1", "the plan: " + why)
-        rest = [t for t in ranked if t != mine]
-        if rest:
-            out[rest[0]] = ("2", "if not the plan's tile")
-    for t, f, _w in plan:
+        out[mine[1]] = ("now", (mine[0], key))
+    elif lit and key:
+        best = next((t for t, (m, _w) in marks.items() if m == "1"), None)
+        if best is not None:
+            out[best] = ("now", (None, key))
+    for k, (t, f, _w) in enumerate(plan):
         if t not in out:
-            out[t] = ("p", SHORT.get(f, "·"))
+            out[t] = ("p", (k + 1, f))
     return out
