@@ -67,7 +67,7 @@ class MapProfitPage:
         def work():
             from . import favours as FV
             from .wealth import WPRICES
-            return FV.build_refs(FV.ninja_items(getattr(WPRICES, "parts", None)))
+            return FV.build_refs(FV.ninja_items(getattr(WPRICES, "parts", None)), exchange=True)
 
         def done(r):
             self._mp_refs_busy = False

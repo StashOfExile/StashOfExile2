@@ -237,6 +237,7 @@ class TemplePage:
             ptr = self.root.winfo_pointerxy()
         except tk.TclError:
             ptr = None
+        covered = self._temple_covered(g)
 
         def work():
             from . import remnant as RM
@@ -267,7 +268,9 @@ class TemplePage:
                         cb = V.card_box(g)
                         pic = full.crop((cb[0] - gx, cb[1] - gy, cb[2] - gx, cb[3] - gy))
                         cl = RM.ocr(pic.resize((pic.width * 2, pic.height * 2)))
-                        board["cards"] = [n for n, _y in V.card_names(cl)]
+                        named = V.card_names(cl)
+                        board["cards"] = [n for n, _y in named]
+                        board["card_icons"] = V.card_icons(pic, named, 2)
                         if board.get("lit"):
                             board["card"] = V.card_pick(pic, cl, 2)
                 except Exception:
@@ -280,7 +283,7 @@ class TemplePage:
             if medal is not None:
                 self.temple_medal_seen(medal)
             if board is not None:
-                self.temple_board_seen(board)
+                self.temple_board_seen(board, covered)
             if got:
                 self.temple_seen(got)
                 return
@@ -338,9 +341,43 @@ class TemplePage:
         """2.136.2 (feedback: "it shouldn't say that, it should just be reading my crystals"): the count only."""
         return TM.bar_text(TM.state())
 
-    def temple_board_seen(self, board):
-        """2.140.0: a look at the screen in Vaal Ruins: the console open = its board is kept and the card follows."""
+    def _temple_covered(self, g):
+        """2.142.2 (feedback: the marks and the card should show in screen shares - so the screen reader sees them
+        too): the tiles under our own marks and card right now; their last read is kept."""
         from . import vaallens as V
+        out = set()
+        mk = getattr(self, "tm_marks_win", None)
+        if mk is not None and mk.shown():
+            out |= set(getattr(self, "tm_marks", None) or {})
+        pad = getattr(self, "tm_pad", None)
+        try:
+            if pad is not None and pad.winfo_exists() and pad.winfo_ismapped():
+                l, t = pad.winfo_rootx(), pad.winfo_rooty()
+                r, b = l + pad.winfo_width(), t + pad.winfo_height()
+                s = V.placing(g)[0]
+                for c in V.CELLS:
+                    x, y = V.on_screen(g, *V.xy(*c))
+                    if l - 70 * s <= x <= r + 70 * s and t - 60 * s <= y <= b + 60 * s:
+                        out.add(c)
+        except tk.TclError:
+            pass
+        return out
+
+    def temple_board_seen(self, board, covered=()):
+        """2.140.0: a look at the screen in Vaal Ruins: the console open = its board is kept and the card follows.
+        2.142.2: tiles under our own marks or card keep their last read; their lit state only while another tile is
+        lit (a card is still picked)."""
+        from . import vaallens as V
+        prev = getattr(self, "tm_board", None)
+        if covered and prev and V.seen(board):
+            others = [c for c in board.get("lit") or [] if c not in covered]
+            for c in covered:
+                if c in prev:
+                    board[c] = prev[c]
+            board["lit"] = others + ([c for c in prev.get("lit") or [] if c in covered] if others else [])
+        icons = dict(getattr(self, "tm_icons", None) or {})
+        icons.update(board.get("card_icons") or {})
+        self.tm_icons = icons
         was = getattr(self, "tm_board_open", False)
         self.tm_board_open = V.seen(board)
         if self.tm_board_open:
@@ -365,7 +402,7 @@ class TemplePage:
         if seen and board.get("lit"):
             what = VP.card(board.get("card"))
             marks = VP.marks(board, board["lit"], what)
-            marks = VP.with_plan(marks, plan, board["lit"], what)
+            marks = VP.with_plan(marks, plan, board["lit"], what, board.get("card"))
         elif seen:
             marks = VP.with_plan({}, plan, (), None)
         self.tm_marks = marks
@@ -379,21 +416,12 @@ class TemplePage:
                     from .vaallens_marks import Marks
                     mk = self.tm_marks_win = Marks(self.root)
                 from .overlaywin import pal
-                mk.show(g, marks, pal())
+                mk.show(g, marks, pal(), getattr(self, "tm_icons", None))
             elif mk is not None:
                 mk.hide()
         except Exception:
             buglog.caught()
 
-    def temple_lens_lines(self):
-        """-> ([(done, text)...], counts line) for the card; before the console is opened, one line saying so."""
-        from . import vaallens as V
-        board = getattr(self, "tm_board", None)
-        if not board:
-            return [], "Open the Temple Console to read the board."
-        return V.lines(board)
-
-    # ---------------------------------------------------------------- 2.142.0 medallions (medallions.py)
     def _temple_medal_look(self, full, g, ptr):
         """(a background thread) The game's picture -> what the Medallions panel shows: {"count", "hand" (names by
         slot, None = not known), "learn": (name, vec) when a slot is hovered and its tooltip read}. None: not open."""
@@ -407,7 +435,7 @@ class TemplePage:
         have, most = got["count"]
         s = V.placing(g)[0]
         icons = M.known_icons(self._temple_medal_file())
-        hand, learn = [], None
+        hand, learn, pics = [], None, {}
         for k, sl in enumerate(M.slots(got["head"], s, have)):
             ib = M.icon_box(sl)
             vec = M.feat(full.crop((ib[0] - gx, ib[1] - gy, ib[2] - gx, ib[3] - gy)))
@@ -415,13 +443,15 @@ class TemplePage:
             if who is None:                                 # 2.142.1: a room medallion shows its room's icon
                 room = M.room_from_icon(full, sl, origin=(gx, gy))
                 who = f"Uromoti's Medallion: {room}" if room else None
+                if room:                                    # 2.142.2: its picture, for the board's marks
+                    pics[room] = full.crop((ib[0] - gx, ib[1] - gy, ib[2] - gx, ib[3] - gy))
             hand.append(who)
             if ptr and sl[0] <= ptr[0] <= sl[2] and sl[1] <= ptr[1] <= sl[3] and got["names"]:
                 n = got["names"][0][0]
                 if n == "Uromoti's Medallion" and got["room"]:     # (its picture is its room's: kept by room)
                     n = f"{n}: {got['room']}"
                 learn = (n, vec, k)
-        return {"open": True, "count": (have, most), "hand": hand, "learn": learn, "room": got["room"]}
+        return {"open": True, "count": (have, most), "hand": hand, "learn": learn, "room": got["room"], "icons": pics}
 
     def _temple_medal_file(self):
         from .config import P as data_file
@@ -444,6 +474,10 @@ class TemplePage:
             if k < len(hand):
                 hand[k] = name
             buglog.debug("Vaal Lens", f"medallion slot {k + 1} learned")
+        if medal.get("icons"):
+            icons = dict(getattr(self, "tm_icons", None) or {})
+            icons.update(medal["icons"])
+            self.tm_icons = icons
         have, most = medal["count"]
         new = {"have": have, "most": most, "hand": hand}
         if new != c.get("medals"):
@@ -454,29 +488,6 @@ class TemplePage:
     def temple_medal_hand(self):
         m = TM.cfg().get("medals") or {}
         return m.get("have"), m.get("most"), list(m.get("hand") or [])
-
-    def temple_medal_line(self):
-        """-> "Medallions 6/6 · Lock, Upgrade ×2 · 3 to learn" or "" before the panel is opened."""
-        have, most, hand = self.temple_medal_hand()
-        if have is None:
-            return ""
-        from . import medallions as M
-        names = []
-        for h in hand[:have]:
-            n, room = M.base(h)
-            if n in M.MEDALLIONS:
-                names.append(room if room else M.MEDALLIONS[n][0])
-        parts = []
-        for n in dict.fromkeys(names):
-            k = names.count(n)
-            parts.append(n + (f" ×{k}" if k > 1 else ""))
-        unknown = have - len(names)
-        line = f"Medallions {have}/{most}"
-        if parts:
-            line += " · " + ", ".join(parts)
-        if unknown:
-            line += f" · {unknown} to learn (hover them)"
-        return line
 
     def temple_medal_drop(self, name, room=None):
         """A medallion seen on the ground (the screen reader, in the temple) -> take it or leave it (an alert card,
@@ -517,7 +528,7 @@ class TemplePage:
         return out
 
     def temple_plan_lines(self):
-        """-> [(mark, text)]: the hand's plan in order (as marked on the board), then the upgrade and lock."""
+        """-> [(mark, text)]: "1  Thaumaturge's Laboratory" ... in the board's order, then upgrade and lock."""
         from . import medallions as M, vaallens_plan as VP
         plan = getattr(self, "tm_plan", None) or []
         if not plan:
@@ -527,33 +538,15 @@ class TemplePage:
         for n in board.get("cards") or []:
             what = VP.card(n)
             if what and what[0] == "room":
-                cards.setdefault(what[1], n)
+                cards.setdefault(what[1], VP.card_title(n))
         hand = self.temple_medal_hand()[2]
         out = []
-        for _t, fam, why in plan:
-            src = cards.get(fam) or (fam + (" (Uromoti's)" if any(M.base(h)[1] == fam for h in hand) else ""))
-            out.append((VP.SHORT.get(fam, "·"), f"{src}: {why}"))
-        pays = [fam for _t, fam, _w in plan if fam in ("Corruption Chamber", "Sacrificial Chamber", "Alchemy Lab",
-                                                        "Smithy")]
+        for k, (_t, fam, _why) in enumerate(plan):
+            src = cards.get(fam) or (fam + (" (medallion)" if any(M.base(h)[1] == fam for h in hand) else ""))
+            out.append((str(k + 1), src))
+        pays = [fam for _t, fam, _w in plan if fam in ("Corruption Chamber", "Sacrificial Chamber", "Alchemy Lab")]
         if pays:
             out += [st for st in VP.combo(pays[0], hand) if st[0] != "+"]
-        return out
-
-    def temple_pick_lines(self):
-        """2.141.0: while a card is picked -> [(mark, text)]: the best tile's reason and how many tiles are ruled out."""
-        marks = getattr(self, "tm_marks", None) or {}
-        if not marks:
-            return []
-        out = []
-        best = [why for m, why in marks.values() if m == "1"]
-        name = getattr(self, "tm_pick", None)
-        if best:
-            out.append(("★", f"{name}: 1 · {best[0]}" if name else f"1 · {best[0]}"))
-        else:
-            out.append(("◻", "Card not read: only the ✕ tiles show"))
-        n = sum(1 for m, _w in marks.values() if m == "x")
-        if n:
-            out.append(("✕", f"{n} tile{'' if n == 1 else 's'} touch a reward room"))
         return out
 
     def temple_pad_show(self):
@@ -589,13 +582,21 @@ class TemplePage:
                  highlightthickness=1, highlightbackground=P["line"], padx=4).pack(side="right")
         # 2.141.0: crystals as pips (one per run's worth, 6 each) under the count
         self.tm_pad_pips = self._temple_pips(body, P)
+        # 2.142.2 (feedback: "all of this filler detail is overwhelming, we're meant to simplify temple"): the plan,
+        # in steps matching the numbers on the board - nothing else
         tk.Frame(body, bg=P["head"], height=2).pack(fill="x", pady=(8, 0))
-        tk.Label(body, text="THE BOARD", bg=P["bg"], fg=P["muted"], font=(P["font"], self.ov_font(8), "bold"),
-                 anchor="w").pack(fill="x", pady=(8, 0))
+        hd = tk.Frame(body, bg=P["bg"])
+        hd.pack(fill="x", pady=(8, 0))
+        tk.Label(hd, text="THE PLAN", bg=P["bg"], fg=P["muted"], font=(P["font"], self.ov_font(8), "bold"),
+                 anchor="w").pack(side="left")
+        tip = tk.Label(hd, text=" ⓘ", bg=P["bg"], fg=P["muted"], font=(P["font"], self.ov_font(8)))
+        tip.pack(side="left")
+        from .style import Tooltip
+        Tooltip(tip, "On the board: each card's picture where it goes, numbered in order. A solid frame: where the "
+                     "card you picked goes. ✕: not there - it touches a reward room.")
+        self.tm_plan_tip = tip
         self.tm_lens_box = tk.Frame(body, bg=P["bg"])
         self.tm_lens_box.pack(fill="x")
-        tk.Label(body, text="Never connect to a reward room.", bg=P["bg"], fg=P["muted"], font=f9,
-                 anchor="w").pack(fill="x", pady=(4, 0))
         # notes in a fold (feedback: "maybe a dropdown clickable thing if someone wants to add notes to it")
         fold = tk.Label(body, bg=P["bg"], fg=P["muted"], font=(P["font"], self.ov_font(8), "bold"), anchor="w",
                         cursor="hand2")
@@ -622,12 +623,7 @@ class TemplePage:
         show_notes(c["notes_open"])
         self.tm_pad, self.tm_pad_text, self.tm_pad_fold = w, t, fold
         self.temple_pad_refresh()
-        w.show()
-        try:
-            from .remnant_page import no_capture
-            no_capture(w)                                   # (the board under the card is read too)
-        except Exception:
-            buglog.caught()
+        w.show()                    # (2.142.2: seen in screen shares; the tiles under it keep their last read)
         return w
 
     def _temple_pad_soon(self):
@@ -688,40 +684,18 @@ class TemplePage:
             return
         from .overlaywin import pal
         P = pal()
-        marks, count = self.temple_lens_lines()
         for k in box.winfo_children():
             k.destroy()
-        f9, f10 = (P["font"], self.ov_font(9)), (P["font"], self.ov_font(10))
-        for done, text in marks:
-            tk.Label(box, text=("✓ " if done else "◻ ") + text, bg=P["bg"], fg=P["text"] if done else P["muted"],
-                     font=f10, anchor="w").pack(fill="x")
-        if count:
-            tk.Label(box, text=count, bg=P["bg"], fg=P["muted"], font=f9, anchor="w", justify="left",
-                     wraplength=max(180, int(TM.cfg().get("pad_w") or 300) - 24)).pack(fill="x")
-        pick = self.temple_pick_lines()
-        if pick:
-            tk.Frame(box, bg=P["head"], height=2).pack(fill="x", pady=(8, 4))
-            tk.Label(box, text="THE PICK", bg=P["bg"], fg=P["muted"], font=(P["font"], self.ov_font(8), "bold"),
-                     anchor="w").pack(fill="x")
-            for mark, text in pick:
-                lab = tk.Label(box, text=f"{mark} {text}" + (" ⓘ" if mark == "✕" else ""), bg=P["bg"],
-                               fg=P["warn"] if mark == "✕" else P["text"], font=f10, anchor="w", justify="left",
-                               wraplength=max(180, int(TM.cfg().get("pad_w") or 300) - 24))
-                lab.pack(fill="x")
-                if mark == "✕":                             # 2.142.0: what the ✕ on the board means, on hover
-                    from .style import Tooltip
-                    Tooltip(lab, "✕ on the board: a tile next to a reward room. A room or path there connects it, "
-                                 "and the reward room destabilizes.")
+        f10 = (P["font"], self.ov_font(10))
+        wrap = max(180, int(TM.cfg().get("pad_w") or 300) - 24)
+        if not getattr(self, "tm_board", None):
+            tk.Label(box, text="Open the Temple Console.", bg=P["bg"], fg=P["muted"], font=f10, anchor="w").pack(
+                fill="x")
+            return
         plan = self.temple_plan_lines()
-        if plan:
-            tk.Frame(box, bg=P["head"], height=2).pack(fill="x", pady=(8, 4))
-            tk.Label(box, text="THE PLAN", bg=P["bg"], fg=P["muted"], font=(P["font"], self.ov_font(8), "bold"),
+        if not plan:
+            tk.Label(box, text="Nothing to plan with these cards.", bg=P["bg"], fg=P["muted"], font=f10,
                      anchor="w").pack(fill="x")
-            for mark, text in plan:
-                tk.Label(box, text=f"{mark} {text}", bg=P["bg"], fg=P["text"], font=f10, anchor="w", justify="left",
-                         wraplength=max(180, int(TM.cfg().get("pad_w") or 300) - 24)).pack(fill="x")
-        med = self.temple_medal_line()
-        if med:
-            tk.Frame(box, bg=P["head"], height=2).pack(fill="x", pady=(8, 4))
-            tk.Label(box, text=med, bg=P["bg"], fg=P["text"], font=f10, anchor="w", justify="left",
-                     wraplength=max(180, int(TM.cfg().get("pad_w") or 300) - 24)).pack(fill="x")
+        for mark, text in plan:
+            tk.Label(box, text=f"{mark}  {text}", bg=P["bg"], fg=P["text"], font=f10, anchor="w", justify="left",
+                     wraplength=wrap).pack(fill="x")

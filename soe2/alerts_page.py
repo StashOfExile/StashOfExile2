@@ -1178,6 +1178,10 @@ class AlertsPage:
                             self.breach_dismiss()
                         elif kind == "login":
                             self.br_relog = True             # 2.130.2: the character screen (any character)
+                            try:                             # 2.142.2 (feedback: Vaal Lens on the login screen):
+                                self.temple_area(None)       # out of the temple until an area says otherwise
+                            except Exception:
+                                self.log_error("Vaal Lens")
                         elif kind == "scene":
                             try:
                                 self.ws_scene(data.get("name"))      # 2.125.7: the Well by its name too
