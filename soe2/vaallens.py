@@ -618,3 +618,19 @@ def card_pick(img, lines, up=1.0):
     rest = sorted(glow[:best] + glow[best + 1:])
     mid = rest[len(rest) // 2] if rest else 0.0
     return names[best][0] if glow[best] >= 0.04 and glow[best] > 3 * mid else None
+
+
+def card_icons(img, names, up=1.0):
+    """The card list's picture and its cards [(name, y middle at `up` times)] -> {room family, or the card's name in
+    lower case: its picture} - the picture each card shows in its diamond (2.142.2: drawn on the board where it goes)."""
+    from . import vaallens_plan as VP
+    s = img.height / (CARD_BOX[3] - CARD_BOX[1])
+    cx = (DIAMOND_X[0] + DIAMOND_X[1]) / 2 * s
+    r = 32 * s                                  # (inside the diamond's gold frame)
+    out = {}
+    for name, y in names:
+        y = y / up
+        what = VP.card(name)
+        key = what[1] if what and what[0] == "room" else " ".join(str(name).lower().split())
+        out.setdefault(key, img.crop((int(cx - r), int(y - r), int(cx + r), int(y + r))))
+    return out

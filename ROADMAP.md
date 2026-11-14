@@ -4,7 +4,7 @@
 
 > **Who we build for - read second.** Path of Exile players are utilitarian: they love data and information, problem solving and creative thinking. So every feature shows its numbers *and how they were worked out*, lets you sort, filter, compare and export them (CSV), keeps power-user depth (keys, versions, raw data) one click away instead of hiding it, explains in plain words, and leaves the decision to the player. Pretty is welcome; vague is not.
 
-**Current version: 2.142.1**
+**Current version: 2.142.2**
 
 Versions follow Semantic Versioning 2.0.0, always written in full: 2.10.0 adds features, 2.10.1 only fixes. Each step below is one release; we work through them top to bottom.
 
@@ -276,6 +276,7 @@ Order (decided 2026-11-05): the page passes, then the Privacy & data hub, then t
 | 2.137.2 | Ritual Identifier and Temple Helper read a quarter of the screen bigger every other look: small labels found at any size. |
 | 2.138.0 | Map profit: Export CSV, and Clear all asks (export first, hide from the list, or delete). Leaderboards: Export my times. |
 | 2.138.1 | Fast Beacon Read (opt-in, Helpers › Temple): catches a Vaal Beacon's count as you stand on it. Alerts close with a click anywhere on them (no ×). |
+| 2.142.2 | Map profit knows exchange items by their exchange icons; Vaal Lens off the login screen. |
 | 2.142.1 | Vaal Lens: room medallions known by their room's picture. |
 | 2.142.0 | Vaal Lens: medallions (take or leave, your hand) and the hand's plan (Thaumaturge + Corruption Chamber, upgrade, lock). |
 | 2.141.0 | Vaal Lens callouts (BETA): 1 / 2 on the best tiles, ✕ where a reward room would be touched. |
@@ -435,6 +436,8 @@ One run record for the whole app (area, time, loadout, content, loot, profit) th
 - **Not doing (Ideas Board, 2026-11-09):** loot filter quick edits (FilterBlade does it), a missing-key warning, exchange rate history (poe.ninja's history is too thin), campaign layout hints (no free data), merchant earnings (the game and trade site have it), Character Appraisal (not yet), Scan stash Socketables (too many, change every league), map stats by waystone mod, map radar / memory readers, logged-in features, model price predictions.
 
 - **Bulk Pricing speed** (on the shelf): fewer searches per list, never more than the limits (no proxies / VPNs - clause 22). Check what the app already does, then: poe.ninja first for stackables and uniques, one search for identical items, reuse a recent result, 10 listings per fetch, fewer lowered tries when they rarely help, price obvious junk without a search unless ticked, run right at the limits the site sends back.
+- **Corruption outcome** (on the shelf; asked 2026-11-14): under Game Search - what corrupting an item can do to it.
+- **Boss DPS Tracker** (on the shelf; asked 2026-11-14; a helper): watches a boss's health bar - it stays on screen until the boss dies - and works out your damage per second from how fast it drops. Boss fights only; reads the screen, nothing else.
 - **Campaign guide pack refresh** (shelved until the 1.0 data is out - nothing can be done before it) for 0.5.5 and then 1.0: Dreadnought Vanguard is gone (Jamanra in The Dreadnought), Azarian moved to the Heart of Keth, the Waterways levers are pressure pads, the Primal Arena's +2 points moved to Omniphobia, the Whakapanu shark's permanent choice and Plunder's Point are missing, and about 10 Interlude zones are missing. 1.0 may bring Acts 5-6. The pace choice stays: Full rewards (normal pace), Speedrun and My own, each switching the optional steps on / off (2.89.0).
 - **One-key copy:** stays an experiment; Ctrl+Alt+C is the reliable way.
 - **Automatic loot logging, auto-syncing stash tabs:** too intrusive / too many trade-site requests.

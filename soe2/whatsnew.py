@@ -47,6 +47,18 @@ BETA_AREAS = ("Wealth", "Money Makers", "Game Search", "Market Insights", "Craft
 # repeats. Someone coming from rollup["since"] or older (or a fresh install) sees it instead of each version; someone
 # on a pre-release already saw them and gets only this version's own lines (notes_between).
 NOTES = {
+    "2.142.2": {
+        "big": [
+            ("◈", "Map Profit", "Knows exchange items by picture - no Ctrl+C to teach them.", None, "Overlay"),
+        ],
+        "small": [
+            ("Vaal Lens", "Leaves at the login screen."),
+            ("Vaal Lens", "Shows each card's picture where it goes, numbered. No lines."),
+            ("Vaal Lens", "Card shows only the plan."),
+            ("Vaal Lens", "Plans no room next to a reward room."),
+            ("Vaal Lens", "Shows in screen shares."),
+        ],
+    },
     "2.142.1": {
         "big": [],
         "small": [
