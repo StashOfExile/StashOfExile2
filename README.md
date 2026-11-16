@@ -90,7 +90,7 @@ From source (Python 3.12): `py -m pip install requests pystray pillow mss numpy 
 
 ## Community
 
-Questions and bug reports: [Discord](https://discord.gg/jG5uCDYgbR). Plans: [ROADMAP.md](ROADMAP.md).
+Questions and bug reports: [Discord](https://discord.gg/8dwn9kaGNr). Plans: [ROADMAP.md](ROADMAP.md).
 
 ## Credits
 
