@@ -1523,11 +1523,11 @@ class WealthPage:
             1 for _it, e, t, _s in getattr(self, "w_rows", []) if e is not None and self._w_trend(_it, t))
 
         def line(mark_word, value, tip, col):
-            f = tk.Frame(box, bg=C["odd"], padx=10, pady=6)
-            f.pack(fill="x", pady=(0, 6))
-            a = tk.Label(f, text=mark_word, bg=C["odd"], fg=C["text"], font=("Segoe UI", 11), anchor="w")
+            f = tk.Frame(box, bg=C["odd"], padx=8, pady=8)
+            f.pack(fill="x", pady=(0, 8))
+            a = tk.Label(f, text=mark_word, bg=C["odd"], fg=C["text"], font=("Segoe UI", 10), anchor="w")
             a.pack(side="left")
-            b = tk.Label(f, text=value, bg=C["odd"], fg=col, font=("Segoe UI", 14, "bold"), anchor="e")
+            b = tk.Label(f, text=value, bg=C["odd"], fg=col, font=("Segoe UI", 16, "bold"), anchor="e")
             b.pack(side="right")
             for x in (f, a, b):
                 Tooltip(x, tip)
@@ -1552,9 +1552,9 @@ class WealthPage:
                  C["green"] if more else C["red"])
         else:
             tk.Label(box, text="You hold more / less: needs a snapshot from about 7 days ago.", bg=P2, fg=C["muted"],
-                     anchor="w", font=("Segoe UI", 9)).pack(fill="x", pady=(0, 6))
+                     anchor="w", font=("Segoe UI", 9)).pack(fill="x", pady=(0, 8))
         tk.Label(box, text="BIGGEST PRICE MOVES", bg=P2, fg=C["muted"], anchor="w",
-                 font=("Segoe UI", 8, "bold")).pack(fill="x", pady=(2, 2))
+                 font=("Segoe UI", 9, "bold")).pack(fill="x", pady=(2, 2))
         for name, (qty, tot, pct, eff, pts) in sorted(moved.items(), key=lambda kv: -abs(kv[1][3]))[:3]:
             f = tk.Frame(box, bg=P2, cursor="hand2")
             f.pack(fill="x", pady=1)
@@ -1566,7 +1566,7 @@ class WealthPage:
             pc = tk.Label(f, text=self._w_pct(pct), bg=P2, fg=C["text"], width=9, anchor="e")
             pc.pack(side="right")
             sp = self._w_spark(f, pts)
-            sp.pack(side="right", padx=6)
+            sp.pack(side="right", padx=8)
             for x in [f, sp, pc, e] + parts:
                 x.bind("<Button-1>", lambda ev, n=name: self.wealth_pick_moved(n))
                 Tooltip(x, f"{qty:,} × price change {self._w_pct(pct)} = {self._w_signed(eff)}. Click for its week.")
@@ -1622,10 +1622,10 @@ class WealthPage:
                 ("Your worth", self._w_signed(eff),
                  f"You hold {qty:,}: {qty:,} × (price now − 7 days ago) = {self._w_signed(eff)}."))):
             c = tk.Frame(facts, bg=P2)
-            c.grid(row=0, column=k, sticky="w", padx=(0, 14))
-            a = tk.Label(c, text=lab.upper(), bg=P2, fg=C["muted"], font=("Segoe UI", 8, "bold"), anchor="w")
+            c.grid(row=0, column=k, sticky="w", padx=(0, 16))
+            a = tk.Label(c, text=lab.upper(), bg=P2, fg=C["muted"], font=("Segoe UI", 9, "bold"), anchor="w")
             a.pack(anchor="w")
-            b = tk.Label(c, text=val, bg=P2, fg=C["text"], font=("Segoe UI", 11, "bold"), anchor="w")
+            b = tk.Label(c, text=val, bg=P2, fg=C["text"], font=("Segoe UI", 12, "bold"), anchor="w")
             b.pack(anchor="w")
             for x in (c, a, b):
                 Tooltip(x, tip)
