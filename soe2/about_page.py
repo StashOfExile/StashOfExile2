@@ -236,6 +236,7 @@ class AboutPage:
             card.transient(self.root)
         except tk.TclError:
             pass
+        self._wn_notes_card = False             # (closing the quick start brings the lead next)
         self._whatsnew = card                   # same place / follow / keep-on-top as the what's new card
         self._wn_h = 420
         self.whatsnew_follow()
