@@ -28,43 +28,43 @@ def _keep_discord():
 
 _keep_discord()
 
-# (title, lines). Plain words: what it's for, then how to start.
+# (title, lines). 3.0.6 (owner: "a full clarity pass on that page"): each page is one plain line saying what it's
+# about, then a few rows - a name or key on the left, what it does in a few words on the right ((name, what) tuples).
 THEME_PAGE = "Pick your look"
+LEAGUE_PAGE = "Your league"
 QUICKSTART = [
     (THEME_PAGE, [
-        "Choose how the app looks - click one and it changes right away. You can change it any time in "
-        "Settings › Appearance.",
+        "Click a look and it changes at once. Change it any time in Settings › Appearance.",
     ]),
     ("Welcome to StashOfExile2", [
-        "A free toolkit that runs next to Path of Exile 2: it prices your items, keeps track of your maps and warns "
-        "you about things that are easy to miss in game.",
-        "It only reads what's yours: the game's own log file, and your clipboard or screen once per key press (a "
-        "copy key, or your Read Key - a key you set just for the helpers). Each read shows for a second. It never "
-        "touches the game itself, and every key does one thing.",
+        "A free helper that runs beside Path of Exile 2.",
+        ("Prices", "what your items are worth, from the official trade site and poe.ninja"),
+        ("Maps", "times your maps and counts what you bring home"),
+        ("Helpers", "warn you about things that are easy to miss in game"),
+        ("Safe", "it reads the game's log file, and your clipboard or screen only when you press a key - "
+                 "it never touches the game"),
     ]),
     ("Price an item", [
-        "Hover an item in game and press Ctrl+D. Price Checks shows what it's worth, every filter to tweak, and the "
-        "trade site's listings beside it.",
-        "Pricing lots of items? Press Ctrl+Alt+C on each: they're listed in Bulk Pricing with what they're worth and "
-        "what to list them for.",
-        "It works best on tablets, jewels and waystones. Got a whole tab of them? Bulk Pricing › Add items from › "
-        "Stash tab reads it in one go.",
+        "Hover an item in game and press a key.",
+        ("Ctrl+D", "one item: its price, its filters and the cheapest listings (Price Checks)"),
+        ("Ctrl+Alt+C", "many items: each joins one list with its price (Bulk Pricing)"),
+        ("Too few?", "↔ Broaden Search loosens the search one step a click"),
     ]),
     ("Find your way around", [
-        "The menu on the left opens every page. Ctrl+K (Go to anything) finds any page, part or setting by name.",
-        "Rate Mods: rate the mods you care about. Regex: build stash searches. Exchange Rates: what currency is "
-        "worth right now.",
+        "The menu on the left opens every page.",
+        ("Ctrl+K", "Go to anything: type the name of a page or a setting"),
+        ("Rate Mods", "mark the mods you care about - price checks use your ratings"),
+        ("Regex", "build searches to paste into your stash"),
+        ("Exchange Rates", "what each currency is worth right now"),
     ]),
     ("While you map", [
-        "Overlay: over the game. Click ▶ Start session on it to time your maps and count maps and deaths; "
-        "F6 hides or shows the whole overlay.",
-        "Overlay › Helpers can warn you when your Hiveblood is almost full (Breach), when you leave a map "
-        "with rituals left, and more. They work with or without a session.",
+        "The Overlay sits over the game.",
+        ("▶ Start session", "times your maps and counts maps and deaths"),
+        ("F6", "hides or shows the whole Overlay"),
+        ("Helpers", "warnings like a full Hiveblood or rituals left - switch them on in Overlay › Helpers"),
     ]),
-    ("Pick your league and say hi", [
-        "Prices come from your league. The newest one is picked for you; change it here or any time in Settings.",
-        "Questions, ideas or something broken? Join the Discord. Settings › About has the link, this guide and "
-        "what's new.",
+    (LEAGUE_PAGE, [
+        "Prices come from your league. The newest one is picked for you.",
     ]),
 ]
 
@@ -274,26 +274,45 @@ class AboutPage:
         P2 = C["panel2"]
         for w in self.qs_body.winfo_children():
             w.destroy()
+        grid = None
         for line in lines:
-            tk.Label(self.qs_body, text=line, bg=P2, fg=C["text"], anchor="w", justify="left", wraplength=560,
-                     font=("Segoe UI", 10)).pack(fill="x", pady=(0, 8))
+            if isinstance(line, str):
+                tk.Label(self.qs_body, text=line, bg=P2, fg=C["text"], anchor="w", justify="left", wraplength=560,
+                         font=("Segoe UI", 10)).pack(fill="x", pady=(0, 8))
+                continue
+            if grid is None:                                     # 3.0.6: name | what it does, one row each
+                grid = tk.Frame(self.qs_body, bg=P2)
+                grid.pack(fill="x", pady=(4, 0))
+                grid.columnconfigure(1, weight=1)
+            r = grid.grid_size()[1]
+            name, what = line
+            tk.Label(grid, text=name, bg=P2, fg=C["accent"], font=("Segoe UI", 10, "bold"), anchor="nw").grid(
+                row=r, column=0, sticky="nw", padx=(0, 16), pady=(0, 8))
+            tk.Label(grid, text=what, bg=P2, fg=C["text"], anchor="nw", justify="left", wraplength=420,
+                     font=("Segoe UI", 10)).grid(row=r, column=1, sticky="nw", pady=(0, 8))
         want_h = 640 if title == THEME_PAGE else 420             # 2.61.0: the theme cards need more room (3.0.2: 23)
         if getattr(self, "_wn_h", None) != want_h:
             self._wn_h = want_h
             self.whatsnew_follow()
         if title == THEME_PAGE:                                  # 2.61.0: a fresh install starts by picking a theme
             self.theme_cards(self.qs_body, "quickstart", cols=6, scale=0.5)    # 3.0.2: 23 themes - 6 a row, smaller
-        if self.qs_i == n - 1:
+        if title == LEAGUE_PAGE:
             row = tk.Frame(self.qs_body, bg=P2)
-            row.pack(fill="x", pady=(8, 0))
-            tk.Label(row, text="League", bg=P2, fg=C["accent"], font=("Segoe UI", 12, "bold")).pack(side="left")
+            row.pack(fill="x", pady=(4, 0))
+            tk.Label(row, text="League", bg=P2, fg=C["accent"], font=("Segoe UI", 10, "bold")).pack(side="left")
             self.wn_league = self.league_link(row, P2)          # 2.59.0: set in Settings › General
-            self.wn_league.pack(side="left", padx=8)
-            tk.Label(row, text="(click to change)", bg=P2, fg=C["muted"], font=("Segoe UI", 9)).pack(side="left")
+            self.wn_league.pack(side="left", padx=(16, 8))
+            tk.Label(row, text="click to change - also in Settings › General", bg=P2, fg=C["muted"],
+                     font=("Segoe UI", 9)).pack(side="left")
+            tk.Frame(self.qs_body, bg=C["line"], height=1).pack(fill="x", pady=16)
+            tk.Label(self.qs_body, text="Questions, ideas or something broken? Ask on our Discord.", bg=P2,
+                     fg=C["text"], anchor="w", font=("Segoe UI", 10)).pack(fill="x")
             d = tk.Label(self.qs_body, text="  💬  Join the Discord  ", bg=DISCORD, fg="#ffffff", cursor="hand2",
-                         font=("Segoe UI", 12, "bold"), pady=8)
-            d.pack(anchor="w", pady=(16, 0))
+                         font=("Segoe UI", 10, "bold"), pady=4)
+            d.pack(anchor="w", pady=(8, 0))
             d.bind("<Button-1>", lambda e: open_link(DISCORD_URL))
+            tk.Label(self.qs_body, text="This guide comes back from Settings › About.", bg=P2, fg=C["muted"],
+                     anchor="w", font=("Segoe UI", 9)).pack(fill="x", pady=(16, 0))
         self.qs_back.config(state="normal" if self.qs_i else "disabled")
         self.qs_next.config(text="Done" if self.qs_i == n - 1 else "Next")
 

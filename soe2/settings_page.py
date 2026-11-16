@@ -133,17 +133,6 @@ class SettingsPage:
                         command=self.on_copy_marker).pack(side="left")
         # 2.125.6 (feedback): no Shortcuts (skip a search the Mod Book agrees on / the model prices by itself) - off
 
-    def build_account_settings(self, section):
-        """2.123.0 (p2): from Price checking - Stash tab and Wealth use it, not price checks."""
-        lab = dict(bg=C["panel2"], fg=C["text"])
-        row = section("General", "Your account", "Your account name as the trade site shows it, like Name#1234. Read "
-                                                 "tab (Stash tab) and Wealth use it to find your public tabs.")
-        self.set_anchors["account"] = row.master
-        tk.Label(row, text="Account", **lab).pack(side="left", padx=(0, 8))
-        e = ttk.Entry(row, textvariable=self.acc_var, width=26)
-        e.pack(side="left")
-        e.bind("<Return>", lambda ev: self.root.focus_set())
-
     def settings_group(self, page, text, top=False, used=()):
         """2.120.0 (UX pass 2: hierarchy): a group title over the sections that belong together - brighter and bigger
         than a section's note, with a rule to the edge, so a long tab reads as a few groups. -> the frame.
@@ -199,17 +188,20 @@ class SettingsPage:
         self.fine_vars = getattr(self, "fine_vars", None) or {}
         spec = [f for f in self.FINE if keys is None or f[0] in keys]
         for r, (key, name, kind, lo, hi, step, note) in enumerate(spec):
-            tk.Label(g, text=name, bg=P2, fg=C["text"], anchor="w").grid(row=r, column=0, sticky="w", padx=(0, 12), pady=2)
-            if kind == "bool":
+            if kind == "bool":                          # 3.0.6 (owner): every ON | OFF first, then its words
                 v = tk.BooleanVar(value=bool(SETTINGS.get(key, DEFAULTS[key])))
-                ttk.Checkbutton(g, variable=v, command=lambda k=key: self.on_fine(k)).grid(row=r, column=1, sticky="w")
-            elif kind == "below":                       # 2.123.1: "10% below" (like other price checkers)
+                ttk.Checkbutton(g, text=name, variable=v, command=lambda k=key: self.on_fine(k)).grid(
+                    row=r, column=0, columnspan=2, sticky="w", pady=2)
+            else:
+                tk.Label(g, text=name, bg=P2, fg=C["text"], anchor="w").grid(row=r, column=0, sticky="w", padx=(0, 12),
+                                                                           pady=2)
+            if kind == "below":                       # 2.123.1: "10% below" (like other price checkers)
                 v = tk.StringVar(value=self._below_text(SETTINGS.get(key, DEFAULTS[key])))
                 cb = ttk.Combobox(g, textvariable=v, state="readonly", width=12,
                                   values=[self._below_text(1 - p / 100) for p in range(lo, hi + 1, step)])
                 cb.grid(row=r, column=1, sticky="w")
                 cb.bind("<<ComboboxSelected>>", lambda e, k=key: (self.on_fine(k), self.root.after(20, self.root.focus_set)))
-            else:
+            elif kind != "bool":
                 cur = SETTINGS.get(key, DEFAULTS[key])
                 v = tk.StringVar(value=str(round(float(cur) * 100)) if kind == "pct" else str(cur))
                 sp = ttk.Spinbox(g, from_=lo, to=hi, increment=step, width=6, textvariable=v,
@@ -217,8 +209,8 @@ class SettingsPage:
                 sp.grid(row=r, column=1, sticky="w")
                 sp.bind("<FocusOut>", lambda e, k=key: self.on_fine(k))
                 sp.bind("<Return>", lambda e, k=key: self.on_fine(k))
-            tk.Label(g, text=note, bg=P2, fg=C["muted"], font=("Segoe UI", 9), anchor="w").grid(row=r, column=2, sticky="w",
-                                                                                              padx=(8, 0))
+            tk.Label(g, text=note, bg=P2, fg=C["muted"], font=("Segoe UI", 9), anchor="w").grid(
+                row=r, column=2, sticky="w", padx=(8, 0))
             self.fine_vars[key] = v
         if defaults:
             ttk.Button(row.master, text="Defaults", style="Quiet.TButton",
@@ -317,7 +309,7 @@ class SettingsPage:
         self.league_box.pack(side="left")
         self.league_box.bind("<<ComboboxSelected>>", self.on_league)
         self.league_box.bind("<<ComboboxSelected>>", lambda e: self.root.after(20, self.root.focus_set), add="+")
-        self.build_account_settings(section)                     # 2.123.0 (p2): was Price checking › Account
+        # (3.0.6, owner: Your account moved to where it's used - Stash tab and Wealth, app.acc_link)
 
         # (2.120.0, UX pass 2: Game window title is in Settings › Advanced › Over the game)
 

@@ -192,8 +192,8 @@ BROADEN = "↔ Broaden Search"     # owner: the card's one orange button while a
 
 def broaden_offer(rec):
     """Owner (Broaden Search): the next widening step the card offers ({"next": its words, ...}), or None - an item
-    priced with too few listings (a white / blue base: its boxes; 3.0.6, any other: one mod fewer), a next step left
-    and no box changed since."""
+    priced with too few listings (a white / blue base: its boxes; 3.0.6, any other: values 10% then 20% looser, then
+    one mod fewer), a next step left and no box changed since."""
     b = rec.get("broaden")
     return b if b and rec.get("state") == "done" and not rec.get("changed") else None
 
@@ -301,7 +301,12 @@ class PriceCheckPage:
         """The card's orange button: ↔ Broaden Search runs the ladder's next step (one search, its boxes set to what
         is searched); otherwise the boxes as they are (Search again)."""
         b = broaden_offer(rec)
-        if b and b.get("drop"):                          # 3.0.6: every item - the offered mod out (fewer_offer)
+        if b and b.get("loosen"):                        # 3.0.6 (owner): values 10%, then 20% looser, before a mod goes
+            from .engine import apply_loosen
+            rec["broaden"] = None
+            apply_loosen(rec, b)
+            self.status_text, self.status_until = f"Searched with every value {b['loosen']}% looser", time.time() + 6
+        elif b and b.get("drop"):                          # 3.0.6: every item - the offered mod out (fewer_offer)
             from .trade import ov_key
             m = next((x for x in rec["item"]["mods"] if ov_key(x) == b["drop"]), None)
             rec["broaden"] = None
@@ -379,7 +384,8 @@ class PriceCheckPage:
         self.pcv = PCView(self.pc_left, self.pc_lcanvas, self.pc_list, self.pc_rcanvas, self.pc_count_lbl,
                           self.pc_open_btn)
         self.pcv.redraw = lambda: self.pc_draw_list(self.records.get(self.pc_rid))
-        self.pcv.recard = lambda: self.pc_show(self.records.get(self.pc_rid))
+        # 3.0.6 (owner: "screen flickers"): a new width draws the card again only - the listings follow their own width
+        self.pcv.recard = lambda: self.pc_show(self.records.get(self.pc_rid), card_only=True)
         self.pcv_fit(self.pcv, wrap, None)               # (2.123.3: no fixed share - the divider decides)
         self._pc_side_build(left)                        # drawer build: the price card beside the item (the Drawer)
         self._pc_lbox = self.pc_lcanvas.master
@@ -973,7 +979,7 @@ class PriceCheckPage:
         """2.97.0 (feedback: scale to fit, nothing cut off): the card's side takes about a third of the page (wider
         windows: fewer wrapped lines, so no scrollbar), and the card and the listings are drawn again for the width
         they have when the window changes size."""
-        state = {"page": 0, "card": 0, "list": 0, "after_card": None, "after_list": None}
+        state = {"page": 0, "after_card": None, "after_list": None}
 
         def side_w(pw):
             return max(lo, min(hi, int(pw * share)))
@@ -997,6 +1003,17 @@ class PriceCheckPage:
 
             def go():
                 state[slot] = None
+                try:                                     # 3.0.6 (owner: the Drawer "super laggy when trying to drag
+                    held = self._drawer_mouse_down()     # and resize it"): still dragging - drawn once, on release
+                except Exception:
+                    held = False
+                if held:
+                    state[slot] = self.root.after(150, go)
+                    return
+                if what == "card" and not card_off():   # (it fits now - nothing to draw)
+                    return
+                if what == "list" and not list_off():
+                    return
                 fn = v.recard if what == "card" else v.redraw
                 if fn is not None:
                     try:
@@ -1005,19 +1022,24 @@ class PriceCheckPage:
                         self.log_error("the price check view")
             state[slot] = self.root.after(150, go)
 
+        # 3.0.6 (owner: "doesn't update consistently ... sometimes the listings view is crunched"): compared with the
+        # width each was DRAWN for (not the last resize), so one drawn before the page had its width is drawn again
+        # once it has it - the end state no longer depends on timing
+        def card_off():
+            return getattr(v, "shown_rid", None) is not None and \
+                abs(self.pcv_wrap(v) - (getattr(v, "card_wrap", 0) or 0)) >= 8
+
+        def list_off():
+            return getattr(v, "list_shown", False) and \
+                abs(self._pc_list_w(v) - (getattr(v, "list_w", 0) or 0)) >= 8
+
         def card_cfg(e):
-            if abs(e.width - state["card"]) >= 12:
-                first = not state["card"]
-                state["card"] = e.width
-                if not first:
-                    later("card")
+            if card_off():
+                later("card")
 
         def list_cfg(e):
-            if abs(e.width - state["list"]) >= 12:
-                first = not state["list"]
-                state["list"] = e.width
-                if not first and v.cards:
-                    later("list")
+            if list_off():
+                later("list")
         if side is not None:
             page.bind("<Configure>", page_cfg, add="+")
         v.lcanvas.bind("<Configure>", card_cfg, add="+")
@@ -1045,11 +1067,24 @@ class PriceCheckPage:
             wrap = min(wrap, 620)
         return wrap
 
+    @staticmethod
+    def _pc_list_w(v):
+        """A listing card's width: what the listings have (2.97.0: inner padx 12 + 12)."""
+        try:
+            return max(420, v.rcanvas.winfo_width() - 24 - 2)
+        except tk.TclError:
+            return 420
+
     def _pc_scroller(self, parent, padx=0, bg_key="panel2"):
         bg = C[bg_key]
         box = tk.Frame(parent, bg=bg)
         box.pack(fill="both", expand=True)
         sb = ttk.Scrollbar(box, orient="vertical")
+        # 3.0.6 (owner: "janky ... flickers ... sometimes cropped and has scroll down, sometimes it doesn't"): the bar's
+        # room is kept when it's hidden (an empty strip as wide), so showing it never narrows the page - no re-wrap,
+        # no redraw, no bar flipping on and off
+        gap = tk.Frame(box, bg=bg, width=sb.winfo_reqwidth(), height=1)
+        gap.pack(side="right", fill="y")
         cv = tk.Canvas(box, bg=bg, highlightthickness=0, yscrollcommand=sb.set)
         cv.pack(side="left", fill="both", expand=True)
         sb.config(command=cv.yview)
@@ -1066,10 +1101,12 @@ class PriceCheckPage:
                 cv.configure(scrollregion=cv.bbox("all"))
                 need = inner.winfo_reqheight() > cv.winfo_height() + 1
                 if need and not sb.winfo_ismapped():
+                    gap.pack_forget()
                     sb.pack(side="right", fill="y", before=cv)
                     guard.flipped()
                 elif not need and sb.winfo_ismapped() and guard.may_hide():
                     sb.pack_forget()
+                    gap.pack(side="right", fill="y", before=cv)
                     guard.flipped()
                     cv.yview_moveto(0)
             except tk.TclError:
@@ -1271,6 +1308,7 @@ class PriceCheckPage:
         self.pc_refresh_hist()
         if rec is None:
             self.pc_verdict_paint(None)
+            self.pcv.shown_rid = None                    # (no card: nothing to draw again for a new width)
         P2 = C["panel2"]
         if rec is None and getattr(self, "_pc_btnrow", None) is not None:
             try:                                         # (the Drawer: the card's buttons go with the card)
@@ -1298,7 +1336,7 @@ class PriceCheckPage:
         P2, wrap = C["panel2"], self.pcv_wrap(v)
         same = getattr(v, "shown_rid", None) == rec["id"]        # 2.88.2: a tick on the same card keeps the scroll
         top = v.lcanvas.yview()[0] if same else 0
-        v.shown_rid = rec["id"]
+        v.shown_rid, v.card_wrap = rec["id"], wrap               # 3.0.6: the width it was drawn for (pcv_fit)
         self._card_no_price = v is getattr(self, "pcv", None)     # 2.123.0 (p4): the strip says the price
         try:
             self._detail_card(v.left, rec, rec["item"], wrap)
@@ -1350,19 +1388,9 @@ class PriceCheckPage:
         # 2.128.0 (feedback: froze here after a theme change - "not responding", stuck in update_idletasks): the
         # scroll goes back once the card is laid out, without forcing every pending resize of the app right now
         self.root.after_idle(lambda: v.lcanvas.winfo_exists() and v.lcanvas.yview_moveto(top))
-        if v is getattr(self, "pcv", None) and getattr(self, "_pc_dl", False):
-            self.root.after(250, lambda: self._pc_card_fits(v, card))     # (drawn before the page had its width)
+        # 3.0.6: (was a second draw 250 ms later, racing the resize's own) - drawn before the page had its width, it
+        # is drawn again once it has it: pcv_fit compares with card_wrap
         return card, btn
-
-    def _pc_card_fits(self, v, card):
-        """The Drawer: the card fills its side - drawn again once if it was drawn for another width."""
-        try:
-            if not card.winfo_exists() or v.lcanvas.winfo_width() <= 50:
-                return
-            if abs(card.winfo_reqwidth() - (self.pcv_wrap(v) + 12)) >= 12 and v.recard is not None:
-                v.recard()
-        except tk.TclError:
-            pass
 
     def pc_entries(self, rec):
         """The listings behind this item's price: the search the price came from (its first 10)."""
@@ -1450,6 +1478,7 @@ class PriceCheckPage:
         for w in v.lst.winfo_children():
             w.destroy()
         v.cards = []
+        v.list_shown, v.list_w = bool(entries), self._pc_list_w(v)     # 3.0.6: the width drawn for (pcv_fit)
         if entries is None:
             v.count.config(text=head or "")
             return
@@ -1460,7 +1489,7 @@ class PriceCheckPage:
             return
         if v is getattr(self, "pcv", None) and getattr(self, "_pc_dl", False):
             return self._pc_table(v, entries, total, n)          # drawer build: the cheapest listings as a table
-        width = max(420, v.rcanvas.winfo_width() - 24 - 2)          # 2.97.0: the width it has (inner padx 12 + 12)
+        width = v.list_w                                            # 2.97.0: the width it has (inner padx 12 + 12)
         for e in entries:
             v.cards.append(self._pc_card(v.lst, listing_facts(e), width))
         v.rcanvas.yview_moveto(0)

@@ -1,7 +1,9 @@
 """Price check, 3.0.6: Broaden Search for every item (owner: "for all price checks, similar to how we did bases").
 
-  * Too few listings and two or more mods ticked: the orange button is ↔ Broaden Search; its step searches without
-    the lowest-rated ticked mod (your Rate letter; unrated counts as C; a total goes last; the last on a tie).
+  * Too few listings: the orange button is ↔ Broaden Search. Owner (3.0.6 checklist): "reduce/expand values/ranges
+    first before removing mods. Maybe 10% variance, then 20%" - every ticked mod's values 10% looser, then 20% (from
+    the item's own values), then a search without the lowest-rated ticked mod (your Rate letter; unrated counts as C;
+    a total goes last; the last on a tie). A value you typed is yours: never loosened.
   * A box or tick changed since: the button says Search again (filters changed) instead.
 
     python3.12 -m unittest tests.test_broaden_all          (or tests/runall.sh)"""
@@ -52,6 +54,55 @@ class FewerOffer(unittest.TestCase):
 
     def test_one_mod_nothing_to_drop(self):
         self.assertIsNone(self.offer([mod("only")], {}))
+
+
+def vmod(text, value, sid="explicit.stat_1"):
+    m = mod(text, sid=sid)
+    m.update(value=value, lo=None, hi=None, min=None, max=None)
+    return m
+
+
+class Loosen(unittest.TestCase):
+    def setUp(self):
+        self.p = mock.patch("soe2.mods.vfilter", lambda m: dict(m["uval"]) if m.get("uval") else
+                            ({"min": m["value"]} if m.get("value") is not None else None))
+        self.p.start()
+
+    def tearDown(self):
+        self.p.stop()
+
+    def test_values(self):
+        self.assertEqual(engine.loosen_vals({"min": 144}, 10), {"min": 129.0})      # (a Min rounds down)
+        self.assertEqual(engine.loosen_vals({"max": -20}, 10), {"max": -18.0})     # (a Max goes up)
+        self.assertEqual(engine.loosen_vals({"min": 80, "max": 100}, 20), {"min": 64.0, "max": 120.0})
+        self.assertEqual(engine.loosen_vals({"min": 1.5}, 10), {"min": 1.35})
+
+    def test_ladder_10_20_then_a_mod(self):
+        life, arm = vmod("+144 to maximum Life", 144), vmod("+345 to Armour", 345, sid="explicit.stat_2")
+        rec = {"item": {"mods": [life, arm]}}
+        b = engine.broaden_step(rec, [life, arm])
+        self.assertEqual(b["loosen"], 10)
+        self.assertIn("10%", b["next"])
+        engine.apply_loosen(rec, b)
+        self.assertEqual(life["uval"]["min"], 129.0)
+        b = engine.broaden_step(rec, [life, arm])
+        self.assertEqual(b["loosen"], 20)
+        engine.apply_loosen(rec, b)
+        self.assertEqual(life["uval"]["min"], 115.0)               # 20% of 144, not 10% of 129
+        with mock.patch.object(ratemods, "key_for", lambda r, m: m["text"]), \
+                mock.patch.object(ratemods, "current", lambda keys: None):
+            b = engine.broaden_step(rec, [life, arm])
+        self.assertIn("drop", b)
+
+    def test_typed_value_is_yours(self):
+        life = vmod("+144 to maximum Life", 144)
+        life["uval"] = {"min": 100.0, "max": None}
+        self.assertIsNone(engine.loosen_offer({"item": {"mods": [life]}}, [life]))
+
+    def test_exact_roll_never_loosened(self):
+        m = vmod("Favours cost 10% increased tribute", 10)
+        m["exact"] = True
+        self.assertIsNone(engine.loosen_offer({"item": {"mods": [m]}}, [m]))
 
 
 class Button(unittest.TestCase):

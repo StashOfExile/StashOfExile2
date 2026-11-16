@@ -438,8 +438,9 @@ class Widening(unittest.TestCase):
                 continue
             qs, rec, _h = priced(it)
             self.assertFalse(rec.get("widened"), name)
-            b = rec.get("broaden")                       # 3.0.6 (owner): any other item broadens by one mod fewer
-            self.assertTrue(b is None or (b.get("drop") and str(b["next"]).startswith("without ")), name)
+            b = rec.get("broaden")                       # 3.0.6 (owner): any other item - values looser, then a mod out
+            self.assertTrue(b is None or b.get("loosen") == 10 or
+                            (b.get("drop") and str(b["next"]).startswith("without ")), name)
             self.assertNotIn("widened", rec["label"], name)
             self.assertNotIn("1week", json.dumps(qs), name)
 

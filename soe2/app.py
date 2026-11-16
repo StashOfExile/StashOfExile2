@@ -1223,10 +1223,10 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
             ("min_results", "Fewest listings for a price", "int", 1, 20, 1, "fewer than this: no price, only a hint"),
             ("spread_warn", "Warn when prices vary", "int", 0, 200, 5, "x - when the highest listing costs this many "
                                                                       "times the lowest (0 = off)"),
-            ("toast_secs", "Messages stay for", "int", 1, 60, 1, "seconds"),
             ("tray", "Put away to the system tray", "bool", 0, 0, 0, "takes effect when the app starts"))
+    # (3.0.6, owner: "messages stay for x seconds needs removed" - toasts keep their default time)
 
-    FINE_WINDOW = ("toast_secs", "tray")      # 2.116.0 (P10): on General › Window, not Price checking
+    FINE_WINDOW = ("tray",)                   # 2.116.0 (P10): on General › Window, not Price checking
 
 
 
@@ -2156,13 +2156,28 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         v = SETTINGS.get("wealth_account", "")
         return f"Account: {v}" if v else "Account: not set"
 
+    ACC_WHY = ("Your account name as the trade site shows it, like Name#1234. Only used to find your own public "
+               "stash tabs (Stash tab, Wealth). No password, no sign-in.")
+
     def acc_link(self, parent, bg):
-        """A small 'Account: Name ⚙' label that opens Settings › General › Your account (2.123.0)."""
+        """A small 'Account: Name' label; a click asks for it. 3.0.6 (owner: in Settings › General it "doesn't explain
+        what it's used for ... someone's gonna think is sketchy"): it lives only where it's used - Stash tab and
+        Wealth - and says why it's asked."""
+        from .style import Tooltip
         self.pc_vars()
         lbl = tk.Label(parent, text=self.acc_text(), bg=bg, fg=C["accent"], cursor="hand2", font=("Segoe UI", 9, "underline"))
-        lbl.bind("<Button-1>", lambda e: self.settings_open("General", "account"))
+        lbl.bind("<Button-1>", lambda e: self.acc_ask())
+        Tooltip(lbl, self.ACC_WHY)
         self.acc_links.append(lbl)
         return lbl
+
+    def acc_ask(self):
+        """The account name, asked where it's used (Stash tab, Wealth): one box, with what it's for."""
+        from tkinter import simpledialog
+        self.pc_vars()
+        v = simpledialog.askstring("Your account", self.ACC_WHY, initialvalue=self.acc_var.get())
+        if v is not None:
+            self.acc_var.set(v.strip())
 
 
 
@@ -5522,12 +5537,18 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
                 boxes["max"].config(highlightbackground=C["red"])
                 return False
             norm_auto = {k: (None if auto.get(k) is None else float(auto[k])) for k in ("min", "max")}
+            before = m.get("uval")
             if vals == norm_auto:
                 m.pop("uval", None)
             else:
                 m["uval"] = vals
                 for e in boxes.values():
                     e.config(highlightbackground=C["accent"])
+            if m.get("uval") != before:                   # owner (3.0.6 checklist): a value you type is a filter
+                rec["changed"] = True                     # change - the button says Search again, not Broaden
+                v_ = self._card_view(rec)
+                if v_ is not None or rec.get("src") == "pc":
+                    self._card_search_paint(rec, v_)
             self.dirty = True
             return True
         for e in boxes.values():

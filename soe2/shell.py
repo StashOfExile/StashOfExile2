@@ -877,6 +877,7 @@ class Shell:
         for cls in ("Tk", "Toplevel"):
             self.root.bind_class(cls, "<KeyPress>", self._stray_key, add="+")
         self.root.after(1000, self._tick)
+        self.root.bind("<Configure>", self._compact_now, add="+")
         for seq in ("<Control-k>", "<Control-K>"):                # UI overhaul: Go to anything
             self.root.bind_all(seq, lambda e: (self.goto(), "break")[1], add="+")
 
@@ -1967,8 +1968,7 @@ class Shell:
             self.refresh_dots()
             if self.sidebar is not None:                         # (the utilities' running dots)
                 self.sidebar.redraw()
-                look = getattr(self.app, "drawer_look_on", None)       # the Drawer: always the rail
-                self.sidebar.set_compact(bool(look and look()) or self.root.winfo_width() < 1100)
+                self._compact_now()
         except Exception:
             buglog.caught()
         try:
@@ -1976,6 +1976,19 @@ class Shell:
         except Exception:
             buglog.caught()
         self.root.after(2000, self._tick)
+
+    def _compact_now(self, e=None):
+        """The sidebar's rail or full width for the window's width - 3.0.6 (Price Checks feedback: the listings jumped
+        1-2 s after a resize): at once on a resize, not only on the 2 s tick."""
+        if e is not None and e.widget is not self.root:
+            return
+        if getattr(self, "sidebar", None) is None:
+            return
+        try:
+            look = getattr(self.app, "drawer_look_on", None)       # the Drawer: always the rail
+            self.sidebar.set_compact(bool(look and look()) or self.root.winfo_width() < 1100)
+        except Exception:
+            buglog.caught()
 
     # ---- the Toolkit menu
     def toggle_menu(self):

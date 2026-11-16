@@ -81,6 +81,93 @@ def fewer_offer(rec, ticked):
     shown = re.sub(r"\s+", " ", str(worst.get("shown") or worst.get("text") or "")).strip()
     return {"next": f"without {shown[:48]}", "drop": ov_key(worst), "text": worst.get("text")}
 
+LOOSEN_STEPS = (10, 20)     # owner: "reduce/expand values/ranges first before removing mods. Maybe 10% ... then 20%"
+
+
+def _loose_val(v, pct, down):
+    """One Min (down) or Max (up) moved pct% looser; whole numbers stay whole (a Min rounds down, a Max up)."""
+    import math
+    d = abs(v) * pct / 100.0
+    out = v - d if down else v + d
+    if float(v).is_integer():
+        return float(math.floor(out) if down else math.ceil(out))
+    return round(out, 2)
+
+
+def loosen_vals(orig, pct):
+    """{"min": .., "max": ..} -> the same, pct% looser (Min lower, Max higher)."""
+    out = {}
+    for k, v in (orig or {}).items():
+        if k in ("min", "max") and v is not None:
+            out[k] = _loose_val(float(v), pct, k == "min")
+    return out
+
+
+def _loosenable(m):
+    """A ticked mod whose values Broaden Search may loosen: it has a number to search (not a choice, not an exact
+    roll like Freedom of Faith's tribute), and you haven't typed your own since (a box you typed is yours)."""
+    from .mods import vfilter
+    if m.get("option") is not None or m.get("exact") or m.get("novalue"):
+        return False
+    if m.get("uval") is not None and m.get("uval") != m.get("loose_uval"):
+        return False
+    if m.get("pre_loose"):
+        return True
+    saved = m.pop("uval", None)
+    try:
+        f = vfilter(m) or {}
+    finally:
+        if saved is not None:
+            m["uval"] = saved
+    return any(f.get(k) not in (None, 0) for k in ("min", "max"))
+
+
+def loosen_offer(rec, ticked):
+    """3.0.6 (owner): Broaden Search's first steps for an item with mods - every ticked mod's values 10% looser, then
+    20% (from your item's own values, not compounded); after that fewer_offer drops a mod. None when done or nothing
+    has a number to loosen."""
+    from .trade import ov_key
+    lvl = int(rec.get("loosen") or 0)
+    nxt = next((p for p in LOOSEN_STEPS if p > lvl), None)
+    mods = [m for m in ticked if m.get("sid") and not str(m["sid"]).startswith(("equip:", "map:")) and _loosenable(m)]
+    if nxt is None or not mods:
+        return None
+    return {"next": f"every value {nxt}% looser (Min lower, Max higher)", "loosen": nxt,
+            "mods": [ov_key(m) for m in mods]}
+
+
+def apply_loosen(rec, offer):
+    """Broaden Search's loosen step: each offered mod's boxes set pct% looser than its own values (they show in Min /
+    Max, so you see what is searched). Returns how many mods changed."""
+    from .mods import vfilter
+    from .trade import ov_key
+    keys, pct, n = set(offer.get("mods") or ()), int(offer["loosen"]), 0
+    for m in (rec.get("item") or {}).get("mods") or []:
+        if ov_key(m) not in keys:
+            continue
+        orig = m.get("pre_loose")
+        if not orig:
+            saved = m.pop("uval", None)
+            try:
+                orig = vfilter(m) or {}
+            finally:
+                if saved is not None:
+                    m["uval"] = saved
+            m["pre_loose"] = orig
+        vals = loosen_vals(orig, pct)
+        if vals:
+            full = {"min": vals.get("min"), "max": vals.get("max")}
+            m["uval"] = m["loose_uval"] = full
+            n += 1
+    rec["loosen"] = pct
+    return n
+
+
+def broaden_step(rec, ticked):
+    """3.0.6: Broaden Search's next step for an item with mods - loosen the values (10%, then 20%), then one mod fewer."""
+    return loosen_offer(rec, ticked) or fewer_offer(rec, ticked)
+
+
 class Superseded(Exception):
     """(2.87.0) A Price Checks item's Search was pressed again: this pricing stops; the newer one runs."""
 
@@ -743,7 +830,9 @@ class Engine(TabReaderJobs, WealthJobs, StratCostJobs, threading.Thread):
         widened, broaden = gear.widen_state(item, base_o, default_opts(item), hours, not enough)   # owner: the card's
         # Widened line, and its Broaden Search (the ladder's next step - one search a click) while too few are found
         if broaden is None and not enough and not base_steps and not item.get("waystone"):
-            broaden = fewer_offer(rec, must + opt)            # 3.0.6 (owner): every item - the least-rated mod out
+            broaden = broaden_step(rec, must + opt)           # 3.0.6 (owner): every item - values looser, then a mod out
+        if not widened and rec.get("loosen") and not base_steps:   # (the card says how far the values were loosened)
+            widened = f"values {int(rec['loosen'])}% looser than your item's"
         if not some:
             return dict(blank, label=f"no listings match - not priced ({how.lower()})", widened="", broaden=broaden,
                         qid=stages[0]["qid"] if stages else None, nomatch=True, stages=stages)

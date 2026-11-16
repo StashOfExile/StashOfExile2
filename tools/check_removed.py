@@ -28,6 +28,10 @@ REMOVED = [
     ("3.0.6", "the Search with fewer mods button (owner: Broaden Search does it for every item - the orange button "
               "searches without the lowest-rated ticked mod; one name for it)",
      ("Search with fewer mods",), ()),
+    ("3.0.6", "Messages stay for, the Drawer's Width box and Settings › General › Your account (owner: \"needs removed\", "
+              "\"we don't need a width input box\" - drag its edge; the account is asked where it's used, Stash tab and "
+              "Wealth)",
+     ("Messages stay for", "% of the game's width"), ("_drawer_share_pick", "build_account_settings")),
     ("3.0.4", "Wealth prices typed by hand (owner: never ask for a price - poe.ninja, else the trade site's exchange, "
               "else No price found) and the Where it is card (owner: it told nothing; What moved it took its place)",
      ("Set my own price", "Use the market price again", "Double-click a price to set your own", "Where it is",

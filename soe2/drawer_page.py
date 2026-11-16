@@ -705,7 +705,11 @@ class DrawerHost:
             return self._drawer_do(st.unmaximized(), "restore")
         if not self.drawer_shown_as_drawer() or time.time() < self._drawer_showing_until:
             return
-        self._drawer_note_width()
+        # 3.0.6 (owner: "super laggy when trying to drag and resize it"): while the mouse is down nothing is looked
+        # up (the game's window, its size) - each pixel of a drag was a window search; the width is taken once, when
+        # you let go (_drawer_resized). Nothing re-docks meanwhile: the watcher waits for the release and this job.
+        if not self._drawer_mouse_down():
+            self._drawer_note_width()
         job = getattr(self, "_drawer_cfg_job", None)
         if job:
             try:
@@ -941,7 +945,6 @@ class DrawerHost:
         lab = dict(bg=P2, fg=C["text"])
         v = self._drawer_vars = {"shape": tk.StringVar(value=self.drawer_st.shape),
                                  "side": tk.StringVar(value=c["side"]),
-                                 "share": tk.IntVar(value=int(round(D.clamp_share(c["share"]) * 100))),
                                  "click": tk.BooleanVar(value=bool(c.get("click_away", True)))}
         r1 = tk.Frame(row, bg=P2)
         r1.pack(fill="x")
@@ -971,14 +974,7 @@ class DrawerHost:
         self._drawer_side_seg = SegBar(r2, ["Left", "Right"], value=v["side"].get().title(), size=10, pad=(16, 4),
                                        command=lambda o: (v["side"].set(o.lower()), self._drawer_side_pick()))
         self._drawer_side_seg.pack(side="left", padx=(0, 12))
-        tk.Label(r2, text="Width", **lab).pack(side="left", padx=(12, 8))
-        sp = ttk.Spinbox(r2, from_=int(D.SHARE_LO * 100), to=int(D.SHARE_HI * 100), increment=5, width=5,
-                         textvariable=v["share"], command=self._drawer_share_pick)
-        sp.pack(side="left")
-        sp.bind("<Return>", lambda e: self._drawer_share_pick())
-        sp.bind("<FocusOut>", lambda e: self._drawer_share_pick())
-        tk.Label(r2, text="% of the game's width (drag its inner edge too)", bg=P2, fg=C["muted"],
-                 font=("Segoe UI", 9)).pack(side="left", padx=(8, 0))
+        # (3.0.6, owner: "we don't need a width input box" - drag the Drawer's inner edge)
         r3 = tk.Frame(row, bg=P2)
         r3.pack(fill="x", pady=(8, 0))
         ttk.Checkbutton(r3, text="Put the Drawer away when I click the game", variable=v["click"],
@@ -999,7 +995,6 @@ class DrawerHost:
             v["side"].set(self.drawer_cfg()["side"])
             self._drawer_seg.pick(SHAPE_WORD.get(self.drawer_st.shape, "Full window"), notify=False)
             self._drawer_side_seg.pick(str(self.drawer_cfg()["side"]).title(), notify=False)
-            v["share"].set(int(round(float(self.drawer_cfg().get("share", D.SHARE)) * 100)))   # (a drag shows here)
             has_key = bool(self.drawer_key_label())
             self._drawer_rb_tip.text = "" if has_key else "Set a Drawer key first (Settings › Keybinds)"
             k = self.drawer_key_label()
@@ -1030,20 +1025,6 @@ class DrawerHost:
     def _drawer_side_pick(self):
         if self._drawer_vars["side"].get() != self.drawer_cfg()["side"]:
             self.drawer_flip_side()
-
-    def _drawer_share_pick(self):
-        try:
-            pct = int(float(self._drawer_vars["share"].get()))
-        except (tk.TclError, ValueError):
-            return
-        c = self.drawer_cfg()
-        share = D.clamp_share(pct / 100.0)
-        if pct == int(round(float(c.get("share", D.SHARE)) * 100)):
-            return                                       # (drawer-look: the box only left with the width shown -
-        # a dragged 43.7% is shown as 44, and leaving the box mustn't move the Drawer to 44%: that was a snap back)
-        c["share"], c["share_set"] = share, True
-        save_json("settings.json", SETTINGS)
-        self.drawer_redock(force=True)
 
     def _drawer_click_pick(self):
         on = bool(self._drawer_vars["click"].get())

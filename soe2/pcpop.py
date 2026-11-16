@@ -582,7 +582,8 @@ class PricePopup:
         from .style import Tooltip
         go = self._pcpop_btn(search_word(rec), lambda: self._pcpop_go(rec), primary=True)     # (owner: ↔ Broaden
         go.pack(side="left")                                                             # Search - one step a click)
-        Tooltip(go, search_tip(rec))
+        go._search_tip = Tooltip(go, search_tip(rec))
+        self.pp_go = go
         tb = self._pcpop_btn("Trade Site", self.pc_open_trade, enabled=bool(rec.get("qid")))
         trade_icon(tb, color=tb.cget("fg"), size=14).pack(side="left", padx=(8, 0))
         self._pcpop_btn("Open in app", lambda: self._pcpop_in_app(rec)).pack(side="right")
@@ -786,9 +787,10 @@ class PricePopup:
                         e2.config(highlightbackground=C["red"])
                         return False
                 vals = {k2: v2 for k2, v2 in vals.items() if v2 is not None}
+                before = (rec.get("opts") or {}).get(k_)
                 self.search_opt_set(rec, k_, vals or None, redraw=False)
-                rec["changed"] = True
-                self.dirty = True
+                if (rec.get("opts") or {}).get(k_) != before:
+                    self._pcpop_changed(rec)
                 return True
             for k, e in boxes.items():
                 e.keep = keep                                 # (tests call it, as on the mods' boxes)
@@ -872,14 +874,15 @@ class PricePopup:
                 boxes["max"].config(highlightbackground=C["red"])
                 return False
             norm_auto = {k: (None if auto.get(k) is None else float(auto[k])) for k in ("min", "max")}
+            before = m.get("uval")
             if vals == norm_auto:
                 m.pop("uval", None)
             else:
                 m["uval"] = vals
                 for e in boxes.values():
                     e.config(highlightbackground=P["accent"])
-            rec["changed"] = True
-            self.dirty = True
+            if m.get("uval") != before:
+                self._pcpop_changed(rec)
             return True
         for key, e in boxes.items():
             e.keep = keep                                 # (tests call it: no window manager there to focus a box)
@@ -887,6 +890,23 @@ class PricePopup:
             e.bind("<Return>", lambda _e: self._pcpop_enter(rec, keep))
             self._pcpop_box(e, ("mod", id(m), key), lambda: self._pcpop_tick(rec, m, True))
         return boxes
+
+    def _pcpop_changed(self, rec):
+        """3.0.6 (owner: the button kept saying Broaden after a value was typed): a box you changed is a filter change -
+        the orange button says Search at once (the card isn't drawn again, so the box keeps the keyboard)."""
+        rec["changed"] = True
+        self.dirty = True
+        go = getattr(self, "pp_go", None)
+        if go is None:
+            return
+        from .pricecheck_page import search_tip, search_word
+        try:
+            go.config(text=search_word(rec))
+            tip = getattr(go, "_search_tip", None)
+            if tip is not None:
+                tip.text = search_tip(rec)
+        except tk.TclError:
+            pass
 
     def _pcpop_go(self, rec):
         """Search again / ↔ Broaden Search: what you typed is searched, and the card shows what it found."""
