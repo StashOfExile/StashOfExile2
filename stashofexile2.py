@@ -2,7 +2,7 @@ r"""
 StashOfExile2 - a Path of Exile 2 price checker for tablets and jewels, with a window instead of a text dump.
 Free software under the GNU AGPL v3.0 (see LICENSE; up to 2.129.4: GNU GPL v3.0). Written by an AI (Claude, by Anthropic) under a human's direction.
 
-VERSION 3.0.1
+VERSION 3.0.2
   How versions are numbered (from 2.0.0 on):
     MAJOR.MINOR.PATCH.  The 22 betas ended here: this build is 2.0.0. From now on every build gets a plain number:
       2.0.1, 2.0.2 ...  fixes (nothing new to learn)
@@ -19,6 +19,11 @@ VERSION 3.0.1
   version (settings.json, session.json, modbook.json, mod_rules.json, wealth.json, tabs.txt ...).
 
 VERSION HISTORY
+  3.0.2
+       - New themes (MIT, credited in README / THIRD_PARTY_NOTICES / About): Catppuccin Mocha and Latte, Nord, Dracula,
+         Tokyo Night, Rosé Pine and Rosé Pine Dawn, Everforest Dark, Kanagawa (Wave), Solarized Dark and Light - with
+         their previews in Settings › Appearance; Quick start's "Pick your look" fits all 23 themes.
+       - The new Discord invite (discord.gg/8dwn9kaGNr). Craft Helper: jewels start magic (no white jewels).
   3.0.1
        - The Look key is the Read Key (owner: "ctrl + shift + r = Read. R for Read."): names.py, every label, tip,
          helper line, What's new, README / TOS / docs and tests. Its setting is still look_key; its NEW chip's seen
@@ -3903,7 +3908,7 @@ THE "LEARNING" PART
 import os
 import sys
 
-APP_VERSION = "3.0.1"  # bump this and __version__ in soe2/__init__.py together (see VERSION above)
+APP_VERSION = "3.0.2"  # bump this and __version__ in soe2/__init__.py together (see VERSION above)
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 

@@ -28,7 +28,7 @@ jobs:
             TAG="v${WANT#v}"
           else
             TAG=$(gh release list -R "$REPO" --limit 30 --json tagName,isPrerelease,isDraft \
-                  --jq '[.[] | select(.isPrerelease and (.isDraft | not))][0].tagName')
+                  --jq '[.[] | select(.isPrerelease and (.isDraft | not) and (.tagName | endswith("-linux-preview") | not))][0].tagName')
           fi
           if [ -z "$TAG" ] || [ "$TAG" = "null" ]; then echo "::error::No preview to promote."; exit 1; fi
           gh release edit "$TAG" -R "$REPO" --prerelease=false --latest

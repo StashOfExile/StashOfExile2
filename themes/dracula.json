@@ -1,0 +1,246 @@
+{
+ "schema": 1,
+ "id": "dracula",
+ "name": "Dracula",
+ "order": 16,
+ "extends": "daybreak",
+ "description": "The dark vampire scheme: purple-gray night, bright text, purple and pink (Dracula, MIT).",
+ "colors": {
+  "chassis": "#191a21",
+  "surface": "#21222c",
+  "surface_raised": "#282a36",
+  "surface_sunken": "#191a21",
+  "surface_high": "#44475a",
+  "border": "#343746",
+  "border_light": "#44475a",
+  "border_dark": "#14151b",
+  "shadow": "#000000",
+  "text": "#f8f8f2",
+  "text_muted": "#8894ba",
+  "text_strong": "#ffffff",
+  "text_disabled": "#6272a4",
+  "accent": "#bd93f9",
+  "accent_2": "#ff79c6",
+  "selection": "#44475a",
+  "selection_text": "#f8f8f2",
+  "hover": "#44475a",
+  "stripe": "#1d1e26",
+  "good": "#50fa7b",
+  "warn": "#f1fa8c",
+  "bad": "#ff6e6e",
+  "money": "#f1fa8c",
+  "link": "#8be9fd",
+  "purple": "#ff79c6",
+  "orange": "#ffb86c"
+ },
+ "fonts": {
+  "head": [
+   "Segoe UI Semibold",
+   "Segoe UI",
+   "DejaVu Sans"
+  ],
+  "num": [
+   "Consolas",
+   "Segoe UI",
+   "DejaVu Sans Mono"
+  ]
+ },
+ "bars": {
+  "title": {
+   "fill": [
+    [
+     0,
+     "#44475a"
+    ],
+    [
+     1,
+     "#282a36"
+    ]
+   ],
+   "top": "#44475a",
+   "bottom": "#191a21",
+   "text": "#ffffff",
+   "texture": "none"
+  },
+  "title_off": {
+   "fill": [
+    [
+     0,
+     "#282a36"
+    ],
+    [
+     1,
+     "#21222c"
+    ]
+   ],
+   "top": "#343746",
+   "bottom": "#191a21",
+   "text": "text_muted",
+   "texture": "none"
+  },
+  "section": {
+   "fill": [
+    [
+     0,
+     "#282a36"
+    ],
+    [
+     1,
+     "#21222c"
+    ]
+   ],
+   "top": "#343746",
+   "bottom": "#191a21",
+   "text": "#ff79c6",
+   "texture": "none"
+  }
+ },
+ "buttons": {
+  "normal": {
+   "fill": [
+    [
+     0,
+     "#545660"
+    ],
+    [
+     1,
+     "#424450"
+    ]
+   ],
+   "hover": [
+    [
+     0,
+     "#63646d"
+    ],
+    [
+     1,
+     "#51525d"
+    ]
+   ],
+   "pressed": [
+    [
+     0,
+     "#282a36"
+    ],
+    [
+     1,
+     "#424450"
+    ]
+   ],
+   "border": "#14151b",
+   "hover_border": "#bd93f9",
+   "inner": "#666870",
+   "radius": 2,
+   "text": "text",
+   "text_hover": "text_strong"
+  },
+  "primary": {
+   "fill": [
+    [
+     0,
+     "#c29cf9"
+    ],
+    [
+     1,
+     "#a681db"
+    ]
+   ],
+   "hover": [
+    [
+     0,
+     "#caa9fa"
+    ],
+    [
+     1,
+     "#c097f9"
+    ]
+   ],
+   "pressed": [
+    [
+     0,
+     "#8467ae"
+    ],
+    [
+     1,
+     "#a681db"
+    ]
+   ],
+   "border": "#14151b",
+   "hover_border": "#14151b",
+   "inner": "#d4b9fb",
+   "radius": 2,
+   "text": "#191a21",
+   "text_hover": "#191a21"
+  },
+  "heading": {
+   "fill": [
+    [
+     0,
+     "#282a36"
+    ],
+    [
+     1,
+     "#21222c"
+    ]
+   ],
+   "hover": [
+    [
+     0,
+     "#44475a"
+    ],
+    [
+     1,
+     "#282a36"
+    ]
+   ],
+   "pressed": [
+    [
+     0,
+     "#21222c"
+    ],
+    [
+     1,
+     "#44475a"
+    ]
+   ],
+   "border": "#14151b",
+   "hover_border": "#14151b",
+   "inner": "#44475a",
+   "radius": 0,
+   "text": "#f8f8f2",
+   "text_hover": "accent"
+  }
+ },
+ "card": {
+  "header": "plate",
+  "border": "#44475a",
+  "sep": "#343746"
+ },
+ "meter": {
+  "style": "bar",
+  "on": "#50fa7b",
+  "off": "#44475a",
+  "lcd_bg": "#191a21"
+ },
+ "nav": {
+  "bg": "surface_raised",
+  "marker": "pill",
+  "marker_color": "accent",
+  "sel_bg": "#44475a",
+  "hover_bg": "#44475a",
+  "text": "text",
+  "sel_text": "#ffffff",
+  "group": "#8894ba",
+  "texture": "none"
+ },
+ "panels": {
+  "viewport": {
+   "edges": [
+    [
+     "#14151b",
+     "#343746"
+    ]
+   ]
+  }
+ }
+}

@@ -769,8 +769,8 @@ class SettingsPage:
             if scale != 1.0:
                 cv.scale("all", 0, 0, scale, scale)
             name = tk.Label(card, text=t.name, bg=P2, fg=C["text"], font=("Segoe UI", 10 if scale >= 1 else 9, "bold"),
-                            anchor="w")
-            name.pack(fill="x", pady=(4, 0))
+                            anchor="w", justify="left", wraplength=w)      # 3.0.2: a long name wraps under its card
+            name.pack(anchor="w", pady=(4, 0))                 # (not fill: the app's re-wrap would widen it)
             if t.data.get("description"):
                 Tooltip(card, t.data["description"])
             for wd in (card, cv, name):

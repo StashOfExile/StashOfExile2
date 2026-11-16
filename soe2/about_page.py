@@ -12,7 +12,7 @@ from .style import C, FONT_TITLE, Tooltip
 from .updates import REPO
 
 GITHUB_URL = f"https://github.com/{REPO}"
-DISCORD_URL = "https://discord.gg/jG5uCDYgbR"
+DISCORD_URL = "https://discord.gg/8dwn9kaGNr"
 DISCORD = "#5865F2"
 DISCORD_HOVER = "#4752c4"
 
@@ -94,6 +94,22 @@ CREDITS = (
      "https://github.com/saxe78/poe2pricer"),
     ("gruvbox by Pavel Pertsev (morhetz)", "the colors of the Gruvbox Dark and Gruvbox Light themes (MIT)",
      "https://github.com/morhetz/gruvbox"),
+    ("Catppuccin by the Catppuccin team", "the colors of the Catppuccin Mocha and Catppuccin Latte themes (MIT)",
+     "https://github.com/catppuccin/catppuccin"),
+    ("Nord by Sven Greb (Arctic Ice Studio)", "the colors of the Nord theme (MIT)",
+     "https://github.com/nordtheme/nord"),
+    ("Dracula by Zeno Rocha and the Dracula Theme team", "the colors of the Dracula theme (MIT)",
+     "https://github.com/dracula/dracula-theme"),
+    ("Tokyo Night by Enkia", "the colors of the Tokyo Night theme (MIT)",
+     "https://github.com/enkia/tokyo-night-vscode-theme"),
+    ("Rosé Pine by the Rosé Pine team", "the colors of the Rosé Pine and Rosé Pine Dawn themes (MIT)",
+     "https://github.com/rose-pine/rose-pine-theme"),
+    ("Everforest by sainnhe", "the colors of the Everforest Dark theme (MIT)",
+     "https://github.com/sainnhe/everforest"),
+    ("Kanagawa by Tommaso Laurenzi (rebelot)", "the colors of the Kanagawa theme (MIT)",
+     "https://github.com/rebelot/kanagawa.nvim"),
+    ("Solarized by Ethan Schoonover", "the colors of the Solarized Dark and Solarized Light themes (MIT)",
+     "https://github.com/altercation/solarized"),
     ("NeverSink and Ryonnen (reddit)", "the game's hidden setting that applies your item filter to the Ritual window "
                                        "(Filter in the Ritual window).", "https://www.youtube.com/watch?v=6hiQtcQhB3k"),
     ("Path of Building PoE2 (PathOfBuildingCommunity)", "the anoint recipes.", "https://github.com/PathOfBuildingCommunity/PathOfBuilding-PoE2"),
@@ -260,12 +276,12 @@ class AboutPage:
         for line in lines:
             tk.Label(self.qs_body, text=line, bg=P2, fg=C["text"], anchor="w", justify="left", wraplength=560,
                      font=("Segoe UI", 10)).pack(fill="x", pady=(0, 8))
-        want_h = 600 if title == THEME_PAGE else 420             # 2.61.0: the theme cards need more room
+        want_h = 640 if title == THEME_PAGE else 420             # 2.61.0: the theme cards need more room (3.0.2: 23)
         if getattr(self, "_wn_h", None) != want_h:
             self._wn_h = want_h
             self.whatsnew_follow()
         if title == THEME_PAGE:                                  # 2.61.0: a fresh install starts by picking a theme
-            self.theme_cards(self.qs_body, "quickstart", cols=4, scale=0.78)
+            self.theme_cards(self.qs_body, "quickstart", cols=6, scale=0.5)    # 3.0.2: 23 themes - 6 a row, smaller
         if self.qs_i == n - 1:
             row = tk.Frame(self.qs_body, bg=P2)
             row.pack(fill="x", pady=(8, 0))

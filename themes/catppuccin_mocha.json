@@ -1,0 +1,246 @@
+{
+ "schema": 1,
+ "id": "catppuccin_mocha",
+ "name": "Catppuccin Mocha",
+ "order": 13,
+ "extends": "daybreak",
+ "description": "The soothing pastel scheme, dark: deep blue-gray, soft lavender text, mauve (Catppuccin, MIT).",
+ "colors": {
+  "chassis": "#11111b",
+  "surface": "#1e1e2e",
+  "surface_raised": "#313244",
+  "surface_sunken": "#181825",
+  "surface_high": "#45475a",
+  "border": "#313244",
+  "border_light": "#45475a",
+  "border_dark": "#11111b",
+  "shadow": "#000000",
+  "text": "#cdd6f4",
+  "text_muted": "#a6adc8",
+  "text_strong": "#cdd6f4",
+  "text_disabled": "#6c7086",
+  "accent": "#cba6f7",
+  "accent_2": "#b4befe",
+  "selection": "#45475a",
+  "selection_text": "#cdd6f4",
+  "hover": "#45475a",
+  "stripe": "#1b1b29",
+  "good": "#a6e3a1",
+  "warn": "#f9e2af",
+  "bad": "#f38ba8",
+  "money": "#f9e2af",
+  "link": "#89b4fa",
+  "purple": "#f5c2e7",
+  "orange": "#fab387"
+ },
+ "fonts": {
+  "head": [
+   "Segoe UI Semibold",
+   "Segoe UI",
+   "DejaVu Sans"
+  ],
+  "num": [
+   "Consolas",
+   "Segoe UI",
+   "DejaVu Sans Mono"
+  ]
+ },
+ "bars": {
+  "title": {
+   "fill": [
+    [
+     0,
+     "#45475a"
+    ],
+    [
+     1,
+     "#313244"
+    ]
+   ],
+   "top": "#45475a",
+   "bottom": "#11111b",
+   "text": "#cdd6f4",
+   "texture": "none"
+  },
+  "title_off": {
+   "fill": [
+    [
+     0,
+     "#313244"
+    ],
+    [
+     1,
+     "#1e1e2e"
+    ]
+   ],
+   "top": "#313244",
+   "bottom": "#11111b",
+   "text": "text_muted",
+   "texture": "none"
+  },
+  "section": {
+   "fill": [
+    [
+     0,
+     "#313244"
+    ],
+    [
+     1,
+     "#1e1e2e"
+    ]
+   ],
+   "top": "#313244",
+   "bottom": "#11111b",
+   "text": "#b4befe",
+   "texture": "none"
+  }
+ },
+ "buttons": {
+  "normal": {
+   "fill": [
+    [
+     0,
+     "#535569"
+    ],
+    [
+     1,
+     "#45475a"
+    ]
+   ],
+   "hover": [
+    [
+     0,
+     "#5d6176"
+    ],
+    [
+     1,
+     "#505266"
+    ]
+   ],
+   "pressed": [
+    [
+     0,
+     "#313244"
+    ],
+    [
+     1,
+     "#45475a"
+    ]
+   ],
+   "border": "#11111b",
+   "hover_border": "#cba6f7",
+   "inner": "#606479",
+   "radius": 2,
+   "text": "text",
+   "text_hover": "text_strong"
+  },
+  "primary": {
+   "fill": [
+    [
+     0,
+     "#cfadf8"
+    ],
+    [
+     1,
+     "#b392d9"
+    ]
+   ],
+   "hover": [
+    [
+     0,
+     "#d5b8f9"
+    ],
+    [
+     1,
+     "#cdaaf7"
+    ]
+   ],
+   "pressed": [
+    [
+     0,
+     "#8e74ad"
+    ],
+    [
+     1,
+     "#b392d9"
+    ]
+   ],
+   "border": "#11111b",
+   "hover_border": "#11111b",
+   "inner": "#ddc5fa",
+   "radius": 2,
+   "text": "#11111b",
+   "text_hover": "#11111b"
+  },
+  "heading": {
+   "fill": [
+    [
+     0,
+     "#313244"
+    ],
+    [
+     1,
+     "#1e1e2e"
+    ]
+   ],
+   "hover": [
+    [
+     0,
+     "#45475a"
+    ],
+    [
+     1,
+     "#313244"
+    ]
+   ],
+   "pressed": [
+    [
+     0,
+     "#1e1e2e"
+    ],
+    [
+     1,
+     "#45475a"
+    ]
+   ],
+   "border": "#11111b",
+   "hover_border": "#11111b",
+   "inner": "#45475a",
+   "radius": 0,
+   "text": "#cdd6f4",
+   "text_hover": "accent"
+  }
+ },
+ "card": {
+  "header": "plate",
+  "border": "#45475a",
+  "sep": "#313244"
+ },
+ "meter": {
+  "style": "bar",
+  "on": "#a6e3a1",
+  "off": "#45475a",
+  "lcd_bg": "#181825"
+ },
+ "nav": {
+  "bg": "surface_raised",
+  "marker": "pill",
+  "marker_color": "accent",
+  "sel_bg": "#45475a",
+  "hover_bg": "#45475a",
+  "text": "text",
+  "sel_text": "#cdd6f4",
+  "group": "#a6adc8",
+  "texture": "none"
+ },
+ "panels": {
+  "viewport": {
+   "edges": [
+    [
+     "#11111b",
+     "#313244"
+    ]
+   ]
+  }
+ }
+}

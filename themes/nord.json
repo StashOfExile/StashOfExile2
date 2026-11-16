@@ -1,0 +1,246 @@
+{
+ "schema": 1,
+ "id": "nord",
+ "name": "Nord",
+ "order": 15,
+ "extends": "daybreak",
+ "description": "The arctic, north-bluish scheme: polar-night gray, snow-white text, frost blue (Nord by Sven Greb, MIT).",
+ "colors": {
+  "chassis": "#242933",
+  "surface": "#292e39",
+  "surface_raised": "#2e3440",
+  "surface_sunken": "#242933",
+  "surface_high": "#3b4252",
+  "border": "#3b4252",
+  "border_light": "#434c5e",
+  "border_dark": "#1d2129",
+  "shadow": "#000000",
+  "text": "#d8dee9",
+  "text_muted": "#999faa",
+  "text_strong": "#eceff4",
+  "text_disabled": "#4c566a",
+  "accent": "#88c0d0",
+  "accent_2": "#8fbcbb",
+  "selection": "#434c5e",
+  "selection_text": "#eceff4",
+  "hover": "#3b4252",
+  "stripe": "#272c36",
+  "good": "#a3be8c",
+  "warn": "#ebcb8b",
+  "bad": "#d29096",
+  "money": "#ebcb8b",
+  "link": "#82a2c2",
+  "purple": "#b894b1",
+  "orange": "#d38e79"
+ },
+ "fonts": {
+  "head": [
+   "Segoe UI Semibold",
+   "Segoe UI",
+   "DejaVu Sans"
+  ],
+  "num": [
+   "Consolas",
+   "Segoe UI",
+   "DejaVu Sans Mono"
+  ]
+ },
+ "bars": {
+  "title": {
+   "fill": [
+    [
+     0,
+     "#3b4252"
+    ],
+    [
+     1,
+     "#2e3440"
+    ]
+   ],
+   "top": "#434c5e",
+   "bottom": "#242933",
+   "text": "#eceff4",
+   "texture": "none"
+  },
+  "title_off": {
+   "fill": [
+    [
+     0,
+     "#2e3440"
+    ],
+    [
+     1,
+     "#292e39"
+    ]
+   ],
+   "top": "#3b4252",
+   "bottom": "#242933",
+   "text": "text_muted",
+   "texture": "none"
+  },
+  "section": {
+   "fill": [
+    [
+     0,
+     "#2e3440"
+    ],
+    [
+     1,
+     "#292e39"
+    ]
+   ],
+   "top": "#3b4252",
+   "bottom": "#242933",
+   "text": "#82a2c2",
+   "texture": "none"
+  }
+ },
+ "buttons": {
+  "normal": {
+   "fill": [
+    [
+     0,
+     "#4b5261"
+    ],
+    [
+     1,
+     "#3b4252"
+    ]
+   ],
+   "hover": [
+    [
+     0,
+     "#575e6d"
+    ],
+    [
+     1,
+     "#484e5e"
+    ]
+   ],
+   "pressed": [
+    [
+     0,
+     "#2e3440"
+    ],
+    [
+     1,
+     "#3b4252"
+    ]
+   ],
+   "border": "#1d2129",
+   "hover_border": "#88c0d0",
+   "inner": "#5a6170",
+   "radius": 2,
+   "text": "text",
+   "text_hover": "text_strong"
+  },
+  "primary": {
+   "fill": [
+    [
+     0,
+     "#92c5d4"
+    ],
+    [
+     1,
+     "#78a9b7"
+    ]
+   ],
+   "hover": [
+    [
+     0,
+     "#a0cdd9"
+    ],
+    [
+     1,
+     "#8dc3d2"
+    ]
+   ],
+   "pressed": [
+    [
+     0,
+     "#5f8692"
+    ],
+    [
+     1,
+     "#78a9b7"
+    ]
+   ],
+   "border": "#1d2129",
+   "hover_border": "#1d2129",
+   "inner": "#b2d6e0",
+   "radius": 2,
+   "text": "#242933",
+   "text_hover": "#242933"
+  },
+  "heading": {
+   "fill": [
+    [
+     0,
+     "#2e3440"
+    ],
+    [
+     1,
+     "#292e39"
+    ]
+   ],
+   "hover": [
+    [
+     0,
+     "#3b4252"
+    ],
+    [
+     1,
+     "#2e3440"
+    ]
+   ],
+   "pressed": [
+    [
+     0,
+     "#292e39"
+    ],
+    [
+     1,
+     "#3b4252"
+    ]
+   ],
+   "border": "#1d2129",
+   "hover_border": "#1d2129",
+   "inner": "#3b4252",
+   "radius": 0,
+   "text": "#d8dee9",
+   "text_hover": "accent"
+  }
+ },
+ "card": {
+  "header": "plate",
+  "border": "#434c5e",
+  "sep": "#3b4252"
+ },
+ "meter": {
+  "style": "bar",
+  "on": "#a3be8c",
+  "off": "#3b4252",
+  "lcd_bg": "#242933"
+ },
+ "nav": {
+  "bg": "surface_raised",
+  "marker": "pill",
+  "marker_color": "accent",
+  "sel_bg": "#434c5e",
+  "hover_bg": "#3b4252",
+  "text": "text",
+  "sel_text": "#eceff4",
+  "group": "#999faa",
+  "texture": "none"
+ },
+ "panels": {
+  "viewport": {
+   "edges": [
+    [
+     "#1d2129",
+     "#3b4252"
+    ]
+   ]
+  }
+ }
+}

@@ -1,0 +1,254 @@
+{
+ "schema": 1,
+ "id": "solarized_light",
+ "name": "Solarized Light",
+ "order": 23,
+ "extends": "frost",
+ "light": true,
+ "description": "Solarized's light side: warm cream, blue-green text, blue (Solarized by Ethan Schoonover, MIT).",
+ "colors": {
+  "chassis": "#eee8d5",
+  "surface": "#fdf6e3",
+  "surface_raised": "#fdf6e3",
+  "surface_sunken": "#fffbf0",
+  "surface_high": "#f5efdc",
+  "border": "#ddd6c1",
+  "border_light": "#fffbf0",
+  "border_dark": "#c9c2ad",
+  "shadow": "#ddd6c1",
+  "text": "#073642",
+  "text_muted": "#546a70",
+  "text_strong": "#002b36",
+  "text_disabled": "#93a1a1",
+  "accent": "#1d6ba2",
+  "accent_2": "#1e726c",
+  "selection": "#e4ddc8",
+  "selection_text": "#002b36",
+  "hover": "#f5efdc",
+  "stripe": "#f9f2df",
+  "good": "#5e6d00",
+  "warn": "#816100",
+  "bad": "#bf2c29",
+  "money": "#816100",
+  "link": "#1d6ba2",
+  "purple": "#5b5fa5",
+  "orange": "#b14113",
+  "magic": "#2a3db0",
+  "rare": "#735900"
+ },
+ "fonts": {
+  "head": [
+   "Segoe UI Semibold",
+   "Segoe UI",
+   "DejaVu Sans"
+  ],
+  "num": [
+   "Consolas",
+   "Segoe UI",
+   "DejaVu Sans Mono"
+  ]
+ },
+ "bars": {
+  "title": {
+   "fill": [
+    [
+     0,
+     "#eee8d5"
+    ],
+    [
+     1,
+     "#e9e3cf"
+    ]
+   ],
+   "top": "#fdf6e3",
+   "bottom": "#c9c2ad",
+   "text": "#002b36",
+   "texture": "none"
+  },
+  "title_off": {
+   "fill": [
+    [
+     0,
+     "#f5efdc"
+    ],
+    [
+     1,
+     "#eee8d5"
+    ]
+   ],
+   "top": "#fdf6e3",
+   "bottom": "#ddd6c1",
+   "text": "text_muted",
+   "texture": "none"
+  },
+  "section": {
+   "fill": [
+    [
+     0,
+     "#f5efdc"
+    ],
+    [
+     1,
+     "#eee8d5"
+    ]
+   ],
+   "top": "#fdf6e3",
+   "bottom": "#ddd6c1",
+   "text": "#816100",
+   "texture": "none"
+  }
+ },
+ "buttons": {
+  "normal": {
+   "fill": [
+    [
+     0,
+     "#fdf6e3"
+    ],
+    [
+     1,
+     "#eee8d5"
+    ]
+   ],
+   "hover": [
+    [
+     0,
+     "#fffbf0"
+    ],
+    [
+     1,
+     "#f5efdc"
+    ]
+   ],
+   "pressed": [
+    [
+     0,
+     "#ddd6c1"
+    ],
+    [
+     1,
+     "#eee8d5"
+    ]
+   ],
+   "border": "#c9c2ad",
+   "hover_border": "#1d6ba2",
+   "inner": "#fffbf0",
+   "radius": 2,
+   "text": "text",
+   "text_hover": "text_strong"
+  },
+  "primary": {
+   "fill": [
+    [
+     0,
+     "#3a77a1"
+    ],
+    [
+     1,
+     "#1a6192"
+    ]
+   ],
+   "hover": [
+    [
+     0,
+     "#4c84aa"
+    ],
+    [
+     1,
+     "#286a99"
+    ]
+   ],
+   "pressed": [
+    [
+     0,
+     "#155078"
+    ],
+    [
+     1,
+     "#1a6192"
+    ]
+   ],
+   "border": "#124466",
+   "hover_border": "#124466",
+   "inner": "#76a0be",
+   "radius": 2,
+   "text": "#fffbf0",
+   "text_hover": "#fffbf0"
+  },
+  "heading": {
+   "fill": [
+    [
+     0,
+     "#f5efdc"
+    ],
+    [
+     1,
+     "#eee8d5"
+    ]
+   ],
+   "hover": [
+    [
+     0,
+     "#fdf6e3"
+    ],
+    [
+     1,
+     "#f5efdc"
+    ]
+   ],
+   "pressed": [
+    [
+     0,
+     "#eee8d5"
+    ],
+    [
+     1,
+     "#f5efdc"
+    ]
+   ],
+   "border": "#ddd6c1",
+   "hover_border": "#ddd6c1",
+   "inner": "#fffbf0",
+   "radius": 0,
+   "text": "#546a70",
+   "text_hover": "accent"
+  }
+ },
+ "card": {
+  "header": "plate",
+  "border": "#c9c2ad",
+  "sep": "#ddd6c1"
+ },
+ "meter": {
+  "style": "bar",
+  "on": "#5e6d00",
+  "off": "#eee8d5",
+  "lcd_bg": "#fffbf0"
+ },
+ "nav": {
+  "bg": "#f5efdc",
+  "marker": "pill",
+  "marker_color": "accent",
+  "sel_bg": "#eee8d5",
+  "sel_border": "#c9c2ad",
+  "hover_bg": "#fdf6e3",
+  "hover_border": "#ddd6c1",
+  "text": "text",
+  "sel_text": "#002b36",
+  "group": "#546a70"
+ },
+ "panels": {
+  "viewport": {
+   "edges": [
+    [
+     "#c9c2ad",
+     "#ddd6c1"
+    ],
+    [
+     "#f5efdc",
+     "#fffbf0"
+    ]
+   ]
+  }
+ }
+}
