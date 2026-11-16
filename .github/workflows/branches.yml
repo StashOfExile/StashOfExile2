@@ -39,6 +39,7 @@ jobs:
           cutoff=$(date -u -d '7 days ago' +%s)
           for b in $(gh api "repos/$GH_REPO/branches?per_page=100" --paginate --jq '.[].name'); do
             [ "$b" = "main" ] && continue
+            [ "$b" = "linux" ] && continue           # 3.0.1: the Linux preview's long-lived branch
             echo "$open" | grep -qx "$b" && continue
             sha=$(gh api "repos/$GH_REPO/branches/$b" --jq '.commit.sha')
             when=$(gh api "repos/$GH_REPO/commits/$sha" --jq '.commit.committer.date')
