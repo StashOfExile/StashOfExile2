@@ -1,0 +1,42 @@
+# 3.0.0: deletes every release (and its tag) older than 3.0.0 - the builds that don't follow Grinding Gear Games'
+# third-party policy. Actions > Purge old releases > Run workflow, type "yes".
+# It refuses to run unless v3.0.0 or newer is the full ("latest") release, so every app still finds an update.
+name: Purge old releases
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "yes" to delete every release older than 3.0.0'
+        required: true
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  purge:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Check first
+        run: |
+          if [ "${{ inputs.confirm }}" != "yes" ]; then echo "::error::Type yes to run it."; exit 1; fi
+          LATEST=$(gh api "repos/$GH_REPO/releases/latest" -q .tag_name)
+          echo "Latest full release: $LATEST"
+          MAJOR=$(echo "${LATEST#v}" | cut -d. -f1)
+          if [ "${MAJOR:-0}" -lt 3 ]; then echo "::error::$LATEST is the latest release - promote 3.0.0 first."; exit 1; fi
+      - name: Delete the old releases and their tags
+        run: |
+          gh api "repos/$GH_REPO/releases" --paginate -q '.[].tag_name' > tags.txt
+          n=0
+          while read -r t; do
+            major=$(echo "${t#v}" | cut -d. -f1)
+            case "$major" in ''|*[!0-9]*) major=0 ;; esac
+            if [ "$major" -lt 3 ]; then
+              gh release delete "$t" --yes --cleanup-tag && n=$((n+1)) && echo "deleted $t"
+            fi
+          done < tags.txt
+          echo "Deleted $n old releases."
