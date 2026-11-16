@@ -19,7 +19,7 @@ from .rates import RATES
 from .trade import ago
 from .pricefmt import fmt_div
 from .wealth import (
-    parse_price_text, parse_trade_link, WEALTH, WEALTH_CURRENCIES, wealth_display_name, wealth_key,
+    parse_price_text, parse_trade_link, WEALTH, WEALTH_CURRENCIES, wealth_display_name,
     wealth_rows, WEALTH_SYNC, wealth_trade_url, WPRICES, WEALTH_RARES, rare_sig, parse_stack,
 )
 from .style import C, SegBar, Tooltip, autowrap
@@ -44,7 +44,8 @@ class WealthPage:
     """The Wealth page (mixed into App): tab markers, sync, net worth, history and every item with its value."""
 
     W_COLS = [("item", "Name", 320, "w"), ("tab", "From", 150, "w"), ("qty", "Quantity", 90, "e"),
-              ("each", "Price", 100, "e"), ("total", "Total", 110, "e"), ("src", "Priced by", 190, "w")]
+              ("each", "Price", 100, "e"), ("total", "Total", 110, "e"), ("chg", "7 days", 90, "e"),
+              ("wchg", "Worth change", 110, "e"), ("src", "Priced by", 190, "w")]
     CAT_INFO = {"currency": ("💰", "Currency"), "fragment": ("🧩", "Fragments"), "gem": ("💎", "Gems"),
                 "jewel": ("🔷", "Jewels"), "map": ("🗺", "Waystones"), "armour": ("🛡", "Armor"),
                 "weapon": ("⚔", "Weapons"), "accessory": ("💍", "Jewelry"), "card": ("🃏", "Cards"),
@@ -53,13 +54,13 @@ class WealthPage:
 
     def build_wealth_page(self, tab):
         """2.75.0 (feedback: "this page needs a major pass to improve ux"): three pages, listed in the sidebar -
-        Wealth ↳ Overview (the total, where it is, every item), ↳ Stash tabs (your priced tabs: the list, add one,
+        Wealth ↳ Overview (the total, what moved it, every item), ↳ Stash tabs (your priced tabs: the list, add one,
         each one's last sync) and ↳ Snapshots (look back, compare two). Sync and Count currency sit on top of every
         page. The first time, the setup steps are cards on the Overview (no pop-up); once done they fold into one
         status line."""
         P1, P2 = C["panel"], C["panel2"]
         lab = dict(bg=P1, fg=C["muted"])
-        self.w_tabfilter, self.w_catfilter, self.w_snap_sel = None, None, None
+        self.w_tabfilter, self.w_snap_sel, self.w_mv_item = None, None, None
         self.w_counting, self.w_session = False, []         # Count by hand: Ctrl+C on each stack, in game
 
         # ---- on top of every page: what was done when, and the actions
@@ -146,16 +147,18 @@ class WealthPage:
         self.w_facts.pack(fill="x")
         autowrap(self.w_facts)                              # D3: wraps at Drawer width
 
-        c2 = card(1, "Where it is")
+        # 3.0.4 (owner: "Where it is" told nothing): What moved it - the week's change split into prices and
+        # amounts, the biggest price moves, and one item's week when it's picked
+        c2 = card(1, "What moved it")
         head2 = tk.Frame(c2, bg=P2)
         head2.pack(fill="x")
-        self.w_bd_mode = SegBar(head2, ["Divines", "Percent"], command=lambda v: self.wealth_breakdown(), size=9, pad=(8, 4))
-        self.w_bd_mode.pack(side="right")
-        self.w_bd_note = tk.Label(c2, text="", bg=P2, fg=C["muted"], anchor="w", font=("Segoe UI", 9), justify="left",
-                                  wraplength=200)                              # (2.98.0: wraps to its width)
-        self.w_bd_note.pack(fill="x", pady=(2, 4))
-        self.w_bd = tk.Frame(c2, bg=P2)
-        self.w_bd.pack(fill="both", expand=True)
+        tk.Label(head2, text="Last 7 days", bg=P2, fg=C["muted"], font=("Segoe UI", 9)).pack(side="left")
+        mi = tk.Label(head2, text="ⓘ", bg=P2, fg=C["muted"], font=("Segoe UI", 10))
+        mi.pack(side="right")
+        Tooltip(mi, "Prices: what you hold now times how much each price changed this week (poe.ninja's 7-day line). "
+                    "Amounts: the rest of the change since your snapshot from about 7 days ago. Click an item for its week.")
+        self.w_mv = tk.Frame(c2, bg=P2)
+        self.w_mv.pack(fill="both", expand=True, pady=(4, 0))
 
         right = tk.Frame(ov, bg=P1)
         right.pack(fill="both", expand=True, padx=8, pady=(0, 8))
@@ -185,7 +188,7 @@ class WealthPage:
         self.w_filter.trace_add("write", placeholder)
         self.root.after(200, placeholder)
         self.w_unpriced = tk.BooleanVar(value=False)
-        ttk.Checkbutton(ibar, text="Needs a price", variable=self.w_unpriced, style="Bar.TCheckbutton",
+        ttk.Checkbutton(ibar, text="No price found", variable=self.w_unpriced, style="Bar.TCheckbutton",
                         command=self.wealth_fill_items).pack(side="left", padx=(12, 4))
         self.w_combine = tk.BooleanVar(value=True)
         ttk.Checkbutton(ibar, text="Combine stacks", variable=self.w_combine, style="Bar.TCheckbutton",
@@ -232,7 +235,8 @@ class WealthPage:
         self.w_items.tag_configure("odd", background=C["odd"])
         self.w_items.tag_configure("own", foreground="#7cc7ff")
         self.w_items.bind("<Button-3>", self.wealth_item_menu)
-        self.w_items.bind("<Double-1>", self.wealth_set_price)
+        self.w_items.bind("<Double-1>", self.wealth_amount_click)
+        self.w_items.bind("<<TreeviewSelect>>", lambda e: self.wealth_pick_moved_row(), add="+")
         self.list_register("wealth", self.w_items, delete=lambda rows: self.wealth_remove_rows(rows))   # 2.4.0
         crow = tk.Frame(right, bg=P1)                    # 2.4.0: under the list - what's in it, Clear and Undo
         crow.pack(fill="x", pady=(4, 0))
@@ -385,9 +389,11 @@ class WealthPage:
         ("Count by hand", "For a currency Scan stash can't read (More ▾): press it, then hover each stack in game "
                          "and press Ctrl+C - stacks of the same currency add up. Double-click a quantity to change "
                          "it; select rows (Ctrl+A for all) and press Delete to remove them."),
-        ("Prices", "Currency, fragments and other stackables come from poe.ninja. Double-click a price to set your own."),
-        ("Total and Where it is", "Total is everything added up; the chart shows it over time (Daily = the change "
-                                  "per day). Where it is splits it by kind (currency, fragments ...)."),
+        ("Prices", "Currency, fragments and other stackables come from poe.ninja, else the trade site's exchange. An "
+                   "item neither has a price for says No price found and isn't in the total."),
+        ("Total and What moved it", "Total is everything added up; the chart shows it over time (Daily = the change "
+                                    "per day). What moved it splits the week's change into prices and amounts, and "
+                                    "shows each item's week (click it)."),
         ("Snapshots", "Each count, scan or price update saves your total, so the chart and the Session timer can "
                       "show how much you made. Wealth ↳ Snapshots: pick one to look back, a second to compare."),
     ]
@@ -551,7 +557,7 @@ class WealthPage:
         path = filedialog.asksaveasfilename(defaultextension=".csv", initialfile="wealth_items.csv",
                                             filetypes=[("CSV", "*.csv")])
         if path:
-            rows, _total, _priced = wealth_rows(WEALTH.all_items(), WPRICES, WEALTH.overrides)
+            rows, _total, _priced = wealth_rows(WEALTH.all_items(), WPRICES)
             n = write_wealth_items(path, rows)
             self._w_tell(f"Saved {n} items to {path}.", "ok")
 
@@ -668,16 +674,10 @@ class WealthPage:
         self.wealth_side()
         self.wealth_fill_items()
 
-    def wealth_pick_cat(self, cat):
-        self.w_catfilter = None if self.w_catfilter == cat else cat
-        self.wealth_breakdown()
-        self.wealth_fill_items()
-
     def wealth_clear_filters(self):
-        self.w_tabfilter = self.w_catfilter = None
+        self.w_tabfilter = None
         self.w_from.pick("All", notify=False)
         self.wealth_side()
-        self.wealth_breakdown()
         self.wealth_fill_items()
 
     def wealth_pick_snapshot(self):
@@ -705,7 +705,6 @@ class WealthPage:
                 f"{self.SNAP_WHY.get(sn.get('why', ''), sn.get('why', ''))}\n{fmt_div(sn['total'])}"
                 + ("   vs the one before" if prev else "")))
             self._snap_cats(sn, prev)
-        self.wealth_breakdown()
 
     def _snap_cats(self, sn, prev):
         P2 = C["panel2"]
@@ -741,45 +740,6 @@ class WealthPage:
     def _w_cat(it):
         c = (it.get("cat") or "other").split(".")[0].lower()
         return c if c in WealthPage.CAT_INFO else "other"
-
-    def wealth_breakdown(self):
-        for w in self.w_bd.winfo_children():
-            w.destroy()
-        P2 = C["panel2"]
-        if self.w_snap_sel is not None and self.w_snap_sel < len(WEALTH.snapshots):
-            sn = WEALTH.snapshots[self.w_snap_sel]
-            by = {}
-            for k, v in (sn.get("by_cat") or {}).items():
-                kk = k if k in self.CAT_INFO else "other"
-                by[kk] = by.get(kk, 0) + v
-            self.w_bd_note.config(text="Snapshot of " + datetime.fromtimestamp(sn["ts"]).strftime("%b %d %H:%M") +
-                                  f" - {fmt_div(sn['total'])}")
-        else:
-            by = {}
-            for it, _e, tot, _s in getattr(self, "w_rows", []):
-                if tot:
-                    k = self._w_cat(it)
-                    by[k] = by.get(k, 0) + tot
-            self.w_bd_note.config(text="Click a category to show only those items." if by else
-                                  "Count your currency or scan a tab to see where your wealth is.")
-        total = sum(by.values()) or 1
-        pct = self.w_bd_mode.get() == "Percent"
-        cols = 3
-        for n, (k, v) in enumerate(sorted(by.items(), key=lambda kv: -kv[1])):
-            icon, name = self.CAT_INFO[k]
-            on = self.w_catfilter == k
-            f = tk.Frame(self.w_bd, bg="#1b2a48" if on else "#121c30", padx=8, pady=4, cursor="hand2",
-                         highlightthickness=1, highlightbackground=C["accent"] if on else C["line"])
-            f.grid(row=n // cols, column=n % cols, sticky="ew", padx=(0, 8), pady=(0, 8))
-            a = tk.Label(f, text=f"{icon}  {v / total * 100:.0f}%" if pct else f"{icon}  {fmt_div(v)}", bg=f.cget("bg"),
-                         fg="#ffffff", font=("Segoe UI", 12, "bold"), anchor="w")
-            a.pack(anchor="w")
-            b = tk.Label(f, text=name, bg=f.cget("bg"), fg=C["muted"], font=("Segoe UI", 9), anchor="w")
-            b.pack(anchor="w")
-            for w in (f, a, b):
-                w.bind("<Button-1>", lambda e, kk=k: self.wealth_pick_cat(kk))
-        for c in range(cols):
-            self.w_bd.columnconfigure(c, weight=1)
 
     # ---------------- actions
     def wealth_save_account(self):
@@ -880,7 +840,7 @@ class WealthPage:
             pass
 
     def _wealth_status(self, top):
-        """After the first count: one line - when you last counted, items that need a price; each one clickable."""
+        """After the first count: one line - items with no price found; clickable."""
         try:                                     # 2.135.0: no setup cards - Scan stash is the page's orange button
             self.w_scan_btn.config(style="Primary.TButton")
         except (AttributeError, tk.TclError):
@@ -912,7 +872,7 @@ class WealthPage:
         _ = counted, last_count                  # (UI overhaul: when you scanned and the total are the number cards)
         need = sum(1 for _it, each, _t, _s in rows if each is None)
         if need:
-            chip("price", "●", C["orange"], f"{need} item{'s' if need != 1 else ''} need a price", "", "Show ›",
+            chip("price", "●", C["orange"], f"{need} item{'s' if need != 1 else ''}: no price found", "", "Show ›",
                  self.wealth_show_unpriced)
 
     def wealth_show_unpriced(self):
@@ -1143,56 +1103,24 @@ class WealthPage:
             self.ui_q.put(("wealth", "prices"))
         threading.Thread(target=work, daemon=True).start()
 
-    def wealth_set_price(self, e):
+    def wealth_amount_click(self, e):
+        """Double-click a counted stack's From or Quantity: change the amount. (3.0.4, owner: prices are never typed
+        by hand.)"""
         iid = self.w_items.identify_row(e.y)
         it = self.w_rowmap.get(iid)
-        if not it:
-            return
-        if it.get("held") and self.w_items.identify_column(e.x) in ("#2", "#3"):       # From / Quantity: the amount
-            return self._w_held_ask(it["type"])
-        key = wealth_key(it)
-        now = WEALTH.overrides.get(key)
-        scope = "this item" if key.startswith("item:") else "every copy of it"
-        from tkinter import simpledialog
-        ans = simpledialog.askstring("Your price", f"{wealth_display_name(it)}\n\nPrice in Divine Orbs for {scope}.\n"
-                                                   "Leave empty to go back to the automatic price.",
-                                     initialvalue="" if now is None else _num(now), parent=self.root)
-        if ans is None:
-            return
-        ans = ans.strip().replace(",", ".")
-        with WEALTH.lock:
-            if not ans:
-                WEALTH.overrides.pop(key, None)
-            else:
-                try:
-                    WEALTH.overrides[key] = max(0.0, float(ans))
-                except ValueError:
-                    return self._say("That isn't a number.", 8)
-        WEALTH.save()
-        self.refresh_wealth(force=True)
+        if it and it.get("held") and self.w_items.identify_column(e.x) in ("#2", "#3"):
+            self._w_held_ask(it["type"])
 
     def wealth_item_menu(self, e):
-        """Right-click an item: set your own price, or go back to the market price (2.3.0)."""
+        """Right-click a counted stack: change the amount."""
         iid = self.w_items.identify_row(e.y)
         it = self.w_rowmap.get(iid)
-        if not it:
+        if not it or not it.get("held"):
             return
         self.w_items.selection_set(iid)
-        key = wealth_key(it)
         m = tk.Menu(self.root, tearoff=0, bg=C["panel2"], fg=C["text"], activebackground="#2c4a84")
-        m.add_command(label="Set my own price…", command=lambda: self.wealth_set_price(e))
-        if key in WEALTH.overrides:
-            m.add_command(label="Use the market price again", command=lambda: self.wealth_clear_price(key))
-        if it.get("held"):
-            m.add_command(label="Change the amount…", command=lambda: self._w_held_ask(it["type"]))
+        m.add_command(label="Change the amount…", command=lambda: self._w_held_ask(it["type"]))
         m.tk_popup(e.x_root, e.y_root)
-
-    def wealth_clear_price(self, key):
-        with WEALTH.lock:
-            WEALTH.overrides.pop(key, None)
-        WEALTH.save()
-        self._w_tell("Back to the market price.", "ok")
-        self.refresh_wealth(force=True)
 
     def wealth_sort(self, col):
         self.w_sort_rev = not self.w_sort_rev if self.w_sort_col == col else col in ("qty", "each", "total")
@@ -1278,7 +1206,7 @@ class WealthPage:
         if not force and not self.page_open("Wealth"):
             return
         self.wealth_buttons()
-        rows, total, priced = wealth_rows(WEALTH.all_items(), WPRICES, WEALTH.overrides)
+        rows, total, priced = wealth_rows(WEALTH.all_items(), WPRICES)
         self.w_rows = rows
         self.wealth_setup_layout()                           # (P3: after the rows - the status line adds them up)
         by_tab = {}
@@ -1349,9 +1277,12 @@ class WealthPage:
         self.w_facts.config(text="  ".join(facts))
         self.wealth_tiles(rows, total, priced, delta, eq, last_count)
         self.wealth_side()
-        self.wealth_breakdown()
+        self.wealth_moved()
         self.wealth_draw_chart()
         self.wealth_fill_items()
+        if (not getattr(self, "_w_bulk_running", False) and any(e is None for _i, e, _t, _s in rows)
+                and WPRICES.ts):                             # 3.0.4: after a restart, ask the exchange for the
+            self.root.after(500, self.wealth_bulk_fill)     # rest - not only after a price update
 
     def wealth_tiles(self, rows, total, priced, delta, eq, last_count):
         """UI overhaul: Stash worth, the change, the same in Exalted, and when you last counted - with how each was
@@ -1429,8 +1360,6 @@ class WealthPage:
                 continue
             if self.w_tabfilter is not None and it["stash"] != self.w_tabfilter:
                 continue
-            if self.w_catfilter is not None and self._w_cat(it) != self.w_catfilter:
-                continue
             name = wealth_display_name(it)
             if needle and needle not in name.lower() and not any(needle in m.lower() for m in it["mods"]):
                 continue
@@ -1450,8 +1379,11 @@ class WealthPage:
                     merged[k] = list(r)
             shown = list(merged.values())
         col = self.w_sort_col
+        trend = {id(r): self._w_trend(r[0], r[4]) for r in shown}
         keyf = {"item": lambda r: r[1].lower(), "tab": lambda r: r[0]["stash"].lower(), "qty": lambda r: r[2],
                 "each": lambda r: r[3] if r[3] is not None else -1, "total": lambda r: r[4] if r[4] is not None else -1,
+                "chg": lambda r: trend[id(r)][0] if trend[id(r)] else -1e9,
+                "wchg": lambda r: trend[id(r)][1] if trend[id(r)] and trend[id(r)][1] is not None else -1e9,
                 "src": lambda r: r[5] or ""}[col]
         shown.sort(key=keyf, reverse=self.w_sort_rev)
         self.w_items.delete(*self.w_items.get_children())
@@ -1461,9 +1393,7 @@ class WealthPage:
         paths = picture_paths()
         for n, (it, name, qty, each, tot, src, stacks, parts) in enumerate(shown):
             tags = (["held"] if it.get("held") else [rarity_tag.get(it["frame"], "")]) if each is not None else ["none"]
-            if src == "your price":                           # 2.3.0: prices you set yourself stand out
-                tags = ["own"]
-                src = "✎ your price (right-click to undo)"
+            tr = trend.get(id(shown[n]))
             if n % 2:
                 tags.append("odd")
             label = name + (f"   ({stacks} stacks)" if stacks > 1 else "") + ("   corrupted" if it["corrupted"] else "")
@@ -1471,15 +1401,16 @@ class WealthPage:
             pic = ((self.w_icons.get(url_for(base_name, paths)) or self.w_local.get(base_name))
                    if hasattr(self, "w_icons") else None)
             iid = self.w_items.insert("", "end", tags=[t for t in tags if t], image=pic or "",
-                                      values=(label, it["stash"], f"{qty:,}", fmt_div(each) if each is not None else "set price",
-                                              fmt_div(tot) if tot is not None else "", src or self._w_why_unpriced(it)))
+                                      values=(label, it["stash"], f"{qty:,}", fmt_div(each) if each is not None else "—",
+                                              fmt_div(tot) if tot is not None else "",
+                                              self._w_pct(tr[0]) if tr else "",
+                                              self._w_signed(tr[1]) if tr and tr[1] is not None else "",
+                                              src or "No price found: " + self._w_why_unpriced(it)))
             self.w_rowmap[iid] = it
             self.w_rowitems[iid] = parts
         filt = []
         if self.w_tabfilter is not None:
             filt.append(self.w_tabfilter)
-        if self.w_catfilter is not None:
-            filt.append(self.CAT_INFO[self.w_catfilter][1])
         if filt:
             self.w_filter_chip.config(text="Showing: " + " · ".join(filt) + "   ✕")
             if not self.w_filter_chip.winfo_ismapped():
@@ -1487,13 +1418,217 @@ class WealthPage:
         else:
             self.w_filter_chip.pack_forget()
         shown_total = sum(r[4] or 0 for r in shown)
-        self.w_count.config(text=f"{len(shown)} shown, worth {fmt_div(shown_total)}.   Double-click a price to set your "
-                                 f"own; double-click a quantity to change it. Select rows and press Delete to remove them "
+        self.w_count.config(text=f"{len(shown)} shown, worth {fmt_div(shown_total)}.   Click an item for its week; "
+                                 f"double-click a quantity to change it. Select rows and press Delete to remove them "
                                  f"(Ctrl+Z undoes).")
         if rows or getattr(self, "w_steps_shown", False):
             self.w_empty.place_forget()
         else:
             self.w_empty.place(relx=0.5, y=40, anchor="n")
+
+    # ---------------- 3.0.4: What moved it (the week's change: prices vs amounts, each item's week)
+    @staticmethod
+    def _w_trend(it, tot):
+        """-> (price change % over 7 days, your worth change in divines or None, [points]) or None."""
+        t = WPRICES.trend(it)
+        if not t:
+            return None
+        pct, pts = t
+        eff = tot - tot / (1 + pct / 100.0) if tot is not None and pct > -100 else None
+        return pct, eff, pts
+
+    @staticmethod
+    def _w_pct(p):
+        if abs(p) < 0.05:
+            return "• 0%"
+        return f"{'▲ +' if p > 0 else '▼ −'}{abs(p):.1f}%"
+
+    @staticmethod
+    def _w_each(v):
+        return fmt_div(v) if v >= 0.1 else f"{v:.3g} div"
+
+    @staticmethod
+    def _w_signed(d):
+        if abs(d) < 0.005:
+            return "0 div"
+        return f"{'+' if d > 0 else '−'}{fmt_div(abs(d))}"
+
+    def _w_week_snapshot(self, now=None):
+        """The snapshot from about 7 days ago (5 to 9 days), closest to 7, or None."""
+        now = now or time.time()
+        lg = SETTINGS.get("league", "")
+        near = [s for s in WEALTH.snapshots if s.get("league") == lg and 5 * 86400 <= now - s["ts"] <= 9 * 86400]
+        return min(near, key=lambda s: abs((now - s["ts"]) - 7 * 86400)) if near else None
+
+    def _w_moved_rows(self):
+        """Every priced row with a 7-day price, combined by name -> {name: [qty, total, pct, effect, pts]}."""
+        out = {}
+        for it, _each, tot, _src in getattr(self, "w_rows", []):
+            tr = self._w_trend(it, tot)
+            if not tr or tr[1] is None:
+                continue
+            name = wealth_display_name(it)
+            r = out.setdefault(name, [0, 0.0, tr[0], 0.0, tr[2]])
+            r[0] += it["qty"]
+            r[1] += tot
+            r[3] += tr[1]
+        return out
+
+    def wealth_pick_moved_row(self):
+        sel = self.w_items.selection()
+        if len(sel) != 1:
+            return
+        it = self.w_rowmap.get(sel[0])
+        if it is not None:
+            self.wealth_pick_moved(wealth_display_name(it))
+
+    def wealth_pick_moved(self, name):
+        self.w_mv_item = name
+        self.wealth_moved()
+
+    def _w_spark(self, parent, pts, w=80, h=22, bg=None):
+        """A small line of the week (no axes). Up / down also says it in words beside it."""
+        cv = tk.Canvas(parent, width=w, height=h, bg=bg or C["panel2"], highlightthickness=0)
+        vals = [p for p in pts if p is not None]
+        if len(vals) >= 2:
+            lo, hi = min(vals), max(vals)
+            span = (hi - lo) or 1.0
+            xy = []
+            for i, p in enumerate(pts):
+                if p is None:
+                    continue
+                xy += [2 + i * (w - 4) / max(1, len(pts) - 1), h - 3 - (p - lo) / span * (h - 6)]
+            col = C["green"] if vals[-1] > vals[0] else C["red"] if vals[-1] < vals[0] else C["muted"]
+            cv.create_line(*xy, fill=col, width=2, smooth=False)
+        return cv
+
+    def wealth_moved(self):
+        box = getattr(self, "w_mv", None)
+        if box is None:
+            return
+        for w in box.winfo_children():
+            w.destroy()
+        P2 = C["panel2"]
+        moved = self._w_moved_rows()
+        if self.w_mv_item and self.w_mv_item not in moved:
+            self.w_mv_item = None
+        if self.w_mv_item:
+            return self._w_moved_item(box, self.w_mv_item, moved[self.w_mv_item])
+        if not moved:
+            tk.Label(box, text="No 7-day prices yet.\nThey come with the next price update from poe.ninja.",
+                     bg=P2, fg=C["muted"], justify="left", anchor="w").pack(fill="x", pady=8)
+            return
+        prices = sum(r[3] for r in moved.values())
+        unpriced = sum(1 for _it, e, _t, _s in getattr(self, "w_rows", []) if e is not None) - sum(
+            1 for _it, e, t, _s in getattr(self, "w_rows", []) if e is not None and self._w_trend(_it, t))
+
+        def line(mark_word, value, tip, col):
+            f = tk.Frame(box, bg=C["odd"], padx=10, pady=6)
+            f.pack(fill="x", pady=(0, 6))
+            a = tk.Label(f, text=mark_word, bg=C["odd"], fg=C["text"], font=("Segoe UI", 11), anchor="w")
+            a.pack(side="left")
+            b = tk.Label(f, text=value, bg=C["odd"], fg=col, font=("Segoe UI", 14, "bold"), anchor="e")
+            b.pack(side="right")
+            for x in (f, a, b):
+                Tooltip(x, tip)
+        up = prices >= 0
+        line(("▲ Prices went up" if up else "▼ Prices went down") if abs(prices) >= 0.005 else "• Prices held",
+             self._w_signed(prices),
+             f"Your {len(moved)} item{'s' if len(moved) != 1 else ''} with a 7-day price: amount × (price now − price "
+             f"7 days ago), added up = {self._w_signed(prices)}."
+             + (f" {unpriced} priced item{'s' if unpriced != 1 else ''} have no 7-day price and aren't in it."
+                if unpriced > 0 else ""),
+             C["green"] if up else C["red"])
+        wk = self._w_week_snapshot()
+        total_now = sum(t or 0 for _i, _e, t, _s in getattr(self, "w_rows", []))
+        if wk:
+            amounts = (total_now - wk["total"]) - prices
+            more = amounts >= 0
+            line(("▲ You hold more" if more else "▼ You hold less") if abs(amounts) >= 0.005 else "• Same amounts",
+                 self._w_signed(amounts),
+                 f"Change since {datetime.fromtimestamp(wk['ts']).strftime('%b %d')}: now {fmt_div(total_now)} − then "
+                 f"{fmt_div(wk['total'])} = {self._w_signed(total_now - wk['total'])}; minus the price part "
+                 f"{self._w_signed(prices)} = {self._w_signed(amounts)}.",
+                 C["green"] if more else C["red"])
+        else:
+            tk.Label(box, text="You hold more / less: needs a snapshot from about 7 days ago.", bg=P2, fg=C["muted"],
+                     anchor="w", font=("Segoe UI", 9)).pack(fill="x", pady=(0, 6))
+        tk.Label(box, text="BIGGEST PRICE MOVES", bg=P2, fg=C["muted"], anchor="w",
+                 font=("Segoe UI", 8, "bold")).pack(fill="x", pady=(2, 2))
+        for name, (qty, tot, pct, eff, pts) in sorted(moved.items(), key=lambda kv: -abs(kv[1][3]))[:3]:
+            f = tk.Frame(box, bg=P2, cursor="hand2")
+            f.pack(fill="x", pady=1)
+            parts = [tk.Label(f, text=name, bg=P2, fg=C["text"], anchor="w")]
+            parts[0].pack(side="left", fill="x", expand=True)
+            e = tk.Label(f, text=self._w_signed(eff), bg=P2, fg=C["green"] if eff > 0 else C["red"] if eff < 0 else
+                         C["muted"], width=10, anchor="e")
+            e.pack(side="right")
+            pc = tk.Label(f, text=self._w_pct(pct), bg=P2, fg=C["text"], width=9, anchor="e")
+            pc.pack(side="right")
+            sp = self._w_spark(f, pts)
+            sp.pack(side="right", padx=6)
+            for x in [f, sp, pc, e] + parts:
+                x.bind("<Button-1>", lambda ev, n=name: self.wealth_pick_moved(n))
+                Tooltip(x, f"{qty:,} × price change {self._w_pct(pct)} = {self._w_signed(eff)}. Click for its week.")
+
+    def _w_moved_item(self, box, name, r):
+        """One item's week: its price line in divines, then and now, and what it did to your worth."""
+        qty, tot, pct, eff, pts = r
+        P2 = C["panel2"]
+        top = tk.Frame(box, bg=P2)
+        top.pack(fill="x")
+        back = tk.Label(top, text="‹ All items", bg=P2, fg=C["accent"], cursor="hand2", font=("Segoe UI", 9, "bold"))
+        back.pack(side="left")
+        back.bind("<Button-1>", lambda e: self.wealth_pick_moved(None))
+        tk.Label(top, text=name, bg=P2, fg=C["text"], font=("Segoe UI", 12, "bold"), anchor="w").pack(side="left",
+                                                                                                    padx=(12, 0))
+        now_each = tot / qty if qty else 0
+        then_each = now_each / (1 + pct / 100.0) if pct > -100 else None
+        cv = tk.Canvas(box, height=84, bg=P2, highlightthickness=0)
+        cv.pack(fill="x", pady=4)
+
+        def draw(_e=None):
+            cv.delete("all")
+            W, H = max(cv.winfo_width(), 200), 84
+            vals = [(i, (1 + p / 100.0) * (then_each or 0)) for i, p in enumerate(pts) if p is not None]
+            if len(vals) < 2 or not then_each:
+                return
+            lo, hi = min(v for _i, v in vals), max(v for _i, v in vals)
+            span = (hi - lo) or (hi or 1) * 0.01
+            n = max(1, len(pts) - 1)
+            xy = []
+            for i, v in vals:
+                x = 62 + i * (W - 74) / n
+                y = H - 18 - (v - lo) / span * (H - 30)
+                xy.append((x, y))
+            for y, v in ((12, hi), (H - 18, lo)):
+                cv.create_line(62, y, W - 8, y, fill=C["line"], dash=(2, 3))
+                cv.create_text(58, y, text=f"{v:.3g}", fill=C["muted"], anchor="e", font=("Segoe UI", 8))
+            col = C["green"] if pct > 0 else C["red"] if pct < 0 else C["muted"]
+            cv.create_line(*[c for p in xy for c in p], fill=col, width=2)
+            for x, y in xy:
+                cv.create_oval(x - 3, y - 3, x + 3, y + 3, fill=col, outline="")
+            cv.create_text(62, H - 2, text="7 days ago", fill=C["muted"], anchor="sw", font=("Segoe UI", 8))
+            cv.create_text(W - 8, H - 2, text="now", fill=C["muted"], anchor="se", font=("Segoe UI", 8))
+        cv.bind("<Configure>", draw)
+        self.root.after(30, draw)
+        facts = tk.Frame(box, bg=P2)
+        facts.pack(fill="x")
+        for k, (lab, val, tip) in enumerate((
+                ("Price now", self._w_each(now_each), "poe.ninja's price now, in divines."),
+                ("7 days ago", self._w_each(then_each) if then_each else "—",
+                 f"Price now ÷ (1 {'+' if pct >= 0 else '−'} {abs(pct):.1f}%), from poe.ninja's 7-day line."),
+                ("Change", self._w_pct(pct), "Price now against 7 days ago."),
+                ("Your worth", self._w_signed(eff),
+                 f"You hold {qty:,}: {qty:,} × (price now − 7 days ago) = {self._w_signed(eff)}."))):
+            c = tk.Frame(facts, bg=P2)
+            c.grid(row=0, column=k, sticky="w", padx=(0, 14))
+            a = tk.Label(c, text=lab.upper(), bg=P2, fg=C["muted"], font=("Segoe UI", 8, "bold"), anchor="w")
+            a.pack(anchor="w")
+            b = tk.Label(c, text=val, bg=P2, fg=C["text"], font=("Segoe UI", 11, "bold"), anchor="w")
+            b.pack(anchor="w")
+            for x in (c, a, b):
+                Tooltip(x, tip)
 
     @staticmethod
     def _w_why_unpriced(it):
