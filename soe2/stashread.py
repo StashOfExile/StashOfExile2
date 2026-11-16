@@ -27,6 +27,8 @@ OTHER_TAB_BY = 0.01     # another tab must beat the one you were asked to open b
 DIGIT_CUT, DIGIT_BASE = 0.45, 0.60      # a digit's match must reach CUT; each one adds (score - BASE) to a run
 SURE = 0.2              # 2.114.2: a slot with no backing showing counts only with a number this clear (a digit 0.8+)
 TIE = 0.0               # 2.114.2: a longer run this close to the best wins (a faint second digit)
+DIGIT_SIZES = tuple(round(0.84 + 0.02 * i, 2) for i in range(12))   # 3.0.4: digit size against the panel's: 0.84-1.06
+NEAR = (0.97, 1.0, 1.03)    # 3.0.4: each slot is read at these sizes around the tab's, the clearest run wins
 FILLED_SHARE = 0.06     # share of a slot's inside that is the dark-blue backing -> it holds something
 
 # Digit shapes at 1440p: (width, height, bytes) - a "white minus outline" map, 0..255 = -1..1. Made from the stack
@@ -180,6 +182,30 @@ def filled(bgr, rect):
 def read_number(bgr, rect, k, sure=0.0):
     """The stack number in a slot's top-left corner -> int or None. sure: the run must score at least this (2.114.2:
     for a slot whose backing doesn't show)."""
+    return _value(_read_near(bgr, rect, k, sure)[1])
+
+
+def _read_near(bgr, rect, k, sure=0.0):
+    """The clearest run at NEAR sizes around k -> (score, text)."""
+    return max((_read_run(bgr, rect, k * g, sure) for g in NEAR), key=lambda x: (x[0], len(x[1])))
+
+
+def digit_scale(bgr, rects, k):
+    """3.0.4 (feedback, Hyprland at ~1275 px high: "missing 21 from essence", 668 read as 1): away from 1440p the game
+    draws stack numbers at a slightly different size than the panel. The digit size that reads this tab's numbers best
+    (the sum of each slot's run score, up to 16 filled slots) -> the k to read numbers with."""
+    if not rects:
+        return k
+    best = (-1.0, k)
+    for f in DIGIT_SIZES:
+        tot = sum(max(0.0, _read_near(bgr, r, k * f)[0]) for r in rects[:16])
+        if tot > best[0] + 1e-6:
+            best = (tot, k * f)
+    return best[1]
+
+
+def _read_run(bgr, rect, k, sure=0.0):
+    """-> (score, text) of the best stack-number run in the slot's corner ((sure, "") when none)."""
     cv2, np = _np()
     x, y, w, _h = rect
     pad = max(2, round(4 * k))
@@ -189,7 +215,7 @@ def read_number(bgr, rect, k, sure=0.0):
     for d, g in _glyphs().items():
         gw, gh = max(3, round(g.shape[1] * k)), max(5, round(g.shape[0] * k))
         if gh > band.shape[0] or gw > band.shape[1]:
-            return None
+            return sure, ""
         t = cv2.resize(g, (gw, gh), interpolation=cv2.INTER_AREA)
         m = cv2.matchTemplate(band, t, cv2.TM_CCOEFF_NORMED)
         col, ys = m.max(axis=0), m.argmax(axis=0)
@@ -210,7 +236,7 @@ def read_number(bgr, rect, k, sure=0.0):
                     here = (v, run[j][1] + d)
         if here:
             run[i] = here
-    return _value(best_valid(run, sure))
+    return best_valid(run, sure)
 
 
 def _could_be(txt):
@@ -221,13 +247,14 @@ def _could_be(txt):
 
 
 def best_valid(run, sure=0.0):
-    """The best-scoring run that reads as a stack size: digits, or (2.114.2) "12.2K" - a "." only before a K."""
+    """The best-scoring run that reads as a stack size: digits, or (2.114.2) "12.2K" - a "." only before a K.
+    -> (score, text)."""
     best = (sure, "")
     for v, txt in run.values():
         longer = len(txt) > len(best[1]) and v >= best[0] - TIE        # (about a tie: the longer one - "11"
         if (v > best[0] or longer) and _value(txt) is not None:            # whose second 1 scores just under par)
             best = (v, txt)
-    return best[1]
+    return best
 
 
 def _value(txt):
@@ -257,17 +284,18 @@ def read_tab(bgr, game_h, want):
     if spot["tab"] != want:                       # close call: redo the spot for the tab you named
         spot = locate(bgr, game_h, tabs=(want,))
     k, ox, oy = spot["k"], spot["x"], spot["y"]
+    rects = [(ox + round(x * k), oy + round(y * k), round(w * k), round(h * k)) for _n, (x, y, w, h) in TABS[want]["slots"]]
+    dk = digit_scale(bgr, [r for r in rects if filled(bgr, r)], k)
     items, unread, icons, pics = [], [], {}, {}
-    for name, (x, y, w, h) in TABS[want]["slots"]:
-        r = (ox + round(x * k), oy + round(y * k), round(w * k), round(h * k))
+    for (name, (x, y, w, h)), r in zip(TABS[want]["slots"], rects):
         if filled(bgr, r) and w == h:              # 2.129.0: an item's look, for Favours prices (one-cell slots)
             pics[name] = bgr[r[1]:r[1] + r[3], r[0]:r[0] + r[2]].copy()
         if not filled(bgr, r):
-            n = read_number(bgr, r, k, sure=SURE)    # 2.114.2: an item that covers its whole slot (a Weathered
+            n = read_number(bgr, r, dk, sure=SURE)    # 2.114.2: an item that covers its whole slot (a Weathered
             if n:                                    # Crisis Fragment) hides the backing - a clear number still counts
                 items.append((name, n))
             continue
-        n = read_number(bgr, r, k)
+        n = read_number(bgr, r, dk)
         if n:
             items.append((name, n))
         else:
@@ -282,7 +310,7 @@ def read_tab(bgr, game_h, want):
         r = (ox + round(x * k), oy + round(y * k), round(w * k), round(h * k))
         if not filled(bgr, r):
             continue
-        n = read_number(bgr, r, k)
+        n = read_number(bgr, r, dk)
         ic = _icon(bgr, r)
         name, _sc = _same_item(ic, icons)
         if n and name is not None:
