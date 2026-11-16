@@ -1,17 +1,21 @@
 {
- "about": "Built-in mod rules that ship with StashOfExile2 (the author's own rules, exported Oct 31, 2026). Your own rules (Mod book) always win over these.",
+ "about": "Built-in mod rules that ship with StashOfExile2 (the author's own rules, exported Oct 31, 2026). Your own rules (Mod book) always win over these. Jewel High list: 8 mods added from jewel asking prices (Nov 2026).",
  "version": 3,
  "jewel": {
   "high": [
+   "#% faster Curse Activation",
    "#% increased Attack Damage",
    "#% increased Attack Speed",
    "#% increased Attack Speed with Bows",
    "#% increased Attack Speed with Crossbows",
    "#% increased Attack Speed with Quarterstaves",
    "#% increased Attack Speed with Spears",
+   "#% increased Blind Effect",
    "#% increased Cast Speed",
+   "#% increased chance to inflict Ailments",
    "#% increased Chaos Damage",
    "#% increased Cold Damage",
+   "#% increased Cooldown Recovery Rate",
    "#% increased Critical Damage Bonus",
    "#% increased Critical Damage Bonus for Attack Damage",
    "#% increased Critical Damage Bonus with Spears",
@@ -42,11 +46,15 @@
    "#% increased Skill Effect Duration",
    "#% increased Spell Damage",
    "#% increased Totem Damage",
+   "#% of Skill Mana Costs Converted to Life Costs",
+   "+# to maximum Rage",
    "Damaging Ailments deal damage #% faster",
    "Minions have #% increased Attack and Cast Speed",
    "Minions have #% increased Critical Damage Bonus",
    "Minions have #% increased Critical Hit Chance",
-   "Minions have #% increased maximum Life"
+   "Minions have #% increased maximum Life",
+   "Offering Skills have #% increased Duration",
+   "Projectiles have #% chance for an additional Projectile when Forking"
   ]
  },
  "tablet": {

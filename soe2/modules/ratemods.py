@@ -5,7 +5,7 @@ class RateMods(Module):
     """2.120.0 (UX pass 2, feedback: the Rate mods window drew badly and sat in Privacy & community): its own page
     under Price Checks - the item kinds on the left, one mod at a time on the right."""
     key, title, short, icon, kind = "ratemods", "Rate Mods", "Rate Mods", "⭐", "tool"
-    parent = "pricecheck"
+    parent = None                      # nav phase 1: its own row in Trade (was a child of Price Checks)
     blurb = "Rate how much each mod matters to an item's price - your price checks use it at once."
 
     def build(self, body):

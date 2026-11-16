@@ -1,0 +1,800 @@
+# The price checker's golden corpus (tests/test_pricecheck_golden.py): copied items as the game gives them
+# (Ctrl+Alt+C unless the name says plain), each after a "=== name" line. Hand-written to cover every way an item is
+# priced: bases, uniques, tablets, waystones, jewels, flasks / charms, gems, currency, runes, item flags, quality.
+=== rare_ring
+Item Class: Rings
+Rarity: Rare
+Doom Grasp
+Sapphire Ring
+--------
+Requires: Level 60
+--------
+Item Level: 82
+--------
+{ Implicit Modifier }
++18(15-20)% to Cold Resistance (implicit)
+--------
+{ Prefix Modifier "Prior's" (Tier: 3) — Life }
++95(85-99) to maximum Life
+{ Prefix Modifier "Cobalt" (Tier: 4) — Mana }
++60(55-64) to maximum Mana
+{ Suffix Modifier "of the Kaleidoscope" (Tier: 2) — Elemental, Fire, Resistance }
++32(31-35)% to Fire Resistance
+{ Suffix Modifier "of Sirocco" (Tier: 5) — Elemental, Lightning, Resistance }
++22(21-25)% to Lightning Resistance
+{ Suffix Modifier "of the Lynx" (Tier: 7) — Attribute }
++8(5-8) to Dexterity
+=== rare_ring_plain_copy
+Item Class: Rings
+Rarity: Rare
+Doom Grasp
+Sapphire Ring
+--------
+Requires: Level 60
+--------
+Item Level: 82
+--------
++18% to Cold Resistance (implicit)
+--------
++95 to maximum Life
++60 to maximum Mana
++32% to Fire Resistance
++22% to Lightning Resistance
++8 to Dexterity
+=== rare_ring_mutated_header
+Item Class: Rings
+Rarity: Rare
+Storm Loop
+Sapphire Ring
+--------
+Item Level: 81
+--------
+{ Implicit Modifier }
++16(15-20)% to Cold Resistance (implicit)
+--------
+{ Mutated Prefix Modifier "Prior's" (Tier: 2) — Life }
++110(100-119) to maximum Life
+{ Suffix Modifier "of the Kaleidoscope" (Tier: 2) — Elemental, Fire, Resistance }
++33(31-35)% to Fire Resistance
+{ Bonded Suffix Modifier "of Sirocco" (Tier: 3) — Elemental, Lightning, Resistance }
++30(26-30)% to Lightning Resistance
+=== rare_ring_unrevealed_header
+Item Class: Rings
+Rarity: Rare
+Ghoul Coil
+Gold Ring
+--------
+Item Level: 80
+--------
+{ Implicit Modifier }
++9(6-15)% increased Rarity of Items found (implicit)
+--------
+{ Prefix Modifier "Prior's" (Tier: 3) — Life }
++90(85-99) to maximum Life
+{ Unrevealed Desecrated Suffix Modifier }
++28(26-30)% to Fire Resistance (desecrated)
+{ Shimmering Modifier }
++24(21-25)% to Lightning Resistance
+=== rare_ring_unicode_minus
+Item Class: Rings
+Rarity: Rare
+Grim Band
+Sapphire Ring
+--------
+Item Level: 75
+--------
+{ Implicit Modifier }
++18(15-20)% to Cold Resistance (implicit)
+--------
+{ Prefix Modifier "Prior's" (Tier: 3) — Life }
++95(85-99) to maximum Life
+{ Suffix Modifier "of Sirocco" (Tier: 5) — Elemental, Lightning, Resistance }
+−10(−15-−5)% to Lightning Resistance
+{ Suffix Modifier "of the Kaleidoscope" (Tier: 2) — Elemental, Fire, Resistance }
++32(31-35)% to Fire Resistance
+=== rare_ring_negative_resist_total
+Item Class: Rings
+Rarity: Rare
+Woe Spiral
+Sapphire Ring
+--------
+Item Level: 78
+--------
+{ Implicit Modifier }
++16(15-20)% to Cold Resistance (implicit)
+--------
+{ Prefix Modifier "Prior's" (Tier: 3) — Life }
++90(85-99) to maximum Life
+{ Suffix Modifier "of the Ice" (Tier: 4) — Elemental, Cold, Resistance }
++16(16-20)% to Cold Resistance
+{ Suffix Modifier "of Static" (Tier: 1) — Elemental, Lightning, Resistance }
+-10(-15--5)% to Lightning Resistance
+=== magic_ring_base
+Item Class: Rings
+Rarity: Magic
+Prior's Sapphire Ring of the Lynx
+--------
+Item Level: 84
+--------
+{ Implicit Modifier }
++17(15-20)% to Cold Resistance (implicit)
+--------
+{ Prefix Modifier "Prior's" (Tier: 3) — Life }
++92(85-99) to maximum Life
+{ Suffix Modifier "of the Lynx" (Tier: 7) — Attribute }
++7(5-8) to Dexterity
+=== normal_body_armour_base
+Item Class: Body Armours
+Rarity: Normal
+Vile Robe
+--------
+Quality: +20% (augmented)
+Energy Shield: 205 (augmented)
+--------
+Requires: Level 65, 121 Int
+--------
+Sockets: S S
+--------
+Item Level: 79
+=== normal_helmet_exceptional
+Item Class: Helmets
+Rarity: Normal
+Exceptional Zealot Crown
+--------
+Quality: +29% (augmented)
+Armour: 184 (augmented)
+Energy Shield: 53 (augmented)
+--------
+Sockets: S S
+--------
+Item Level: 81
+=== rare_body_armour_runes
+Item Class: Body Armours
+Rarity: Rare
+Havoc Shell
+Vile Robe
+--------
+Quality: +20% (augmented)
+Energy Shield: 512 (augmented)
+--------
+Requires: Level 65, 121 Int
+--------
+Sockets: S S
+--------
+Item Level: 81
+--------
++14% to Lightning Resistance (rune)
++12% to Fire Resistance (rune)
+--------
+{ Prefix Modifier "Seraphim's" (Tier: 1) — Defences, Energy Shield }
+88(83-91)% increased Energy Shield
+{ Prefix Modifier "Vaporous" (Tier: 2) — Life, Defences, Energy Shield }
++40(35-45) to maximum Energy Shield
++30(26-31) to maximum Life
+{ Prefix Modifier "Prior's" (Tier: 4) — Life }
++80(70-84) to maximum Life
+{ Suffix Modifier "of the Kaleidoscope" (Tier: 3) — Elemental, Fire, Resistance }
++30(26-30)% to Fire Resistance
+{ Suffix Modifier "of Sirocco" (Tier: 3) — Elemental, Lightning, Resistance }
++28(26-30)% to Lightning Resistance
+{ Suffix Modifier "of Fame" (Tier: 6) — Light Radius }
++15(10-15)% increased Light Radius
+=== rare_bow_dps
+Item Class: Bows
+Rarity: Rare
+Kraken Bane
+Zealot Bow
+--------
+Quality: +20% (augmented)
+Physical Damage: 120-240 (augmented)
+Critical Hit Chance: 5.00%
+Attacks per Second: 1.32 (augmented)
+--------
+Requires: Level 77, 163 Dex
+--------
+Item Level: 82
+--------
+{ Prefix Modifier "Tyrannical" (Tier: 1) — Damage, Physical, Attack }
+155(150-169)% increased Physical Damage
+{ Prefix Modifier "Gleaming" (Tier: 2) — Damage, Physical, Attack }
+Adds 20(18-24) to 38(36-42) Physical Damage
+{ Suffix Modifier "of Celebration" (Tier: 2) — Attack, Speed }
+10(8-10)% increased Attack Speed
+{ Suffix Modifier "of the Sniper" (Tier: 1) — Projectile }
++3 to Level of all Projectile Skills
+=== rare_gloves_quality_sockets
+Item Class: Gloves
+Rarity: Rare
+Rune Grip
+Vaal Wraps
+--------
+Quality: +20% (augmented)
+Evasion Rating: 150 (augmented)
+Energy Shield: 45 (augmented)
+--------
+Sockets: S S
+--------
+Item Level: 80
+--------
+{ Prefix Modifier "Prior's" (Tier: 5) — Life }
++60(55-69) to maximum Life
+{ Suffix Modifier "of the Ice" (Tier: 4) — Elemental, Cold, Resistance }
++20(16-20)% to Cold Resistance
+{ Suffix Modifier "of Celebration" (Tier: 3) — Attack, Speed }
+7(6-7)% increased Attack Speed
+=== rare_gloves_corrupted_enchant
+Item Class: Gloves
+Rarity: Rare
+Blight Clutches
+Vaal Wraps
+--------
+Quality: +20% (augmented)
+Evasion Rating: 140 (augmented)
+Energy Shield: 42 (augmented)
+--------
+Sockets: S S
+--------
+Item Level: 80
+--------
+{ Corruption Enhancement — Speed }
+4% increased Attack Speed (enchant)
+--------
+{ Prefix Modifier "Prior's" (Tier: 5) — Life }
++60(55-69) to maximum Life
+{ Suffix Modifier "of the Ice" (Tier: 4) — Elemental, Cold, Resistance }
++20(16-20)% to Cold Resistance
+--------
+Corrupted
+=== rare_boots_twice_corrupted
+Item Class: Boots
+Rarity: Rare
+Gloom Tread
+Wayfarer Shoes
+--------
+Evasion Rating: 130 (augmented)
+Energy Shield: 40 (augmented)
+--------
+Sockets: S S
+--------
+Item Level: 79
+--------
+{ Prefix Modifier "Gazelle's" (Tier: 2) — Speed }
+30% increased Movement Speed
+{ Suffix Modifier "of the Ice" (Tier: 4) — Elemental, Cold, Resistance }
++20(16-20)% to Cold Resistance
+--------
+Twice Corrupted
+=== rare_amulet_fractured
+Item Class: Amulets
+Rarity: Rare
+Oblivion Collar
+Stellar Amulet
+--------
+Item Level: 82
+--------
+{ Implicit Modifier }
++12(10-15) to all Attributes (implicit)
+--------
+{ Fractured Prefix Modifier "Prior's" (Tier: 2) — Life }
++120(100-119) to maximum Life (fractured)
+{ Suffix Modifier "of the Kaleidoscope" (Tier: 2) — Elemental, Fire, Resistance }
++33(31-35)% to Fire Resistance
+{ Suffix Modifier "of Sirocco" (Tier: 3) — Elemental, Lightning, Resistance }
++28(26-30)% to Lightning Resistance
+--------
+Fractured Item
+=== rare_belt_desecrated
+Item Class: Belts
+Rarity: Rare
+Corruption Cord
+Heavy Belt
+--------
+Item Level: 82
+--------
+{ Implicit Modifier }
++28(20-30) to Strength (implicit)
+--------
+{ Prefix Modifier "Prior's" (Tier: 3) — Life }
++95(85-99) to maximum Life
+{ Desecrated Suffix Modifier "of the Lich" (Tier: 1) — Elemental, Cold, Resistance }
++40(36-40)% to Cold Resistance (desecrated)
+{ Suffix Modifier "of Sirocco" (Tier: 3) — Elemental, Lightning, Resistance }
++28(26-30)% to Lightning Resistance
+=== rare_ring_sanctified
+Item Class: Rings
+Rarity: Rare
+Holy Coil
+Sapphire Ring
+--------
+Item Level: 82
+--------
+{ Implicit Modifier }
++18(15-20)% to Cold Resistance (implicit)
+--------
+{ Prefix Modifier "Prior's" (Tier: 3) — Life }
++104(85-99) to maximum Life
+{ Suffix Modifier "of the Kaleidoscope" (Tier: 2) — Elemental, Fire, Resistance }
++38(31-35)% to Fire Resistance
+--------
+Sanctified
+=== rare_ring_mirrored
+Item Class: Rings
+Rarity: Rare
+Mirror Loop
+Sapphire Ring
+--------
+Item Level: 82
+--------
+{ Implicit Modifier }
++18(15-20)% to Cold Resistance (implicit)
+--------
+{ Prefix Modifier "Prior's" (Tier: 3) — Life }
++95(85-99) to maximum Life
+{ Suffix Modifier "of the Kaleidoscope" (Tier: 2) — Elemental, Fire, Resistance }
++32(31-35)% to Fire Resistance
+--------
+Mirrored
+=== rare_ring_unidentified
+Item Class: Rings
+Rarity: Rare
+Sapphire Ring
+--------
+Item Level: 82
+--------
+{ Implicit Modifier }
++18(15-20)% to Cold Resistance (implicit)
+--------
+Unidentified
+=== unique_headhunter
+Item Class: Belts
+Rarity: Unique
+Headhunter
+Heavy Belt
+--------
+Requires: Level 60
+--------
+Item Level: 82
+--------
+{ Implicit Modifier }
++28(20-30) to Strength (implicit)
+--------
+{ Unique Modifier }
++52(40-55) to Strength
+{ Unique Modifier }
++48(40-55) to Dexterity
+{ Unique Modifier }
++60(50-60) to maximum Life
+{ Unique Modifier }
+When you kill a Rare monster, you gain its Modifiers for 60 seconds
+--------
+"A man's soul rules from a cavern of bone, learns and
+judges through flesh-born windows."
+=== unique_mageblood
+Item Class: Belts
+Rarity: Unique
+Mageblood
+Utility Belt
+--------
+Item Level: 84
+--------
+{ Implicit Modifier }
+Has 3 Charm Slots (implicit)
+--------
+{ Unique Modifier }
+Legacy of Gold (Amethyst-Topaz)
+{ Unique Modifier }
+Legacy of Gold (Amethyst-Topaz)
+{ Unique Modifier }
+Legacy of Quicksilver (Amethyst-Topaz)
+{ Unique Modifier }
+25(20-30)% increased effect per duplicate Legacy
+--------
+Rivers of blood flow beneath the gold.
+=== unique_kaoms_heart_unidentified
+Item Class: Body Armours
+Rarity: Unique
+Conqueror Plate
+--------
+Armour: 450
+--------
+Item Level: 80
+--------
+Unidentified
+=== unique_ranged_implicit
+Item Class: Rings
+Rarity: Unique
+Andvarius
+Gold Ring
+--------
+Item Level: 70
+--------
+{ Implicit Modifier }
++25(6-15)% increased Rarity of Items found (implicit)
+--------
+{ Unique Modifier }
+85(80-100)% increased Rarity of Items found
+{ Unique Modifier }
+-25(-20--30)% to all Elemental Resistances
+--------
+The gold of the forgotten king still gleams.
+=== unique_megalomaniac
+Item Class: Jewels
+Rarity: Unique
+Megalomaniac
+Diamond
+--------
+Item Level: 84
+--------
+{ Unique Modifier }
+Allocates Overwhelm()
+{ Unique Modifier }
+Allocates Heavy Ammunition()
+--------
+The weak imagine; the strong decide.
+=== rare_jewel_ruby
+Item Class: Jewels
+Rarity: Rare
+Grim Eye
+Ruby
+--------
+Item Level: 80
+--------
+{ Prefix Modifier "Flaming" (Tier: 1) — Damage, Elemental, Fire }
+14(10-15)% increased Fire Damage
+{ Prefix Modifier "Brutal" (Tier: 2) — Damage, Attack }
+12(10-15)% increased Melee Damage
+{ Suffix Modifier "of Reach" (Tier: 1) — Attack }
+5(4-6)% increased Area of Effect
+=== magic_jewel_emerald
+Item Class: Jewels
+Rarity: Magic
+Swift Emerald of the Archer
+--------
+Item Level: 78
+--------
+{ Prefix Modifier "Swift" (Tier: 1) — Attack, Speed }
+4(2-4)% increased Attack Speed
+{ Suffix Modifier "of the Archer" (Tier: 1) — Attack, Projectile }
+8(5-10)% increased Projectile Speed
+=== rare_tablet_breach
+Item Class: Tablet
+Rarity: Rare
+Grim Charter
+Breach Tablet
+--------
+Item Level: 79
+--------
+{ Implicit Modifier }
+Adds an Otherworldy Breach to a Map (implicit)
+10 uses remaining (implicit)
+--------
+{ Prefix Modifier "Teeming" (Tier: 1) }
+Breaches in Map have 25(20-30)% increased Pack Size
+{ Prefix Modifier "Wealthy" (Tier: 1) }
+11(8-12)% increased Rarity of Items found in Map
+{ Suffix Modifier "of the Hoard" (Tier: 1) }
+38(30-40)% increased Quantity of Waystones found in Map
+=== magic_tablet_used
+Item Class: Tablet
+Rarity: Magic
+Wealthy Breach Tablet
+--------
+Item Level: 75
+--------
+{ Implicit Modifier }
+Adds an Otherworldy Breach to a Map (implicit)
+4 uses remaining (implicit)
+--------
+{ Prefix Modifier "Wealthy" (Tier: 1) }
+10(8-12)% increased Rarity of Items found in Map
+=== normal_tablet
+Item Class: Tablet
+Rarity: Normal
+Breach Tablet
+--------
+Item Level: 75
+--------
+{ Implicit Modifier }
+Adds an Otherworldy Breach to a Map (implicit)
+10 uses remaining (implicit)
+=== rare_waystone
+Item Class: Waystones
+Rarity: Rare
+Doom Sanctum
+Waystone (Tier 15)
+--------
+Waystone Tier: 15
+Revives Available: 0
+Pack Size: +16% (augmented)
+Waystone Drop Chance: +180% (augmented)
+Item Rarity: +32% (augmented)
+Monster Rarity: +46% (augmented)
+Monster Effectiveness: +15% (augmented)
+--------
+Item Level: 81
+--------
+{ Prefix Modifier "Cursed" (Tier: 1) }
+Players are Cursed with Elemental Weakness
+{ Prefix Modifier "Hulking" (Tier: 1) }
+Monsters have 40% increased Life
+{ Suffix Modifier "of Exposure" (Tier: 1) }
+Players have -20% to all maximum Resistances
+=== rare_waystone_area_level
+Item Class: Waystones
+Rarity: Rare
+Grim Turf
+Waystone (Tier 16)
+--------
+Waystone Tier: 16
+Area Level: 81
+Revives Available: 1
+Pack Size: +20% (augmented)
+Waystone Drop Chance: +150% (augmented)
+Item Rarity: +40% (augmented)
+Delirium Chance: +10% (augmented)
+--------
+Item Level: 82
+--------
+{ Prefix Modifier "Fecund" (Tier: 1) }
+Monsters have 60% increased Life
+--------
+Corrupted
+=== magic_waystone
+Item Class: Waystones
+Rarity: Magic
+Fecund Waystone (Tier 12)
+--------
+Waystone Tier: 12
+Revives Available: 2
+Pack Size: +8% (augmented)
+Waystone Drop Chance: +60% (augmented)
+--------
+Item Level: 77
+--------
+{ Prefix Modifier "Fecund" (Tier: 1) }
+Monsters have 60% increased Life
+=== normal_waystone
+Item Class: Waystones
+Rarity: Normal
+Waystone (Tier 5)
+--------
+Waystone Tier: 5
+Revives Available: 5
+--------
+Item Level: 68
+=== magic_flask
+Item Class: Life Flasks
+Rarity: Magic
+Concentrated Ultimate Life Flask of the Surgeon
+--------
+Quality: +20% (augmented)
+Recovers 1200 Life over 3 Seconds
+Consumes 15 of 75 Charges on use
+--------
+Item Level: 81
+--------
+{ Prefix Modifier "Concentrated" (Tier: 1) }
+50(41-60)% increased Amount Recovered
+{ Suffix Modifier "of the Surgeon" (Tier: 1) }
+25(21-25)% chance to gain a Flask Charge when you deal a Critical Hit
+=== magic_charm_quality
+Item Class: Charms
+Rarity: Magic
+Thawing Charm of the Ox
+--------
+Quality: +20% (augmented)
+Lasts 3 Seconds
+--------
+Item Level: 80
+--------
+{ Suffix Modifier "of the Ox" (Tier: 1) }
++40(30-40) to maximum Life when used
+=== rare_relic
+Item Class: Relics
+Rarity: Rare
+Sacred Vessel
+Urn Relic
+--------
+Item Level: 80
+--------
+{ Prefix Modifier "Eternal" (Tier: 1) }
++20% to Honour Resistance
+{ Suffix Modifier "of Resolve" (Tier: 1) }
+12% increased Honour restored
+=== skill_gem
+Item Class: Skill Gems
+Rarity: Gem
+Lightning Arrow
+--------
+Bow, Projectile, Lightning
+Level: 20 (Max)
+Quality: +20% (augmented)
+Sockets: S S S
+--------
+Requires: Level 90
+--------
+Fires a charged arrow at the target.
+=== support_gem_one_socket
+Item Class: Support Gems
+Rarity: Gem
+Martial Tempo
+--------
+Support, Attack
+Level: 1
+Sockets: S
+--------
+Supports attack skills.
+=== spirit_gem_corrupted
+Item Class: Spirit Gems
+Rarity: Gem
+Herald of Ice
+--------
+Buff, Persistent, Cold
+Level: 21
+Sockets: S S
+--------
+Requires: Level 90
+--------
+Corrupted
+=== meta_skill_gem
+Item Class: Meta Skill Gems
+Rarity: Gem
+Cast on Critical
+--------
+Meta, Spell, Trigger
+Level: 18
+Sockets: S S
+=== currency_divine_stack
+Item Class: Stackable Currency
+Rarity: Currency
+Divine Orb
+--------
+Stack Size: 12/40
+--------
+Randomises the numeric values of the random modifiers on an item
+=== currency_exalted_thousands
+Item Class: Stackable Currency
+Rarity: Currency
+Exalted Orb
+--------
+Stack Size: 1,234/5,000
+--------
+Augments a Rare item with a new random modifier
+=== currency_single_omen
+Item Class: Omen
+Rarity: Currency
+Omen of Light
+--------
+Stack Size: 1/10
+--------
+While this item is active in your inventory...
+=== socketable_rune
+Item Class: Socketable
+Rarity: Currency
+Greater Rune of Leadership
+--------
+Stack Size: 1/10
+--------
+Martial Weapons: +1 to Level of all Minion Skills
+Armour: +8% to Lightning Resistance
+=== wombgift
+Item Class: Wombgifts
+Rarity: Currency
+Ornate Wombgift
+--------
+Item Level: 80
+--------
+Right click to open
+=== unknown_class_item
+Item Class: Pinnacle Keys
+Rarity: Normal
+Strange Sigil
+--------
+Item Level: 80
+=== not_an_item
+Hello, this is a note from another program.
+=== empty_copy
+
+=== non_english_item
+Gegenstandsklasse: Ringe
+Seltenheit: Selten
+Untergangs Griff
+Saphirring
+--------
+Gegenstandsstufe: 82
+--------
++95 zu maximalem Leben
+=== rare_spear_exceptional_base
+Item Class: Spears
+Rarity: Magic
+Exceptional Stalking Spear of Celebration
+--------
+Quality: +25% (augmented)
+Physical Damage: 40-70 (augmented)
+Attacks per Second: 1.65 (augmented)
+--------
+Item Level: 82
+--------
+{ Suffix Modifier "of Celebration" (Tier: 2) — Attack, Speed }
+10(8-10)% increased Attack Speed
+=== rare_body_hybrid_resist
+Item Class: Body Armours
+Rarity: Rare
+Oath Shroud
+Vile Robe
+--------
+Energy Shield: 300 (augmented)
+--------
+Item Level: 80
+--------
++18% to Lightning Resistance (rune)
+--------
+{ Prefix Modifier "Prior's" (Tier: 4) — Life }
++80(70-84) to maximum Life
+{ Suffix Modifier "of the Fire Ward" (Tier: 1) — Elemental, Fire, Chaos, Resistance }
++15(13-17)% to Fire and Chaos Resistances
+{ Suffix Modifier "of Sirocco" (Tier: 3) — Elemental, Lightning, Resistance }
++28(26-30)% to Lightning Resistance
+{ Suffix Modifier "of the Ice" (Tier: 4) — Elemental, Cold, Resistance }
++20(16-20)% to Cold Resistance
+=== rare_ring_adds_damage
+Item Class: Rings
+Rarity: Rare
+Blood Knuckle
+Sapphire Ring
+--------
+Item Level: 80
+--------
+{ Implicit Modifier }
++18(15-20)% to Cold Resistance (implicit)
+--------
+{ Prefix Modifier "Gleaming" (Tier: 4) — Damage, Physical, Attack }
+Adds 5(3-6) to 10(8-12) Physical Damage to Attacks
+{ Prefix Modifier "Prior's" (Tier: 3) — Life }
++95(85-99) to maximum Life
+=== rare_ring_same_stat_twice
+Item Class: Rings
+Rarity: Rare
+Lucky Loop
+Gold Ring
+--------
+Item Level: 82
+--------
+{ Implicit Modifier }
++10(6-15)% increased Rarity of Items found (implicit)
+--------
+{ Prefix Modifier "Magpie's" (Tier: 2) }
+18(15-20)% increased Rarity of Items found
+{ Suffix Modifier "of Plunder" (Tier: 2) }
+16(15-20)% increased Rarity of Items found
+{ Suffix Modifier "of the Lynx" (Tier: 7) — Attribute }
++8(5-8) to Dexterity
+=== rare_ring_brace_header_no_modifier
+Item Class: Rings
+Rarity: Rare
+Hate Hoop
+Sapphire Ring
+--------
+Item Level: 82
+--------
+{ Implicit Modifier }
++18(15-20)% to Cold Resistance (implicit)
+--------
+{ Prefix Modifier "Prior's" (Tier: 3) — Life }
++95(85-99) to maximum Life
+{ Unrevealed Suffix — Resistance }
++31(31-35)% to Fire Resistance
+=== rare_jewel_unknown_headers
+Item Class: Jewels
+Rarity: Rare
+Dusk Glimmer
+Sapphire
+--------
+Item Level: 81
+--------
+{ Mutated Prefix Modifier "Flaming" (Tier: 1) — Damage, Elemental, Cold }
+14(10-15)% increased Cold Damage
+{ Shimmering Modifier }
+5(4-6)% increased Area of Effect
+{ Suffix Modifier "of Reach" (Tier: 1) — Attack }
+8(5-10)% increased Projectile Speed

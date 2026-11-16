@@ -2,9 +2,9 @@ from . import Module
 
 
 class MoneyMakers(Module):
-    key, title, short, icon, kind = "money", "Money Makers", "Money", "🪙", "module"
+    key, title, short, icon, kind = "money", "Farming Strategies", "Strats", "🪙", "module"
     labs = True                     # 2.97.3 (feedback): a Labs feature - hidden while Labs is off (was beta: always shown)
-    blurb = "Farming strats from the community, rated by effort (Thoughts per Click, Clicks per hour), and a run tracker."
+    blurb = "Pick a way to farm, run it, see what it really made."
 
     def build(self, body):
         self.app.build_money_window(body)

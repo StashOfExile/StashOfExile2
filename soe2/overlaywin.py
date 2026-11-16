@@ -9,12 +9,14 @@ lock button. Callers put their content in .body and get told when the window was
 import sys
 import tkinter as tk
 
+from . import gearicon
 from . import buglog
 from .style import C, Tooltip
 from .shell import GradientBar, UTIL_TITLE, TITLE_ON, BORDER_OFF
 
 BAR_H = 22
 EDGE = 4
+NOACTIVATE = 0x08000000            # WS_EX_NOACTIVATE: a click never hands the window the keyboard
 OUTLINE = "#5b77ad"              # the same 1px outline as the app's windows
 BODY_BG = "#0d1424"
 
@@ -302,16 +304,31 @@ def _child_hwnds(w):
     return out
 
 
+def foreign_foreground():
+    """3.0.1, Windows: the window in front when it isn't one of the app's own (the game, as a card over it opens), or
+    None - the window to hand the keyboard back to once you've typed in the card."""
+    if sys.platform != "win32":
+        return None
+    try:
+        import os
+        from . import drawer as D
+        fg = D._user32().GetForegroundWindow()
+        return fg if fg and D._pid_of(fg) != os.getpid() else None
+    except Exception:
+        buglog.caught()
+        return None
+
+
 def foreground_ok():
     """May over-the-game windows show right now? Yes while Path of Exile 2 is the window in front, or one of these
     windows itself is (you clicked the note to type in it). 2.0 beta 17: not just because the app is in front - they
     popped up over the app's own windows."""
     if not GAME_ONLY[0]:
         return True
-    if sys.platform != "win32":                      # 2.10.0: Hyprland can tell; anywhere else, don't block
+    if sys.platform != "win32":                      # Linux: Hyprland or X11's window hints can tell; else don't block
         if sys.platform.startswith("linux"):
             from . import linsys
-            if linsys.hypr_socket():
+            if linsys.can_tell():
                 return linsys.game_active(GAME_TITLE[0] or "Path of Exile 2") or bool(linsys.app_in_front())
         return True
     try:
@@ -382,9 +399,13 @@ def skin_inner(host, P, parch, edge, body_bg):
 
 class OverlayWindow(tk.Toplevel):
     def set_opacity(self, opacity):
-        """2.43.0: Settings > Appearance > Over the game: applied at once."""
+        """2.43.0: Overlay › Look: applied at once."""
         try:
             self.attributes("-alpha", max(0.15, min(1.0, int(opacity) / 255)))
+            from . import layered
+            layered.keep(self)                    # (its see-through color, if it has one, with the new opacity)
+            for c in self.companions:             # (Round 18: the lines' own window, over the bar)
+                c.match()
         except Exception:
             buglog.caught()
 
@@ -398,7 +419,8 @@ class OverlayWindow(tk.Toplevel):
         no_activate: clicking it never takes the keyboard away from the game (for windows you don't type in).
         resizable=False: always the size of its content (2.38.0: the Helpers bar).
         titlebar=False (2.55.0): no title bar - the Minimal look and the Strip layout draw their own lock and ×.
-        extra (2.121.1): more title bar buttons, [(icon, command, tooltip)], left of × (the price check card's ⚙)."""
+        extra (2.121.1): more title bar buttons, [(icon, command, tooltip)], left of × (the price check card's gear:
+        gearicon.GEAR is drawn, not written)."""
         parch = (skinned() or palette is not None) and not app_colours   # 2.43.0 / 2.47.0: a PoE2-style skin
         P = palette or pal()                              # 2.65.0: a layout may bring its own (the Bar)
         if parch:
@@ -406,6 +428,8 @@ class OverlayWindow(tk.Toplevel):
         super().__init__(root, bg=P["leather"] if parch else BORDER_OFF, highlightthickness=1,
                          highlightbackground=P["edge"] if parch else OUTLINE)
         self.parch, self.P = parch, P
+        self.companions = []                              # Round 18: windows that move / show / hide with this one
+        self.bind("<Configure>", self._companions_follow, add="+")
         self.overrideredirect(True)
         try:
             self.attributes("-topmost", True)
@@ -470,8 +494,11 @@ class OverlayWindow(tk.Toplevel):
                                                       font=(P["font"], 9))
             for i, (txt, cmd, _bg) in enumerate(buttons):     # drawn on the canvas: no flat box on the texture
                 tag = f"btn{i}"
-                it = self.bar.create_text(0, BAR_H // 2, text=txt, fill=P["muted"], font=("Segoe UI Symbol", 10, "bold"),
-                                          anchor="e", tags=(tag,))
+                if txt == gearicon.GEAR:                      # (UI overhaul: drawn - the ⚙ glyph looked like a flower)
+                    it = gearicon.draw(self.bar, 0, BAR_H // 2, 14, P["muted"], anchor="e", tags=(tag,))
+                else:
+                    it = self.bar.create_text(0, BAR_H // 2, text=txt, fill=P["muted"],
+                                              font=("Segoe UI Symbol", 10, "bold"), anchor="e", tags=(tag,))
                 self.bar.tag_bind(tag, "<Button-1>", lambda e, c=cmd: c())
                 self.bar.tag_bind(tag, "<Enter>", lambda e, t=tips.get(i, ""): (self.bar.configure(cursor="hand2"),
                                                                                   self._bar_tip(t)))
@@ -484,8 +511,12 @@ class OverlayWindow(tk.Toplevel):
             self.bar.create_text(8, BAR_H // 2, text=f"{icon}  {title}", anchor="w", fill=title_fg,
                                  font=("Segoe UI", 9, "bold"))
             for i, (txt, cmd, bg) in enumerate(buttons):
-                b = tk.Label(self.bar, text=txt, bg=bg, fg=title_fg, font=("Segoe UI", 9, "bold"),
-                             width=2, highlightthickness=1, highlightbackground=btn_line, cursor="hand2")
+                if txt == gearicon.GEAR:
+                    b = gearicon.label(self.bar, 12, title_fg, bg=bg, width=18, highlightthickness=1,
+                                       highlightbackground=btn_line, cursor="hand2")
+                else:
+                    b = tk.Label(self.bar, text=txt, bg=bg, fg=title_fg, font=("Segoe UI", 9, "bold"),
+                                 width=2, highlightthickness=1, highlightbackground=btn_line, cursor="hand2")
                 b.bind("<Button-1>", lambda e, c=cmd: c())
                 if tips.get(i):
                     Tooltip(b, tips[i])
@@ -516,6 +547,7 @@ class OverlayWindow(tk.Toplevel):
     def hide(self):
         self.wanted = False
         self.withdraw()
+        self._companions_follow()
 
     def sync(self, ok):
         """ok = the game (or this window) is in front."""
@@ -527,6 +559,18 @@ class OverlayWindow(tk.Toplevel):
             self._show_quietly()
         elif mapped and not (self.wanted and ok):
             self.withdraw()
+            self._companions_follow()
+        elif self.companions:
+            self._companions_follow()
+
+    def _companions_follow(self, e=None):
+        if e is not None and e.widget is not self:
+            return
+        for c in list(self.companions):
+            try:
+                c.follow()
+            except tk.TclError:
+                pass
 
     def _show_quietly(self):
         """Show it without taking the keyboard away from whatever is in front (the game)."""
@@ -541,6 +585,7 @@ class OverlayWindow(tk.Toplevel):
             self.attributes("-topmost", True)
         except tk.TclError:
             pass
+        self._companions_follow()
         if sys.platform != "win32":
             return
         self._win_style(fg)
@@ -559,10 +604,62 @@ class OverlayWindow(tk.Toplevel):
             if self.no_activate and not self._noact_done:
                 u.SetWindowLongW(hwnd, -20, u.GetWindowLongW(hwnd, -20) | 0x08000000)    # WS_EX_NOACTIVATE
                 self._noact_done = True
+            from . import layered
+            layered.keep(self)                        # (a style change / shown again: its see-through color back)
             if fg and u.GetForegroundWindow() != fg:
                 u.SetForegroundWindow(fg)                     # hand the keyboard straight back
         except Exception:
             buglog.caught()
+
+    # ---- 3.0.1: typing in a window over the game (the price check overlay's Min / Max)
+    def take_keyboard(self, widget=None):
+        """A box in this window was clicked to type in: it gets the keyboard. Windows: a borderless window over the
+        game isn't always handed the keyboard by the click, and one that is no-activate or click-through never is -
+        so the window is made one that can have it (WS_EX_NOACTIVATE / WS_EX_TRANSPARENT off) and put in front, then
+        Tk puts the keyboard in the box. -> the window that had the keyboard before (the game), or None when that was
+        one of the app's own. GGG ToS: the app's own window's style - nothing is sent to the game."""
+        before = None
+        if sys.platform == "win32":
+            try:
+                import os
+                from . import drawer as D
+                from . import layered
+                u, du = layered.user32(), D._user32()
+                h = u.GetParent(self.winfo_id()) or self.winfo_id()
+                fg = du.GetForegroundWindow()
+                ex = u.GetWindowLongW(h, layered.GWL_EXSTYLE)
+                stuck = ex & (NOACTIVATE | layered.WS_EX_TRANSPARENT)
+                if stuck:
+                    u.SetWindowLongW(h, layered.GWL_EXSTYLE, ex & ~stuck)
+                    layered.keep(self)
+                self.no_activate, self._noact_done = False, False      # (shown again: it stays one you can type in)
+                if fg and fg != h:
+                    if D._pid_of(fg) != os.getpid():
+                        before = fg
+                    du.SetForegroundWindow(h)
+            except Exception:
+                buglog.caught()
+        try:
+            (widget if widget is not None else self).focus_force()
+        except tk.TclError:
+            pass
+        return before
+
+    def give_keyboard_back(self, hwnd):
+        """The window closes after you typed in it: the keyboard goes back to hwnd (the game) - only if one of the
+        app's own windows has it now (you didn't click somewhere else meanwhile). -> True when it was handed back."""
+        if sys.platform != "win32" or not hwnd:
+            return False
+        try:
+            import os
+            from . import drawer as D
+            fg = D._user32().GetForegroundWindow()
+            if fg and fg != hwnd and D._pid_of(fg) == os.getpid():
+                D.set_foreground(hwnd)
+                return True
+        except Exception:
+            buglog.caught()
+        return False
 
     # ---- title bar buttons
     def _bar_tip(self, text):
@@ -743,6 +840,90 @@ class OverlayWindow(tk.Toplevel):
     def _resized(self, _e=None):
         self._size.clear()
         self.report()
+
+
+class LinesWindow(tk.Toplevel):
+    """Round 18 (owner bug: a black box beside the campaign line over the XP bar, still there with the color key set
+    and read back): the overlay's lines (Campaign, Ritual, NOW) in their own small borderless window, centered over
+    the bar and as wide as the lines - so nothing round them needs a see-through color. It goes where the bar goes
+    (moved, dragged, locked, a new Layout or spot), shows and hides with it (the game in front or not), keeps its
+    opacity, click-through and capture setting, and stays over it (topmost, never takes the keyboard).
+    GGG ToS: a window of the app's own - nothing is read from the screen or sent to the game."""
+
+    def __init__(self, main, bg, inset, height):
+        super().__init__(main, bg=bg, highlightthickness=0, bd=0)
+        self.main, self.inset, self.h = main, int(inset), int(height)
+        self.overrideredirect(True)
+        self._styled = False
+        try:
+            key = main.attributes("-transparentcolor")      # (a boxless Style's bar: the same as its bar - never
+            if key and bg == key:                            # a color key of the lines' own)
+                self.attributes("-transparentcolor", key)
+        except tk.TclError:
+            pass
+        self.withdraw()
+        self.match()
+        main.companions.append(self)
+
+    def match(self):
+        """Its opacity and topmost as the bar's."""
+        try:
+            self.attributes("-topmost", True)
+            self.attributes("-alpha", float(self.main.attributes("-alpha")))
+        except (tk.TclError, ValueError):
+            pass
+
+    def where(self):
+        """(w, h, x, y): centered over the bar, its ends clear by inset px."""
+        m = self.main
+        w = max(1, m.winfo_width() - 2 * self.inset)
+        return w, self.h, m.winfo_x() + self.inset, m.winfo_y() - self.h
+
+    def follow(self):
+        """Over the bar while the bar shows; hidden with it."""
+        m = self.main
+        try:
+            shown = m.state() != "withdrawn" and m.winfo_width() > 1
+        except tk.TclError:
+            shown = False
+        if not shown:
+            if self.state() != "withdrawn":
+                self.withdraw()
+            return
+        w, h, x, y = self.where()
+        geo = f"{w}x{h}+{x}+{y}"
+        if self.geometry() != geo:
+            self.geometry(geo)
+        if self.state() == "withdrawn":
+            self.deiconify()
+            self.match()
+            self.lift()
+            if sys.platform == "win32" and not self._styled:
+                self.after_idle(self._win_style)
+
+    def _win_style(self, tries=0):
+        """No-activate (a click never takes the keyboard from the game), its opacity with it (layered.keep)."""
+        try:
+            import ctypes
+            u = ctypes.windll.user32
+            hwnd = u.GetParent(self.winfo_id())
+            if not hwnd and tries < 20:
+                self.after(50, lambda: self.winfo_exists() and self._win_style(tries + 1))
+                return
+            hwnd = hwnd or self.winfo_id()
+            u.SetWindowLongW(hwnd, -20, u.GetWindowLongW(hwnd, -20) | 0x08000000)       # WS_EX_NOACTIVATE
+            from . import layered
+            layered.keep(self)
+            self._styled = True
+        except Exception:
+            buglog.caught()
+
+    def destroy(self):
+        try:
+            self.main.companions.remove(self)
+        except (ValueError, AttributeError):
+            pass
+        super().destroy()
 
 
 class OverlayFrame(tk.Frame):

@@ -1,7 +1,8 @@
-"""2.113.0: the price check in a card over the game (a sample - Price Checks in the app stays as it is).
+"""2.113.0: the Price check overlay - the price check in a card over the game.
 
-Settings › Keybinds › Price Checks › "Show it in a card over the game": your price check key copies the hovered item
-(one press = one copy, as always) and, instead of bringing the app forward, a card opens over the game at a spot you
+Where the price shows › "Price check overlay" (Settings › Price checking, Price Checks' top row, the card's gear - one
+setting, pc_popup): your price check key copies the hovered item (one press = one copy, as always) and, instead of
+showing the app (drawer build: "In the app" opens the Drawer quietly), a card opens over the game at a spot you
 choose - drag it by its title, resize it from any edge; both are remembered. It takes the overlay's Style.
 
 The card: the item (name in its rarity color; rarity, class, base, item level, quality, corrupted), the price and
@@ -10,7 +11,11 @@ listings - each a one-line summary that opens to the whole item (implicits, ever
 Trade site and Open in app sit at the bottom.
 
 Typing: click into a Min / Max box and the card takes the keyboard (Enter searches again); click back into the
-game and it has the keyboard again.
+game and it has the keyboard again. 3.0.1 (owner: "the Min / Max boxes don't take typing"): every box takes it - the
+item's own boxes (item level, quality, sockets) never asked for the keyboard, only the mods' did; on Windows the card's
+window is made one that can have it (overlaywin.take_keyboard); a gray box ticks its row and puts the cursor in it; the
+box keeps the keyboard when the card is drawn again; the card waits only while you type (a key since the last search
+- after Enter it shows what was found); closing the card hands the keyboard back to the game.
 
 Close key (2.121.1, feedback): Esc by default, as PoE Overlay closes its dialogs - only while the card is open and the
 game (or the card) is in front, and that press is used up (the game's menu doesn't open). Set it on Settings › Keybinds or
@@ -23,8 +28,17 @@ Works the same on Windows and Linux / Hyprland (an OverlayWindow: topmost, follo
 import tkinter as tk
 from tkinter import ttk
 
+from . import gearicon
 from .config import SETTINGS, save_json
 from .style import C, MOD_COL
+
+def ilvl_matters(it):
+    """Round 18: does a listing's item level matter for this item (gear, jewels, bases)? Not for waystones (their
+    tier says it), tablets, gems, currency or uniques."""
+    it = it or {}
+    return not (it.get("waystone") or it.get("rarity") in ("Currency", "Gem", "Unique") or it.get("class") == "Tablet"
+                or (it.get("search") or {}).get("gem"))
+
 
 def socket_words(it):
     """2.125.5: an item's socket letters in words -> " (2 augment, 1 jewel)" or ""."""
@@ -79,10 +93,15 @@ class PricePopup:
 
     def pcpop_close(self):
         self.pcpop_settings_close()
+        self._pcpop_cancel()
         w, self.pp_win = getattr(self, "pp_win", None), None
         self.pp_rid, self.pp_up = None, False
+        back, self._pp_back = getattr(self, "_pp_back", None), None
+        self._pp_typed, self._pp_refocus = False, None
         if w is not None:
             try:
+                if back:                                  # 3.0.1: you typed in a box - the game gets the keyboard back
+                    w.give_keyboard_back(back)
                 w.destroy()
             except tk.TclError:
                 pass
@@ -93,13 +112,19 @@ class PricePopup:
             return None
         if getattr(self, "pp_rid", None) != rec["id"]:
             self.pp_open = set()                          # (which listings are opened - a new item starts closed)
+            self._pp_typed, self._pp_refocus = False, False      # (3.0.1: no box of the item before keeps the keyboard)
         self.pp_rid = rec["id"]
+        self._pcpop_cancel()                              # (a refresh asked for the item before: not over this one)
         w = self._pcpop_window()
         self.pcpop_fill(rec)
         return self._pcpop_up(w)
 
     def _pcpop_up(self, w):
         self.pp_up = True                                 # (read by the keyboard watcher: the close key works now)
+        from .overlaywin import foreign_foreground
+        game = foreign_foreground()                       # 3.0.1: the game in front as the card opens - it gets the
+        if game:                                          # keyboard back when the card closes, if you typed in it
+            self._pp_game = game
         w.show()
         try:
             w.lift()
@@ -126,7 +151,7 @@ class PricePopup:
             w = OverlayWindow(self.root, "Price check", "⚖", self.pcpop_geo(), opacity=255, locked=False,
                               min_size=(320, 260), on_close=self.pcpop_close, on_moved=moved, follow_game=True,
                               no_activate=False, resizable=True, lockable=False, palette=P,   # (Min / Max: typing)
-                              extra=[("⚙", self.pcpop_settings_toggle, "Card settings")])
+                              extra=[(gearicon.GEAR, self.pcpop_settings_toggle, "Card settings")])
             self.pp_win, self.pp_P = w, P
             w.bind("<Escape>", lambda _e: self._pcpop_esc(), add="+")    # (the card has the keyboard: Min / Max)
             self._pcpop_frame(w, P)
@@ -138,6 +163,7 @@ class PricePopup:
         (or a lineage gem, or anything poe.ninja's exchange lists) in the card - what one is worth in the
         currencies people trade in, what a Divine / Exalted Orb buys of it, and the stack's worth."""
         self.pp_rid, self.pp_open = None, set()
+        self._pcpop_cancel()                              # (a refresh asked for an item: not over the rates)
         w = self._pcpop_window()
         self.pcpop_rates_fill(name, qty, each, src)
         return self._pcpop_up(w)
@@ -148,7 +174,7 @@ class PricePopup:
         P, inner, foot = self.pp_P, self.pp_inner, self.pp_foot
         for c in list(inner.winfo_children()) + list(foot.winfo_children()):
             c.destroy()
-        self.pp_wraps = []
+        self.pp_wraps, self.pp_boxes, self._pp_refocus = [], {}, None
         body, head = P.get("body") or P["font"], P.get("hfont") or P["font"]
 
         def lab(parent, text, fg=None, size=10, bold=False, font=None, **pk):
@@ -178,9 +204,7 @@ class PricePopup:
 
     def _pcpop_rates_page(self):
         try:
-            self.shell.open("rates")
-            self.root.deiconify()
-            self.root.lift()
+            self.app_show("rates", focus=True, why="pcpop")      # (a click on the card: the app may take the keyboard)
         except Exception:
             self.log_error("opening Exchange Rates")
 
@@ -225,7 +249,7 @@ class PricePopup:
                 pass
 
     def pcpop_settings_show(self):
-        """A small box under the ⚙, over the game: where the price shows (Here | Overlay + Here - the same setting as
+        """A small box under the ⚙, over the game: where the price shows (In the app | Price check overlay - the same setting as
         Settings and Price Checks), the close key (2.125.5: shown here, set on Keybinds only), All price check settings….
         2.125.5 (feedback: everything over the game follows the overlay's style): in the overlay's colors and font."""
         from .style import CAPTURING, Tooltip
@@ -258,10 +282,10 @@ class PricePopup:
         tk.Label(body, text="Price shows", bg=P1, fg=Q["text"], font=(F, 10), anchor="w").pack(fill="x")
         chips = tk.Frame(body, bg=P1)
         chips.pack(fill="x", pady=(4, 8))
-        cur = "Overlay + Here" if self.pc_show_get() == "both" else "Here"
+        cur = "Price check overlay" if self.pc_show_get() == "both" else "In the app"
         self.pcs_chips = {}
-        # 2.125.6 (feedback: "Here" = in the app): over the game, "Here" would read as the overlay - the app is named
-        words = {"Here": "In the app", "Overlay + Here": "Overlay + the app"}
+        # 2.125.6: over the game the app is named. Drawer build: the same two words as everywhere (one place each)
+        words = {"In the app": "In the app", "Price check overlay": "Price check overlay"}
         for name in self.PC_WHERE:
             on = name == cur
             c = tk.Label(chips, text=("✓ " if on else "") + words[name], bg=Q["field"] if on else P1,
@@ -328,9 +352,8 @@ class PricePopup:
     def _pcs_keys(self):
         """The overlay's close key is set on Keys (2.125.5: one place)."""
         try:
+            self.app_show(focus=True, why="pcpop")
             self.hotkeys_open("checks:pc_close_key")
-            self.root.deiconify()
-            self.root.lift()
         except Exception:
             from . import buglog
             buglog.caught()
@@ -338,10 +361,8 @@ class PricePopup:
     def _pcs_all(self):
         self.pcpop_settings_close()
         try:
+            self.app_show(focus=True, why="pcpop")
             self.settings_open("Price checking", "pc_single")
-            self.root.deiconify()
-            self.root.lift()
-            self.root.focus_force()
         except Exception:
             from . import buglog
             buglog.caught()
@@ -393,34 +414,53 @@ class PricePopup:
 
     # ---------------------------------------------------------------- what it shows
     def pcpop_refresh(self, rec):
-        """The item on Price Checks changed (searched, priced, a tick): the card follows if it shows that item."""
-        if rec is None or getattr(self, "pp_win", None) is None or rec["id"] != getattr(self, "pp_rid", None):
+        """The item on Price Checks changed (searched, priced, a tick): the card follows if it shows that item.
+        Another Price Checks item shown in the app while the card is open: the card shows that one too."""
+        if rec is None or getattr(self, "pp_win", None) is None:
             return
+        if rec["id"] != getattr(self, "pp_rid", None):
+            if not (getattr(self, "pp_up", False) and getattr(self, "pp_rid", None) is not None
+                    and rec.get("src") == "pc"):
+                return
+            self.pp_rid, self.pp_open = rec["id"], set()  # (a new item starts with its listings closed)
         if getattr(self, "_pp_job", None):
             return
 
         def go():
             self._pp_job = None
-            try:                                          # (never under your typing: a Min / Max box has the keyboard -
-                f = str(self.pp_win.tk.call("focus"))     #  try again in a moment)
-            except (tk.TclError, AttributeError):
-                f = ""
-            if f.startswith(str(self.pp_win)) and "entry" in f.lower():
-                self._pp_job = self.root.after(400, go)
-                return
-            self.pcpop_fill(rec)
+            if self._pcpop_typing():                      # (never under your typing - try again in a moment. 3.0.1:
+                self._pp_job = self.root.after(400, go)   #  only while you type: a box that just keeps the keyboard
+                return                                    #  after Enter / Search again no longer holds the card back)
+            # (feedback: another price check showed the one before's Miscellaneous Yes / No): the item the card shows
+            # NOW - a refresh asked for the item before must never fill the card over the new one
+            cur = self.records.get(getattr(self, "pp_rid", None))
+            if cur is not None and getattr(self, "pp_win", None) is not None:
+                self.pcpop_fill(cur)
         self._pp_job = self.root.after(60, go)
 
+    def _pcpop_cancel(self):
+        """A refresh waiting to run: dropped (the card is filled or closed right now)."""
+        job, self._pp_job = getattr(self, "_pp_job", None), None
+        if job:
+            try:
+                self.root.after_cancel(job)
+            except Exception:
+                from . import buglog
+                buglog.caught()
+
     def pcpop_fill(self, rec):
-        from .pricecheck_page import RARITY_COL, cur_label, listing_facts
+        from .pricecheck_page import RARITY_COL, cur_label, flag_text, listing_facts, own_flags, widened_line
         from .pricefmt import fmt_div
         from .trade import ago, mod_impact
         P = self.pp_P
         inner = self.pp_inner
         top = self.pp_cv.yview()[0] if inner.winfo_children() else 0.0
+        if getattr(self, "_pp_refocus", None) is None:     # 3.0.1: a box you're in keeps the keyboard after a redraw
+            self._pp_refocus = self._pcpop_box_focused()
         for c in inner.winfo_children():
             c.destroy()
         self.pp_wraps = []
+        self.pp_boxes = {}
         it = rec.get("item") or {}
         body, head = P.get("body") or P["font"], P.get("hfont") or P["font"]
         pad = dict(padx=16)
@@ -441,10 +481,13 @@ class PricePopup:
         info = [f"{it.get('rarity') or ''} {it.get('class') or ''}".strip(),
                 it.get("base") if it.get("name") and it.get("base") and it.get("base") != it.get("name") else "",
                 f"item level {it['ilvl']}" if it.get("ilvl") else "",
+                f"area level {it['area_level']}" if it.get("area_level") else "",      # (waystones: shown only)
                 f"quality {it['quality']}%" if it.get("quality") else ""]
         lab(inner, " · ".join(x for x in info if x), fg=P["muted"], size=9, **pad)
-        if it.get("corrupted"):
-            lab(inner, "Corrupted", fg=ink(C["red"], P["bg"]), size=9, bold=True, **pad)
+        flags = own_flags(rec)
+        if flags:                                            # Corrupted, Mirrored, Fractured ... (a mark + a word)
+            lab(inner, flag_text(flags), fg=ink(C["red"] if "corrupted" in flags else P["text"], P["bg"]), size=9,
+                bold=True, **pad)
         del name
 
         # the price
@@ -468,12 +511,18 @@ class PricePopup:
                      anchor="w", justify="left", wraplength=360).pack(fill="x", padx=8, pady=8)
         if rec.get("changed"):
             lab(inner, "Ticks changed - press Search again.", fg=P["accent"], size=9, pady=(4, 0), **pad)
+        wl = widened_line(rec)                               # owner (base widening): as the app's card
+        if wl:
+            lab(inner, wl, fg=P["text"], size=9, pady=(4, 0), **pad)
 
         # 2.114.0 (feedback: white / magic bases didn't price the same here): the item's own filters, as on the
         # app's card - base type, item level, quality, sockets (a base's search is these, not its mods)
         s_ = it.get("search") or {}
         if it.get("gear") and s_.get("rarity") != "unique" and it.get("rarity") != "Currency":
             self._pcpop_props(inner, P, rec, it, body, head)
+
+        if it.get("rarity") != "Currency":                   # Round 18: the flags, as the app's Miscellaneous
+            self._pcpop_misc(inner, P, rec, it, body, head)
 
         # the mods searched (tick = searched; a click changes it, Search again runs it)
         every = [m for m in it.get("mods") or [] if m.get("text")]
@@ -520,18 +569,26 @@ class PricePopup:
             entries, total, n = self.pc_entries(rec)
             if entries:
                 lab(inner, "CHEAPEST LISTINGS", fg=P["head"], size=9, bold=True, font=head, pady=(12, 2), **pad)
+            lvl = ilvl_matters(it)
             for e in entries:
                 f = listing_facts(e)
-                self._pcpop_listing(inner, P, f, body, head, cur_label, ago, RARITY_COL)
+                self._pcpop_listing(inner, P, f, body, head, cur_label, ago, RARITY_COL, lvl)
         tk.Frame(inner, bg=P["bg"], height=10).pack(fill="x")
 
         # the buttons
         for c in self.pp_foot.winfo_children():
             c.destroy()
-        self._pcpop_btn("Search again", lambda: self.reprice([rec["id"]]), primary=True).pack(side="left")
+        from .pricecheck_page import search_tip, search_word
+        from .style import Tooltip
+        go = self._pcpop_btn(search_word(rec), lambda: self._pcpop_go(rec), primary=True)     # (owner: ↔ Broaden
+        go.pack(side="left")                                                             # Search - one step a click)
+        Tooltip(go, search_tip(rec))
         self._pcpop_btn("Trade site", self.pc_open_trade, enabled=bool(rec.get("qid"))).pack(side="left", padx=(8, 0))
         self._pcpop_btn("Open in app", lambda: self._pcpop_in_app(rec)).pack(side="right")
         self.root.after_idle(lambda: self._pcpop_after(top))
+        want, self._pp_refocus = getattr(self, "_pp_refocus", None), None
+        if want:
+            self._pcpop_refocus(*want)
 
     def _pcpop_socketed(self, inner, P, rec, it, runes, body, head):
         """2.125.5 (feedback: "it doesn't say slots or show what is in them"): what's in the item's sockets - the
@@ -593,7 +650,8 @@ class PricePopup:
         except (tk.TclError, AttributeError):
             pass
 
-    def _pcpop_listing(self, inner, P, f, body, head, cur_label, ago, RARITY_COL):
+    def _pcpop_listing(self, inner, P, f, body, head, cur_label, ago, RARITY_COL, lvl=False):
+        from .pricecheck_page import flag_text
         lid = f.get("id")
         opened = lid in self.pp_open
         card = tk.Frame(inner, bg=P["bg"], highlightthickness=1, highlightbackground=P["line"])
@@ -611,8 +669,12 @@ class PricePopup:
             when = f"{seller} · {when}" if when else seller
         if f.get("times", 1) > 1:                             # 2.113.0: one row per seller
             when = f"listed {f['times']}× · {when}" if when else f"listed {f['times']}×"
+        if lvl and f.get("ilvl"):                             # Round 18: its item level, where that matters
+            when = f"ilvl {f['ilvl']} · {when}" if when else f"ilvl {f['ilvl']}"
         if when:
             tk.Label(top, text=when, bg=P["bg"], fg=P["muted"], font=(body, 9)).pack(side="right")
+        if f.get("flags"):                                   # spotted at a glance, folded or not
+            tk.Label(top, text=flag_text(f["flags"]), bg=P["bg"], fg=P["text"], font=(body, 9)).pack(side="left")
         mods = [t for _tier, t, k in f.get("mods") or [] if k not in ("implicit", "enchant", "rune")]
         summ = " · ".join(mods[:3]) + (" …" if len(mods) > 3 else "")
         sl = tk.Label(card, text=summ or "(no mods)", bg=P["bg"], fg=P["muted"], font=(body, 9), anchor="w",
@@ -638,8 +700,9 @@ class PricePopup:
                               fg=ink(MOD_COL.get(kind, P["text"]), P["bg"]), font=(body, 10), anchor="w", justify="left")
                 l_.pack(fill="x")
                 self.pp_wraps.append(l_)
-            if f.get("corrupted"):
-                tk.Label(full, text="Corrupted", bg=P["bg"], fg=ink(C["red"], P["bg"]), font=(body, 9, "bold"), anchor="w").pack(fill="x")
+            if f.get("flags"):
+                tk.Label(full, text=flag_text(f["flags"]), bg=P["bg"], anchor="w", font=(body, 9, "bold"),
+                         fg=ink(C["red"] if "corrupted" in f["flags"] else P["text"], P["bg"])).pack(fill="x")
             if f.get("note"):
                 l_ = tk.Label(full, text=f["note"], bg=P["bg"], fg=P["muted"], font=(body, 9), anchor="w", justify="left")
                 l_.pack(fill="x")
@@ -692,17 +755,14 @@ class PricePopup:
         same = cur.get("base") == "same"
         tick_row(same, f"Base type: {it['base']}" if same else f"Any {it.get('class') or 'base'}",
                  lambda: (self.search_opt_set(rec, "base", "class" if same else "same", redraw=False), changed()))
-        if it.get("corrupted"):                              # 2.120.1 (feedback): the Corrupted toggle here too
-            cor = cur.get("corrupted") == "yes"
-            tick_row(cor, "Corrupted listings only" if cor else "Corrupted or not",
-                     lambda: (self.search_opt_set(rec, "corrupted", "any" if cor else "yes", redraw=False), changed()))
         self.pp_props = {}
         for key, label, have in rows:
             v = cur.get(key)
             lo, hi = (v.get("min"), v.get("max")) if isinstance(v, dict) else (v, None)
             on = v not in (None, "", 0, {})
-            row = tick_row(on, label, lambda k=key, o=on, h=have: (
-                self.search_opt_set(rec, k, None if o else {"min": h}, redraw=False), changed()))
+            tick = (lambda k=key, o=on, h=have: (self.search_opt_set(rec, k, None if o else {"min": h}, redraw=False),
+                                                 changed()))
+            row = tick_row(on, label, tick)
             boxes = {}
             for k, val in (("max", hi if on else None), ("min", lo if on else have)):    # (packed from the right)
                 e = tk.Entry(row, width=5, bg=P.get("field", P["bg"]), fg=P["text"], insertbackground=P["text"],
@@ -729,11 +789,49 @@ class PricePopup:
                 rec["changed"] = True
                 self.dirty = True
                 return True
-            for e in boxes.values():
+            for k, e in boxes.items():
                 e.keep = keep                                 # (tests call it, as on the mods' boxes)
                 e.bind("<KeyRelease>", keep)
-                e.bind("<Return>", lambda _e, kp=keep: (self.reprice([rec["id"]]) if kp() else None, "break")[-1])
+                e.bind("<Return>", lambda _e, kp=keep: self._pcpop_enter(rec, kp))
+                self._pcpop_box(e, ("prop", key, k), tick)    # 3.0.1: a click here takes the keyboard (it never did)
             self.pp_props[key] = boxes
+
+    def _pcpop_misc(self, inner, P, rec, it, body, head):
+        """MISCELLANEOUS (compact): the item's own flags (at Yes), Corrupted and Crafted - Any / Yes / No, the same
+        rec["opts"] as the app card's Miscellaneous; a click steps through them, Search again runs it."""
+        from .app import misc_tip
+        from .searchopts_page import default_opts
+        from .style import Tooltip
+        cur = {**default_opts(it), **(rec.get("opts") or {})}
+        has = set(it.get("flags") or ()) | ({"corrupted"} if it.get("corrupted") else set())
+        rows = [(k, lab_) for k, lab_ in self._card_misc_keys(it)     # (and any the search uses: a base's No's)
+                if k in has or k in ("corrupted", "crafted") or (cur.get(k) or "any") != "any"]
+        if not rows:
+            return
+        tk.Label(inner, text="MISCELLANEOUS", bg=P["bg"], fg=P["head"], font=(head, 9, "bold"), anchor="w").pack(
+            fill="x", padx=16, pady=(12, 2))
+        grid = tk.Frame(inner, bg=P["bg"])
+        grid.pack(fill="x", padx=16)
+        for i, (key, label) in enumerate(rows):
+            v = cur.get(key) or "any"
+            cell = tk.Frame(grid, bg=P["bg"], cursor="hand2")
+            cell.grid(row=i // 2, column=i % 2, sticky="w", padx=(0, 16))
+            a = tk.Label(cell, text=label, bg=P["bg"], fg=P["text"] if key in has else P["muted"], font=(body, 9),
+                         cursor="hand2")
+            a.pack(side="left")
+            b = tk.Label(cell, text=f"{v.title()} ▾", bg=P["bg"], fg=P["accent"] if v != "any" else P["text"],
+                         font=(body, 9, "bold"), cursor="hand2")
+            b.pack(side="left", padx=(8, 0))
+            Tooltip(cell, misc_tip(key, label))
+
+            def step(_e=None, k=key, v_=v):
+                self.search_opt_set(rec, k, {"any": "yes", "yes": "no", "no": "any"}[v_], redraw=False)
+                rec["changed"] = True
+                self.dirty = True
+                self.pcpop_fill(rec)
+            for wdg in (cell, a, b):
+                wdg.bind("<Button-1>", step)
+        grid.columnconfigure(1, weight=1)
 
     def _pcpop_vals(self, row, P, rec, m, on):
         """Min / Max for one mod, as on the app's card: what the search uses; typing changes it for this item (the same
@@ -782,20 +880,105 @@ class PricePopup:
             rec["changed"] = True
             self.dirty = True
             return True
-        for e in boxes.values():
+        for key, e in boxes.items():
             e.keep = keep                                 # (tests call it: no window manager there to focus a box)
             e.bind("<KeyRelease>", keep)
-            e.bind("<Return>", lambda _e: (self.reprice([rec["id"]]) if keep() else None, "break")[-1])
-            e.bind("<Button-1>", lambda _e, ee=e: self._pcpop_type(ee), add="+")
+            e.bind("<Return>", lambda _e: self._pcpop_enter(rec, keep))
+            self._pcpop_box(e, ("mod", id(m), key), lambda: self._pcpop_tick(rec, m, True))
         return boxes
 
-    def _pcpop_type(self, e):
-        """The card takes the keyboard for typing (Windows: a click on a window over the game may not)."""
+    def _pcpop_go(self, rec):
+        """Search again / ↔ Broaden Search: what you typed is searched, and the card shows what it found."""
+        self._pp_typed = False
+        return self.pc_search_go(rec)
+
+    # ---------------------------------------------------------------- 3.0.1: typing in a Min / Max box
+    def _pcpop_box(self, e, box_id, tick):
+        """Every Min / Max box: a click takes the keyboard (a gray one ticks its row first), a key marks typing."""
+        e._pp_id = box_id
+        self.pp_boxes[box_id] = e
+        e.bind("<Button-1>", lambda _e, ee=e, t=tick: self._pcpop_box_click(ee, t), add="+")
+        e.bind("<KeyPress>", self._pcpop_key, add="+")
+
+    def _pcpop_box_click(self, e, tick):
+        """A click in a Min / Max box: you can type in it. A gray box (its row not ticked) ticks its row - the card is
+        drawn again with the box on - and the cursor goes in the new box."""
         try:
-            self.pp_win.focus_force()
+            gray = str(e.cget("state")) == "disabled"
+        except tk.TclError:
+            return None
+        if gray:
+            self._pp_refocus = (e._pp_id, True)
+            tick()
+            return "break"
+        self._pcpop_type(e)
+        return None
+
+    def _pcpop_type(self, e):
+        """The card takes the keyboard for typing - Windows: the card's window is made one that can have it and put
+        in front (overlaywin.take_keyboard: a click on a window over the game may not hand it over). The window that
+        had the keyboard (the game) gets it back when the card closes."""
+        w = getattr(self, "pp_win", None)
+        try:
+            take = getattr(w, "take_keyboard", None)
+            before = take(e) if take is not None else None
+            back = before or getattr(self, "_pp_game", None)    # (the click itself may have given the card the
+            if back:                                            #  keyboard already: then the game it opened over)
+                self._pp_back = back
+            if take is None:
+                w.focus_force()
             e.focus_set()
         except (tk.TclError, AttributeError):
             pass
+
+    def _pcpop_key(self, ev):
+        """A key in a Min / Max box: you're typing - the card isn't drawn again under it until you search."""
+        if ev.keysym not in ("Return", "KP_Enter", "Escape", "Tab", "ISO_Left_Tab"):
+            self._pp_typed = True
+
+    def _pcpop_enter(self, rec, keep):
+        """Enter in a Min / Max box: search again with it; the box keeps the keyboard when the card is drawn again."""
+        if not keep():
+            return "break"
+        self._pp_typed = False
+        self.reprice([rec["id"]])
+        return "break"
+
+    def _pcpop_typing(self):
+        """Are you typing in one of the card's boxes (a key since the last search, and the box has the keyboard)?"""
+        return bool(getattr(self, "_pp_typed", False)) and self._pcpop_box_focused() is not None
+
+    def _pcpop_box_focused(self):
+        """(box id, False) of the Min / Max box that has the keyboard, or None."""
+        w = getattr(self, "pp_win", None)
+        try:
+            f = str(w.tk.call("focus")) if w is not None else ""
+        except tk.TclError:
+            return None
+        for box_id, e in (getattr(self, "pp_boxes", None) or {}).items():
+            if f and str(e) == f:
+                return box_id, False
+        return None
+
+    def _pcpop_refocus(self, box_id, take=False):
+        """After the card is drawn again: the same box has the keyboard, the cursor at its end (once it's on screen -
+        Tk gives an unmapped box the keyboard only when it shows)."""
+        def go():
+            e = (getattr(self, "pp_boxes", None) or {}).get(box_id)
+            if e is None:
+                return
+            try:
+                if not e.winfo_exists() or str(e.cget("state")) == "disabled":
+                    return
+                e.update_idletasks()
+                if take:
+                    self._pcpop_type(e)
+                else:
+                    e.focus_set()
+                e.icursor("end")
+            except tk.TclError:
+                pass
+        self.root.after_idle(go)
 
     @staticmethod
     def _pcpop_mine(seller):
@@ -813,8 +996,6 @@ class PricePopup:
     def _pcpop_in_app(self, rec):
         try:
             self.pc_show(rec)
-            self.shell.open("pricecheck")
-            self.root.deiconify()
-            self.root.lift()
+            self.app_show("pricecheck", focus=True, why="pcpop")
         except Exception:
             self.log_error("opening Price Checks")

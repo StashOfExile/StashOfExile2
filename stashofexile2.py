@@ -1,8 +1,8 @@
-"""
+r"""
 StashOfExile2 - a Path of Exile 2 price checker for tablets and jewels, with a window instead of a text dump.
 Free software under the GNU AGPL v3.0 (see LICENSE; up to 2.129.4: GNU GPL v3.0). Written by an AI (Claude, by Anthropic) under a human's direction.
 
-VERSION 2.142.2
+VERSION 3.0.1
   How versions are numbered (from 2.0.0 on):
     MAJOR.MINOR.PATCH.  The 22 betas ended here: this build is 2.0.0. From now on every build gets a plain number:
       2.0.1, 2.0.2 ...  fixes (nothing new to learn)
@@ -19,6 +19,49 @@ VERSION 2.142.2
   version (settings.json, session.json, modbook.json, mod_rules.json, wealth.json, tabs.txt ...).
 
 VERSION HISTORY
+  3.0.1
+       - The Look key is the Read Key (owner: "ctrl + shift + r = Read. R for Read."): names.py, every label, tip,
+         helper line, What's new, README / TOS / docs and tests. Its setting is still look_key; its NEW chip's seen
+         state moves over (migrations.read_key_name). check_removed: "Look key" and the lines saying the game still
+         gets the key never come back (owner: nobody understands them - the key still reaches the game).
+       - What's new: the wheel scrolls it anywhere over the card - its cards are windows in a Text and didn't pass the
+         wheel on (style.wheel_scrolls). Farming Strategies' guide (item cards, the tablets' button, the atlas
+         picture in its Text) had the same gap.
+       - Price check overlay, Min / Max typing: the item's own boxes (item level, quality, sockets) never asked for
+         the keyboard on a click - only the mods' did - and on Windows a borderless window over the game isn't handed
+         the keyboard by the click itself. Every box now takes it (overlaywin.take_keyboard: the card's window can
+         have the keyboard - no-activate / click-through off - and is put in front, then the box gets it); a gray box
+         ticks its row; a redraw keeps the box you're in; the card waits only while you type (a box that just kept
+         the keyboard after Enter held the new result back); closing the card hands the keyboard back to the game.
+         tests/test_pcpop_typing.py, tests/test_wheel_cards.py.
+  3.0.0
+       - GGG third-party policy (Nov 2026), at its strictest: the screen or the clipboard is read only once per manual
+         key press - the Read Key (Ctrl+Shift+R as the app comes) for every screen read,
+         the copy keys for the clipboard (price checks: Ctrl+D). No timed or automatic screen watching; each read
+         shows the read mark (👁) and writes a log line. Client.txt is still followed. Removed: the Delirium helper,
+         the Temple Helper's Vaal Beacon read (crystals from the Temple Console only), Map Content reads, the clipboard
+         watcher, Paste buttons, the Toolkit row. Map profit + Top Up Reminders: one Back from a map card.
+       - The Drawer (one monitor) or the Full window (two or more): Settings › General › Window; the Drawer key.
+       - Campaign Bar rework; Trial of the Sekhemas helper (BETA); Broaden Search on base price checks; cards over the
+         game close with a click on them; new Discord invite; the repo moved to StashOfExile/StashOfExile2.
+       - What's new leads with "Why 3.0" and "How helpers work now" (whatsnew NOTES["3.0.0"]["lead"]), shown to
+         everyone once - after updating, and on a first start after the quick start (settings "whatsnew_lead").
+       - NEW chip (newchip.py): on the Read Key, the Drawer and Trial of the Sekhemas rows, and their page's icon in
+         the sidebar and the Drawer's rail, until opened or used (settings "new_seen").
+       - No TEST BUILD title; UI_OVERHAUL off (opt-in error reports work again).
+  2.143.0
+       - Full releases only (feedback: "I want to stop pushing pre-releases out and remove pre-release toggle from
+         settings, I want to go back to the old method of building locally, testing, then pushing an update to full
+         release"): Settings › Updates' Preview builds switch is gone (its setting cleared), the app looks at full
+         releases only, the release workflow publishes a full release, Promote release is gone.
+       - Wealth, Market Insights and Game Search are out of BETA (feedback: fully working).
+       - UI overhaul merged in (from the local overhaul build): Dashboard home page, cards, Go to, the price check
+         list, the rates view; app, shell, sidebar, style, wealth, search, price check and rates pages.
+       - Vaal Lens: a path to the Architect first (feedback: "the most important step for this run is to connect to
+         the architect and kill him so that I gain access to his special room cards to place the key room") - the
+         fewest tiles from your paths, none touching a reward room, drawn as a gold lane; "1 Path to the Architect,
+         then kill him". Card pictures cut out of their backing (feedback: "the crudely cropped images of the cards
+         looks awful").
   2.142.2
        - Map profit names exchange items by the Currency Exchange's own icons (feedback: "I shouldn't have to ctrl+c
          to teach it"): 661 items cut from the user's screenshots of its "I Want" lists (templates/exchange_icons.png
@@ -163,7 +206,7 @@ VERSION HISTORY
          The admin is told ("N new kinds ... ask Claude") - nothing is fixed by itself (feedback: "prompt me for it").
        - Downloads are only ever data (feedback: "protection against malware/viruses going to the cloudflare
          database"): every pooled row is checked again in the app (communitymods.safe_rows, errorreports.safe_row -
-         plain numbers and short plain text, no control characters or < > { } ` $ \, capped) before it's saved; JSON
+         plain numbers and short plain text, no control characters or < > { } ` $ backslash, capped) before it's saved; JSON
          is parsed, never run. Board: base names must be plain words (okBase), answers carry nosniff, error kinds
          capped at 5,000.
   2.136.2
@@ -1125,7 +1168,7 @@ VERSION HISTORY
        off and hidden until switched on (roadmap): Debug mode - every trade-site request with its answer and time in
        the app's log (kind debug, cleaned the same way) and a debug line in the status bar; Unmatched mods - every mod
        in unmatched_mods.txt beside the closest trade wording, newest first, no repeats (Copy all, Clear the list).
-       Your data shows the folder as %APPDATA%\StashOfExile2 (no Windows user name on screen).
+       Your data shows the folder as %APPDATA%\\StashOfExile2 (no Windows user name on screen).
        Privacy & community: shorter notes, a line when nothing of yours is on the board, links to TOS.md / README.
        About: header colors from the theme; credits name each project's author.
   2.115.0
@@ -1774,7 +1817,7 @@ VERSION HISTORY
        cx_history.json are simply not read). The Check a flip calculator stays - arithmetic on two prices you type,
        no requests - at the bottom of Exchange rates › Exchange Helper (exchange_page.build_flip); item names and the
        flip math live in cxnames.py.
-       Every request says honestly which app is asking: "StashOfExile2/<version> (+https://github.com/tiwomm/
+       Every request says honestly which app is asking: "StashOfExile2/<version> (+https://github.com/StashOfExile/
        StashOfExile2)" (config.APP_UA) - the trade site saw "personal-stash-pricer/1.0" before; poe.ninja, GitHub and
        the community board get the same name. No name, account or email of the user is in it.
   2.91.0
@@ -3010,9 +3053,9 @@ VERSION HISTORY
            armor, shields, foci, quivers, weapons). tools/build_regexdata.py: MULTI kinds from several RePoE
            domains (misc / item / desecrated) kept by spawn tag; mods with the same text are one row; a line another
            mod shares word for word doesn't block a token; base names are noise; when no short token is unique the
-           whole line is the token (^...$, numbers as \\d+, mod["rx"]). Jewel type filter (base name), gear "Show
+           whole line is the token (^...$, numbers as \d+, mod["rx"]). Jewel type filter (base name), gear "Show
            mods for" slot boxes (list only). Ranges / maximums work the same. BUNDLED_DATA regexdata.json 2.
-           Exact number patterns (regex.num_range writes \\d, never '.', up to 9999) for whole-line tokens, lines with
+           Exact number patterns (regex.num_range writes \d, never '.', up to 9999) for whole-line tokens, lines with
            two numbers ("adds # to # ...") and mods that can reach 1,000+: checked over every roll of every mod.
   2.21.0
        (1) Price checks: "Sold for" + 💰 Mark as sold in the item's panel (mark "sold", Show: Sold). The sale goes in
@@ -3683,7 +3726,7 @@ VERSION HISTORY
        over unchanged. The Mod book page now says WHY it is empty (database problem, nothing recorded yet, or the last
        recording error) instead of a generic message.
   1.30 A little empty space under the bottom key bar.
-  1.29 "Check for updates" button (bottom bar, right). Click it: the app asks GitHub (github.com/tiwomm/StashOfExile2,
+  1.29 "Check for updates" button (bottom bar, right). Click it: the app asks GitHub (github.com/StashOfExile/StashOfExile2,
        Releases) for the newest version, tells you if there is one, shows what is new, and asks whether to download it.
        Yes = it downloads the new exe, checks it against GitHub's checksum, closes, swaps itself and starts again.
        Your settings, rules and market data stay (they live in a separate folder). Nothing is checked or downloaded
@@ -3860,7 +3903,7 @@ THE "LEARNING" PART
 import os
 import sys
 
-APP_VERSION = "2.142.2"  # bump this and __version__ in soe2/__init__.py together (see VERSION above)
+APP_VERSION = "3.0.1"  # bump this and __version__ in soe2/__init__.py together (see VERSION above)
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -3873,12 +3916,20 @@ def main():
     if len(sys.argv) > 2 and sys.argv[1] == "--finish-update":  # 2.29.1: the new exe swaps itself in (no .bat)
         from soe2.updates import finish_update
         sys.exit(finish_update(sys.argv[2]))
-    if len(sys.argv) > 1 and sys.argv[1] == "--ritual":         # 2.14.0: the Ritual watcher helper (started by the app)
-        from soe2.ritual_alert import main as ritual
-        sys.exit(ritual(sys.argv[2:]))
-    if len(sys.argv) > 1 and sys.argv[1] == "--delirium":       # 2.0 beta 7: the Delirium alert helper (started by the app)
-        from soe2.delirium_runner import main as delirium
-        sys.exit(delirium(sys.argv[2:]))
+    if len(sys.argv) > 1 and sys.argv[1] in ("--ritual", "--delirium"):
+        sys.exit(0)        # GGG policy (Nov 2026): the screen-watching helper processes are gone (an old app's call)
+    if len(sys.argv) > 1 and sys.argv[1] == "--check-linux":    # Linux check: what works here, each with its fix
+        from soe2.lincheck import main as check
+        sys.exit(check())
+    if len(sys.argv) > 2 and sys.argv[1] == "--key":            # Linux: a desktop shortcut tells the app a key press
+        from soe2.linkeys import send
+        code = send(sys.argv[2])
+        if code:
+            print("StashOfExile2 isn't running." if code == 2 else f"Not a key: {sys.argv[2]}")
+        sys.exit(code)
+    if "--selftest" in sys.argv:                                 # the build's smoke run: start, show, close cleanly
+        sys.argv.remove("--selftest")
+        _selftest_hook()
     try:
         import soe2
         from soe2 import config
@@ -3891,6 +3942,37 @@ def main():
         return
     from soe2.app import main as run
     run()
+
+
+def _selftest_hook(secs=12):
+    """--selftest: the app starts as usual; SECS after its window loop starts it prints what it showed and closes
+    (exit 0) - the Linux build's smoke run (build_linux.sh, the workflow)."""
+    import tkinter as tk
+    loop = tk.Misc.mainloop
+
+    def mainloop(self, n=0):
+        def done():
+            try:
+                self.update_idletasks()
+                print(f"selftest: window '{self.title()}' {self.winfo_width()}x{self.winfo_height()} "
+                      f"mapped={bool(self.winfo_ismapped())}", flush=True)
+                if sys.platform.startswith("linux"):
+                    from soe2 import linkeys, ocrengine
+                    print(f"selftest: key watchers {linkeys.STATE}, OCR engine '{ocrengine.engine()}'", flush=True)
+            except Exception as e:
+                print(f"selftest: window check failed ({e})", flush=True)
+            try:                                                 # the app's own close (saves, then goes)
+                cmd = self.tk.call("wm", "protocol", self._w, "WM_DELETE_WINDOW")
+                if cmd:
+                    self.tk.call(cmd)
+                    return
+            except Exception:
+                pass
+            self.quit()
+        self.after(int(secs * 1000), done)
+        tk.Misc.mainloop = loop
+        return loop(self, n)
+    tk.Misc.mainloop = mainloop
 
 
 def _fail(msg):

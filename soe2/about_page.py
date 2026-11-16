@@ -12,7 +12,7 @@ from .style import C, FONT_TITLE, Tooltip
 from .updates import REPO
 
 GITHUB_URL = f"https://github.com/{REPO}"
-DISCORD_URL = "https://discord.gg/Ta8EVnxx4T"
+DISCORD_URL = "https://discord.gg/jG5uCDYgbR"
 DISCORD = "#5865F2"
 DISCORD_HOVER = "#4752c4"
 
@@ -38,31 +38,32 @@ QUICKSTART = [
     ("Welcome to StashOfExile2", [
         "A free toolkit that runs next to Path of Exile 2: it prices your items, keeps track of your maps and warns "
         "you about things that are easy to miss in game.",
-        "It only reads what's yours: your clipboard, the game's own log file and your screen. It never touches the "
-        "game itself, and every key does one thing.",
+        "It only reads what's yours: the game's own log file, and your clipboard or screen once per key press (a "
+        "copy key, or your Read Key - a key you set just for the helpers). Each read shows for a second. It never "
+        "touches the game itself, and every key does one thing.",
     ]),
     ("Price an item", [
         "Hover an item in game and press Ctrl+D. Price Checks shows what it's worth, every filter to tweak, and the "
         "trade site's listings beside it.",
         "Pricing lots of items? Press Ctrl+Alt+C on each: they're listed in Bulk Pricing with what they're worth and "
         "what to list them for.",
-        "It works best on tablets, jewels and waystones. Got a whole tab of them? Bulk Pricing > Add items from > "
+        "It works best on tablets, jewels and waystones. Got a whole tab of them? Bulk Pricing › Add items from › "
         "Stash tab reads it in one go.",
     ]),
     ("Find your way around", [
-        "The bar on the left opens every tool. Each one is its own window: move it, resize it, keep several open.",
-        "Mod Book: rate the mods you care about. Regex: build stash searches. Exchange Rates: what currency is "
+        "The menu on the left opens every page. Ctrl+K (Go to anything) finds any page, part or setting by name.",
+        "Rate Mods: rate the mods you care about. Regex: build stash searches. Exchange Rates: what currency is "
         "worth right now.",
     ]),
     ("While you map", [
-        "Game Overlay: a bar over the game. Click ▶ Start session on it to time your maps and count maps and deaths; "
+        "Overlay: over the game. Click ▶ Start session on it to time your maps and count maps and deaths; "
         "F6 hides or shows the whole overlay.",
-        "Overlay › Overlay Settings › Helpers can warn you when your Hiveblood is almost full (Breach), when you leave a map "
-        "with Delirium or rituals left, and more. They work with or without a session.",
+        "Overlay › Helpers can warn you when your Hiveblood is almost full (Breach), when you leave a map "
+        "with rituals left, and more. They work with or without a session.",
     ]),
     ("Pick your league and say hi", [
         "Prices come from your league. The newest one is picked for you; change it here or any time in Settings.",
-        "Questions, ideas or something broken? Join the Discord. Settings > About has the link, this guide and "
+        "Questions, ideas or something broken? Join the Discord. Settings › About has the link, this guide and "
         "what's new.",
     ]),
 ]
@@ -179,10 +180,12 @@ class AboutPage:
         for line in (
                 "Written with AI (Claude), and open about it. Anyone may use it, change it and share it under the "
                 "AGPL-3.0 license - and anything made from it stays open source too.",
-                "It only reads your clipboard, the game's log file (Client.txt) and your screen - never the game's "
-                "memory - and it respects the trade site's limits. One key press = one action.",
-                "Prices come from the official trade site and poe.ninja. Not affiliated with or endorsed by Grinding "
-                "Gear Games."):
+                "It reads the game's log file (Client.txt), and your clipboard or screen only once per key press - "
+                "a copy key in the game, or your Read Key (Ctrl+Shift+R as the app comes, or a key you pick that the game doesn't use). "
+                "Never on a timer or a click; each read shows for a second. Never the game's memory, and it "
+                "respects the trade site's limits. One key press = one action.",
+                "Prices come from the official trade site and poe.ninja.",
+                "This product isn't affiliated with or endorsed by Grinding Gear Games in any way."):
             tk.Label(box, text=line, bg=P2, fg=C["text"], anchor="w", justify="left", wraplength=600,
                      font=("Segoe UI", 9)).pack(fill="x", pady=(4, 0))
         # 2.98.3 (feedback): credit where it's due - each with a link to its developers' GitHub page
@@ -211,9 +214,12 @@ class AboutPage:
         if old is not None and old.winfo_exists():
             old.destroy()
         P1, P2 = C["panel"], C["panel2"]
-        from .shell import InDeskToplevel
-        # (2.103.0 linux branch, Linux: inside the app's window, see shell.InDesk)
-        card = InDeskToplevel(self.shell, bg=C["accent"], padx=2, pady=2)
+        card = tk.Toplevel(self.root, bg=C["accent"], padx=2, pady=2)
+        card.overrideredirect(True)
+        try:
+            card.transient(self.root)
+        except tk.TclError:
+            pass
         self._whatsnew = card                   # same place / follow / keep-on-top as the what's new card
         self._wn_h = 420
         self.whatsnew_follow()

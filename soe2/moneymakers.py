@@ -23,7 +23,7 @@ SCHEMA = 2          # 2.29.0: category + type, tag groups, effort words (2.28.0 
 FILE = "moneymakers.json"
 MINE = "my_strats.json"
 RUNS = "money_runs.json"
-REPO = "tiwomm/StashOfExile2"
+REPO = "StashOfExile/StashOfExile2"
 LIVE_URL = f"https://raw.githubusercontent.com/{REPO}/main/{FILE}"
 LIVE_EVERY = 12 * 3600
 
@@ -492,7 +492,7 @@ def to_text(s=None):
     """A strat (or, with None, the blank template) in the plain-text layout."""
     s = s or {}
     out = [TXT_HEAD,
-           "# Money Makers strat - the standard layout. Lines starting with # are help: leave them or delete them.",
+           "# Farming Strategies strat - the standard layout. Lines starting with # are help: leave them or delete them.",
            "# One field per line (\"Field: value\"). Lists: one \"- item\" line per item under the field.",
            "# Checkboxes: put an x in the box, [x], for each one that applies (one in each [ ] group of Type,",
            "# Thinking and Clicks per hour; as many Tags as fit).",
@@ -663,7 +663,7 @@ def tablet_advice(rarity, n_mods, n_good):
         if n_mods < 4:
             return f"{n_good} good mod{'s' if n_good > 1 else ''}: Exalted Orb to fill it, then price it."
         return f"{n_good} good mod{'s' if n_good > 1 else ''}: worth pricing - press your price check key on it."
-    return "Copy a tablet in game (Ctrl+C), then press Check my tablet."
+    return "Copy a tablet in game (Ctrl+C), click the check box and press Ctrl+V."
 
 
 def _status():

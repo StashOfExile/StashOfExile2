@@ -4,7 +4,9 @@ published or sent to the cloudflare database"; "would not count waystones, only 
 per session/map/hour/day and log somewhere locally that only the user can see").
 
 How: Top Up's quick inventory read (the inventory panel only, never the stash side) is taken in your hideout or a
-town. The last clear read before a map is "before"; the first clear read after it is "after". What changed is that
+town, only when you press your Read Key there. Owner decision: back from a map, one card (topup_page.back_card) asks
+for that press - it counts the map's loot and checks your top ups from the same read; skip it and that map has no
+entry. The last clear read at home before a map is "before"; the first clear read after it is "after". What changed is that
 map's loot. Each cell is named by its picture - the ones you taught with Ctrl+C (Top Up) or the ones Scan stash
 learned - and only items with a Currency Exchange price (poe.ninja's exchange: currency, omens, runes, ...) count;
 waystones and gear never do. Prices: Exchange Rates (poe.ninja, in divines).
@@ -18,7 +20,7 @@ from . import buglog
 from .config import SETTINGS, P
 
 LOG_FILE = "map_profit.jsonl"
-DEFAULTS = {"on": False}
+DEFAULTS = {"on": True}
 KEEP_DAYS = 90                      # the log keeps this many days (older lines are dropped when it's tidied)
 BEFORE_SECS = 3 * 3600              # a "before" older than this isn't this map's (you left the game in between)
 ARRIVE_SECS = 8                     # 2.132.2: back home, what you came back with = the most seen in this long

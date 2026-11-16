@@ -279,6 +279,61 @@ def _room_for(b, t, lane):
 ANCHORS = {"Thaumaturge": ("Corruption Chamber", "Sacrificial Chamber", "Alchemy Lab")}
 
 
+def architect_route(board):
+    """2.143.0 (feedback: "the most important step for this run is to connect to the architect and kill him so that I
+    gain access to his special room cards to place the key room"): -> the free tiles a path needs from your paths and
+    rooms to the Architect, fewest first, none touching a reward room; [] when he's already joined; None when he isn't
+    on the board (or can't be reached safely)."""
+    taken = names(board)
+    arch = [c for c, v in taken.items() if v == "Architect"]
+    if not arch:
+        return None
+    a = arch[0]
+    net = network(taken)
+    if any(n in net for n in near(a)):
+        return []
+    best, q = {c: None for c in net}, deque(net)
+    while q:
+        c = q.popleft()
+        for n in near(c):
+            if n in best:
+                continue
+            if n == a:
+                out, k = [], c
+                while k is not None and k not in net:
+                    out.append(k)
+                    k = best[k]
+                return out[::-1]
+            if taken.get(n) or n in (ATZIRI, ENTRANCE) or touches_reward(taken, n):
+                continue
+            best[n] = c
+            q.append(n)
+    return None
+
+
+def architect_chain(board):
+    """-> [your tile, the path's tiles..., the Architect] for drawing the path as one gold lane, or None."""
+    route = architect_route(board)
+    if not route:
+        return None
+    taken = names(board)
+    net = network(taken)
+    arch = next(c for c, v in taken.items() if v == "Architect")
+    start = next((n for n in near(route[0]) if n in net), None)
+    return ([start] if start else []) + route + [arch]
+
+
+def steps(plan):
+    """The step number of each planned tile: the Architect's path is one step (however many tiles), each room one."""
+    out, k, prev = [], 0, None
+    for _t, fam, _w in plan:
+        if not (fam == "Path" and prev == "Path"):
+            k += 1
+        out.append(k)
+        prev = fam
+    return out
+
+
 def hand_plan(board, fams):
     """board: a read board; fams: room families in hand (cards and medallions, repeats allowed).
     -> [(tile, family, why)] in the order to place them: each Thaumaturge first, on a tile with safe room beside it
@@ -288,6 +343,9 @@ def hand_plan(board, fams):
     lane = spine(taken)
     b = dict(taken)
     plan = []
+    for t in architect_route(board) or []:               # 2.143.0: first, a path to the Architect
+        b[t] = "Path"
+        plan.append((t, "Path", "to the Architect"))
     for anchor, partners in ANCHORS.items():
         want = [f for f in fams if f in partners]
         want.sort(key=partners.index)
@@ -339,9 +397,10 @@ def with_plan(marks, plan, lit, what, card=None):
     planned tile -> ("p", (step, family)), drawn with that room's own picture and its step; the picked card's tile ->
     ("now", (step or None, family or card name)): its planned tile when lit, else its best tile; ✕ tiles stay."""
     out = {t: v for t, v in marks.items() if v[0] == "x"}
-    fam = what[1] if what and what[0] == "room" else None
-    key = fam or (str(card or "").lower() or None)
-    mine = next(((k + 1, t) for k, (t, f, _w) in enumerate(plan) if f == fam and t in lit), None)
+    fam = what[1] if what and what[0] == "room" else ("Path" if what and what[0] == "path" else None)
+    key = (fam if fam != "Path" else None) or (str(card or "").lower() or None)
+    st = steps(plan)
+    mine = next(((st[k], t) for k, (t, f, _w) in enumerate(plan) if f == fam and t in lit), None)
     if mine is not None:
         out[mine[1]] = ("now", (mine[0], key))
     elif lit and key:
@@ -350,5 +409,5 @@ def with_plan(marks, plan, lit, what, card=None):
             out[best] = ("now", (None, key))
     for k, (t, f, _w) in enumerate(plan):
         if t not in out:
-            out[t] = ("p", (k + 1, f))
+            out[t] = ("p", (st[k], "path" if f == "Path" else f))
     return out

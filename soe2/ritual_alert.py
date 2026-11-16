@@ -1,25 +1,21 @@
 """Ritual watcher (2.14.0): reads the game's Ritual counter ("0/3", "2/4" ...) from your screen.
 
-Path of Exile 2 doesn't write Ritual progress to Client.txt, so - like the Delirium alert - this looks at a small part
-of the screen: the Ritual icon (horned skull in a red ring) at the bottom, right of center, with the counter in a black
-box next to it. Only that corner is captured, twice a second; nothing is sent to the game.
-
-It runs as its own helper process (StashOfExile2.exe --ritual <data folder>, see utilities.RITUAL), so screen capture
-never slows the app, and talks to the app over its stdin / stdout:
-    app -> helper: quit, capture
-    helper -> app: "state watching" / "state nogame" / "state error", "count 2/3", "count none", "captured <path>",
-                   or a message line.
+Path of Exile 2 doesn't write Ritual progress to Client.txt (only that a ritual started, or was disrupted - gamelog),
+so this reads a small part of the screen: the Ritual icon (horned skull in a red ring) at the bottom, right of center,
+with the counter in a black box next to it.
+GGG policy (Nov 2026): once per press of your Read Key (a key just for it), in a map - look() cuts that corner and the
+tribute counter out of the press's one picture (screenread.py). Nothing runs by itself (it was a helper process
+reading twice a second); nothing is sent to the game. Between presses the game's log (Client.txt: a ritual started /
+disrupted) moves the count on. (Owner decision: Map Content's Ritual icon - its "all done" tick - is never read.)
 How the counter is read: find the icon by template matching (soe2/templates/ritual_icon.png, scaled to the game's
 height), take the black box right of it, keep the bright text pixels and cut them into glyphs at the empty columns;
 the middle one is "/", and each digit (0 - 9) is recognized from its shape (holes, width, which edges are filled).
-A reading counts only when it's seen twice in a row and makes sense (total 3 - 8, done <= total).
+A reading counts only when it makes sense (total 3 - 8, done <= total).
 
 ToS (TOS.md): this only LOOKS at the screen (a capture, like a screenshot) and SHOWS something; it never presses,
 clicks, types or sends anything to the game, and never reads the game's memory or traffic."""
 import os
 import sys
-import threading
-import time
 from pathlib import Path
 from . import buglog
 
@@ -29,7 +25,6 @@ SEARCH = (240, 620, 170, 0)
 TOTAL_MAX = 8                     # 2.130.0: a map can hold more rituals than 4 (3/6 seen; "up to 7")
 TEXT_BOX = (50, 120, 6, 44)      # the counter's box, relative to the icon's top-left: x from, x to, y from, y to
 ICON_MIN = 0.62                  # template-match score that counts as "the icon is there"
-POLL = 0.5
 
 
 # ================================================================ reading a counter (pure functions: tested offline)
@@ -213,188 +208,59 @@ def read_counter(gray, tpl_gray, ui):
     return ("ok", got) if got else ("unread", None)
 
 
-# ================================================================ the helper process
-CONTENT_AREA = (0.64, 0.14, 1.0, 0.49)    # 2.129.3: where Map Content's icons are (parts of the game's width / height)
-CONTENT_MIN = 0.85                        # the Ritual icon there: 0.94 - 1.0; anything else under 0.7
-TICK_MIN = 0.03                           # its green tick (all done): ~0.06 of the lower right quarter
+class RitualState:
+    """What the last Read Key press read (GGG policy, Nov 2026 - was a helper process reading twice a second)."""
+
+    def __init__(self):
+        self.count = None               # (done, total) - the Ritual counter at the bottom, as last read
+        self.seen = "none"              # "ok" / "none" / "unread"
+        self.tribute = None             # the game's tribute counter, as last read (None: not seen)
+        self.read_at = 0.0
+
+    def clear(self):
+        self.__init__()
 
 
-def content_state(bgr, tpl, scale):
-    """2.129.3 (feedback: the line said 1 of 3 while it was 3 of 3 - the counter at the bottom isn't always on screen):
-    the Ritual icon in Map Content (under the minimap) -> "done" (it has the green tick: every ritual done), "open",
-    or None (not there)."""
-    import cv2
-    t = cv2.resize(tpl, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA) if abs(scale - 1) > 0.01 else tpl
-    g = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
-    if g.shape[0] < t.shape[0] or g.shape[1] < t.shape[1]:
-        return None
-    _mn, mx, _l, (x, y) = cv2.minMaxLoc(cv2.matchTemplate(g, t, cv2.TM_CCOEFF_NORMED))
-    if mx < CONTENT_MIN:
-        return None
-    side = int(round(46 * scale))
-    q = bgr[y + side // 2:y + side, x + side // 2:x + side].astype(int)
-    if not q.size:
-        return "open"
-    green = ((q[..., 1] > q[..., 2] + 40) & (q[..., 1] > q[..., 0] + 20)).mean()
-    return "done" if green >= TICK_MIN else "open"
+STATE = RitualState()
+_TPL = {}
 
 
-def main(argv):
-    """StashOfExile2.exe --ritual <data folder>"""
-    from .delirium_runner import _reopen_std
-    _reopen_std()           # 2.14.1: the windowed exe has no stdin / stdout until they're opened from the OS handles -
-    #                         without this the helper quit at once and the app never heard a count
-    from .delirium_runner import after_stdin_ends, parent_pid
-    pid = parent_pid(argv)
-    folder = Path(argv[0]) if argv and not argv[0].startswith("--") else Path.home() / ".stashofexile2"
-    folder = folder / "ritual"
-    folder.mkdir(parents=True, exist_ok=True)
-    lock = threading.Lock()
-    logf = folder / "ritual_log.txt"
-    try:
-        if logf.exists() and logf.stat().st_size > 300_000:
-            logf.replace(folder / "ritual_log.old.txt")
-    except OSError:
-        pass
-
-    def log(line):
-        try:
-            with open(logf, "a", encoding="utf-8") as f:
-                f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')}  {line}\n")
-        except OSError:
-            pass
-
-    def say(line):
-        log(line)
-        with lock:
-            try:
-                sys.stdout.write(str(line).rstrip("\n") + "\n")
-                sys.stdout.flush()
-            except Exception:
-                buglog.caught()
-
-    cmds = []
-
-    def read_stdin():
-        t0, why = time.time(), "end of input"
-        try:
-            for line in sys.stdin:
-                if line.strip():
-                    cmds.append(line.strip())
-        except Exception as e:
-            why = f"{e.__class__.__name__}: {e}"
-            buglog.caught()
-        # 2.127.0 (it quit the moment it started, every time): say why, so the log shows it
-        log(f"input from the app ended after {time.time() - t0:.1f} s ({why}; stdin {type(sys.stdin).__name__})")
-        after_stdin_ends(pid, lambda: cmds.append("quit"), log)      # 2.40.0: a broken pipe isn't "the app is gone"
-    t0 = time.time()
-    log(f"launched; app {pid}")
-    # 2.129.1 (its log: "started" and "stopped" in the same second, at every start - or 159 s late): everything is
-    # loaded BEFORE the app's pipe is read. On Windows, a thread waiting on that pipe made each newly loaded library
-    # (OpenCV's, mss's) wait too - until the app sent something (its "quit" when it closed) - so the watcher sat
-    # stuck for the whole session. The Delirium helper always loaded first, and never stuck.
-    try:
-        import ctypes  # noqa: F401
+def template():
+    """The Ritual icon's template, grayscale (None when missing)."""
+    if "icon" not in _TPL:
         import cv2
-        try:
-            import mss  # noqa: F401  (loaded before the pipe is read, as on main; Wayland may not have it - grim then)
-        except ImportError:
-            mss = None  # noqa: F841
-        import numpy as np
-        from .screengrab import screen
-        from . import delirium_alert as D
-        D.make_dpi_aware()
         base = getattr(sys, "_MEIPASS", None)
         tdir = Path(base) / "soe2" / "templates" if base else Path(__file__).resolve().parent / "templates"
-        tpl = cv2.imread(str(tdir / "ritual_icon.png"), cv2.IMREAD_GRAYSCALE)
-        if tpl is None:
-            raise RuntimeError("ritual_icon.png is missing from the app")
-        ctpl = cv2.imread(str(tdir / "ritual_content.png"), cv2.IMREAD_GRAYSCALE)   # (None: no Map Content check)
-        refs = references()
+        _TPL["icon"] = cv2.imread(str(tdir / "ritual_icon.png"), cv2.IMREAD_GRAYSCALE)
+    return _TPL["icon"]
+
+
+def look(game, tribute=True):
+    """(a Read Key press, background thread) The game (x, y, w, h) -> {"kind", "val", "tribute"} from this press's
+    one picture (screenread), or None when there's no picture."""
+    import cv2
+    import numpy as np
+    from . import screenread as SR
+    gx, gy, gw, gh = game
+    tpl = template()
+    if tpl is None:
+        raise RuntimeError("ritual_icon.png is missing from the app")
+    x, y, w, h = search_rect(gw, gh, gx, gy)
+    img = SR.capture((x, y, x + w, y + h), "Ritual")
+    if img is None:
+        return None
+    gray = cv2.cvtColor(np.asarray(img.convert("RGB")), cv2.COLOR_RGB2GRAY)
+    kind, val = read_counter(gray, tpl, gh / BASE_H)
+    out = {"kind": kind, "val": val, "tribute": None}
+    if tribute:                                       # the game's tribute counter (bottom middle)
         try:
-            with screen() as _s:                         # (its libraries too)
-                _s.grab({"left": 0, "top": 0, "width": 2, "height": 2})
-        except Exception:
-            buglog.caught()
-    except Exception as e:
-        threading.Thread(target=read_stdin, daemon=True).start()
-        say("state error")
-        say(f"error {type(e).__name__}: {e}")
-        return 1
-    threading.Thread(target=read_stdin, daemon=True).start()
-    log(f"started: {len(refs)} digit shapes, icon template {tpl.shape}; app {pid} (in {time.time() - t0:.1f} s)")
-    say("state watching")
-    last, pending, shown, state = None, None, None, "watching"
-    rect_seen, best_log = None, 0.0
-    content, content_at, content_pending = None, 0.0, None
-    with screen() as sct:                         # mss; Wayland: grim (2.103.0 linux branch)
-        while True:
-            while cmds:
-                c = cmds.pop(0)
-                if c == "quit":
-                    say("state stopped")
-                    log(f"stopped after {time.time() - t0:.0f} s (the app asked, or it ended)")
-                    return 0
-                if c == "capture":
-                    try:
-                        g = D.find_game_rect()
-                        sw, sh, ox, oy = g if g else (sct.monitors[1]["width"], sct.monitors[1]["height"],
-                                                     sct.monitors[1]["left"], sct.monitors[1]["top"])
-                        x, y, w, h = search_rect(sw, sh, ox, oy)
-                        shot = np.asarray(sct.grab({"left": x, "top": y, "width": w, "height": h}))
-                        p = folder / f"capture_{time.strftime('%Y%m%d_%H%M%S')}.png"
-                        cv2.imwrite(str(p), shot[:, :, :3])
-                        say(f"captured {p}")
-                    except Exception as e:
-                        say(f"capture failed: {e}")
-            try:
-                g = D.find_game_rect()
-                if g is None:
-                    if state != "nogame":
-                        state = "nogame"
-                        say("state nogame")
-                    time.sleep(1.0)
-                    continue
-                if state != "watching":
-                    state = "watching"
-                    say("state watching")
-                sw, sh, ox, oy = g
-                x, y, w, h = search_rect(sw, sh, ox, oy)
-                if (g, (x, y, w, h)) != rect_seen:
-                    rect_seen = (g, (x, y, w, h))
-                    log(f"game {sw}x{sh} at {ox},{oy}; looking at {w}x{h} at {x},{y}")
-                shot = np.asarray(sct.grab({"left": x, "top": y, "width": w, "height": h}))
-                gray = cv2.cvtColor(shot, cv2.COLOR_BGRA2GRAY)
-                kind, val = read_counter(gray, tpl, sh / BASE_H)
-                if ctpl is not None and time.time() - content_at > 2.0:     # 2.129.3: Map Content's Ritual icon
-                    content_at = time.time()
-                    a = CONTENT_AREA
-                    cshot = np.asarray(sct.grab({"left": ox + int(sw * a[0]), "top": oy + int(sh * a[1]),
-                                                 "width": int(sw * (a[2] - a[0])), "height": int(sh * (a[3] - a[1]))}))
-                    cs = content_state(cshot[:, :, :3], ctpl, sh / BASE_H)
-                    if cs == content_pending and cs != content:          # the same twice in a row
-                        content = cs
-                        say(f"content {cs or 'none'}")
-                    content_pending = cs
-                if kind != "ok" and time.time() - best_log > 60:        # once a minute: how close it got
-                    best_log = time.time()
-                    hit = find_icon_score(gray, tpl, sh / BASE_H)
-                    log(f"{kind}: best icon match {hit:.2f} (needs {ICON_MIN})")
-                now = (kind, val)
-                if now == pending and now != shown:     # the same twice in a row
-                    shown = now
-                    say("count none" if kind == "none" else "count unread" if kind == "unread"
-                        else f"count {val[0]}/{val[1]}")
-                pending = now
-            except Exception as e:
-                if state != "error":
-                    state = "error"
-                    say("state error")
-                    say(f"error {type(e).__name__}: {e}")
-                time.sleep(2.0)
-            time.sleep(POLL)
-    return 0
-
-
-if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))
+            from . import favours as FV
+            from . import remnant as RM
+            r = FV.hud_rect(game)
+            himg = SR.capture((r["left"], r["top"], r["left"] + r["width"], r["top"] + r["height"]), "Ritual")
+            if himg is not None:
+                out["tribute"] = FV.hud_number(RM.ocr(FV.hud_prep(np.asarray(himg.convert("RGB"))[:, :, ::-1].copy())))
+        except Exception as e:
+            if e.__class__.__name__ != "OcrUnavailable":     # (Linux with no OCR engine: the row says so)
+                buglog.caught()
+    return out

@@ -10,6 +10,7 @@ Adding a feature: put its name here first, use that exact name everywhere (label
 Renaming one: change it here, add the old name to OLD, and run tools/check_names.py (it lists every leftover)."""
 
 PAGES = {
+    "dashboard": "Dashboard",           # UI overhaul: the first page
     "pricecheck": "Price Checks",
     "checks": "Bulk Pricing",
     "favorites": "Favorites",
@@ -18,16 +19,16 @@ PAGES = {
     "modbook": "Mod Book",
     "ratemods": "Rate Mods",
     "wealth": "Wealth",
-    "money": "Money Makers",
+    "money": "Farming Strategies",          # UI overhaul: was Money Makers (Craft Helper moved to its own page)
+    "crafthelper": "Craft Helper",      # UI overhaul: was a Money Makers tab
     "regex": "Regex",
     "search": "Game Search",
     "rates": "Exchange Rates",
-    "tracker": "Overlay",
+    "tracker": "Overlay",               # nav phase 2: one page, tabs Helpers · On the Overlay · Look · Options (+ Sessions)
     "maps": "Map Library",
     "leaderboards": "Leaderboards",
     "plan": "League Plan",
     "mapprofit": "Map Profit",         # 2.132.6 Overlay ↳ Map Profit
-    "ovset": "Overlay Settings",       # 2.132.4 (feedback): was Settings, under Overlay
     "notes": "Notes",
     "settings": "Settings",
 }
@@ -39,40 +40,74 @@ FEATURES = (
     "Temple Helper",
     "Music Controls",
     "Vaal Lens",                # 2.140.0 a card in Vaal Ruins and the temple: crystals, the console's board, notes
-    "Map profit",               # 2.132.0 what each map earned, from your inventory (Overlay ↳ Overlay Settings › Helpers)
-    "Alerts show",              # 2.131.0 Overlay › Overlay Settings › Helpers: where and how big the alert card is
-    "Data folder",              # 2.131.0 where your settings and lists live (Feature Picker; Settings › Advanced)
-    "Feature Picker",
-    "Top Up Reminders",         # 2.131.0 what's running low in your inventory (Overlay ↳ Overlay Settings › Helpers)           # 2.131.0 the popup asked once: which features you use
-    "Features",                 # 2.131.0 Settings › General: one switch per feature group, plus the BETA ones
-    "Break reminders",          # 2.131.0 Overlay › Overlay Settings › Helpers: a kind nudge in long sessions
+    "Trial of the Sekhemas",    # BETA helper: press the Read Key on the trial map - its legend beside it: Rooms,
+                                # Boons, Afflictions (✓ Take / ✕ Avoid / ! Mild); a hovered affliction or boon gets
+                                # a one-line card
+    "Map profit",               # 2.132.0 what each map earned, from your inventory (Overlay › Helpers)
+    "Alerts show",              # 2.131.0 Overlay › Helpers: where and how big the alert card is
+    "Data folder",              # 2.131.0 where your settings and lists live (Settings › Advanced)
+    "Setup",                    # the first start's questions, one a screen: features, the Overlay, its helpers
+                                # (2.131.0 - UI overhaul: the Feature Picker; Settings › General › Run setup again)
+    "Top Up Reminders",         # 2.131.0 what's running low in your inventory (Overlay › Helpers)
+    "Back from a map",          # owner decision: the one card back home after a map - one Read Key press counts the
+                                # map's loot (Map profit) and checks your top ups (Top Up Reminders)
+    "Features",                 # 2.131.0 Settings › General: one switch per app feature, plus the BETA ones (the
+                                # overlay's helpers are switched in Overlay › Helpers only)
+    "Break reminders",          # 2.131.0 Overlay › Helpers: a kind nudge in long sessions
     "Campaign Helper",
+    "Campaign Bar",             # the overlay in campaign zones: the line over the bar (what to do now) and the bar's
+                                # Zone · You · Got so far · Act time (the Panel: one card)
     "Clear All",                # Bulk Pricing › Items strip: empties the list shown
     "Community data sharing",
-    "Fast Beacon Read",         # 2.138.1 Helpers › Temple: the Beacon's count round your character (2.138.3: 30 looks a second)
     "Error reports",            # 2.137.0 Settings › Privacy & community: what went wrong in the app, opt-in
-    "Craft Helper",
     "Data pack",                # the Craft Helper's mod data from GitHub
     "Keybinds",                 # Settings: every key the app listens for (2.127.0: was Keys)
+    "Read Key",                 # GGG policy (Nov 2026): a key only for this - each press, the helpers read the
+                                # screen once (Ctrl+Shift+R as the app comes; Settings › Keybinds)
+    "Read mark",                # GGG policy: the chip that shows for a second at each screen / clipboard read -
+                                # "Reading the screen", or "Read the screen · nothing here" when the press found
+                                # nothing a helper could use (readmark.READING / READ_NOTHING)
     "Desecration Helper",       # at The Well of Souls
     "Exchange Helper",
     "Favours prices",           # the Ritual helper: prices on the Favours window's rewards
-    "Tribute reminder",         # the Ritual helper: tribute left when the Favours window closes
     "Filter in the Ritual window",   # the Ritual helper: the game's hidden setting that applies your filter there
     "Mechanic Helper",
     "Quick settings",           # the overlay's ⚙
-    "Reset position",           # Game Overlay › Overlay Settings › Options: the overlay back in its own place
+    "Reset position",           # Overlay › Options: the overlay back in its own place
+    # nav phase 2 (the owner's words): Layout = the overlay's shape, Style = how the overlay looks, Theme = the whole
+    # app's look. "Style" is never the app's look, "Theme" never the overlay's.
+    "Layout",                   # Overlay › Look: Bar | Panel
+    "Style",                    # Overlay › Look: the overlay styles (Classic, Light, Ornate)
+    "Theme",                    # Settings › Appearance: the app's look
     "Scan stash",
     "Search Options",           # Settings › Price checking
     "Session timer",
     "Stash tab",                # Price Checks › Add items from
     "Trade Whisper Watcher",
+    "History",                  # UI overhaul: Price Checks ↳ History - every item you priced (was the Recent menu)
+    # drawer build (drawer/PLAN.md 1.1): never "compact", "side panel", "game mode" or "portable" for these
+    "Drawer",                   # the app shown as a side panel over the game (Settings › General › Window)
+    "Full window",              # the app as a normal window, where you left it
+    "Put away",                 # the app off screen: minimized (its taskbar button stays) or in the tray
+    "Drawer key",               # shows the app and puts it away (Settings › Keybinds; Ctrl+Shift+Space)
+    "Widened",                  # owner (base widening): a white / blue base's card - the line saying how its search
+                                # widened (quality, item level, listed within) after Broaden Search
+    "Broaden Search",           # owner: a white / blue base's orange button while too few were found - each click
+                                # runs the next widening step (one search); shown as "↔ Broaden Search"
+    "Price check overlay",      # the price card over the game (pcpop.py) - "Where the price shows"
+    "NEW chip",                 # 3.0.0 (newchip.py): the word NEW on a new feature's row and its page's rail icon,
+                                # until you open or use it
+    "Linux check",              # Linux build: Settings › Advanced and  StashOfExile2 --check-linux  - session, keys,
+                                # screen picture, clipboard, key sending, OCR, Client.txt, each with its fix
 )
 
 OLD = {
-    # 2.132.4 (feedback): the overlay's settings page has its own name
-    "Overlay ↳ Settings": "Overlay ↳ Overlay Settings",
-    "Overlay › Settings": "Overlay › Overlay Settings",
+    # 2.132.4 - 2.143.0: the overlay's settings were a child page, Overlay ↳ Overlay Settings. Nav phase 2: they are
+    # the Overlay page's tabs (Helpers, On the Overlay, Look, Options) - an old name opens the Overlay page
+    "Overlay Settings": "Overlay",
+    "Overlay ↳ Settings": "Overlay",
+    "Overlay › Settings": "Overlay",
+    "Overlay appearance": "Overlay › Look",          # (the button that opened Settings › Appearance › Overlay)
     # page names before Title Case (2.120.0) and before their renames
     "Price checks": "Price Checks",
     "Mod book": "Mod Book",
@@ -84,11 +119,17 @@ OLD = {
     "Item inspector": "Under the Hood",
     "Price breakdown": "Under the Hood",
     "Utilities": "Notes",
-    "Money makers": "Money Makers",
+    "Money makers": "Farming Strategies",
+    "Money Makers": "Farming Strategies",
+    "Farming Strats": "Farming Strategies",
     "Market insights": "Market Insights",
     "League plan": "League Plan",
     "Bulk pricing": "Bulk Pricing",
     "Bulk Price Checker": "Bulk Pricing",
+    # nav phase 1: the overlay's feature switch is named as the sidebar names the overlay
+    "Game Overlay": "Overlay",
+    # Features: app pages only - the first start's popup asks one question a screen
+    "Feature Picker": "Setup",
     # features
     "Calm alerts": "Alert card",          # 2.131.6 (feedback: "stop calling it calm alert card ... that sounds dumb")
     "calm alert card": "Alert card",
@@ -110,6 +151,10 @@ OLD = {
     "Clear list": "Clear All",          # Bulk Pricing's button (2.126.0: on screen, in the Items strip)
     "Settings › Keys": "Settings › Keybinds",          # 2.127.0
     "Settings > Keys": "Settings › Keybinds",
+    "Overlay + Here": "Price check overlay",          # drawer build: each choice names one place (In the app | ...)
+    "Read key": "Read Key",             # GGG policy: one name for the key the helpers read on (a name: Title Case)
+    "Screen key": "Read Key",
+    "Look key": "Read Key",             # 3.0.1 (owner: "ctrl + shift + r = Read. R for Read.")
 }
 
 # an old page name that now means another page: before 2.80.0, Bulk Pricing was called "Price checks"

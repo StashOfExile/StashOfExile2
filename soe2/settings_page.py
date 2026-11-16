@@ -3,6 +3,7 @@
 The App mixes this in (app.py: class App(..., SettingsPage)). Methods only - state lives on the App.
 Part of StashOfExile2 (see the launcher's VERSION HISTORY)."""
 import os
+import sys
 import time
 import tkinter as tk
 from tkinter import filedialog, messagebox
@@ -16,10 +17,9 @@ from .style import C, MONO, SegBook, KeyCapture, Tooltip
 from .chrome import section as chrome_section
 
 
-# 2.125.5 (feedback: "we just need the Here | Overlay + Here cards"): two choices, as on Price Checks - the app comes
-# to the front ("Here"), or the price check overlay and the app ("Overlay + Here"). "Behind the game" and "Nowhere"
-# are gone (a key that does nothing: clear it on Keys).
-PC_SHOW = {"both": "Overlay + Here", "front": "Here"}
+# 2.125.5: two choices, as on Price Checks. Drawer build: each names one place - "In the app" (the Drawer or your full
+# window opens quietly on Price Checks) or "Price check overlay" (the card over the game). Stored as before.
+PC_SHOW = {"both": "Price check overlay", "front": "In the app"}
 
 
 class SettingsPage:
@@ -71,21 +71,21 @@ class SettingsPage:
         self.set_anchors["pc_single"] = self.settings_group("Price checking", f"SINGLE PRICE CHECKS ({pck.upper()})",
                                                             used=(PC, CARD))
         row = section("Price checking", "Where the price shows", "Hover an item in game and press your price check "
-                                                                  "key (set it on Keybinds). Here: the app comes to the "
-                                                                  "front. Overlay + Here: the price check overlay too, "
-                                                                  "in the overlay's Style.")
+                                                                  "key. In the app: the Drawer opens on Price Checks, "
+                                                                  "the game keeps the keyboard. Price check overlay: a "
+                                                                  "card over the game.")
         self.pc_set_vars = getattr(self, "pc_set_vars", None) or {}
         self.pc_set_vars["pc_popup"] = self.pc_pop_var()
         tk.Label(row, text=f"{pck} shows it", **lab).pack(side="left", padx=(0, 8))
         from .style import SegBar
-        self.pc_show_var = tk.StringVar(value=PC_SHOW.get(self.pc_show_get(), "Here"))
+        self.pc_show_var = tk.StringVar(value=PC_SHOW.get(self.pc_show_get(), "In the app"))
         self.pc_show_seg = SegBar(row, list(self.PC_WHERE), value=self.pc_show_var.get(), size=9, pad=(12, 4),
                                   command=lambda v: (self.pc_show_var.set(v), self._pc_where_pick(v)))
         self.pc_show_seg.pack(side="left")
         self.pc_set_vars["pc_show"] = self.pc_show_var
 
         def follow():                                     # (Price Checks' own switch and the overlay's ⚙ set it too)
-            v = PC_SHOW.get(self.pc_show_get(), "Here")
+            v = PC_SHOW.get(self.pc_show_get(), "In the app")
             try:
                 self.pc_show_var.set(v)
                 self.pc_show_seg.pick(v, notify=False)
@@ -178,7 +178,7 @@ class SettingsPage:
         SETTINGS["pc_ctrl_c"] = k != "off"
         if k != "off":
             SETTINGS["pc_popup"] = k in ("over", "both")
-            SETTINGS["pc_both"] = SETTINGS["pc_popup"]       # 2.123.3: Overlay + Here
+            SETTINGS["pc_both"] = SETTINGS["pc_popup"]       # 2.123.3: the mirror (the Price check overlay)
             if k not in ("over", "both"):
                 SETTINGS["pc_front"] = k == "front"
         save_json("settings.json", SETTINGS)
@@ -187,8 +187,8 @@ class SettingsPage:
         if not SETTINGS.get("pc_popup"):
             self.pcpop_close()
         var = getattr(self, "pc_show_var", None)
-        if var is not None and var.get() != PC_SHOW.get(self.pc_show_get(), "Here"):
-            var.set(PC_SHOW.get(self.pc_show_get(), "Here"))
+        if var is not None and var.get() != PC_SHOW.get(self.pc_show_get(), "In the app"):
+            var.set(PC_SHOW.get(self.pc_show_get(), "In the app"))
         self.pc_where_paint()
 
     def build_fine_tuning(self, row, keys=None, defaults=True):
@@ -310,7 +310,7 @@ class SettingsPage:
 
         # ======== General
         row = section("General", "League", "The league is used everywhere: Price Checks, Bulk Pricing, Wealth and "
-                                           "the session tracker.")
+                                           "the Session timer.")
         self.set_anchors["league"] = row.master
         tk.Label(row, text="League", bg=P2, fg=C["text"]).pack(side="left", padx=(0, 8))
         self.league_box = ttk.Combobox(row, textvariable=self.league_var, state="readonly", width=24)
@@ -319,43 +319,47 @@ class SettingsPage:
         self.league_box.bind("<<ComboboxSelected>>", lambda e: self.root.after(20, self.root.focus_set), add="+")
         self.build_account_settings(section)                     # 2.123.0 (p2): was Price checking › Account
 
-        # 2.59.0: the game - its log file (was a right-click in the Session timer) and window title (was in Chat commands)
-        row = section("General", "Game log", "Client.txt is the game's own log file: the timer counts maps from it, "
-                                             "and the helpers read it. It's found by itself; pick it here if not.")
-        self.set_anchors["game"] = row.master
-        g = tk.Frame(row, bg=P2)
-        g.pack(fill="x")
-        tk.Label(g, text="Game log (Client.txt)", bg=P2, fg=C["text"]).grid(row=0, column=0, sticky="w", padx=(0, 8))
-        self.log_path_lbl = tk.Label(g, text="", bg=P2, fg=C["text"], anchor="w", font=("Segoe UI", 9), wraplength=420,
-                                     justify="left")
-        self.log_path_lbl.grid(row=0, column=1, sticky="w")
-        ttk.Button(g, text="Change…", command=self.tracker_pick_log).grid(row=0, column=2, padx=(8, 0))
-        ttk.Button(g, text="Find it by itself", style="Quiet.TButton",
-                   command=lambda: self.tracker_set_log("")).grid(row=0, column=3, padx=(8, 0))
-        self.game_log_text()
         # (2.120.0, UX pass 2: Game window title is in Settings › Advanced › Over the game)
 
         # 2.31.0 / 2.69.1: Community data sharing - 2.94.0: on its own page with your community name
         self.build_privacy_community(section)
-        row = section("General", "Window", "Always on top keeps StashOfExile2 in front of the game (and brings it "
-                                           "back if something minimizes it). The overlay shows only while the game "
-                                           "is the window in front.")
-        self.top_btn = ttk.Checkbutton(row, text="Always on top", variable=self.top_var, command=self.on_top_toggle)
+        # drawer build: the Window section - the Drawer or a Full window (drawer_page.drawer_settings_rows)
+        row = section("General", "Window", "How the app sits with the game: the Drawer over its side, or a full "
+                                           "window.")
+        self.set_anchors["window"] = row.master
+        wbox = tk.Frame(row, bg=P2)
+        wbox.pack(side="left", fill="x", expand=True)
+        self.drawer_settings_rows(wbox, P2)
+        trow = tk.Frame(row.master, bg=P2)
+        trow.pack(fill="x", pady=(8, 0))
+        self.top_btn = ttk.Checkbutton(trow, text="Keep the full window on top", variable=self.top_var,
+                                       command=self.on_top_toggle)
         self.top_btn.pack(side="left")
+        tk.Label(trow, text="The Drawer is always on top while it's open.", bg=P2, fg=C["muted"],
+                 font=("Segoe UI", 9)).pack(side="left", padx=(8, 0))
+        from .style import flowify
+        flowify(trow)                                   # D3: wraps at Drawer width
         wrow = tk.Frame(row.master, bg=P2)              # 2.116.0 (P10): from Price checking › Advanced fine tuning -
         wrow.pack(fill="x", pady=(8, 0))                # they're about the app's windows, not prices
         self.build_fine_tuning(wrow, keys=self.FINE_WINDOW, defaults=False)
 
-        # 2.131.0: Features - each group on or off, and the Beta cluster (replaces the single Beta features switch)
+        # 2.131.0: Features - each app feature on or off, and the Beta cluster (the overlay's helpers: Overlay ›
+        # Helpers, their one place)
         row = section("General", "Features", "What shows in the app. Off: its pages leave the menu and its keys do "
                                              "nothing; your data is kept.")
         fbox = tk.Frame(row, bg=P2)
         fbox.pack(side="left", fill="x", expand=True)
         self.feat_vars = self.features_rows(fbox, P2, live=True)
+        srow = tk.Frame(row.master, bg=P2)
+        srow.pack(fill="x", pady=(4, 0))
+        sb = ttk.Button(srow, text="Run setup again", command=self.features_picker)
+        sb.pack(side="left")
+        Tooltip(sb, "Setup: your features, the Overlay and its helpers - one question a screen.")
+        tk.Label(srow, text="The Overlay's helpers are switched in Overlay › Helpers.", bg=P2, fg=C["muted"],
+                 font=("Segoe UI", 9)).pack(side="left", padx=(8, 0))
 
-        row = section("General", "Updates", f"You have {pretty_version()}"
-                                            + (" - previews too." if SETTINGS.get("update_preview") else " - full "
-                                               "releases only.") + " From GitHub; your settings and data are kept.")
+        row = section("General", "Updates", f"You have {pretty_version()}. From GitHub; your settings and data are "
+                                            "kept.")
         ttk.Button(row, text="Check for updates", command=self.check_updates).pack(side="left")
         row2 = tk.Frame(row.master, bg=P2)
         row2.pack(fill="x", pady=(8, 0))
@@ -365,13 +369,6 @@ class SettingsPage:
                         variable=self.auto_check_var, command=lambda: self.on_update_options("check")).pack(anchor="w")
         ttk.Checkbutton(row2, text="Install by itself when the app starts (it restarts itself)",
                         variable=self.auto_update_var, command=lambda: self.on_update_options("update")).pack(anchor="w")
-        self.update_preview_var = tk.BooleanVar(value=bool(SETTINGS.get("update_preview")))   # 2.97.3
-        pv = ttk.Checkbutton(row2, text="Preview builds too (new versions before they're played)",
-                             variable=self.update_preview_var, command=lambda: self.on_update_options("preview"))
-        pv.pack(anchor="w")
-        Tooltip(pv, "Each new version comes out as a preview first and becomes a full update once it's been played. "
-                    "On: you get previews too - with the switches above, checked or installed by themselves. "
-                    "They may have rough edges.")
 
         # ======== Appearance
         self.settings_group("Appearance", "THE APP", top=True)
@@ -402,7 +399,7 @@ class SettingsPage:
                           values=["12-hour (3:45 PM)", "24-hour (15:45)"])
         cb.pack(side="left")
         cb.bind("<<ComboboxSelected>>", lambda e: self.on_clock())
-        # (2.120.0: the clock on the overlay's bar is switched in Overlay ↳ Overlay Settings › On the bar, with the other
+        # (2.120.0: the clock on the overlay's bar is switched in Overlay › On the Overlay, with the other
         # parts; this is the one place for how every clock reads)
 
 
@@ -415,15 +412,21 @@ class SettingsPage:
         self.look_vars = {"theme": tk.StringVar(value=THEMES.get(SETTINGS.get("theme"), (_th.DEFAULT,))[0])}
         # 2.118.0 (feedback): names beside a big live preview, like the overlay styles (themepick.py) - were cards
         from .themepick import ThemePicker
-        self.theme_pick = ThemePicker(row, _th.pick_id(SETTINGS.get("theme")), lambda tid: self.pick_theme(tid, wait=True))
+        self.theme_pick = ThemePicker(row, _th.pick_id(SETTINGS.get("theme")), lambda tid: self.pick_theme(tid, wait=True),
+                                      shape=lambda: "drawer" if getattr(self, "drawer_look_on", lambda: False)() else "full")
+        tp = self.theme_pick                     # Round 18: the preview follows the window's shape (Drawer / Full)
+        self._drawer_look_hooks = getattr(self, "_drawer_look_hooks", []) + [
+            lambda on: tp.reshape() if tp.winfo_exists() else None]
         self.theme_pick.pack(fill="x", anchor="w")
         self._paint_look_cards()
         # 2.119.0 (UX pass): Accent color, Text size and the start-up screen switch are gone - a theme keeps its
         # own colors and the start-up screen always shows
 
-        # 2.58.0 (one Appearance tab): every look in one place - over the game too (was Overlays › Appearance)
+        # 2.58.0 - 2.143.0: the overlay's look was here too. Nav phase 2: it lives on Overlay › Look (one place);
+        # Appearance is the app's own look - this line points the way
         self.ov_look_top = self.settings_group("Appearance", "OVER THE GAME")
-        self.build_overlay_look(pages["Appearance"][1])
+        row = section("Appearance", "Overlay", "The overlay's Layout, Style and Opacity are on Overlay › Look.")
+        ttk.Button(row, text="Open Overlay › Look", command=lambda: self.ovh_open("Look")).pack(side="left")
 
         # ======== Keys (2.116.0, P10: Hotkeys and Chat commands on one tab)
         row = section("Keybinds", "Hotkeys", "Every key the app listens for. Click a box and press the key (with Ctrl / "
@@ -450,7 +453,7 @@ class SettingsPage:
         # ======== Advanced
         # 2.59.0: settings that had no place in the app (only in settings.json)
         # 2.120.0 (UX pass 2: settings most players never need, in one place): the game's window title (was General ›
-        # Game) (2.132.0: Hide the overlay from screen captures went back to Overlay ↳ Overlay Settings › Options)
+        # Game) (2.132.0: Hide the overlay from screen captures went back to Overlay › Options)
         row = section("Advanced", "Over the game", "The overlay and the in-game keys work only while the window with "
                                                    "this title is in front. Change it only if your game's window has "
                                                    "another name.")
@@ -466,7 +469,7 @@ class SettingsPage:
         te.bind("<FocusOut>", lambda e: self.ov_save())
         te.bind("<Return>", lambda e: (self.ov_save(), self.root.focus_set()))
         # (2.132.0, feedback: "needs relocated to where it makes sense": Hide the overlay from screen captures is
-        # in Overlay ↳ Overlay Settings › Options now, beside Lock position and Click-through)
+        # in Overlay › Options now, beside Lock position and Click-through)
         # 2.74.0: Under the hood (with the Mod book inside it) is hidden unless you want it - both keep working
         row = section("Advanced", "Under the Hood", "How the price checker reads an item (its base, which bases it "
                                                     "is compared with, which trade-site search each mod becomes), and "
@@ -479,29 +482,27 @@ class SettingsPage:
                              variable=self.adv_var, command=self.advanced_switch, style="Card.TCheckbutton")
         cb.pack(side="left")
         self.adv_switch = cb
-        # 2.116.0 (P10): Problems - Report a bug (it's on the bottom bar too), the app's log, what it holds
-        row = section("Advanced", "Problems", "What went wrong this week is in the app's log - where in the app's "
-                                              "code, nothing about you. Report a bug can send it.")
-        self.adv_log_lbl = tk.Label(row, text="", bg=P2, fg=C["text"], anchor="w")
+        # 2.116.0 (P10): Problems - Report a bug (it's on the bottom bar too), the app's log, what it holds.
+        # (Owner: Developer options and its Show developer options switch are gone - Debug mode and Unmatched mods
+        # sit here, with the rest of finding out what went wrong.)
+        row = section("Advanced", "Problems", "Find out what went wrong: the app's log, a bug report, Debug mode and "
+                                              "mods the trade site didn't know. The log holds where in the app's code "
+                                              "it went wrong - nothing about you. Report a bug can send it.")
+        top_ = tk.Frame(row, bg=P2)
+        top_.pack(fill="x")
+        self.adv_log_lbl = tk.Label(top_, text="", bg=P2, fg=C["text"], anchor="w")
         self.adv_log_lbl.pack(side="left", padx=(0, 16))
-        ttk.Button(row, text="🐞 Report a bug…", command=self.bug_report_open).pack(side="left")
-        ttk.Button(row, text="Open the app's log", style="Quiet.TButton",
+        ttk.Button(top_, text="🐞 Report a bug…", command=self.bug_report_open).pack(side="left")
+        ttk.Button(top_, text="Open the app's log", style="Quiet.TButton",
                    command=lambda: self.open_path(P("app_log.txt")) if os.path.exists(P("app_log.txt")) else
                    self._say("Nothing logged yet - no errors, crashes or freezes.", 6)).pack(side="left", padx=(8, 0))
         self.adv_log_paint()
-        # 2.116.0 (P10 / roadmap): Developer options - off and hidden until switched on
-        row = section("Advanced", "Developer options", "For finding out why something happens. Nothing personal is "
-                                                       "logged either way.")
-        self.dev_var = tk.BooleanVar(value=bool(SETTINGS.get("dev_options")))
-        ttk.Checkbutton(row, text="Show developer options", variable=self.dev_var, command=self.dev_paint,
-                        style="Card.TCheckbutton").pack(anchor="w")
-        self.dev_box = tk.Frame(row.master, bg=P2)
         self.debug_var = tk.BooleanVar(value=bool(SETTINGS.get("debug_mode")))
-        ttk.Checkbutton(self.dev_box, text="Debug mode - every trade-site request (its answer and time) in the app's "
-                                           "log, and a debug line in the status bar", variable=self.debug_var,
-                        command=self.dev_paint, style="Card.TCheckbutton").pack(anchor="w", padx=(24, 0), pady=(8, 0))
-        ur = tk.Frame(self.dev_box, bg=P2)
-        ur.pack(fill="x", padx=(24, 0), pady=(8, 0))
+        ttk.Checkbutton(row, text="Debug mode - every trade-site request (its answer and time) in the app's "
+                                  "log, and a debug line in the status bar", variable=self.debug_var,
+                        command=self.dev_paint, style="Card.TCheckbutton").pack(anchor="w", pady=(8, 0))
+        ur = tk.Frame(row, bg=P2)
+        ur.pack(fill="x", pady=(8, 0))
         ttk.Button(ur, text="Unmatched mods…", command=self.unmatched_open).pack(side="left")
         self.dev_unm_lbl = tk.Label(ur, text="", bg=P2, fg=C["muted"], font=("Segoe UI", 9))
         self.dev_unm_lbl.pack(side="left", padx=(8, 0))
@@ -517,6 +518,19 @@ class SettingsPage:
         ch.pack(side="left")
         Tooltip(ch, "Keep your data somewhere else (a USB stick, the app's own folder for a portable copy). It's "
                     "copied there; the old folder is kept.")
+        # 2.59.0: the game's log file. UI overhaul (owner): beside Data folder - both are where files live - and one line
+        row = section("Advanced", "Game log", "The game's own log (Client.txt): the timer and the helpers read it.")
+        self.set_anchors["game"] = row.master
+        self.log_path_lbl = tk.Label(row, text="", bg=P2, fg=C["text"], anchor="w")
+        self.log_path_lbl.pack(side="left")
+        self.log_path_tip = Tooltip(self.log_path_lbl, "")
+        ttk.Button(row, text="Change…", command=self.tracker_pick_log, style="Quiet.TButton").pack(side="left", padx=8)
+        ttk.Button(row, text="Find it by itself", style="Quiet.TButton",
+                   command=lambda: self.tracker_set_log("")).pack(side="left")
+        self.game_log_text()
+        if sys.platform.startswith("linux"):                     # Linux build: the Linux check (lincheck.py)
+            from . import lincheck
+            lincheck.build(self, section)
         # 2.131.0: Settings opens on the tab you left it on
         try:
             self.set_nb.select(self.set_nb.titles.index(SETTINGS.get("settings_tab") or "General"))
@@ -529,6 +543,7 @@ class SettingsPage:
             t = self.set_nb.titles[self.set_nb.cur]
         except (TypeError, IndexError):
             return
+        self.shell.new_where()                                   # 3.0.0: a NEW chip on this tab counts as opened
         if SETTINGS.get("settings_tab") != t:
             SETTINGS["settings_tab"] = t
             save_json("settings.json", SETTINGS)
@@ -558,15 +573,10 @@ class SettingsPage:
             pass
 
     def dev_paint(self, save=True):
-        """Developer options shown or hidden; Debug mode saved."""
-        SETTINGS["dev_options"] = bool(self.dev_var.get())
+        """Problems: Debug mode saved; the Unmatched mods count."""
         SETTINGS["debug_mode"] = bool(self.debug_var.get())
         if save:
             save_json("settings.json", SETTINGS)
-        if SETTINGS["dev_options"]:
-            self.dev_box.pack(fill="x")
-        else:
-            self.dev_box.pack_forget()
         n = len(self.unmatched_rows())
         self.dev_unm_lbl.config(text=f"{n} mod{'s' if n != 1 else ''} the trade site didn't know" if n else
                                 "none so far")
@@ -592,8 +602,8 @@ class SettingsPage:
         return out
 
     def unmatched_open(self):
-        """2.116.0 (roadmap): Developer options › Unmatched mods - every mod the app couldn't find on the trade site
-        beside the closest trade wording, so each mismatch points at its fix."""
+        """2.116.0 (roadmap): Problems › Unmatched mods (was in Developer options) - every mod the app couldn't find on
+        the trade site beside the closest trade wording, so each mismatch points at its fix."""
         from .style import over_app
         rows = self.unmatched_rows()
         P1, P2 = C["panel"], C["panel2"]
@@ -805,41 +815,28 @@ class SettingsPage:
         if getattr(self, "tk_overlay", None) is not None:              # 2.39.0: the timer's clock follows it too
             self.tracker_overlay_draw(self.tracker_numbers())
 
-    # ---- 2.43.0: the look of the windows over the game (2.44.0: Overlays › Look; 2.49.0: › Appearance)
+    # ---- 2.43.0: the look of the windows over the game (2.44.0: Overlays › Look; 2.49.0: › Appearance; nav phase 2:
+    # Overlay › Look again - Layout, Style and Opacity, one section each)
     def build_overlay_look(self, parent):
+        """Overlay › Look. Layout = Bar | Panel (the overlay's shape), Style = how it looks (the 14 overlay styles),
+        Opacity. Theme is the app's own look (Settings › Appearance). Notes, the calculator and the remnant price tags
+        use the theme's colors."""
         P2 = C["panel2"]
 
-        def section(_page, title, note=""):
+        def section(title, note):
             outer, f = chrome_section(parent, title, note)            # 2.69.0: header strip + sunken frame
             outer.pack(fill="x", pady=(0, 8))
             row = tk.Frame(f, bg=P2)
             row.pack(fill="x")
             return row
-        # 2.66.0: no Style list - everything over the game is drawn in the app's theme (Settings › Appearance ›
-        # Theme). The Layout says the shape.
-        # 2.74.0: one area - Layout, Opacity and Click-through (were the Overlay layout and Opacity sections)
-        row = section("Appearance", "Overlay", "The overlay over the game (timer, Mechanic Helper, League Plan): "
-                                                        "pick a style, its shape and its colors. Notes, the calculator and the remnant "
-                                                        "price tags use your theme's colors.")
         from .merged_page import LAYOUTS
-        g = tk.Frame(row, bg=P2)
-        g.pack(fill="x")
-        g.columnconfigure(1, weight=1)
-
-        def label(r, text):
-            tk.Label(g, text=text, bg=P2, fg=C["text"], width=12, anchor="w").grid(row=r, column=0, sticky="nw",
-                                                                                   pady=(8 if r else 0, 0))
-
-        def hint(r, text):
-            lab = tk.Label(g, text=text, bg=P2, fg=C["muted"], font=("Segoe UI", 9), justify="left", wraplength=560,
-                           anchor="w")
-            lab.grid(row=r, column=1, columnspan=2, sticky="w", pady=(2, 0))
-            return lab
-        # 2.124.0 (feedback: the previews only showed the bar): the Layout first, then the Style - its preview
-        # shows the layout picked (2.101.0 had the Style first; 2.111.0: no Colors - each style keeps its own)
         from .ovlight import STYLES
         from .style import SegBar
-        label(0, "Layout")
+        # 2.124.0 (feedback: the previews only showed the bar): the Layout first, then the Style - its preview
+        # shows the layout picked (2.111.0: no Colors - each style keeps its own)
+        row = section("Layout", "The overlay's shape: Bar or Panel. Bar: rests on the game's XP bar (unlocked, drag "
+                                "it; picking it again puts it back). Panel: a card like the game's vendor windows - "
+                                "place it anywhere.")
         names = [LAYOUTS["panel"], LAYOUTS["xpbar"]]
         self.ov_layout_var = tk.StringVar(value=LAYOUTS.get(self.merged_layout(), LAYOUTS["xpbar"]))
 
@@ -850,42 +847,39 @@ class SettingsPage:
                 self.ov_style_pick.set(self.ov_look(), redraw=True)
             except Exception:
                 buglog.caught()
-        self.ov_layout_seg = SegBar(g, names, value=self.ov_layout_var.get(), command=layout_picked, size=9, pad=(16, 4))
-        self.ov_layout_seg.grid(row=0, column=1, sticky="w")
-        hint(1, "Bar: rests on the game's XP bar (unlocked, drag it; picking it again puts it back). "
-                "Panel: a card like the game's vendor windows - place it anywhere.")
+        self.ov_layout_seg = SegBar(row, names, value=self.ov_layout_var.get(), command=layout_picked, size=9,
+                                    pad=(16, 4))
+        self.ov_layout_seg.pack(side="left")
         # 2.116.0 (P10, feedback: a visual indicator for each style): the names beside a live preview of the
         # overlay in the style under the mouse - was a dropdown over ten lines describing all fourteen
-        label(2, "Style")
+        row = section("Style", "How the overlay looks. Point at one to see it; click it and the overlay changes at "
+                               "once.")
         self.ov_look_var = tk.StringVar(value=STYLES[self.ov_look()])     # (the cog's Style list keeps it in step)
         from .ovstylepick import StylePicker
-        self.ov_style_pick = StylePicker(g, self.ov_look(), lambda st: (self.ov_look_var.set(STYLES[st]),
-                                                                       self.on_ov_look(style=st)), self.ov_preview)
-        self.ov_style_pick.grid(row=2, column=1, rowspan=2, sticky="w", pady=(8, 0))
+        self.ov_style_pick = StylePicker(row, self.ov_look(), lambda st: (self.ov_look_var.set(STYLES[st]),
+                                                                         self.on_ov_look(style=st)), self.ov_preview)
+        self.ov_style_pick.pack(anchor="w")
         # 2.56.1: ONE opacity for everything over the game (it was one slider each)
-        label(6, "Opacity")
-        op = tk.Frame(g, bg=P2)
-        op.grid(row=6, column=1, sticky="w", pady=(8, 0))
+        row = section("Opacity", "How solid the overlay is. 100% = fully solid; lower = see-through, text and all "
+                                 "(24% is the lowest). Over a busy spot, 95-100% reads best.")
         v = tk.IntVar(value=self.ov_opacity_get("session"))
         self.ov_op_vars = {"all": v}
-        ttk.Scale(op, from_=60, to=255, variable=v, orient="horizontal", length=260,
+        ttk.Scale(row, from_=60, to=255, variable=v, orient="horizontal", length=260,
                   command=lambda _v: self.on_ov_opacity()).pack(side="left")
-        pct = tk.Label(op, text=f"{round(v.get() * 100 / 255)}%", bg=P2, fg=C["muted"], font=(MONO, 9), width=5,
+        pct = tk.Label(row, text=f"{round(v.get() * 100 / 255)}%", bg=P2, fg=C["muted"], font=(MONO, 9), width=5,
                        anchor="e")
         pct.pack(side="left", padx=(8, 0))
         self.ov_op_pct = {"all": pct}
-        hint(7, "100% = fully solid. Lower = see-through, text and all (24% is the lowest). Over a busy spot, "
-                "95-100% reads best.")
-        # (2.120.0: Click-through is part of Overlay ↳ Overlay Settings › Options › Mouse on the overlay)
+        # (2.120.0: Click-through is on Overlay › Options, beside Lock position)
         # (2.135.1: no Motion section - nothing fades any more, so Reduce motion is gone)
 
     def on_ov_look(self, style=None, colors=None):
-        """2.101.0: Settings › Appearance › Overlay › Style - saved and shown at once."""
+        """2.101.0: Overlay › Look › Style - saved and shown at once."""
         self.ov_look_set(style=style, colors=colors)
         self._ov_look_paint()
 
     def _ov_look_paint(self):
-        """Keep Settings › Appearance's style picker in step (2.116.0: picked from the cog's list too)."""
+        """Keep Overlay › Look's style picker in step (2.116.0: picked from the cog's list too)."""
         pk = getattr(self, "ov_style_pick", None)
         if pk is not None:
             try:
@@ -902,17 +896,8 @@ class SettingsPage:
         return "#e0a352" if P.get("texture") else P.get("warn") or "#ffd25a"
 
     def appearance_open(self):
-        """2.58.0: Settings › Appearance, scrolled to Over the game (every look lives there)."""
-        self.shell.open("settings")
-        try:
-            self.set_nb.select(self.set_nb.titles.index("Appearance"))
-            sa = self.settings_pages["Appearance"][0]
-            self.root.update_idletasks()
-            top = getattr(self, "ov_look_top", None)               # straight to OVER THE GAME
-            h = max(1, sa.inner.winfo_height())
-            sa.canvas.yview_moveto((top.winfo_y() / h) if top is not None else 0)
-        except (ValueError, AttributeError, tk.TclError, KeyError):
-            pass
+        """2.58.0: the overlay's look (nav phase 2: Overlay › Look - it was Settings › Appearance › Over the game)."""
+        self.ovh_open("Look")
 
     def ov_opacity_get(self, key="session"):
         """The opacity of the windows over the game (2.56.1: one for all; the timer's is the one kept)."""
@@ -955,12 +940,7 @@ class SettingsPage:
             self.auto_update_var.set(False)
         SETTINGS["auto_check_updates"] = bool(self.auto_check_var.get())
         SETTINGS["auto_update"] = bool(self.auto_update_var.get())
-        if getattr(self, "update_preview_var", None) is not None:
-            SETTINGS["update_preview"] = bool(self.update_preview_var.get())
         save_json("settings.json", SETTINGS)
-        if which == "preview":
-            return self._say("Saved: " + ("you'll get preview builds too." if SETTINGS["update_preview"] else
-                                          "full releases only."), 8)
         self._say("Saved: " + ("updates install by themselves when the app starts." if SETTINGS["auto_update"] else
                                "the app looks for updates when it starts." if SETTINGS["auto_check_updates"] else
                                "updates only when you press Check for updates."), 8)
@@ -999,8 +979,8 @@ class SettingsPage:
                     row=i, column=0, columnspan=3, sticky="w", pady=(10 if i else 0, 2))
                 i += 1
             col = C["red"] if what in clash_keys else C["text"]
-            lab = tk.Label(f, text=what, bg=P2, fg=col, anchor="w")
-            lab.grid(row=i, column=0, sticky="w", padx=(12, 12))
+            lab = tk.Label(f, text=what, bg=P2, fg=col, anchor="w", justify="left", wraplength=360)
+            lab.grid(row=i, column=0, sticky="w", padx=(12, 12))      # (wraps: the Read Key's line fits the Drawer)
             if kid:
                 v = tk.StringVar(value=key)
                 self.hk_vars[kid] = v
@@ -1014,8 +994,16 @@ class SettingsPage:
                 tk.Label(f, text=key_label(key) if key else "-", bg=P2, fg=col, anchor="w", font=(MONO, 9)).grid(
                     row=i, column=1, sticky="w")
             if not kid:
-                tk.Label(f, text="the game's own copy - always on", bg=P2, fg=C["muted"],
-                         font=("Segoe UI", 9)).grid(row=i, column=2, sticky="w", padx=(12, 0))
+                tk.Label(f, text="the game's own copy - always on", bg=P2, fg=C["muted"], wraplength=120,
+                         justify="left", font=("Segoe UI", 9)).grid(row=i, column=2, sticky="w", padx=(12, 0))
+            elif kid == "checks:look_key":                         # GGG policy: no Read Key = no screen reads
+                cell = tk.Frame(f, bg=P2)
+                cell.grid(row=i, column=2, sticky="w", padx=(12, 0))
+                from . import newchip as _NEW                      # 3.0.0: NEW until opened or used
+                _NEW.chip(cell, "Read Key").pack(side="left", padx=(0, 8))
+                if not key:
+                    tk.Label(cell, text="○ Not set - nothing reads the screen", bg=P2, fg=C["muted"], wraplength=100,
+                             justify="left", font=("Segoe UI", 9)).pack(side="left")
             i += 1
 
     def hotkeys_open(self, kid=None):
@@ -1037,10 +1025,10 @@ class SettingsPage:
 
     def hotkeys_defaults(self):
         """2.127.0 (feedback: "in case anything goes wrong"): every keybind back to the app's own - after a yes. The
-        keys of your own chat commands and Regex keys stay (they have no default)."""
+        keys of your own chat commands and Regex keys stay (they have no default); the Read Key is Ctrl+Shift+R again."""
         from .tracker_page import DEFAULT_HOTKEYS
-        if not messagebox.askyesno("Keybinds", "Set every keybind back to the default?\n\nYour chat commands and "
-                                   "Regex keys keep their keys.", parent=self.dlg_parent()):
+        if not messagebox.askyesno("Keybinds", "Set every keybind back to the default?\n\nYour chat commands, "
+                                   "Regex keys keep their keys. The Read Key goes back to Ctrl+Shift+R.", parent=self.dlg_parent()):
             return False
         for kid, key in DEFAULT_HOTKEYS.items():
             v = self.hk_vars.get(kid)
@@ -1052,13 +1040,19 @@ class SettingsPage:
 
     def save_hotkeys(self):
         from .overlay import parse_key
-        bad = []
+        bad, look_why = [], None
         for kid, v in self.hk_vars.items():
             txt = v.get().strip()
             if txt and not parse_key(txt):
                 bad.append(txt)
                 continue
             where, key = kid.split(":")
+            if kid == "checks:look_key":                           # GGG policy: a key only for this (look_page)
+                if txt != self.look_key():
+                    look_why = self.look_key_save(txt)
+                    if look_why:
+                        v.set(self.look_key())                     # (the old one stays)
+                continue
             if where == "rxkey":                                   # 2.132.7: Regex keys (no key = a free slot)
                 ks = self.rx_keys() if hasattr(self, "rx_keys") else SETTINGS.setdefault("regex_keys", [])
                 if int(key) < len(ks):
@@ -1086,7 +1080,9 @@ class SettingsPage:
         self.overlay.rebind()
         self.overlay.save_settings()
         save_json("settings.json", SETTINGS)
-        for refresh in ("_tk_keys_text", "_rx_key_text", "_chat_keys_text", "_pc_key_text"):
+        for refresh in ("_tk_keys_text", "_rx_key_text", "_chat_keys_text", "_pc_key_text",
+                        "_ovh_state_paint",                       # (nav phase 2: the Overlay page's ON line names F6)
+                        "_drawer_key_text"):                      # (drawer build: the Drawer key, the strip)
             if hasattr(self, refresh):                             # 2.57.0: the places that show a key
                 try:
                     getattr(self, refresh)()
@@ -1094,9 +1090,10 @@ class SettingsPage:
                     buglog.caught()
         self.fill_hotkeys()
         clash = self.hotkey_clashes()
-        self.hk_msg.config(text=("Not understood: " + ", ".join(bad)) if bad else
-                           ("Saved, but: " + "; ".join(clash)) if clash else "Saved.",
-                           fg=C["red"] if bad or clash else C["green"])
+        self.hk_msg.config(text=("✖ Not understood: " + ", ".join(bad)) if bad else
+                           ("✖ Read Key not changed: " + look_why) if look_why else
+                           ("⚠ Saved, but: " + "; ".join(clash)) if clash else "✔ Saved.",
+                           fg=C["red"] if bad or clash or look_why else C["green"])
 
     def pick_wallpaper(self):
         path = filedialog.askopenfilename(parent=self.root, title="Choose a wallpaper",

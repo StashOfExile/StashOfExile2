@@ -1,5 +1,9 @@
-"""2.131.0 Top Up Reminders - the watcher, teaching an item, the reminder card and the Items list (topup.py reads the
-pictures). Overlay ↳ Overlay Settings › Helpers has its switch. Off until you turn it on; looks only while the game is in front."""
+"""2.131.0 Top Up Reminders - the read, teaching an item, the reminder card and the Items list (topup.py reads the
+pictures). Overlay › Helpers has its switch. GGG policy (Nov 2026): it reads once when you press your Read Key with
+your inventory open in a hideout or town - it used to look every 1.5 s by itself.
+Owner decision: Top Up and Map profit share one flow - back from a map (the game's log says so), one card asks you to
+open your inventory and press the Read Key (back_card). That one press is Map profit's count for the map and Top
+Up's check, from the same picture. Nothing reads by itself; skip the card and that map has no profit entry."""
 import time
 import tkinter as tk
 from tkinter import ttk
@@ -9,12 +13,12 @@ from . import topup as TU
 from .config import SETTINGS, save_json
 from .style import C, Tooltip
 
-EVERY_MS = 1500                     # how often it looks for the inventory
 MOVING = "moving"
 HIST_SECS = 20                      # 2.131.2: recent looks kept to find the taught cell without the hover glow
 REFINE_SAME = TU.SAME * 3       # (the glow changes it this much at most)
-TEACH_SECS = 3                      # the Top Up key counts as teaching within this of the last look
+TEACH_SECS = 120                    # the Top Up key teaches from the last Read Key read this recent
 CARD_COLOR = "#8ec5ff"
+BACK_SECS = 30                      # the Back from a map card waits this long (a click on it closes it: not now)
 PC_CARD_SECS = 8                    # 2.131.5: a price check's card may cover the inventory this long
 
 
@@ -24,15 +28,12 @@ class TopUpPage:
     # ---------------------------------------------------------------- on / off
     def topup_on(self):
         from . import features as FEAT
-        return bool(TU.cfg().get("on")) and FEAT.on("overlay") and FEAT.on("topup")      # (2.132.2: BETA)
+        return bool(TU.cfg().get("on")) and FEAT.on("overlay")      # (its one switch: Overlay › Helpers)
 
     def topup_set(self, on):
         TU.cfg()["on"] = bool(on)
-        from . import features as FEAT
-        FEAT.beta_on("topup", bool(on))
         save_json("settings.json", SETTINGS)
         if on:
-            self.topup_start()
             if getattr(self, "br_reader", None) is None:        # (the log says when you're in a hideout / town)
                 try:
                     self.breach_start()
@@ -46,71 +47,41 @@ class TopUpPage:
         except Exception:
             return self.topup_on()
 
-    def topup_start(self):
-        if getattr(self, "_tu_ticking", False) or not self.topup_looking():
-            return
-        self._tu_ticking = True
-        self.root.after(EVERY_MS, self.topup_tick)
-
-    # ---------------------------------------------------------------- looking
-    def topup_tick(self):
-        if not self.topup_looking():
-            self._tu_ticking = False
-            return
-        try:
-            self.topup_look()
-        except Exception:
-            self.log_error("Top Up Reminders")
-        self.root.after(EVERY_MS, self.topup_tick)
-
-    def topup_look(self, force=False):
-        """One look (on a background thread): is the inventory open, and if so what's in it."""
-        if getattr(self, "_tu_busy", False):
+    def topup_look_job(self, ctx):
+        """A Read Key press in a hideout or town (Top Up Reminders or Map profit on): is the inventory open, and if so
+        what's in it - from the press's one picture."""
+        if not self.topup_looking() or ctx["area"] not in ("hideout", "town"):
             return None
-        from .alerts_page import game_rect
-        g = game_rect()
-        if not force:
-            try:
-                from .overlaywin import foreground_ok
-                if not foreground_ok():
-                    return None
-            except Exception:
-                buglog.caught()
-        if not g:
-            return None
-        self._tu_busy = True
+        from . import screenread as SR
+        g = ctx["g"]
         prev = getattr(self, "tu_last", None)
-        try:
-            p0 = self.root.winfo_pointerxy()               # (2.131.2: where the mouse was as the look began)
-        except tk.TclError:
-            p0 = None
+        p0 = ctx.get("ptr")                                # (2.131.2: where the mouse was at the press)
+        name = "Top Up" if self.topup_on() else "Map profit"
 
         def work():
-            from .remnant import grab
             gx, gy, gw, gh = g
             game = (gx, gy, gw, gh)
-            if not TU.is_open(grab(TU.banner_rect(game)), gh):
+            ban = SR.capture(TU.banner_rect(game), name)
+            if ban is None:
+                return None
+            if not TU.is_open(ban, gh):
                 return {"open": False}
             rect = TU.grid_rect(game)
-            img = grab(rect)
+            img = SR.capture(rect, name)
+            if img is None:
+                return None
             if prev and prev.get("open") and prev.get("thumb") == _thumb(img):
                 cells = prev["cells"]                      # (nothing moved: no need to read it again)
             else:
                 cells = TU.scan(img)
             return {"open": True, "cells": cells, "img": img, "rect": rect, "game": game, "thumb": _thumb(img)}
+        work.found = lambda res: bool(res and res.get("open"))      # (the read mark: the inventory open)
 
         def done(res):
-            self._tu_busy = False
             if res is not None:
                 res["p0"] = p0
             self.topup_seen(res)
-
-        try:
-            self.run_bg(work, done)
-        except Exception:
-            self._tu_busy = False
-            raise
-        return True
+        return name, work, done
 
     def topup_seen(self, res):
         if res is None:
@@ -140,6 +111,7 @@ class TopUpPage:
                 if good is not None and good.get("cells") is not None:
                     res["cells_use"] = good["cells"]
             self.topup_paint_seen()
+            self.back_card_close()                           # (the card's press: done)
             try:
                 self.mp_seen(res)                            # 2.132.0: Map profit reads the same look (2.132.2: a
             except Exception:                                # covered one too - see mp_seen)
@@ -152,7 +124,8 @@ class TopUpPage:
         """The inventory cell under the mouse in this look, None (off the grid), or MOVING when the mouse moved
         while it looked (its picture may hold a glow anywhere - not used to learn from)."""
         try:
-            p1 = self.root.winfo_pointerxy()
+            from . import screenread as SR
+            p1 = SR.to_screen(self.root.winfo_pointerxy())          # (the look is in real pixels)
         except tk.TclError:
             return MOVING
         p0 = res.get("p0", p1)
@@ -170,7 +143,8 @@ class TopUpPage:
         cs = (r - l_) / TU.COLS
         gy = (res.get("game") or (0, t, 0, 0))[1]
         try:
-            px, py = self.root.winfo_pointerxy()
+            from . import screenread as SR
+            px, py = SR.to_screen(self.root.winfo_pointerxy())      # (the look is in real pixels)
         except tk.TclError:
             return True
         if l_ - cs <= px <= r + cs and gy <= py <= b + cs:
@@ -251,6 +225,42 @@ class TopUpPage:
         inventory look may remind again."""
         self.tu_visit = getattr(self, "tu_visit", 0) + 1
 
+    # ---------------------------------------------------------------- Back from a map (Top Up + Map profit, one card)
+    def back_card_text(self, map_name=""):
+        """-> (title, line) of the Back from a map card, or None when neither helper is on or no Read Key is set.
+        Round 18 (feedback: "nobody is gonna read that"): the title and one short line - "Back from <map>" / "Open
+        inventory, press Ctrl+Shift+R" (the key from the setting). The stash tip is on Map Profit's page line."""
+        tu, mp = self.topup_on(), self.mp_on()
+        key = self.look_key_label()
+        if not (tu or mp) or not key:
+            return None
+        title = f"Back from {map_name}" if map_name else "Back from your map"
+        return title, f"Open inventory, press {key}"
+
+    def back_card(self, map_name=""):
+        """Back in your hideout or a town after a map (alerts_page.breach_area): the one card. It closes when that
+        press reads your open inventory, when you leave, or on a click (not now). It reads nothing itself."""
+        self.topup_visit()
+        got = self.back_card_text(map_name)
+        if got is None:
+            return None
+        self.back_card_close()
+        from . import alertcard
+        from .alerts_page import game_rect
+        self.back_win = alertcard.show(self.root, got[0], got[1], color=CARD_COLOR, mark="▲", secs=BACK_SECS,
+                                       game=game_rect(), tag="Back from a map", rank=4)
+        buglog.debug("Back from a map", "card shown")
+        return self.back_win
+
+    def back_card_close(self):
+        w, self.back_win = getattr(self, "back_win", None), None
+        if w is not None:
+            try:
+                if w.winfo_exists():
+                    w.destroy()
+            except tk.TclError:
+                pass
+
     def topup_remind(self, force=False):
         """The inventory just opened: in your hideout or a town, once a visit, a card if something's under its
         keep. force (Test): now, wherever you are (a sample if nothing is low)."""
@@ -283,7 +293,8 @@ class TopUpPage:
             return False
         name, count = got
         try:
-            mx, my = self.root.winfo_pointerxy()
+            from . import screenread as SR
+            mx, my = SR.to_screen(self.root.winfo_pointerxy())      # (the look is in real pixels)
         except tk.TclError:
             return False
         l_, t, r, b = last["rect"]
@@ -342,7 +353,7 @@ class TopUpPage:
         if names:
             save_json("settings.json", SETTINGS)
             self.status_text, self.status_until = (f"League Plan's map supplies are in Top Up Reminders now "
-                                                   f"({len(names)}) - Overlay › Overlay Settings › Helpers › Items…"), \
+                                                   f"({len(names)}) - Overlay › Helpers › Items…"), \
                 time.time() + 12
             self.topup_paint_list()
         return added
@@ -384,27 +395,7 @@ class TopUpPage:
         k = SETTINGS.get("topup_key") or "Ctrl+C"
         return key_label(k)
 
-    # ---------------------------------------------------------------- Overlay ↳ Overlay Settings › Helpers: its row
-    def topup_row(self, box, bg, CB):
-        sm = ("Segoe UI", 9)
-        row = tk.Frame(box, bg=bg)
-        row.pack(fill="x", pady=(8, 0))
-        self.al_topup = tk.BooleanVar(value=bool(TU.cfg()["on"]))
-        cb = ttk.Checkbutton(row, text="Top Up Reminders (BETA)", variable=self.al_topup, style=CB,
-                             command=lambda: self.topup_set(bool(self.al_topup.get())))
-        cb.pack(side="left")
-        ib = ttk.Button(row, text="Items…", command=self.topup_items)
-        ib.pack(side="left", padx=(8, 0))
-        tb = ttk.Button(row, text="Test", width=6, command=lambda: self.topup_remind(force=True))
-        tb.pack(side="left", padx=(8, 0))
-        info = tk.Label(row, text="ⓘ", bg=bg, fg=C["muted"], font=sm, cursor="question_arrow")
-        info.pack(side="left", padx=(8, 0))
-        tk.Label(box, text="Says what's running low when you open your inventory in your hideout or a town.", bg=bg,
-                 fg=C["muted"], font=sm, anchor="w").pack(fill="x")
-        Tooltip(cb, "Looks only while your inventory is open and the game is in front. Off until you turn it on.")
-        Tooltip(ib, "Your items and how many of each to keep.")
-        Tooltip(tb, "Shows the reminder now, with what it last saw.")
-        Tooltip(info, f"Hover an item in your inventory and press {self.topup_key_text()} to track it.")
+    # (nav phase 2: its row is in the one Helpers table - alerts_page.build_alerts_panel)
 
     # ---------------------------------------------------------------- the Items list
     def topup_add_open(self):

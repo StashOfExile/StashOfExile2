@@ -3,7 +3,6 @@ from . import Module
 
 class Wealth(Module):
     key, title, icon = "wealth", "Wealth", "💰"
-    labs = True
     blurb = "What your stash is worth, tab by tab."
 
     def build(self, body):

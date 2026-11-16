@@ -1,16 +1,40 @@
 """The sidebar (2.62.0): every tool as a line of text down the left, grouped, child tools indented under their
-parent with "↳", the open one marked in the theme's style; Toolkit and Settings at the bottom. Clicking a line
+parent with "↳", the open one marked in the theme's style; Settings at the bottom. Clicking a line
 opens that tool as the page (one page at a time).
 
 GGG ToS: looks only - nothing here touches the game."""
 import tkinter as tk
 
+from . import gearicon
+from .gearicon import GEAR
 from . import buglog
+from . import newchip
 from . import themes as TH
-from .style import C
+from .style import C, Tooltip
 
-WIDE, NARROW = 212, 52                 # wide: icon + name; narrow (small app window): icons only
-GROUPS = (("module", "Modules"), ("tool", "Tools"), ("utility", "In game"))
+WIDE, NARROW = 232, 52                 # wide: icon + name; narrow (small app window): icons only
+RAIL = 96                              # drawer-look: the Drawer's rail - a bigger icon with its short name under it
+# UI overhaul: grouped by what you want to do. Page keys per group; a page not named here goes under Tools.
+# Nav phase 1: Overlay sits under Dashboard with no group (was "In Game"); the "Earn" group is gone (Wealth and Craft
+# Helper to Stash, the rest to League); Bulk Pricing, Favorites and Rate Mods are their own rows in Trade (they were
+# children of Price Checks); Regex to Stash; the dead "notes" entry is gone (Notes is an overlay part).
+GROUPS = ((None, ("dashboard", "tracker")),
+          ("Trade", ("pricecheck", "checks", "favorites", "ratemods", "rates", "insights")),
+          ("Stash", ("wealth", "regex", "crafthelper")),
+          ("League", ("plan", "mapprofit", "money", "maps", "leaderboards")),
+          ("Tools", ("search",)))
+NO_GROUP = ("settings",)               # pages that live outside the groups (Settings sits at the bottom)
+
+
+def group_of(key):
+    """The sidebar group a page's row is in: its GROUPS label, "" for a page with no group (Dashboard, Overlay,
+    Settings), "Tools" for a page not named in GROUPS (the sidebar lists those under Tools)."""
+    if key in NO_GROUP:
+        return ""
+    for label, keys in GROUPS:
+        if key in keys:
+            return label or ""
+    return "Tools"
 
 
 class Sidebar(tk.Canvas):
@@ -19,12 +43,16 @@ class Sidebar(tk.Canvas):
         self.shell = shell
         self.hover, self.compact, self._rows = None, False, []
         self.folded = set()                    # 2.65.0: open tools folded shut by a click
+        self._tip = Tooltip(self, "", delay=350)  # D3: the rail has icons only - a real tip beside the row
         TH.self_painted(self)
         TH.subscribe(lambda t: self.redraw(), owner=self)
+        newchip.listen(lambda: self.winfo_exists() and self.redraw())     # 3.0.0: a NEW chip went
         self.bind("<Configure>", lambda e: self.redraw())
         self.bind("<Motion>", self._motion)
         self.bind("<Leave>", lambda e: self._set_hover(None))
         self.bind("<Button-1>", self._click)
+        for ev in ("<MouseWheel>", "<Button-4>", "<Button-5>"):
+            self.bind(ev, self.rail_wheel, add="+")
 
     # ---- what is listed
     def items(self):
@@ -36,18 +64,23 @@ class Sidebar(tk.Canvas):
         while k and k not in chain:                # under Under the hood, under Price checks)
             chain.append(k)
             k = getattr(sh.modules.get(k), "parent", None)
-        out = []
+        out = [{"key": "_goto", "title": "Go to anything", "icon": "⌕"}]     # UI overhaul: Ctrl+K, first
 
         def tabs(m, depth):
             if self.compact or m.key != act:
                 return
             for t in sh.tab_titles(m.key):
                 out.append({"key": f"{m.key}::{t}", "tab": t, "of": m.key, "depth": depth})
-        for kind, label in GROUPS:
-            mods = [m for m in sh.modules.values() if m.kind == kind and sh.listed(m)]
+        named = {k for _, keys in GROUPS for k in keys}
+        listed = [m for m in sh.modules.values() if sh.listed(m) and getattr(m, "kind", "") != "core"]
+        for label, keys in GROUPS:
+            mods = [m for k in keys for m in listed if m.key == k]
+            if label == "Tools":
+                mods += [m for m in listed if m.key not in named]
             if not mods:
                 continue
-            out.append({"group": label})
+            if label:
+                out.append({"group": label})
             def kids(p, depth):
                 for c in sh.children(p):
                     out.append({"key": c.key, "mod": c, "child": True, "depth": depth})
@@ -78,8 +111,28 @@ class Sidebar(tk.Canvas):
     def set_compact(self, on):
         if on != self.compact:
             self.compact = on
-            self.configure(width=NARROW if on else WIDE)
+            self.configure(width=self.rail_width() if on else WIDE)
             self.redraw()
+
+    def rail_width(self):
+        look = getattr(self.shell.app, "drawer_look_on", None)
+        try:
+            return RAIL if look and look() else NARROW
+        except Exception:
+            return NARROW
+
+    def rail_label(self, k):
+        """The short name under a rail icon: the page's name; a long one (over 13 letters) its short name, as the
+        dock's tiles do. Go to anything and Settings keep theirs."""
+        if k == "_goto":
+            return "Go to anything"
+        if k == "_update":
+            return "Update"
+        mod = self.shell.modules.get(k)
+        if mod is None:
+            return ""
+        t = mod.title
+        return (getattr(mod, "short", "") or t) if len(t) > 13 else t
 
     # ---- mouse
     def _hit(self, y):
@@ -98,13 +151,49 @@ class Sidebar(tk.Canvas):
                 from .config import pretty_version
                 self.shell.app._say(f"Version {self.update_tag()} is out (you have {pretty_version()}). Click: see "
                                     "what's new and update (it asks first).", 6)
+            self._rail_tip(k)
+            if k == "_goto":
+                self.shell.app._say("Find any page, setting or helper (Ctrl+K).", 4)
             if mod is not None and getattr(mod, "blurb", ""):
                 self.shell.app._say(f"{mod.title}: {mod.blurb}", 4)
 
+    def rail_text(self, k):
+        """The words for a rail icon: "Trade › Price Checks" (a page's group, then its name)."""
+        sh = self.shell
+        if k == "_goto":
+            return "Go to anything (Ctrl+K)"
+        if k == "_update":
+            return f"Update to {self.update_tag()}" if self.update_tag() else "Update"
+        mod = sh.modules.get(k)
+        if mod is None:
+            return ""
+        top, seen = k, set()
+        while getattr(sh.modules.get(top), "parent", None) and top not in seen:
+            seen.add(top)
+            top = sh.modules[top].parent
+        grp = group_of(top)
+        name = f"{grp} \u203a {mod.title}" if grp else mod.title
+        new = newchip.page_tip(k)                            # 3.0.0: "NEW: Read Key, Drawer"
+        return f"{name}  ·  {new}" if new else name
+
+    def _rail_tip(self, k):
+        """D3: in the rail, hovering a row shows its name beside it (the status line alone is no tip)."""
+        tip = self._tip
+        tip._leave()
+        if not (k and self.compact):
+            return
+        row = next((r for r in self._rows if r[0] == k), None)
+        text = self.rail_text(k)
+        if not row or not text:
+            return
+        tip.text = text
+        tip.at = (self.winfo_rootx() + self.winfo_width() + 2, self.winfo_rooty() + row[1] + 2)
+        tip._enter()
+
     def _click(self, e):
         k = self._hit(e.y)
-        if k == "_toolkit":
-            self.shell.toggle_menu()
+        if k == "_goto":
+            self.shell.goto()
         elif k == "_update":                                  # 2.74.2: see what's new and update (it asks first)
             self.shell.app.check_updates("ask")
         elif k and "::" in k:                                  # one of a page's tabs
@@ -129,11 +218,112 @@ class Sidebar(tk.Canvas):
         with TH.raw():
             self._redraw()
 
+    def rail_look(self):
+        """The Drawer's own rail (mockups.html .rail): line icons in the theme's sidebar - only in the Drawer shape."""
+        look = getattr(self.shell.app, "drawer_look_on", None)
+        try:
+            return bool(self.compact and look and look())
+        except Exception:
+            return False
+
+    def _redraw_rail(self, t):
+        """drawer-look (mockups.html, owner: "icons on the left bar are too small and difficult to make out what they
+        are"): each page a big line icon with its short name under it - a touch-sized row; Settings at the bottom. The
+        rows scroll with the wheel when the window is short. Every row keeps its tip beside it (_rail_tip: "Trade ›
+        Price Checks"). Round 18 (feedback: "everything blends together"): the theme's own sidebar - its surface and
+        texture, the group names (TRADE, STASH ...) in its group color, and the open page on its selection color with
+        the marker in its accent at the left edge (a mark, not color alone) and its icon and name lit."""
+        from . import lineicons
+        w, h = max(self.winfo_width(), 2), max(self.winfo_height(), 2)
+        if w != self.rail_width() and int(float(str(self.cget("width")))) != self.rail_width():
+            self.configure(width=self.rail_width())
+        nav = t.part("nav") or {}
+        bg = t.c(nav.get("bg", "surface_raised")) if t.id != TH.IDENTITY else C["panel2"]
+        line = t.c("border")
+        acc = t.c(nav.get("marker_color", "accent")) if nav.get("marker_color") else C["accent"]
+        sel_bg = t.c(nav.get("sel_bg", "selection"))
+        hov_bg = t.c(nav.get("hover_bg", "surface_high"))
+        txt, sel_txt = t.c(nav.get("text", "text")), t.c(nav.get("sel_text", "text_strong"))
+        grp = t.c(nav.get("group", "text_muted"))
+        mut = t.c("text_muted")
+        self.configure(bg=bg)
+        if nav.get("texture", "none") not in ("none", None):
+            TH.texture(self, t, nav["texture"], 0, 0, w, h, bg,
+                       glow=t.c(nav["texture_color"]) if nav.get("texture_color") else None)
+        self._rows, self._imgs = [], []
+        active, chain = self.shell.active, self._chain()
+        gap, y0 = 2, 8 - getattr(self, "_rail_top", 0)
+        x0, x1 = 4, w - 5
+        font = ("Segoe UI", 9)
+
+        def row(k, y):
+            sel = k == active or (k in chain and k != "_goto")
+            hov = k == self.hover
+            col = sel_txt if sel else txt if hov else mut
+            lab = self.create_text((x0 + x1) // 2, y + 30, text=self.rail_label(k), anchor="n",
+                                   font=(font[0], font[1], "bold" if sel else "normal"), fill=col,
+                                   width=x1 - x0 - 2, justify="center", tags=("lab",))
+            bb = self.bbox(lab) or (0, y, 0, y + 46)
+            y1 = bb[3] + 6
+            if sel or hov:
+                rr = TH.round_rect(self, x0, y, x1, y1, 6, fill=sel_bg if sel else hov_bg, outline="")
+                self.tag_lower(rr, lab)
+            if sel:
+                self.create_rectangle(0, y + 6, 3, y1 - 6, fill=acc, outline="")
+            icol = acc if sel else col
+            if k == "settings":                              # (the app's one gear - gearicon, as everywhere else)
+                img = gearicon.image(self, 20, icol)
+            else:
+                img = lineicons.icon(self, lineicons.PAGE_ICON.get(k, "dot"), 22, icol)
+            if img is not None:
+                self._imgs.append(img)
+                self.create_image((x0 + x1) // 2, y + 17, image=img)
+            if newchip.page_new(k):                          # 3.0.0: the NEW chip by the icon's top right
+                newchip.draw(self, x1 - 3, y + 8, acc, ink_on(acc), size=7)
+            self._rows.append((k, y, y1))
+            return y1
+        upd = self.update_tag()
+        bottom = (["_update"] if upd else []) + ["settings"]
+        y = y0
+        for it in self.items():
+            if "group" in it:
+                if it["group"]:
+                    self.create_text(w // 2, y + 9, text=it["group"].upper(), anchor="center",
+                                     font=("Segoe UI", 9, "bold"), fill=grp)
+                    y += 18
+                else:
+                    self.create_line((w - 32) // 2, y + 6, (w + 32) // 2, y + 6, fill=line)
+                    y += 13
+                continue
+            if "tab" in it or it.get("child"):
+                continue
+            y = row(it["key"], y) + gap
+        need = y + getattr(self, "_rail_top", 0) + len(bottom) * 54 + 16
+        self._rail_more = max(0, need - h)                  # (a short window: the rows scroll)
+        y = max(y + 8, h - len(bottom) * 54 - 8) if not self._rail_more else y + 8
+        self.create_line((w - 32) // 2, y - 4, (w + 32) // 2, y - 4, fill=line)
+        for k in bottom:
+            y = row(k, y) + gap
+        self.create_line(w - 1, 0, w - 1, h, fill=line)
+
+    def rail_wheel(self, e):
+        """The rail's rows scroll with the wheel when they don't all fit (a short game window)."""
+        if not self.rail_look() or not getattr(self, "_rail_more", 0):
+            return
+        d = -1 if (getattr(e, "delta", 0) > 0 or getattr(e, "num", 0) == 4) else 1
+        self._rail_top = max(0, min(self._rail_more, getattr(self, "_rail_top", 0) + d * 60))
+        self.redraw()
+
     def _redraw(self):
         t = TH.ST.theme
         if t is None:
             return
         self.delete("all")
+        if self.rail_look():
+            return self._redraw_rail(t)
+        want = NARROW if self.compact else WIDE                # (back from the Drawer's wider rail)
+        if int(float(str(self.cget("width")))) != want:
+            self.configure(width=want)
         nav = t.part("nav") or {}
         w, h = max(self.winfo_width(), 2), max(self.winfo_height(), 2)
         bg = t.c(nav.get("bg", "surface_raised")) if t.id != TH.IDENTITY else C["panel2"]
@@ -152,12 +342,13 @@ class Sidebar(tk.Canvas):
         self._rows = []
         active = self.shell.active
         rows = self.items()
-        upd = self.update_tag()                           # 2.74.2: a new version - above Toolkit and Settings
+        upd = self.update_tag()                           # 2.74.2: a new version - above Settings
         bottom = ([{"key": "_update", "title": f"Update to {upd}", "icon": "⬆"}] if upd else []) + \
-            [{"key": "_toolkit", "title": "Toolkit", "icon": "◆"}, {"key": "settings", "title": "Settings", "icon": "⚙"}]
+            [{"key": "settings", "title": "Settings", "icon": GEAR}]   # (UI overhaul: no Toolkit row - Go to anything
+                                                                         # lists every page; Settings › About has the rest)
         for it in rows + [{"group": None}] + bottom:
             if "group" in it:
-                if it["group"] is None:                       # the bottom: (Update,) Toolkit and Settings
+                if it["group"] is None:                       # the bottom: (Update,) Settings
                     y = max(y + 8, h - len(bottom) * (rh + 2) - 12)
                     self.create_line(10, y, w - 10, y, fill=C["line"])
                     y += 8
@@ -171,6 +362,9 @@ class Sidebar(tk.Canvas):
                 y += 22
                 continue
             k = it["key"]
+            if k == "_goto":
+                y = self._goto_row(y, w, t)
+                continue
             if k == "_update":
                 y = self._update_row(y, w, rh, acc, t)
                 continue
@@ -180,11 +374,17 @@ class Sidebar(tk.Canvas):
             mod = it.get("mod")
             title = mod.title if mod is not None else it["title"]
             icon = mod.icon if mod is not None else it["icon"]
+            if it.get("child") and not self.compact:           # UI overhaul: a page under a page - on the rail
+                y = self._nested_row(k, title, it.get("depth", 1), y, w, acc, sel_bg, hov_bg, txt, sel_txt, grp, t,
+                                     sel=(k == active and not (k not in self.folded and self.shell.tab_current(k)
+                                                               in self.shell.tab_titles(k))),
+                                     more=mod is not None and bool(self.shell.children(k)) and self.has_more(k))
+                continue
             y0, y1 = y, y + rh
             x0, x1 = (6, w - 6) if not self.compact else (4, w - 4)
             on_tab = (mod is not None and not self.compact and k not in self.folded
                       and self.shell.tab_current(k) in self.shell.tab_titles(k))
-            sel = (k == active and not on_tab) or (k == "_toolkit" and self.shell.menu is not None)
+            sel = k == active and not on_tab
             if sel:
                 self._marker(mk, x0, y0, x1, y1, acc, sel_bg, bg)
             elif k == self.hover:
@@ -195,14 +395,23 @@ class Sidebar(tk.Canvas):
             cy = (y0 + y1) // 2
             opened = on_tab and k == active                    # its tab carries the marker; the page name is bold
             fg = sel_txt if sel or opened else txt
+            fresh = not it.get("child") and newchip.page_new(k)     # 3.0.0: a new feature lives here
             if self.compact:
-                self.create_text((x0 + x1) // 2, cy, text=icon, font=("Segoe UI Emoji", 12), fill=fg)
+                if icon == GEAR:                               # (drawn: the ⚙ glyph looked like a flower)
+                    gearicon.draw(self, (x0 + x1) // 2, cy, 16, fg)
+                else:
+                    self.create_text((x0 + x1) // 2, cy, text=icon, font=("Segoe UI Emoji", 12), fill=fg)
+                if fresh:                                      # (the word NEW, never a dot of color alone)
+                    newchip.draw(self, x1, y0 + 5, acc, ink_on(acc), size=6)
             else:
                 ind = 14 * it.get("depth", 1) if it.get("child") else 0
                 if it.get("child"):
                     self.create_text(x0 + ind - 4, cy, text="↳", anchor="w", font=("Segoe UI", 9), fill=grp)
-                self.create_text(x0 + 12 + ind + (6 if mk == "gem" else 0), cy, text=icon, anchor="w",
-                                 font=("Segoe UI Emoji", 12 if not it.get("child") else 10), fill=fg)
+                if icon == GEAR:
+                    gearicon.draw(self, x0 + 12 + ind + (6 if mk == "gem" else 0), cy, 16, fg, anchor="w")
+                else:
+                    self.create_text(x0 + 12 + ind + (6 if mk == "gem" else 0), cy, text=icon, anchor="w",
+                                     font=("Segoe UI Emoji", 12 if not it.get("child") else 10), fill=fg)
                 self.create_text(x0 + 40 + ind, cy, text=title, anchor="w", fill=fg,
                                  font=("Segoe UI", 10 if not it.get("child") else 9, "bold" if sel or opened else "normal"))
                 more = mod is not None and (not it.get("child") or self.shell.children(k)) and self.has_more(k)
@@ -211,18 +420,39 @@ class Sidebar(tk.Canvas):
                     self.create_text(x1 - 4, cy, text="▾" if unfolded else "▸", anchor="e", fill=grp,
                                      font=("Segoe UI Symbol", 9))
                     x1 -= 14
-                if mod is not None and getattr(mod, "kind", "") == "utility" and not it.get("child"):
+                if fresh:                                      # 3.0.0: NEW until opened (then BETA, if it is)
+                    newchip.draw(self, x1 - 6, cy, acc, ink_on(acc))
+                elif mod is not None and getattr(mod, "kind", "") == "utility" and not it.get("child"):
                     st = None
                     try:
                         st = mod.status() if hasattr(mod, "status") else None
                     except Exception:
                         buglog.caught()
                     col = C["green"] if st is True else C["orange"] if st == "warn" else C["muted"]
-                    self.create_oval(x1 - 16, cy - 4, x1 - 8, cy + 4, fill=col, outline="")
+                    mark = "✓" if st is True else "!" if st == "warn" else "–"      # (never color alone)
+                    self.create_text(x1 - 12, cy, text=mark, font=("Segoe UI Symbol", 9, "bold"), fill=col)
                 elif mod is not None and _beta(mod):
                     self.create_text(x1 - 6, cy, text="BETA", anchor="e", font=("Segoe UI", 7, "bold"), fill=acc)
             self._rows.append((k, y0, y1))
             y = y1 + 2
+
+    def _goto_row(self, y, w, t):
+        """UI overhaul: the Go to anything box at the top of the sidebar (opens the Ctrl+K box)."""
+        x0, x1 = (8, w - 8) if not self.compact else (6, w - 6)
+        y0, y1 = y + 4, y + 40
+        hov = self.hover == "_goto"
+        TH.round_rect(self, x0, y0, x1, y1, 8, fill=t.c("surface_sunken"),
+                      outline=t.c("border_light") if hov else t.c("border"))
+        cy = (y0 + y1) // 2
+        mut = t.c("text_muted")
+        if self.compact:
+            self.create_text((x0 + x1) // 2, cy, text="⌕", font=("Segoe UI Symbol", 12), fill=mut)
+        else:
+            self.create_text(x0 + 12, cy, text="⌕", anchor="w", font=("Segoe UI Symbol", 11), fill=mut)
+            self.create_text(x0 + 32, cy, text="Go to anything", anchor="w", font=("Segoe UI", 9), fill=mut)
+            self.create_text(x1 - 10, cy, text="Ctrl K", anchor="e", font=("Segoe UI", 8), fill=mut)
+        self._rows.append(("_goto", y0, y1))
+        return y1 + 12
 
     def update_tag(self):
         """2.74.2: the newer version the quiet check found (feedback_page), or None."""
@@ -251,24 +481,44 @@ class Sidebar(tk.Canvas):
         return y1 + 2
 
     def _tab_row(self, it, y, w, mk, acc, sel_bg, bg, hov_bg, txt, sel_txt, grp, t, nav):
-        k, rh = it["key"], 24
+        sel = self.shell.active == it["of"] and self.shell.tab_current(it["of"]) == it["tab"]
+        return self._nested_row(it["key"], it["tab"], it["depth"], y, w, acc, sel_bg, hov_bg, txt, sel_txt, grp, t,
+                                sel=sel)
+
+    def _nested_row(self, k, title, depth, y, w, acc, sel_bg, hov_bg, txt, sel_txt, grp, t, sel=False, more=False):
+        """UI overhaul: a page's own parts and the pages under it, the same way - a thin rail under the parent's icon,
+        the name lined up with the parent's name; the open one has a mark on the rail, bold text and a filled row."""
+        rh = 26
         y0, y1 = y, y + rh
         x0, x1 = 6, w - 6
-        sel = self.shell.active == it["of"] and self.shell.tab_current(it["of"]) == it["tab"]
-        ind = 14 * (it["depth"] - 1)
+        rail = x0 + 19 + 14 * (depth - 1)
+        tx = x0 + 40 + 14 * (depth - 1)
+        if sel or k == self.hover:
+            self.create_rectangle(rail + 6, y0 + 1, x1, y1 - 1, fill=sel_bg if sel else hov_bg, outline="")
+        self.create_line(rail, y0 - 2, rail, y1 + 2, fill=t.c("border"))
         if sel:
-            self._marker(mk, x0 + 18 + ind, y0, x1, y1, acc, sel_bg, bg)
-        elif k == self.hover:
-            self.create_rectangle(x0 + 18 + ind, y0, x1, y1, fill=hov_bg, outline="")
-        cy = (y0 + y1) // 2
-        self.create_text(x0 + 10 + ind, cy, text="↳", anchor="w", font=("Segoe UI", 9), fill=grp)
-        self.create_text(x0 + 28 + ind + (8 if sel and mk == "gem" else 0), cy, text=it["tab"], anchor="w",
-                         fill=sel_txt if sel else txt, font=("Segoe UI", 9, "bold" if sel else "normal"))
+            self.create_rectangle(rail - 1, y0 + 5, rail + 2, y1 - 5, fill=acc, outline="")
+        self.create_text(tx, (y0 + y1) // 2, text=title, anchor="w", fill=sel_txt if sel else txt,
+                         font=("Segoe UI", 9, "bold" if sel else "normal"))
+        if more:
+            unfolded = k in self._chain() and k not in self.folded
+            self.create_text(x1 - 4, (y0 + y1) // 2, text="▾" if unfolded else "▸", anchor="e", fill=grp,
+                             font=("Segoe UI Symbol", 9))
         self._rows.append((k, y0, y1))
-        return y1 + 2
+        return y1
 
     def _marker(self, mk, x0, y0, x1, y1, acc, sbg, bg):
         draw_marker(self, mk, x0, y0, x1, y1, acc, sbg, bg)
+
+
+def ink_on(color):
+    """Dark or light words on a filled chip of this color (the NEW chip on the rail)."""
+    try:
+        c = color.lstrip("#")
+        r, g, b = (int(c[i:i + 2], 16) for i in (0, 2, 4))
+        return "#1a1206" if (0.299 * r + 0.587 * g + 0.114 * b) > 140 else "#ffffff"
+    except (ValueError, AttributeError):
+        return "#1a1206"
 
 
 def _beta(mod):

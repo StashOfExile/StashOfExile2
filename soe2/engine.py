@@ -17,9 +17,10 @@ from .mods import DUPS, OPTS, find_stat, norm, pretty, vfilter
 from . import gear, waystone
 from .gear import only_source
 from .trade import (cheapest_real,
-    _flt, build_sidtext, estimate, fetch_rich, listing_rules, mod_impact, search_ids, unconvertible,
-    uses_filter, verify_listings, collapse_sellers, more_ids, MIN_SELLERS,
+    _flt, build_sidtext, current_opts, estimate, fetch_rich, listing_rules, mod_impact, search_ids, unconvertible,
+    use_opts, uses_filter, verify_listings, collapse_sellers, more_ids, MIN_SELLERS,
 )
+from .searchopts_page import default_opts
 from .market import MARKET, Market
 from .pricefmt import confidence, fmt_div, fmt_price
 from .wealth import WealthJobs
@@ -193,6 +194,7 @@ class Engine(TabReaderJobs, WealthJobs, StratCostJobs, threading.Thread):
             self.ui_q.put(("error", "init", f"Couldn't download the trade site's mod list ({e}). Check your internet.", None))
         self._load_static()
         self._load_items()
+        self._load_filters()
         self.ui_q.put(("ready",))
 
     def _load_items(self):
@@ -211,6 +213,24 @@ class Engine(TabReaderJobs, WealthJobs, StratCostJobs, threading.Thread):
         except Exception:
             buglog.caught()
             _gd.load_trade_items()
+
+    def _load_filters(self):
+        """Owner decision C: the trade site's own filter list (ids and names of every filter the item card offers),
+        once a day like the mod list (trade.set_trade_filters). Never stops the app: without it every filter the
+        app knows is offered."""
+        from .trade import set_trade_filters
+        try:
+            cache = P("trade_filters.json")
+            if os.path.exists(cache) and time.time() - os.path.getmtime(cache) < 86400:
+                data = load_json("trade_filters.json", {})
+            else:
+                data = call("GET", BASE + "/data/filters")
+                save_json("trade_filters.json", data)
+            set_trade_filters(data)
+        except Exception:
+            buglog.caught()
+            if os.path.exists(P("trade_filters.json")):
+                set_trade_filters(load_json("trade_filters.json", {}))
 
     def _load_static(self):
         """2.16.0: the trade site's list of currencies (ids for every currency a stash tab can be priced in), once a
@@ -361,7 +381,8 @@ class Engine(TabReaderJobs, WealthJobs, StratCostJobs, threading.Thread):
         use_opts(rec.get("opts"))
         try:
             out = self._price_rec(rec, tell)
-            if self._none_found(rec) and listing_rules()[1]:     # 2.99.0 (feedback: a rare white base found nothing):
+            if self._none_found(rec) and listing_rules()[1] and not gear.widens(rec["item"]):
+                # 2.99.0 (feedback: a rare white base found nothing; owner: a white / blue base stops at 1 week)
                 use_opts(dict(rec.get("opts") or {}, age_any=True))  # nothing listed lately - look at older listings
                 out = self._price_rec(rec, tell)                 # once, and say so
                 if not self._none_found(rec):
@@ -480,6 +501,9 @@ class Engine(TabReaderJobs, WealthJobs, StratCostJobs, threading.Thread):
         vals = {m["sid"]: m["value"] for g in groups for m in g["mods"] if m.get("sid")}
         mem = MARKET.lower_bound(item["base"], vals, SETTINGS.get("memory_hours", 24) or 24)
         filt_all = Market.filters_of([m for g in plan[0][1] for m in g["mods"]])
+        # owner decision A: a flagged item (corrupted ...) is compared with listings that have the same flags; an
+        # item without any: Corrupted / Fractured / Desecrated = Any, as before
+        flags = set(item.get("flags") or ()) or None
         n_item_mods = len(item["mods"])
         # 2.125.6 (feedback): no shortcuts - every item is searched (1.21's "from memory" and 1.23's "from model"
         # skipped a search; both were off unless turned on in Settings, which few understood)
@@ -487,7 +511,7 @@ class Engine(TabReaderJobs, WealthJobs, StratCostJobs, threading.Thread):
         for name, gs in plan:
             self._turn(rec)
             fs = [_flt(m) for g in gs for m in g["mods"]]
-            total, ids, qid = search_ids(league, item["base"], fs + extra, None, None)   # Corrupted/Fractured/Desecrated = Any
+            total, ids, qid = search_ids(league, item["base"], fs + extra, None, flags)
             st = self._stage(item["base"], name, gs, total, ids, qid, hours, league, verify_tot)
             stages.append(st)
             if len(stages) == 1 and st["n"] >= need:       # search 1 found enough listings: that's the price, skip the rest
@@ -510,7 +534,7 @@ class Engine(TabReaderJobs, WealthJobs, StratCostJobs, threading.Thread):
                 keep = left
                 fs = [_flt(m) for g in keep for m in g["mods"]]
                 self._turn(rec)
-                total, ids, qid = search_ids(league, item["base"], fs + extra, None, None)
+                total, ids, qid = search_ids(league, item["base"], fs + extra, None, flags)
                 tname = TIER_ORDER[low] if low < len(TIER_ORDER) else "?"
                 st = self._stage(item["base"], f"without {tname}-tier: " + ", ".join(short(g) for g in dropped), keep,
                                  total, ids, qid, hours, league, verify_tot, record=False)
@@ -524,7 +548,7 @@ class Engine(TabReaderJobs, WealthJobs, StratCostJobs, threading.Thread):
         if not found:                                           # nothing at your rolls: once more with ANY value
             fs = [_flt(m, with_roll=False) for g in plan[0][1] for m in g["mods"]]
             self._turn(rec)
-            total, ids, qid = search_ids(league, item["base"], fs + extra, None, None)
+            total, ids, qid = search_ids(league, item["base"], fs + extra, None, flags)
             st = self._stage(item["base"], "any roll", plan[0][1], total, ids, qid, hours, league, verify_tot, record=False)
             stages.append(st)
             found = [st] if st["n"] else []
@@ -534,7 +558,7 @@ class Engine(TabReaderJobs, WealthJobs, StratCostJobs, threading.Thread):
             best = sorted(plan[0][1], key=lambda g: (g["impact"] != "high", -worth(g)))[0]
             fs = [_flt(m) for m in best["mods"]]
             self._turn(rec)
-            total, ids, qid = search_ids(league, item["base"], fs + extra, None, None)
+            total, ids, qid = search_ids(league, item["base"], fs + extra, None, flags)
             st = self._stage(item["base"], f"only {short(best)}", [best], total, ids, qid, hours, league, verify_tot,
                              record=False)
             stages.append(st)
@@ -648,7 +672,7 @@ class Engine(TabReaderJobs, WealthJobs, StratCostJobs, threading.Thread):
                     m["search_ids"] = ids
             (must if imp == "high" else opt).append(m)
         blank = dict(total=0, prices=[], est=None, qid=None, partial=False, thin=False, nomatch=False, stages=[],
-                     wide=False, manual=False, conf="-", conf_why=[], memory="", skip=False)
+                     wide=False, manual=False, conf="-", conf_why=[], memory="", skip=False, broaden=None)
         if not must and not opt and item["rarity"] not in ("Unique", "Normal", "Currency", "Gem") and not (
                 item["rarity"] == "Magic" and (item.get("search") or {}).get("ilvl_min")):   # 2.114.0: a magic base
 
@@ -664,8 +688,9 @@ class Engine(TabReaderJobs, WealthJobs, StratCostJobs, threading.Thread):
         if rec.get("src") in self.URGENT and len(steps) > 1:     # 2.87.0: Price Checks search exactly what you ticked
             steps = steps[:1]
         base_steps = gear.base_ladder(item)                    # 2.99.0 (feedback: an Exceptional Druidic Crown -
-        if base_steps:                                         # ilvl 81, 29% quality - found nothing): white / blue
-            steps = [(name, must, opt, len(opt), values, it_) for name, it_ in base_steps]   # bases widen step by step
+        base_o = current_opts()                                # ilvl 81, 29% quality - found nothing): white / blue
+        if base_steps:                                         # bases: exactly the card's boxes, one search (owner:
+            steps = [(name, must, opt, len(opt), values, it_) for name, it_ in base_steps]   # Broaden Search widens)
             # (2.131.4, feedback: "setting the search to Count but not making that search require a count of 2 makes
             # the count not function": each ☑ mod must match - it was "at least 0 of them")
         for step_ in steps:
@@ -680,8 +705,8 @@ class Engine(TabReaderJobs, WealthJobs, StratCostJobs, threading.Thread):
                     raise
                 q = gear.build_query(it_, must_s, opt_s, k, vals, plain=True)   # refused: once more, the simplest form
                 total, ids, qid = gear.run_search(league, q)
-            st = self._stage(item["base"], name, [{"mods": check}], total, ids, qid, hours, league, verify_tot, record=False,
-                             pool_base=item.get("name") if item.get("rarity") == "Unique" else None)
+            st = self._stage(item["base"], name, [{"mods": check}], total, ids, qid, hours, league, verify_tot,
+                             record=False, pool_base=item.get("name") if item.get("rarity") == "Unique" else None)
             st["k"] = k
             stages.append(st)
             if st["n"] >= need:
@@ -691,9 +716,11 @@ class Engine(TabReaderJobs, WealthJobs, StratCostJobs, threading.Thread):
         enough = [s_ for s_ in stages if s_["n"] >= need and s_["est"] is not None]
         some = [s_ for s_ in stages if s_["n"] and s_["est"] is not None]
         how = waystone.summary(item) if item.get("waystone") else gear.summary(item)
+        widened, broaden = gear.widen_state(item, base_o, default_opts(item), hours, not enough)   # owner: the card's
+        # Widened line, and its Broaden Search (the ladder's next step - one search a click) while too few are found
         if not some:
-            return dict(blank, label=f"no listings match - not priced ({how.lower()})", qid=stages[0]["qid"] if stages else None,
-                        nomatch=True, stages=stages)
+            return dict(blank, label=f"no listings match - not priced ({how.lower()})", widened="", broaden=broaden,
+                        qid=stages[0]["qid"] if stages else None, nomatch=True, stages=stages)
         chosen = (enough or some)[0]
         step = stages.index(chosen)
         for s_ in stages:
@@ -704,7 +731,7 @@ class Engine(TabReaderJobs, WealthJobs, StratCostJobs, threading.Thread):
         if item.get("waystone") and step > 0:
             label = chosen["name"] + " (your exact values found too few)"
         elif base_steps:
-            label = chosen["name"] + (" (the exact base found too few)" if step > 0 else "")
+            label = chosen["name"]
         elif dropped:
             label = f"{len(opt) - dropped} of {len(opt)} ☑ mods had to match (exact search found too few)"
         label += f" · {how.lower()}"
@@ -742,9 +769,10 @@ class Engine(TabReaderJobs, WealthJobs, StratCostJobs, threading.Thread):
             conf = "Medium"
         if rough:
             conf = "Low"
-        return dict(blank, label=label, total=chosen["total"], prices=chosen["prices"], qid=chosen["qid"], est=est,
-                    partial=False, thin=thin, stages=stages, wide=wide, manual=wide, conf=conf, conf_why=why,
-                    spread=ratio)
+        out = dict(blank, label=label, total=chosen["total"], prices=chosen["prices"], qid=chosen["qid"], est=est,
+                   partial=False, thin=thin, stages=stages, wide=wide, manual=wide, conf=conf, conf_why=why,
+                   spread=ratio, widened=widened, broaden=broaden)
+        return out
 
     def _valid_ids(self):
         """Every stat id on the trade site's downloaded list (empty if it couldn't be downloaded: then don't filter)."""

@@ -84,7 +84,7 @@ class LeaderboardPage:
         self.lb_keys_empty = EmptyState(left, "🏆", wrap=200,
                                         text="No times on this board yet\nRun maps with the overlay's timer on, or "
                                              "play the campaign with the Campaign Helper.",
-                                        button=("Open the Overlay", lambda: self.shell.open("tracker")))
+                                        button=("Open the Overlay", lambda: self.shell.open_tab("tracker", "Sessions")))
         self.lb_keys_tv = kv
         right = tk.Frame(split, bg=P1)
         right.pack(side="left", fill="both", expand=True, padx=(8, 0))

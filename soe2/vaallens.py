@@ -632,5 +632,26 @@ def card_icons(img, names, up=1.0):
         y = y / up
         what = VP.card(name)
         key = what[1] if what and what[0] == "room" else " ".join(str(name).lower().split())
-        out.setdefault(key, img.crop((int(cx - r), int(y - r), int(cx + r), int(y + r))))
+        out.setdefault(key, cutout(img.crop((int(cx - r), int(y - r), int(cx + r), int(y + r)))))
     return out
+
+
+def cutout(pic, diff=48):
+    """2.143.0 (feedback: "the crudely cropped images of the cards looks awful"): a card's picture -> the room's art
+    alone (RGBA): the pixels unlike its backing (the median of its edge) kept, the rest see-through, so it sits on the
+    tile like the game's own icons instead of in a dark box."""
+    a = np.asarray(pic.convert("RGB")).astype(np.float32)
+    ring = np.concatenate([a[:3].reshape(-1, 3), a[-3:].reshape(-1, 3), a[:, :3].reshape(-1, 3),
+                           a[:, -3:].reshape(-1, 3)])
+    d = np.sqrt(((a - np.median(ring, 0)) ** 2).sum(-1))
+    keep = d > diff
+    h, w = keep.shape
+    yy, xx = np.mgrid[0:h, 0:w]
+    keep &= ((xx - w / 2) ** 2 + (yy - h / 2) ** 2) <= (min(h, w) * 0.40) ** 2      # (the diamond's frame out)
+    # a pixel kept only with enough kept neighbors (specks of the backing's pattern go)
+    k = keep.astype(np.int32)
+    nb = sum(np.roll(np.roll(k, dy, 0), dx, 1) for dy in (-1, 0, 1) for dx in (-1, 0, 1))
+    keep &= nb >= 5
+    rgba = np.dstack([a.astype(np.uint8), (keep * 255).astype(np.uint8)])
+    from PIL import Image
+    return Image.fromarray(rgba, "RGBA")

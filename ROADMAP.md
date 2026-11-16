@@ -1,10 +1,10 @@
 # StashOfExile2 roadmap
 
-> **GGG ToS safety check - read first.** One key press = one action, only when you press it · nothing acts in the game by itself (watchers only look and show) · never touch the game's memory, code or traffic · the mouse is never moved or clicked for you · it reads only your clipboard, Client.txt, screen pixels, the trade site (within its limits) and poe.ninja. Every change must pass all of [TOS.md](TOS.md) (`tools/check_tos.py` checks the code on every PR).
+> **GGG ToS safety check - read first.** One key press = one action, only when you press it · nothing acts in the game by itself (helpers only read and show) · never touch the game's memory, code or traffic · the mouse is never moved or clicked for you · it reads Client.txt, the trade site (within its limits) and poe.ninja, and your clipboard or screen only once per key press (the Read Key, a copy key). Every change must pass all of [TOS.md](TOS.md) (`tools/check_tos.py` checks the code on every PR).
 
 > **Who we build for - read second.** Path of Exile players are utilitarian: they love data and information, problem solving and creative thinking. So every feature shows its numbers *and how they were worked out*, lets you sort, filter, compare and export them (CSV), keeps power-user depth (keys, versions, raw data) one click away instead of hiding it, explains in plain words, and leaves the decision to the player. Pretty is welcome; vague is not.
 
-**Current version: 2.142.2**
+**Current version: 3.0.1**
 
 Versions follow Semantic Versioning 2.0.0, always written in full: 2.10.0 adds features, 2.10.1 only fixes. Each step below is one release; we work through them top to bottom.
 
@@ -276,6 +276,7 @@ Order (decided 2026-11-05): the page passes, then the Privacy & data hub, then t
 | 2.137.2 | Ritual Identifier and Temple Helper read a quarter of the screen bigger every other look: small labels found at any size. |
 | 2.138.0 | Map profit: Export CSV, and Clear all asks (export first, hide from the list, or delete). Leaderboards: Export my times. |
 | 2.138.1 | Fast Beacon Read (opt-in, Helpers › Temple): catches a Vaal Beacon's count as you stand on it. Alerts close with a click anywhere on them (no ×). |
+| 2.143.0 | Full releases only (built and tested locally first); Wealth, Market Insights, Game Search out of BETA; UI overhaul; Vaal Lens: the Architect first. |
 | 2.142.2 | Map profit knows exchange items by their exchange icons; Vaal Lens off the login screen. |
 | 2.142.1 | Vaal Lens: room medallions known by their room's picture. |
 | 2.142.0 | Vaal Lens: medallions (take or leave, your hand) and the hand's plan (Thaumaturge + Corruption Chamber, upgrade, lock). |
@@ -400,8 +401,8 @@ From a research pass on PoE1 / PoE2 tools, forum and Reddit wishes. Order to be 
 | Expand | **Price check history:** "last time: 3 ex, 4 days ago" and a small chart, kept on this PC. |
 | Expand | **Trade whispers to your phone:** optional, inside Trade whispers (your own Discord webhook), off by default. |
 | Expand | **Bulk Pricing - where it was:** remember the screen spot of the + marker for each item; clicking the item's name in Bulk Pricing shows the + there again. |
-| UX | **One home for the overlay's look:** Style and Layout live in Settings › Appearance; Overlay Settings links there; Quick settings stays the one shortcut. |
-| UX | **"Settings" in the Overlay group becomes "Overlay Settings"** (one name per feature). |
+| UX | ~~Done (nav phase 2: Overlay › Look)~~ **One home for the overlay's look:** Style and Layout live in Settings › Appearance; Overlay Settings links there; Quick settings stays the one shortcut. |
+| UX | ~~Superseded (nav phase 2: Overlay Settings merged into the Overlay page)~~ **"Settings" in the Overlay group becomes "Overlay Settings"** (one name per feature). |
 | UX | **Search box everywhere:** check every list page and Settings have one (top left, first in the toolbar). |
 | UX | **First-run setup:** check the current flow covers league, log, overlay, keys and sharing in one Back / Next / Done. |
 | UX | **Privacy & data hub** (planned #2) also gathers Under the Hood's info and every manual data job - Rate mods, map ranks and the like - in a "Manual data submissions" section ("when you're bored"). |

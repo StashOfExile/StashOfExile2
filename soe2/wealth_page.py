@@ -22,7 +22,7 @@ from .wealth import (
     parse_price_text, parse_trade_link, WEALTH, WEALTH_CURRENCIES, wealth_display_name, wealth_key,
     wealth_rows, WEALTH_SYNC, wealth_trade_url, WPRICES, WEALTH_RARES, rare_sig, parse_stack,
 )
-from .style import C, SegBar, Tooltip
+from .style import C, SegBar, Tooltip, autowrap
 
 
 class _MenuItem:
@@ -60,7 +60,7 @@ class WealthPage:
         P1, P2 = C["panel"], C["panel2"]
         lab = dict(bg=P1, fg=C["muted"])
         self.w_tabfilter, self.w_catfilter, self.w_snap_sel = None, None, None
-        self.w_counting, self.w_session = False, []
+        self.w_counting, self.w_session = False, []         # Count by hand: Ctrl+C on each stack, in game
 
         # ---- on top of every page: what was done when, and the actions
         abar = tk.Frame(tab, bg=P1)
@@ -71,10 +71,9 @@ class WealthPage:
                              activeforeground="#ffffff", relief="flat", padx=8, pady=4, cursor="hand2")
         mm = tk.Menu(more, tearoff=0, bg=C["panel2"], fg=C["text"], activebackground="#2c4a84")
         mm.add_command(label="Update prices from poe.ninja", command=self.wealth_update_prices)
-        # 2.135.0 (feedback: "the Count Currency button needs replaced with the Stash Scan ... move into the menu as a
-        # backup"): Scan stash is the main button; Count currency (Ctrl+C on each stack) is here
-        mm.add_command(label="Count currency (Ctrl+C each stack)…", command=self.wealth_count_toggle)
-        mm.add_command(label="Add currency by hand…", command=self.wealth_manual_add)
+        # UI overhaul (feedback: "we don't need two of them, just Count by hand as a fallback"): Scan stash is the
+        # way; Count by hand is for a currency it can't read
+        mm.add_command(label="Count by hand (Ctrl+C each stack)…", command=self.wealth_count_toggle)
         mm.add_separator()
         mm.add_command(label="Export history (CSV)…", command=self.wealth_export_history)    # 2.2.0
         mm.add_command(label="Export items (CSV)…", command=self.wealth_export_items)
@@ -88,8 +87,7 @@ class WealthPage:
         self.w_scan_btn = ttk.Button(abar, text="Scan stash…", command=self.stash_scan_start,    # 2.102.0
                                      style="Primary.TButton")                                    # (2.135.0: the main one)
         self.w_scan_btn.pack(side="right", padx=(0, 8))
-        self.w_count_btn = ttk.Button(abar, text="Count currency…", command=self.wealth_count_toggle)   # (2.135.0: in
-        Tooltip(self.w_scan_btn, "Reads your Currency, Abyss, Delirium, Breach, Expedition, Ritual, Essence and "   # More ▾)
+        Tooltip(self.w_scan_btn, "Reads your Currency, Abyss, Delirium, Breach, Expedition, Ritual, Essence and "
                                   "Fragments tabs from the screen. You check the numbers before they're saved. Only "
                                   "looks: no keys, no clicks; the picture is never saved.")
         self.w_sync_btn = ttk.Button(abar, text="⟳ Sync stash tabs", command=self.wealth_sync)   # (never shown)
@@ -112,6 +110,9 @@ class WealthPage:
         self.w_status = tk.Frame(ov, bg=P1)
         self.w_steps_top = tk.Frame(ov, bg=P1)
         self.w_steps_top.pack(fill="x", padx=8, pady=(8, 0))
+        from .cards import StatTiles                        # UI overhaul: the numbers first, each with its ⓘ
+        self.w_tiles = StatTiles(ov, bg_role="surface", pad=(8, 12), h=92)
+        self.w_tiles.pack(fill="x")
 
         cards = tk.Frame(ov, bg=P1)
         cards.pack(fill="x", padx=8, pady=(8, 8))
@@ -133,17 +134,17 @@ class WealthPage:
         rb.bind("<<ComboboxSelected>>", lambda e: (SETTINGS.__setitem__("wealth_range", self.w_range.get()),
                                                     save_json("settings.json", SETTINGS), self.wealth_draw_chart(),
                                                     self.root.after(20, self.root.focus_set)))
+        # (UI overhaul: the total, the change and the Exalted / Chaos line are the number cards above - kept for their
+        # callers, not shown twice)
         self.w_total = tk.Label(head, text="-", bg=P2, fg=C["good"], font=("Segoe UI", 22, "bold"))
-        self.w_total.pack(side="right")
         self.w_delta = tk.Label(head, text="", bg=P2, fg=C["green"], font=("Segoe UI", 12, "bold"))
-        self.w_delta.pack(side="right", padx=(0, 8))
         self.w_equiv = tk.Label(c1, text="", bg=P2, fg=C["steel"], anchor="e")
-        self.w_equiv.pack(fill="x")
-        self.w_chart = tk.Canvas(c1, height=130, bg=P2, highlightthickness=0)
+        self.w_chart = tk.Canvas(c1, height=120, bg=P2, highlightthickness=0)
         self.w_chart.pack(fill="both", expand=True, pady=(2, 0))
         self.w_chart.bind("<Configure>", lambda e: self.wealth_draw_chart())
         self.w_facts = tk.Label(c1, text="", bg=P2, fg=C["muted"], anchor="w", justify="left", font=("Segoe UI", 9))
         self.w_facts.pack(fill="x")
+        autowrap(self.w_facts)                              # D3: wraps at Drawer width
 
         c2 = card(1, "Where it is")
         head2 = tk.Frame(c2, bg=P2)
@@ -162,14 +163,15 @@ class WealthPage:
         ibar = tk.Frame(right, bg=P1)
         ibar.pack(fill="x", pady=(0, 8))
         # P3 (2.105.1): where a stack came from - Counted / Scanned / Added by hand (was the stash tab picker)
-        self.w_from = SegBar(ibar, ["All", "Counted", "Scanned", "Added by hand"], size=9, pad=(8, 4),
+        self.w_from = SegBar(ibar, ["All", "Scanned", "Counted by hand"], size=9, pad=(8, 4),
                              command=lambda v: self.wealth_pick_tab(None if v == "All" else v))
         self.w_from.pack(side="left", padx=(0, 12))
         self.w_filter = tk.StringVar()
         self.w_filter.trace_add("write", lambda *a: self.wealth_fill_items())
         se = tk.Entry(ibar, textvariable=self.w_filter, width=24, bg=C["odd"], fg=C["text"], insertbackground=C["text"],
                       relief="flat", highlightthickness=1, highlightbackground=C["line"], font=("Segoe UI", 10))
-        se.pack(side="left", ipady=4)
+        se.pack(side="left", ipady=4, before=self.w_from)        # UI overhaul: the search box first
+        self.w_from.pack_configure(padx=(12, 12))
         ph = tk.Label(se, text="🔍  Search items", bg=C["odd"], fg=C["muted"], font=("Segoe UI", 10))
         ph.bind("<Button-1>", lambda e: se.focus_set())
 
@@ -201,18 +203,6 @@ class WealthPage:
         self.w_cstrip_btns.pack(side="right")
         self.w_cstrip_lbl.bind("<Configure>", lambda e: self.w_cstrip_lbl.config(wraplength=max(260, e.width - 10)))
         # add by hand (hidden until used)
-        self.w_manual = tk.Frame(right, bg=P2, padx=12, pady=8, highlightthickness=1, highlightbackground=C["line"])
-        tk.Label(self.w_manual, text="Add by hand", bg=P2, fg=C["accent"], font=("Segoe UI", 10, "bold")).pack(side="left")
-        self.w_man_name = tk.StringVar()
-        self.w_man_qty = tk.StringVar()
-        self.w_man_box = ttk.Combobox(self.w_manual, textvariable=self.w_man_name, width=26)
-        self.w_man_box.pack(side="left", padx=(8, 8))
-        tk.Label(self.w_manual, text="amount", bg=P2, fg=C["muted"]).pack(side="left")
-        qe = ttk.Entry(self.w_manual, textvariable=self.w_man_qty, width=9)
-        qe.pack(side="left", padx=(8, 8))
-        qe.bind("<Return>", lambda e: self.wealth_manual_set())
-        ttk.Button(self.w_manual, text="Set", style="Primary.TButton", command=self.wealth_manual_set).pack(side="left")
-        ttk.Button(self.w_manual, text="Close", command=lambda: self.w_manual.pack_forget(), style="Quiet.TButton").pack(side="left", padx=8)
 
         # ---- every item (2.69.0: under its header strip, in a sunken frame)
         self.w_items_head = SectionBar(right, "Items")
@@ -221,8 +211,14 @@ class WealthPage:
         ivp.pack(fill="both", expand=True)
         itf = ivp.body
         self.w_itf = itf
-        self.w_items = ttk.Treeview(itf, columns=[c[0] for c in self.W_COLS], show="headings", selectmode="extended",
-                                    height=3)            # grows with the window; small so the page never asks for more room
+        # UI overhaul: each item with its picture (poe.ninja's, when it has one), in taller rows
+        self.w_items = ttk.Treeview(itf, columns=[c[0] for c in self.W_COLS], show="tree headings",
+                                    selectmode="extended", height=3, style="Items.Treeview")
+        self.w_items.column("#0", width=48, minwidth=48, stretch=False, anchor="center")
+        self.w_items.heading("#0", text="")
+        from .rates_view import Icons, LocalIcons
+        self.w_icons = Icons(self.root, lambda: self.wealth_fill_items(), size=28)
+        self.w_local = LocalIcons(self.root, size=28)          # (the game's exchange pictures, shipped)
         for cid, title, w, anchor in self.W_COLS:
             self.w_items.heading(cid, text=title, command=lambda c=cid: self.wealth_sort(c))
             self.w_items.column(cid, width=w, anchor=anchor, stretch=(cid in ("item", "src")))
@@ -247,8 +243,7 @@ class WealthPage:
         self.w_count.pack(side="left", fill="x", expand=True)
         self.w_count.bind("<Configure>", lambda e: self.w_count.config(wraplength=max(200, e.width - 6)))
         self.w_empty = tk.Label(itf, bg=P1, fg=C["muted"], font=("Segoe UI", 10), justify="center",
-                                text="Nothing counted yet.\nPress Scan stash to read your stash tabs\n"
-                                     "(or More ▾ › Count currency and Ctrl+C each stack).")
+                                text="Nothing counted yet.\nPress Scan stash to read your stash tabs.")
 
         # ---- Stash tabs: your priced tabs - the list, each one's last sync, adding one (always shown here)
         self.w_setup = tk.Frame(tab, bg=P1)                 # P3 (2.105.1): built, never shown (the old tab parts)
@@ -387,9 +382,9 @@ class WealthPage:
         ("Scan stash", "Reads your Currency, Abyss, Delirium, Breach, Expedition, Ritual, Essence and Fragments tabs from "
                        "the screen. You check the numbers before they're saved. Only looks: no keys, no clicks; the "
                        "picture is never kept."),
-        ("Count currency", "The backup (More ▾): press it, then hover each stack in game and press Ctrl+C - the stack "
-                           "and its size are added; the same currency adds up. Double-click a quantity to change it; "
-                           "select rows (Ctrl+A for all) and press Delete to remove them."),
+        ("Count by hand", "For a currency Scan stash can't read (More ▾): press it, then hover each stack in game "
+                         "and press Ctrl+C - stacks of the same currency add up. Double-click a quantity to change "
+                         "it; select rows (Ctrl+A for all) and press Delete to remove them."),
         ("Prices", "Currency, fragments and other stackables come from poe.ninja. Double-click a price to set your own."),
         ("Total and Where it is", "Total is everything added up; the chart shows it over time (Daily = the change "
                                   "per day). Where it is splits it by kind (currency, fragments ...)."),
@@ -419,15 +414,15 @@ class WealthPage:
         t.config(state="disabled")
         self._w_guide = g
 
-    # ---------------- 2.0 beta 7: currency counted by hand
+    # ---------------- Count by hand (2.0 beta 7's Count currency; UI overhaul: its one name, and the only way to add
+    # by hand - the typed form is gone): Ctrl+C on each stack while counting; Scan stash reads whole tabs
     def wealth_takes(self, text):
         """Does this copy belong to the Wealth window? A copied stack (currency, fragments, essences ...) does while you
         are counting, or while the Wealth window is the one in front."""
         from . import features as FEAT
         if not FEAT.on("wealth") or not parse_stack(text):          # Wealth is a beta feature (2.131.0: its own switch)
             return False
-        sh = getattr(self, "shell", None)
-        return bool(self.w_counting or (sh is not None and sh.active == "wealth"))
+        return bool(self.w_counting)                 # (UI overhaul: only while you count - one way to add by hand)
 
     def wealth_clip(self, text):
         got = parse_stack(text)
@@ -453,19 +448,6 @@ class WealthPage:
                        ("Type an amount…", lambda: self._w_held_ask(name, cls)),
                        ("Cancel", self._w_strip_close)], accent=0)
 
-    def _w_held_set(self, name, qty, cls=""):
-        WEALTH.set_holding(name, qty, cls, src="counted")
-        self._w_strip_close()
-        self.refresh_wealth(force=True)
-        self._say(f"{name}: {qty:,} counted.", 6)
-
-    def _w_held_ask(self, name, cls=""):
-        from tkinter import simpledialog
-        n = simpledialog.askinteger("How many?", f"How many {name} do you have in all?", parent=self.root,
-                                    initialvalue=WEALTH.holding(name) or None, minvalue=0)
-        if n is not None:
-            self._w_held_set(name, n, cls)
-
     def _w_strip(self, text, actions=(), accent=None):
         for w in self.w_cstrip_btns.winfo_children():
             w.destroy()
@@ -483,7 +465,6 @@ class WealthPage:
         if self.w_counting:
             return self.wealth_count_finish()
         self.w_counting, self.w_session = True, []
-        self.w_count_btn.config(text="Finish counting")
         self.wealth_show_page("Overview")
         self.wealth_count_strip()
         self.wealth_steps_refresh()
@@ -498,8 +479,8 @@ class WealthPage:
             body = "   ·   ".join(parts)
         else:
             body = "nothing yet"
-        text = ("● Counting: hover each stack in game and press Ctrl+C (plain Ctrl+C works while counting). Stacks of "
-                "the same currency add up. Finish replaces the amounts for everything you copied; the rest is kept.\n"
+        text = ("● Count by hand: hover each stack in game and press Ctrl+C. Stacks of the same currency add up. Finish "
+                "replaces the amounts for everything you copied; the rest is kept.\n"
                 + body)
         self._w_strip(text, [("Finish", self.wealth_count_finish), ("Undo last", self.wealth_count_undo),
                              ("Cancel", self.wealth_count_cancel)], accent=0)
@@ -512,7 +493,6 @@ class WealthPage:
 
     def wealth_count_cancel(self):
         self.w_counting, self.w_session = False, []
-        self.w_count_btn.config(text="Count currency…")
         self.wealth_steps_refresh()
         self._w_strip_close()
 
@@ -522,7 +502,7 @@ class WealthPage:
             tot[name] = tot.get(name, 0) + qty
             cls[name] = c
         for name, q in tot.items():
-            WEALTH.set_holding(name, q, cls[name], src="counted")
+            WEALTH.set_holding(name, q, cls[name], src="hand")
         self.wealth_count_cancel()
         if tot:
             self._w_tell(f"Counted {len(tot)} kind{'s' if len(tot) != 1 else ''} of currency: "
@@ -534,6 +514,19 @@ class WealthPage:
         if hasattr(self, "tracker_after_count"):           # 2.0 beta 9: the session tracker was waiting for this count
             self.tracker_after_count()
 
+    def _w_held_set(self, name, qty, cls=""):
+        WEALTH.set_holding(name, qty, cls, src="hand")
+        self._w_strip_close()
+        self.refresh_wealth(force=True)
+        self._say(f"{name}: {qty:,} counted.", 6)
+
+    def _w_held_ask(self, name, cls=""):
+        from tkinter import simpledialog
+        n = simpledialog.askinteger("How many?", f"How many {name} do you have in all?", parent=self.root,
+                                    initialvalue=WEALTH.holding(name) or None, minvalue=0)
+        if n is not None:
+            self._w_held_set(name, n, cls)
+
     def _w_prices_then_snapshot(self, lg, why="counted"):
         try:
             WPRICES.ensure(lg)
@@ -541,30 +534,6 @@ class WealthPage:
         except Exception:
             buglog.caught()
         self.ui_q.put(("wealth", "prices"))
-
-    def wealth_manual_add(self):
-        names = sorted({n.title() for n in WPRICES.by_name} | set(WEALTH.holdings)) if WPRICES.by_name else \
-            sorted(set(WEALTH.holdings) | {"Divine Orb", "Exalted Orb", "Chaos Orb", "Orb of Annulment", "Vaal Orb",
-                                           "Regal Orb", "Orb of Alchemy", "Gemcutter's Prism"})
-        self.w_man_box.config(values=names)
-        if not self.w_manual.winfo_ismapped():
-            self.w_manual.pack(fill="x", pady=(0, 8), before=self.w_items_head)
-        self.w_man_box.focus_set()
-
-    def wealth_manual_set(self):
-        name = self.w_man_name.get().strip()
-        try:
-            qty = int(float(self.w_man_qty.get().replace(",", "").strip()))
-        except ValueError:
-            return self._w_tell("Type how many you have (a number).")
-        if not name:
-            return self._w_tell("Pick or type the currency's name.")
-        known = {n.lower(): n for n in WEALTH.holdings}
-        name = known.get(name.lower(), name)
-        WEALTH.set_holding(name, qty, "Stackable Currency", src="hand")
-        self.w_man_qty.set("")
-        self._w_tell(f"{name}: {qty:,} counted." if qty > 0 else f"Removed {name}.", "ok")
-        self.refresh_wealth(force=True)
 
     def wealth_export_history(self):
         from .csvexport import write_wealth_history
@@ -628,7 +597,7 @@ class WealthPage:
             return self._w_tell("The list is already empty.", "note")
         if not messagebox.askyesno("Clear Wealth items",
                                    f"Clear all {n:,} items from the list?\n\nYour history (the chart and snapshots) "
-                                   "stays. Scan stash (or More ▾ › Count currency) fills it again.\n\n"
+                                   "stays. Scan stash fills it again.\n\n"
                                    "You can undo this with Ctrl+Z or the Undo button.", parent=self.dlg_parent()):
             return
         with WEALTH.lock:
@@ -903,8 +872,8 @@ class WealthPage:
         card(0, "Scan stash", "Reads your Currency, Abyss, Delirium, Breach, Expedition, Ritual, Essence and Fragments "
                               "tabs from the screen. You check the numbers before they're saved.", "Scan stash…",
              self.stash_scan_start, True)
-        card(1, "Count currency", "The backup: press Count, then in game hover each stack and press Ctrl+C.",
-             "Finish counting" if self.w_counting else "Start counting", self.wealth_count_toggle, False)
+        card(1, "Count by hand", "For a currency Scan stash can't read: press it, then Ctrl+C each stack in game.",
+             "Finish counting" if self.w_counting else "Count by hand…", self.wealth_count_toggle, False)
         try:                                     # 2.120.0 (UX pass 2: one orange button a page): the card's Scan
             self.w_scan_btn.config(style="TButton")    # stash is the one while the setup cards show
         except (AttributeError, tk.TclError):
@@ -940,8 +909,7 @@ class WealthPage:
             self.w_status_chips[key] = f
         counted = sum(tot or 0 for it, _e, tot, _s in rows if it.get("held"))
         last_count = max((sn["ts"] for sn in WEALTH.snapshots if sn.get("why") in ("counted", "scanned")), default=None)
-        chip("count", "✓", C["green"], "Counted", (self._w_ago(last_count) + " · " if last_count else "") +
-             fmt_div(counted), "Count again ›", self.wealth_count_toggle)
+        _ = counted, last_count                  # (UI overhaul: when you scanned and the total are the number cards)
         need = sum(1 for _it, each, _t, _s in rows if each is None)
         if need:
             chip("price", "●", C["orange"], f"{need} item{'s' if need != 1 else ''} need a price", "", "Show ›",
@@ -1048,7 +1016,7 @@ class WealthPage:
             self.wealth_save_account()
             notes.append(f"account set to {info['account']}" + (f" (was {acc_now})" if acc_now else ""))
         if info["league"] != SETTINGS.get("league"):
-            notes.append(f"this link is for {info['league']}: pick that league in Settings (⚙ on the dock)")
+            notes.append(f"this link is for {info['league']}: pick that league in Settings › General")
         if any(t["amount"] == info["amount"] and t["currency"] == info["currency"] for t in WEALTH.tabs):
             self.w_link.set("")
             return True
@@ -1379,10 +1347,36 @@ class WealthPage:
             word = "Up" if not delta.startswith("-") else "Down"
             facts.insert(0, f"{word} {delta.lstrip('+-')} {getattr(self, 'w_delta_since', '')}.")
         self.w_facts.config(text="  ".join(facts))
+        self.wealth_tiles(rows, total, priced, delta, eq, last_count)
         self.wealth_side()
         self.wealth_breakdown()
         self.wealth_draw_chart()
         self.wealth_fill_items()
+
+    def wealth_tiles(self, rows, total, priced, delta, eq, last_count):
+        """UI overhaul: Stash worth, the change, the same in Exalted, and when you last counted - with how each was
+        worked out."""
+        tiles = getattr(self, "w_tiles", None)
+        if tiles is None:
+            return
+        from .cards import Tile
+        up = delta and not delta.startswith("-")
+        since = getattr(self, "w_delta_since", "")
+        tiles.set([
+            Tile("Stash worth", fmt_div(total) if rows else "—",
+                 f"{priced:,} of {len(rows):,} items priced" if rows else "Press Scan stash to start", "text_muted",
+                 "Each item's price (poe.ninja, else the trade site's exchange) times how many you hold, added up. "
+                 "Items without a price aren't in it."),
+            Tile("Change", delta or "—", (f"▲ Up {since}" if up else f"▼ Down {since}") if delta else
+                 "Shows from your second scan", ("good" if up else "bad") if delta else "text_muted",
+                 "Stash worth now, minus your snapshot from about a day ago (or the last one at least 30 minutes old)."),
+            Tile("In Exalted", eq[0].split(" ")[0] if eq else "—", "at poe.ninja's rate" if eq else "No rate yet",
+                 "text_muted", "Stash worth divided by what one Exalted Orb is worth in divines (poe.ninja)."),
+            Tile("Last stash scan", self._w_ago(last_count) if last_count else "—",
+                 f"prices updated {self._w_ago(WPRICES.ts)}" if WPRICES.ts else "No prices yet", "text_muted",
+                 "When you last pressed Scan stash (your counts). Prices update by themselves from poe.ninja about "
+                 "hourly - that doesn't count your stash again."),
+        ])
 
     @staticmethod
     def wealth_compare_point(snaps, now=None):
@@ -1463,6 +1457,8 @@ class WealthPage:
         self.w_items.delete(*self.w_items.get_children())
         self.w_rowmap, self.w_rowitems = {}, {}
         rarity_tag = {1: "magic", 2: "rare", 3: "unique", 4: "gem"}
+        from .rates_view import picture_paths, url_for
+        paths = picture_paths()
         for n, (it, name, qty, each, tot, src, stacks, parts) in enumerate(shown):
             tags = (["held"] if it.get("held") else [rarity_tag.get(it["frame"], "")]) if each is not None else ["none"]
             if src == "your price":                           # 2.3.0: prices you set yourself stand out
@@ -1471,7 +1467,10 @@ class WealthPage:
             if n % 2:
                 tags.append("odd")
             label = name + (f"   ({stacks} stacks)" if stacks > 1 else "") + ("   corrupted" if it["corrupted"] else "")
-            iid = self.w_items.insert("", "end", tags=[t for t in tags if t],
+            base_name = name.split("   ")[0]
+            pic = ((self.w_icons.get(url_for(base_name, paths)) or self.w_local.get(base_name))
+                   if hasattr(self, "w_icons") else None)
+            iid = self.w_items.insert("", "end", tags=[t for t in tags if t], image=pic or "",
                                       values=(label, it["stash"], f"{qty:,}", fmt_div(each) if each is not None else "set price",
                                               fmt_div(tot) if tot is not None else "", src or self._w_why_unpriced(it)))
             self.w_rowmap[iid] = it
@@ -1509,6 +1508,35 @@ class WealthPage:
         if lab.startswith("CHECK BY HAND"):
             return "price check: check by hand"
         return "price check: " + (lab[:60] or "no price")
+
+    def _w_chart_hover(self, e):
+        """UI overhaul: the point under the mouse - its day, its total and the change from the one before."""
+        cv = self.w_chart
+        cv.delete("hov")
+        pts = getattr(self, "_w_chart_pts", None)
+        if not pts or self.w_mode.get() == "Daily":
+            return
+        i = min(range(len(pts)), key=lambda k: abs(pts[k][0] - e.x))
+        x, y, t, v = pts[i]
+        from . import themes as _th
+        th = _th.ST.theme
+        with _th.raw():
+            brass, surf, edge, txt, mut = (th.c("accent_2"), th.c("surface_high"), th.c("border_light"),
+                                           th.c("text_strong"), th.c("text_muted"))
+            cv.create_line(x, 6, x, cv.winfo_height() - 20, fill=edge, dash=(3, 3), tags="hov")
+            cv.create_oval(x - 5, y - 5, x + 5, y + 5, outline=brass, width=2, fill=surf, tags="hov")
+            d = v - pts[i - 1][3] if i else None
+            lines = [datetime.fromtimestamp(t).strftime("%b %d, %H:%M").replace(" 0", " "), fmt_div(v)]
+            if d is not None:
+                lines.append(("▲ +" if d >= 0 else "▼ −") + fmt_div(abs(d)) + " from the one before")
+            tid = cv.create_text(0, 0, text="\n".join(lines), anchor="nw", font=("Segoe UI", 9), fill=txt, tags="hov")
+            bx = cv.bbox(tid)
+            bw, bh = bx[2] - bx[0] + 16, bx[3] - bx[1] + 12
+            tx = min(max(4, x + 12), cv.winfo_width() - bw - 4)
+            ty = max(4, min(y - bh - 8, cv.winfo_height() - bh - 24))
+            _th.round_rect(cv, tx, ty, tx + bw, ty + bh, 6, fill=surf, outline=edge, tags="hov")
+            cv.coords(tid, tx + 8, ty + 6)
+            cv.tag_raise(tid)
 
     def wealth_draw_chart(self):
         """Total: your net worth over the picked range. Daily: how much it went up or down each day."""
@@ -1561,14 +1589,27 @@ class WealthPage:
         span = max(vmax - vmin, 1e-9)
         X = lambda t: pad_l + (t - t0) / (t1 - t0) * (w - pad_l - pad_r)
         Y = lambda v: pad_t + (1 - (v - vmin) / span) * (h - pad_t - pad_b)
-        cv.create_line(pad_l, pad_t, pad_l, h - pad_b, fill=C["line"])
-        cv.create_line(pad_l, h - pad_b, w - pad_r, h - pad_b, fill=C["line"])
+        from . import themes as _th                    # UI overhaul: soft grid, brass line, a hover per point
+        th = _th.ST.theme
+        with _th.raw():
+            brass = th.c("accent_2") if th else "#e8a65a"
+            area = _th.mix(brass, th.c("surface_raised") if th else C["panel2"], .86)
+            grid = th.c("border") if th else C["line"]
+        for i in range(4):
+            gy = pad_t + i * (h - pad_t - pad_b) / 3
+            cv.create_line(pad_l, gy, w - pad_r, gy, fill=grid, dash=(2, 4) if i < 3 else ())
         cv.create_text(pad_l - 6, Y(vmax), anchor="e", fill=C["muted"], font=("Segoe UI", 8), text=fmt_div(vmax))
         cv.create_text(pad_l - 6, Y(vmin), anchor="e", fill=C["muted"], font=("Segoe UI", 8), text=fmt_div(vmin))
         xy = [c for t, v in pts for c in (X(t), Y(v))]
-        cv.create_polygon(*xy, X(t1), h - pad_b, X(t0), h - pad_b, fill="#2a2214", outline="")
-        cv.create_line(*xy, fill="#e8a65a", width=2, smooth=True)
-        cv.create_oval(X(pts[-1][0]) - 3, Y(pts[-1][1]) - 3, X(pts[-1][0]) + 3, Y(pts[-1][1]) + 3, fill="#e8a65a", outline="")
+        cv.create_polygon(*xy, X(t1), h - pad_b, X(t0), h - pad_b, fill=area, outline="")
+        cv.create_line(*xy, fill=brass, width=2, smooth=True)
+        cv.create_oval(X(pts[-1][0]) - 4, Y(pts[-1][1]) - 4, X(pts[-1][0]) + 4, Y(pts[-1][1]) + 4, fill=brass,
+                       outline="")
+        self._w_chart_pts = [(X(t), Y(v), t, v) for t, v in pts]
+        if not getattr(cv, "_hover_bound", False):
+            cv.bind("<Motion>", self._w_chart_hover, add="+")
+            cv.bind("<Leave>", lambda e: cv.delete("hov"), add="+")
+            cv._hover_bound = True
         n = 4 if w > 420 else 2
         for i in range(n + 1):
             t = t0 + (t1 - t0) * i / n

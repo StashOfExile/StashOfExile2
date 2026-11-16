@@ -40,6 +40,11 @@ for i, ver in enumerate(versions):
     print(f"{'## What' + chr(39) + 's new in ' + ver if i == 0 else '### ' + ver}\n")
     e = notes.get(ver) or ["See the VERSION HISTORY at the top of stashofexile2.py."]
     if isinstance(e, dict):                          # 2.111.0: big changes first (bold), then the small ones
+        for _i, head, lines in e.get("lead", []):     # 3.0.0: the sections the card leads with ("Why 3.0" ...)
+            print(f"**{head}**\n")
+            for _li, line in lines:
+                print(f"- {line.replace('{look}', 'Ctrl+Shift+R as it comes')}")
+            print()
         for _i, title, text, _go, _a in e.get("big", []):
             print(f"- **{title}** - {text}")
         e = [f"{a}: {t}" if a else t for a, t in e.get("small", [])]

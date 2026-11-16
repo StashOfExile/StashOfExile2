@@ -5,13 +5,10 @@ launcher (stashofexile2.py, VERSION HISTORY)."""
 from .updates import vtuple
 
 INTRO = [
-    "StashOfExile2 runs next to Path of Exile 2 and prices your items for you.",
-    "To price an item: hover it in game and press Ctrl+Alt+C. It appears in Price checks with what it's worth and "
-    "what to list it for. It works best on tablets, jewels and waystones.",
-    "The bar on the left opens everything. Tools work while their window is open; Utilities (chat keys, the sticky "
-    "note, the Session tracker and its alerts) keep working over the game.",
-    "Your league is in Settings (bottom left). Things marked BETA are still being worked on: turn them on under "
-    "Settings › General › Features if you'd like to try them.",
+    "StashOfExile2 runs next to Path of Exile 2: it prices your items and helps while you play.",
+    "To price an item: hover it in game and press Ctrl+D. Price Checks shows what it's worth.",
+    "The menu on the left opens every page. The Overlay works over the game.",
+    "Your league is in Settings › General. BETA things are still being worked on: Settings › General › Features.",
 ]
 
 # What's being worked on (2.4.0: not shown in the app any more - kept for ROADMAP.md / the developer).
@@ -47,6 +44,84 @@ BETA_AREAS = ("Wealth", "Money Makers", "Game Search", "Market Insights", "Craft
 # repeats. Someone coming from rollup["since"] or older (or a fresh install) sees it instead of each version; someone
 # on a pre-release already saw them and gets only this version's own lines (notes_between).
 NOTES = {
+    # 3.0.1 (owner feedback on 3.0.0): the Look key is the Read Key; What's new scrolls over its cards; the price check
+    # overlay's Min / Max boxes take typing.
+    "3.0.1": {
+        "big": [
+            ("⌨", "Read Key", "The Look key is now the Read Key - R for Read (Ctrl+Shift+R). Same key, same setting.",
+             ("Settings › Keybinds", "settings:Keybinds"), "Settings"),
+            ("◈", "Min / Max on the price check overlay", "Click a box to type in it, Enter searches again - this "
+             "should work in every box now. Closing the card hands the game the keyboard back.", None, "Price Checks"),
+        ],
+        "small": [
+            ("App", "What's new scrolls with the mouse wheel anywhere over it, its cards too."),
+            ("Price Checks", "A gray Min / Max box on the overlay: a click ticks its row and puts the cursor in it."),
+            ("Farming Strategies", "A guide scrolls with the mouse wheel over its item cards too."),
+        ],
+    },
+    # 3.0.0 (owner): the card leads with "Why 3.0" and "How helpers work now" (LEAD) - shown to everyone once, after
+    # updating and on a first start (after the quick start). {look} is the Read Key's name (Ctrl+Shift+R as it comes).
+    "3.0.0": {
+        "lead": [
+            ("⚖", "Why 3.0", [
+                ("✓", "Made to follow Grinding Gear Games' third-party policy."),
+                ("⌨", "The app reads your screen or clipboard only when you press a key - once per press."),
+                ("✕", "Nothing watches your screen by itself any more."),
+            ]),
+            ("👁", "How helpers work now", [
+                ("⌨", "Press your Read Key ({look}) where a helper applies."),
+                ("👁", "The read mark shows what was read, for a second."),
+                ("◈", "To price an item: hover it and press Ctrl+D - one copy, one read."),
+            ]),
+        ],
+        "big": [
+            ("▥", "Drawer", "The app over the game's side. Suggested for one monitor; Full window for two or more.",
+             ("Pick your window", "settings:General"), "Settings"),
+            ("⌛", "Trial of the Sekhemas", "BETA. Press the Read Key on the trial map: what to avoid, what to take.",
+             ("Overlay › Helpers", "tab:tracker:Helpers"), "Overlay"),
+            ("⌂", "Back from a map", "One card, one Read Key press: the map's loot (Map profit) and your Top Up "
+             "Reminders.", None, "Overlay"),
+            ("🗺", "Campaign Bar", "The one thing to do now, over the XP bar. Zone, level, rewards, act time.", None,
+             "Overlay"),
+            ("↔", "Broaden Search", "Too few listings for a base? One click widens the search, one step.", None,
+             "Price Checks"),
+        ],
+        "small": [
+            ("Overlay", "Delirium helper removed: it needed to watch the screen by itself."),
+            ("Temple Helper", "Crystals are read from the Temple Console only. The Vaal Beacon read and the Crystals "
+             "full card are gone."),
+            ("Overlay", "Map Content's icons are no longer read. Ritual follows the game's log between Read Key "
+             "presses."),
+            ("Overlay", "Cards over the game close with a click anywhere on them."),
+            ("App", "No Toolkit row: Go to anything (Ctrl+K) finds every page."),
+            ("App", "The project's home moved: github.com/StashOfExile/StashOfExile2."),
+            ("App", "New Discord invite: Settings › About."),
+            ("Price Checks", "Mirrored, Fractured, Desecrated, Sanctified and Corrupted: a mark and a word."),
+            ("Price Checks", "Corrupted and Crafted toggles; more of the trade site's filters."),
+            ("Price Checks", "A copy that can't be priced says why, in one line."),
+            ("Ritual", "Ritual Identifier reads the game's \"Ritual Rune\" names and danger lines that wrap."),
+            ("Overlay", "The lines over the XP bar no longer show a black box at their ends."),
+            ("Settings", "The settings gear is drawn in your theme's text color everywhere."),
+            ("Campaign Helper", "Knows when a boss is down from the game's log: the step ticks and moves on."),
+            ("Campaign Helper", "Every step rewritten: what to do, what you get, where next."),
+            ("Campaign Helper", "The three interludes have every zone, town and last boss."),
+            ("Campaign Helper", "Rewards the log can't see are asked once in town: Got it or Not yet."),
+            ("Campaign Helper", "Panel layout: the campaign is one card."),
+            ("Campaign Helper", "No Campaign Bar in a hideout."),
+        ],
+    },
+    "2.143.0": {
+        "big": [
+            ("◆", "Vaal Lens", "Plans a path to the Architect first.", None, "Overlay"),
+        ],
+        "small": [
+            ("Updates", "Full releases only."),
+            ("Wealth", "Out of BETA."),
+            ("Market Insights", "Out of BETA."),
+            ("Game Search", "Out of BETA."),
+            ("Vaal Lens", "Card pictures cut out cleanly."),
+        ],
+    },
     "2.142.2": {
         "big": [
             ("◈", "Map Profit", "Knows exchange items by picture - no Ctrl+C to teach them.", None, "Overlay"),
@@ -943,7 +1018,7 @@ NOTES = {
     "2.120.1": {
         "big": [
             ("🖱", "Lock position and Click-through", "The overlay's Mouse choice is two switches again, with the names "
-             "other overlays use - in Overlay ↳ Settings › Options and Quick settings.", ("Open Settings", "ovset"),
+             "other overlays use - in Overlay ↳ Settings › Options and Quick settings.", ("Open Options", "tab:tracker:Options"),
              "Overlay"),
         ],
         "small": [
@@ -965,8 +1040,8 @@ NOTES = {
              "over the game, in the app, or nowhere. Each section says one line; ⓘ has the rest.",
              ("Open Price checking", "settings:Price checking"), "Settings"),
             ("🖱", "One choice for the mouse on the overlay", "Drag to move, Locked, or Clicks pass through - in "
-             "Overlay ↳ Settings and Quick settings. Hide from captures is in Settings › Advanced.", ("Open Settings",
-                                                                                                 "ovset"), "Overlay"),
+             "Overlay ↳ Settings and Quick settings. Hide from captures is in Settings › Advanced.", ("Open Options",
+                                                                                                 "tab:tracker:Options"), "Overlay"),
         ],
         "small": [
             ("App", "The status bar says Trade site: ready, or how long to wait. Point at it for the numbers."),
@@ -2484,6 +2559,28 @@ NOTES["2.132.0"]["rollup"] = {
         ("Desecration Helper", "Heart of the Well: range and roll shown."),
     ],
 }
+
+
+def lead_of(notes):
+    """3.0.0: the sections the card leads with ("Why 3.0", "How helpers work now") - [(icon, title, [(icon, line)])]
+    from the newest version shown that has them, or []."""
+    for _v, entry in notes:
+        if isinstance(entry, dict) and entry.get("lead"):
+            return list(entry["lead"])
+    return []
+
+
+def lead_version(current):
+    """The newest version up to `current` whose notes lead with sections (3.0.0), or None."""
+    return max((v for v, e in NOTES.items() if isinstance(e, dict) and e.get("lead") and vtuple(v) <= vtuple(current)),
+               key=vtuple, default=None)
+
+
+def lead_due(seen_lead, current):
+    """The lead shows to everyone once: True while settings' "whatsnew_lead" is older than the newest lead (a first
+    start included - after the quick start)."""
+    newest = lead_version(current)
+    return bool(newest) and (not seen_lead or vtuple(seen_lead) < vtuple(newest))
 
 
 def notes_between(seen, current):

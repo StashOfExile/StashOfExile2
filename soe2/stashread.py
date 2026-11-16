@@ -366,20 +366,14 @@ def _same_item(icon, icons):
     return (best[1], best[0]) if best[0] >= WILD_MATCH and lead >= 0.05 else (None, best[0])
 
 
-def grab_bgr(rect):
-    """(l, t, r, b) of the game -> a BGR picture (numpy), kept in memory only."""
+def scan(rect, want, purpose="Scan stash"):
+    """Read the tab `want` from the press's one picture of the game (screenread: a Read Key press) - kept in memory only, then dropped. -> the read, or None when there's no picture for this press."""
     cv2, np = _np()
-    from .screengrab import screen
-    l_, t, r, b = rect
-    with screen() as sct:                         # mss; Wayland: grim (2.103.0 linux branch)
-        shot = sct.grab({"left": int(l_), "top": int(t), "width": int(r - l_), "height": int(b - t)})
-        a = np.asarray(shot)                       # BGRA
-    return np.ascontiguousarray(a[..., :3])
-
-
-def scan(rect, want):
-    """Take one picture of the game and read the tab `want`."""
-    bgr = grab_bgr(rect)
+    from . import screenread as SR
+    pic = SR.capture(rect, purpose)
+    if pic is None:
+        return None
+    bgr = np.ascontiguousarray(np.asarray(pic.convert("RGB"))[:, :, ::-1])
     try:
         return read_tab(bgr, rect[3] - rect[1], want)
     finally:

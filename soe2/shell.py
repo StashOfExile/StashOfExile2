@@ -9,17 +9,12 @@ own content into the window they are given.
 
 Window positions, sizes and which ones are open are saved in settings.json ("shell")."""
 import os
-import re
 import sys
 import time
 import tkinter as tk
 
 from . import buglog
 from .style import C
-
-# 2.103.0 linux branch (Linux, from a Linux player's patch): the windows are part of the app's own window there (see InDesk).
-# SOE2_REAL_WINDOWS=1 brings back the borderless windows of their own.
-IN_DESK = sys.platform.startswith("linux") and os.environ.get("SOE2_REAL_WINDOWS") != "1"
 
 TITLE_ON = ("#34508a", "#1a2a4c")
 UTIL_TITLE = ("#3a3020", "#1e1810")
@@ -33,7 +28,11 @@ BORDER_ON, BORDER_OFF = "#2c4372", "#1c2840"
 TASK_H = 40
 MIN_W, MIN_H = 320, 200
 PAGES = True                    # 2.62.0: one tool at a time, filling the main area (a sidebar picks it) - no
-                                # floating windows; the pages are still real windows (see DeskWindow) placed over it
+                                # floating windows
+# Pages are drawn inside the app window - never their own OS window (so they can't be left behind on another
+# monitor). With PAGES on, a DeskWindow is a frame placed in the main area; the old real-window code below (owner,
+# topmost, ghosts, monitor checks) is only for the floating-window desktop (PAGES off) and does nothing for pages.
+EMBED = PAGES
 # 2.131.0 (plan: Settings as a window over the app): these open over the page you're on - it stays under a dim
 # layer; Esc, × or a click on the dim layer closes them and you're back where you were
 OVER = ("settings",)
@@ -130,106 +129,74 @@ class GradientBar(tk.Canvas):
         self.tag_lower("grad")
 
 
-class InDesk:
-    """Linux: a Toplevel that lives inside a frame on the desktop (Tk's -use, "embedded") instead of being a
-    borderless window of its own. Wayland compositors (Hyprland) treat each borderless X11 window as a window of its
-    own: one could be sent to another workspace alone, and one the app moved jumped to the workspace in view. Embedded,
-    it is part of the app's window - it moves, hides and changes workspace with it. Tk's wm commands don't work on an
-    embedded window, so the ones the app uses are done on the frame: geometry (screen coordinates, as before),
-    withdraw / deiconify / state, lift."""
-    _box = None
+class PageBar(GradientBar):
+    """UI overhaul: a page's header in place of its title bar - where it lives (Trade › Price Checks), its name in
+    the theme's heading font and one line about it. Child-tool buttons sit on its right, as on the title bar."""
 
-    def _embed_in(self, desk):
-        """-> the -use value for Toplevel(). Call before Toplevel.__init__."""
-        self._box = tk.Frame(desk, container=True, bd=0, highlightthickness=0)
-        self._box_g, self._box_on = [0, 0, 1, 1], False
-        return self._box.winfo_id()
+    H = 96
 
-    def _box_place(self):
-        x, y, w, h = self._box_g
-        self._box.place(x=x, y=y, width=w, height=h)
+    def __init__(self, parent, win, kind="title"):
+        self.win = win
+        super().__init__(parent, self.H, ("#000000", "#000000"), kind=kind)
 
-    def geometry(self, newGeometry=None):
-        if self._box is None:
-            return super().geometry(newGeometry)
-        desk = self._box.master
-        if newGeometry is None:
-            x, y, w, h = self._box_g
-            return f"{w}x{h}+{desk.winfo_rootx() + x}+{desk.winfo_rooty() + y}"
-        m = re.fullmatch(r"(?:(\d+)x(\d+))?(?:([+-]-?\d+)([+-]-?\d+))?", newGeometry.strip())
-        if not m:
-            return super().geometry(newGeometry)
-        w, h, x, y = m.groups()
-        g = self._box_g
-        if w:
-            g[2], g[3] = int(w), int(h)
-        if x:
-            g[0], g[1] = int(x.lstrip("+")) - desk.winfo_rootx(), int(y.lstrip("+")) - desk.winfo_rooty()
-        if self._box_on:
-            self._box_place()
-        return ""
+    def drawer_look(self):
+        try:
+            look = getattr(self.win.shell.app, "drawer_look_on", None)
+            return bool(look and look())
+        except Exception:
+            return False
 
-    wm_geometry = geometry
+    def height_now(self):
+        """The page header: 96 px; in the Drawer the mockup's (mockups.html .eyebrow / .ptitle / .blurb): 108 px with
+        the group over the name, 98 without."""
+        if not self.drawer_look():
+            return self.H
+        try:
+            return 108 if self.win.shell.where(self.win.key) else 98
+        except Exception:
+            return 108
 
-    def withdraw(self):
-        if self._box is None:
-            return super().withdraw()
-        self._box.place_forget()
-        self._box_on = False
-
-    wm_withdraw = withdraw
-
-    def deiconify(self):
-        if self._box is None:
-            return super().deiconify()
-        self._box_place()
-        self._box_on = True
-
-    wm_deiconify = deiconify
-
-    def state(self, newstate=None):
-        if self._box is None:
-            return super().state(newstate)
-        if newstate == "withdrawn":
-            self.withdraw()
-        elif newstate is not None:
-            self.deiconify()
-        return None if newstate is not None else ("normal" if self._box_on else "withdrawn")
-
-    wm_state = state
-
-    def lift(self, aboveThis=None):
-        if self._box is None:
-            return super().lift(aboveThis)
-        self._box.tkraise()
-
-    tkraise = lift
-
-    def destroy(self):
-        box = self._box
-        super().destroy()
-        if box is not None:
+    def paint(self, colours=None):
+        from . import themes as _th
+        t = _th.ST.theme
+        if t is None:
+            return super().paint(colours)
+        self.delete("grad")
+        self.delete("pg")
+        h = self.height_now()
+        small = self.drawer_look()
+        if int(float(str(self.cget("height")))) != h:          # (the Drawer's tighter header)
+            self.configure(height=h)
             try:
-                box.destroy()
-            except tk.TclError:
+                self.win._by = h // 2
+                self.win._bar_resized()
+            except Exception:
                 pass
-
-
-class InDeskToplevel(InDesk, tk.Toplevel):
-    """A pop-up on the desktop (the Toolkit menu): embedded on Linux (see InDesk), a borderless window elsewhere."""
-
-    def __init__(self, shell, **kw):
-        if IN_DESK:
-            kw["use"] = self._embed_in(shell.desk)
-        super().__init__(shell.root, **kw)
-        if self._box is not None:
-            self._box_on = True                 # shown from the start, like any new Toplevel
-        else:
-            self.overrideredirect(True)
-            try:
-                self.transient(shell.root)
-            except tk.TclError:
-                pass
+        w = max(self.winfo_width(), 2)
+        with _th.raw():
+            bg, line = t.c("surface"), t.c("border")
+            eyebrow, title, mut = t.c("accent_2"), t.c("text_strong"), t.c("text_muted")
+            self.configure(bg=bg)
+            self.create_rectangle(0, 0, w, h, fill=bg, outline="", tags="grad")
+            self.create_line(24, h - 1, w - 24, h - 1, fill=line, tags="pg")
+            where = self.win.shell.where(self.win.key)
+            if small:
+                y_where, y_name, y_blurb, f_name = (24, 56, 86, 22) if where else (0, 44, 76, 22)
+            else:
+                y_where, y_name, y_blurb, f_name = (20, 46, 74, 20)
+            if where:
+                wt = "bold"
+                self.create_text(24, y_where, text=where.upper(), anchor="w", font=("Segoe UI", 8, wt), fill=eyebrow,
+                                 tags="pg")
+            mod = self.win.shell.modules.get(self.win.key)
+            name = getattr(mod, "title", "") or self.win.title          # its own name: the path is above it
+            self.create_text(24, y_name, text=name, anchor="w", font=(_th.head_font(t), f_name), fill=title,
+                             tags="pg")
+            mod = self.win.shell.modules.get(self.win.key)
+            blurb = getattr(mod, "blurb", "") if mod is not None else ""
+            if blurb:
+                self.create_text(24, y_blurb, text=blurb, anchor="w", font=("Segoe UI", 9), fill=mut, tags="pg")
+        self.tag_lower("grad")
 
 
 def win_rect(widget, outer=False):
@@ -255,24 +222,31 @@ def win_rect(widget, outer=False):
         return None
 
 
-class DeskWindow(InDesk, tk.Toplevel):
+class DeskWindow(tk.Frame if EMBED else tk.Toplevel):
     """One window on the desktop. body is where the module draws.
+
+    Rule: pages are drawn inside the app window - never their own OS window. With EMBED (PAGES) this is a frame placed
+    in the main area (shell.desk); withdraw / deiconify / state / geometry / attributes keep working on it, so callers
+    don't need to know. The notes below are about the floating-window desktop (PAGES off).
 
     2.0 beta 13: a real (borderless) window of its own, owned by the app's window, instead of a frame drawn inside it.
     Tk can't stack overlapping frames reliably on Windows (windows smeared when moved and didn't come to the front);
     real windows are moved, stacked and repainted by Windows itself. Positions are still kept relative to the desktop
-    area, and the windows move with the app's window. On Linux it is embedded in the app's window instead (InDesk)."""
+    area, and the windows move with the app's window."""
 
     def __init__(self, shell, key, title, icon, utility=False):
-        kw = {"use": self._embed_in(shell.desk)} if IN_DESK else {}
-        super().__init__(shell.root, bg=BORDER_OFF, highlightthickness=1, highlightbackground="#5b77ad", **kw)
-        self.withdraw()
-        if self._box is None:
+        self._shown = False                    # (EMBED: placed in the main area right now)
+        if EMBED:                              # a frame inside the app window: nothing for Windows to lose
+            super().__init__(shell.desk, bg=BORDER_OFF, highlightthickness=1, highlightbackground="#5b77ad",
+                             highlightcolor="#5b77ad")
+        else:
+            super().__init__(shell.root, bg=BORDER_OFF, highlightthickness=1, highlightbackground="#5b77ad")
+            self.withdraw()
             self.overrideredirect(True)
         # 2.10.2: not transient() on Windows - with it, Tk threw away and rebuilt this window's real (Win32) window
         # every time the app was maximized, restored or snapped, and the new one had no owner: it fell behind the
         # app (windows "vanished") and the keyboard was lost. own_by_app() sets the owner instead (diag_log.txt).
-        if sys.platform != "win32" and self._box is None:
+        if sys.platform != "win32" and not EMBED:
             try:
                 self.transient(shell.root)
             except tk.TclError:
@@ -288,14 +262,20 @@ class DeskWindow(InDesk, tk.Toplevel):
         self._g = None                         # where it is now
         self._move_job = None
         colours = UTIL_TITLE if utility else TITLE_ON
-        self.bar = GradientBar(self.inner, 30, colours, kind="title")       # 2.60.0: drawn by the theme pack
-        self.bar.pack(fill="x")
+        if PAGES:                                                           # UI overhaul: a page header
+            self.bar = PageBar(self.inner, self)
+        else:
+            self.bar = GradientBar(self.inner, 30, colours, kind="title")   # 2.60.0: drawn by the theme pack
+        if not (PAGES and key == "dashboard"):                             # (Dashboard draws its own greeting)
+            self.bar.pack(fill="x")
+        self._by = self.bar.H // 2 if PAGES else 15                        # where its buttons sit
         self.accent = tk.Frame(self.inner, height=2, bg=C["accent"])
-        self.accent.pack(fill="x")
+        if not PAGES:
+            self.accent.pack(fill="x")
         from . import themes as _th
         with _th.raw():
-            self.lbl = self.bar.create_text(10, 15, text=f"{icon}  {title}", anchor="w", fill=_th.bar_text("title"),
-                                            font=(_th.head_font(), 10, "bold"))
+            self.lbl = self.bar.create_text(10, 15, text="" if PAGES else f"{icon}  {title}", anchor="w",
+                                            fill=_th.bar_text("title"), font=(_th.head_font(), 10, "bold"))
         self.btns = []
         over = PAGES and key in OVER
         for txt, cmd, bg in (((("×", self.close, "#7a2a20"),) if over else ()) if PAGES else
@@ -307,7 +287,7 @@ class DeskWindow(InDesk, tk.Toplevel):
             if over:
                 from .style import Tooltip
                 Tooltip(b, f"Close {title} (Esc)")
-            self.btns.append(self.bar.create_window(0, 15, window=b, anchor="e"))
+            self.btns.append(self.bar.create_window(0, self._by, window=b, anchor="e"))
         self.bar.bind("<Configure>", self._bar_resized, add="+")
         if not PAGES:                                  # (a page doesn't move - the sidebar picks it)
             self.bar.bind("<ButtonPress-1>", self._press)
@@ -346,32 +326,45 @@ class DeskWindow(InDesk, tk.Toplevel):
                 h.place(**kw)
             self._resize_bind(h, side)
             self.handles[side + "2"] = h
-        self.bind("<ButtonPress-1>", self._clicked, add="+")
+        if not EMBED:                       # (EMBED: Shell._any_click brings the page forward)
+            self.bind("<ButtonPress-1>", self._clicked, add="+")
         self._d = {}
-        if over:
-            self.bind("<Escape>", lambda e: self.close() if self.state_ == "open" else None, add="+")
+        if over:                            # (EMBED: a frame only sees its own keys - Esc is caught app-wide)
+            (shell.root if EMBED else self).bind("<Escape>", self._esc, add="+")
+
+    def _esc(self, _e=None):
+        """Esc closes Settings (OVER) - and only that: "break" keeps the app's own Esc (minimize) from running too."""
+        if self.state_ != "open":
+            return None
+        self.close()
+        return "break"
 
     # ---- title bar
     def add_child(self, text, cmd):
         """2.33.0: a child tool's button in this (parent) window's title bar, left of the window buttons."""
-        b = tk.Label(self.bar, text=text, bg="#22345a", fg="#e8eefc", font=("Segoe UI", 9, "bold"), padx=8,
-                     highlightthickness=1, highlightbackground="#5b77ad", cursor="hand2")
+        if PAGES:                                    # UI overhaul: a quiet button in the page header
+            off, on, ink, edge = C["panel2"], C["key"], C["text"], C["line"]
+        else:
+            off, on, ink, edge = "#22345a", "#2f4a7c", "#e8eefc", "#5b77ad"
+        b = tk.Label(self.bar, text=text, bg=off, fg=ink, font=("Segoe UI", 9, "bold"), padx=12, pady=4,
+                     highlightthickness=1, highlightbackground=edge, cursor="hand2")
         b.bind("<Button-1>", lambda e: cmd())
-        b.bind("<Enter>", lambda e: b.config(bg="#2f4a7c"))
-        b.bind("<Leave>", lambda e: b.config(bg="#22345a"))
-        self.child_btns = getattr(self, "child_btns", []) + [(b, self.bar.create_window(0, 15, window=b, anchor="e"))]
+        b.bind("<Enter>", lambda e: b.config(bg=on))
+        b.bind("<Leave>", lambda e: b.config(bg=off))
+        self.child_btns = getattr(self, "child_btns", []) + [(b, self.bar.create_window(0, self._by, window=b, anchor="e"))]
         self._bar_resized()
         return b
 
     def _bar_resized(self, _e=None):
         w = self.bar.winfo_width()
+        edge = 24 if PAGES else 6
         for n, item in enumerate(self.btns):
-            self.bar.coords(item, w - 6 - n * 30, 15)
-        x = w - 6 - len(self.btns) * 30 - 8
+            self.bar.coords(item, w - edge - n * 30, self._by)
+        x = w - edge - len(self.btns) * 30 - (0 if PAGES and not self.btns else 8)
         for b, item in getattr(self, "child_btns", []):
             if not b.winfo_ismapped() and getattr(b, "_off", False):
                 continue
-            self.bar.coords(item, x, 15)
+            self.bar.coords(item, x, self._by)
             x -= b.winfo_reqwidth() + 6
 
     def set_active(self, on):
@@ -435,7 +428,15 @@ class DeskWindow(InDesk, tk.Toplevel):
 
     def take_keyboard(self, widget=None):
         """2.0 beta 17: a borderless window doesn't always get the keyboard when you click it (Windows), so typing
-        went nowhere. Clicking a window now hands it the keyboard: to the box you clicked if it takes typing."""
+        went nowhere. Clicking a window now hands it the keyboard: to the box you clicked if it takes typing.
+        EMBED: a page is part of the app's own window, so Windows already sends it the keys - only the box."""
+        if EMBED:
+            try:
+                if widget is not None and not isinstance(widget, str) and widget.winfo_class() in self.TYPING:
+                    widget.focus_set()
+            except tk.TclError:
+                pass
+            return
         try:
             f = self.focus_get()
         except (tk.TclError, KeyError):
@@ -456,8 +457,8 @@ class DeskWindow(InDesk, tk.Toplevel):
             pass
 
     def hwnd(self):
-        """The real (Win32) window Windows knows this one by, or None."""
-        if sys.platform != "win32":
+        """The real (Win32) window Windows knows this one by, or None (EMBED: a page has none of its own)."""
+        if sys.platform != "win32" or EMBED:
             return None
         try:
             import ctypes
@@ -470,7 +471,9 @@ class DeskWindow(InDesk, tk.Toplevel):
 
     def check_owner(self):
         """2.10.2: if Tk rebuilt this window's real window, give it its owner back and bring it forward again (and
-        the keyboard, if a box in it had it). -> True when it had changed."""
+        the keyboard, if a box in it had it). -> True when it had changed. (EMBED: never - no window of its own.)"""
+        if EMBED:
+            return False
         h = self.hwnd()
         if h is None or h == self._hwnd_seen:
             return False
@@ -499,7 +502,8 @@ class DeskWindow(InDesk, tk.Toplevel):
             u.GetParent.restype = ctypes.c_void_p
             u.GetParent.argtypes = [ctypes.c_void_p]
             u.GetForegroundWindow.restype = ctypes.c_void_p
-            me = u.GetParent(self.winfo_id()) or self.winfo_id()
+            top = self.winfo_toplevel()                       # (EMBED: the app's window)
+            me = u.GetParent(top.winfo_id()) or top.winfo_id()
             return u.GetForegroundWindow() == me
         except Exception:
             return True
@@ -543,8 +547,47 @@ class DeskWindow(InDesk, tk.Toplevel):
         """Put it at x, y (desktop coordinates), w x h."""
         x, y, w, h = int(x), int(y), int(w), int(h)
         self._g = [x, y, w, h]
+        if EMBED:
+            if self._shown:
+                self._place_now()
+            return
         ox, oy = self.shell.desk_origin()
         self.geometry(f"{w}x{h}+{ox + x}+{oy + y}")
+
+    # ---- EMBED: a frame in the main area that answers like a window
+    def _place_now(self):
+        """A page fills the main area (and follows it by itself); Settings (OVER) sits where page_fill put it."""
+        if self.key in OVER and self._g and not EMBED:
+            x, y, w, h = self._g
+            tk.Place.place_configure(self, in_=self.shell.desk, x=x, y=y, width=w, height=h, relwidth=0, relheight=0)
+        else:
+            tk.Place.place_configure(self, in_=self.shell.desk, x=0, y=0, width=0, height=0, relwidth=1, relheight=1)
+
+    def deiconify(self):
+        if not EMBED:
+            return super().deiconify()
+        self._shown = True
+        self._place_now()
+
+    def state(self, *_a):
+        if not EMBED:
+            return super().state(*_a)
+        return "normal" if self._shown else "withdrawn"
+
+    def geometry(self, *a):
+        if not EMBED:
+            return super().geometry(*a)
+        g = self._g or [0, 0, 1, 1]
+        return f"{g[2]}x{g[3]}+{g[0]}+{g[1]}"
+
+    def attributes(self, *a):                 # (always on top etc.: the app's window has them, not a page)
+        return super().attributes(*a) if not EMBED else None
+
+    def overrideredirect(self, *a):
+        return super().overrideredirect(*a) if not EMBED else None
+
+    def transient(self, *a):
+        return super().transient(*a) if not EMBED else None
 
     def place_configure(self, **kw):          # (the old frame API, for callers that still use it)
         g = list(self._g or self.geo or [0, 0, MIN_W, MIN_H])
@@ -613,7 +656,12 @@ class DeskWindow(InDesk, tk.Toplevel):
         return n
 
     def withdraw(self):
-        super().withdraw()
+        if EMBED:
+            if getattr(self, "_shown", False):
+                self.place_forget()
+            self._shown = False
+        else:
+            super().withdraw()
         if getattr(self, "key", None) in OVER and getattr(self, "shell", None) is not None:
             self.shell.dim_hide()
         try:
@@ -623,6 +671,9 @@ class DeskWindow(InDesk, tk.Toplevel):
 
     def _show(self):
         self.deiconify()
+        if EMBED:
+            self.lift()
+            return
         self.note_hwnd(self.hwnd())
         self.own_by_app()
         self.follow_on_top()
@@ -632,7 +683,10 @@ class DeskWindow(InDesk, tk.Toplevel):
         """2.7.2: make the app's window this window's OWNER in Windows itself. Windows always keeps an owned window
         above its owner - whatever is clicked, whatever is "on top". Tk's transient() doesn't do this for borderless
         windows on Windows, so the app's window could come up over them and hide them. Set again every time the window
-        shows, in case Tk rebuilt it. -> True when it was (already) set."""
+        shows, in case Tk rebuilt it. -> True when it was (already) set.
+        (Also used on other pop-ups - features_page. EMBED: a page is inside the app's window - nothing to do.)"""
+        if EMBED and isinstance(self, DeskWindow):
+            return True
         if sys.platform != "win32":
             return False
         try:
@@ -657,7 +711,9 @@ class DeskWindow(InDesk, tk.Toplevel):
 
     def follow_on_top(self):
         """Always on top (Settings): the app's own windows have to be "topmost" too. On Windows a topmost main window
-        otherwise sits ABOVE the windows it owns, and they vanish behind it (2.7.1)."""
+        otherwise sits ABOVE the windows it owns, and they vanish behind it (2.7.1). (EMBED: not for a page.)"""
+        if EMBED and isinstance(self, DeskWindow):
+            return
         try:
             from .config import SETTINGS
             self.attributes("-topmost", bool(SETTINGS.get("on_top", True)))
@@ -667,6 +723,9 @@ class DeskWindow(InDesk, tk.Toplevel):
     def page_fill(self):
         """2.62.0: a page covers the whole main area (2.131.0: Settings sits over it, inset, on a dim layer)."""
         dw, dh = max(MIN_W, self.shell.desk.winfo_width()), max(MIN_H, self.shell.desk.winfo_height())
+        if self.key in OVER and EMBED:                   # (round 7 feedback: inset Settings looked like a small window
+            self.place_at(0, 0, dw, dh)                   # on a blank dim - inside the app it fills the area like a page)
+            return
         if self.key in OVER:
             w, h = max(MIN_W, min(dw - 64, 1240)), max(MIN_H, dh - 48)
             self.place_at((dw - w) // 2, 24, w, h)
@@ -702,6 +761,9 @@ class DeskWindow(InDesk, tk.Toplevel):
 
     def minimise(self):
         if PAGES:                                      # 2.62.0: there is nothing under a page - minimize the app
+            app = self.shell.app
+            if getattr(app, "drawer_eff", lambda: "full")() == "drawer":
+                return app.drawer_put_away("minimise")  # drawer build: the Drawer is put away
             try:
                 self.shell.root.iconify()
             except tk.TclError:
@@ -767,7 +829,7 @@ class Shell:
         x0 = DOCK_W
         t.create_rectangle(x0, 6, x0 + DOCK_W - 16, TASK_H - 6, fill="#1c2a47", outline="#3d5582",
                            tags=("settings", "setbox"), state="hidden")
-        t.create_text(x0 + (DOCK_W - 16) // 2, TASK_H // 2, text="⚙  Settings", fill="#cfdaf0",
+        t.create_text(x0 + (DOCK_W - 16) // 2, TASK_H // 2, text="Settings", fill="#cfdaf0",
                       font=("Segoe UI", 9, "bold"), tags=("settings", "settxt"), state="hidden")
         t.tag_bind("settings", "<Button-1>", lambda e: self.open("settings"))
         t.tag_bind("settings", "<Enter>", lambda e: (t.config(cursor="hand2"), t.itemconfigure("setbox", fill="#2c4c8a",
@@ -782,6 +844,8 @@ class Shell:
             self.task_right.pack(side="right", padx=(8, 8))
         self.dock = tk.Canvas(root, bg="#0e1522", width=DOCK_W, highlightthickness=0, bd=0)
         self.dock_sep = tk.Frame(root, bg="#3d5582", width=1)
+        if hasattr(app, "drawer_strip_build"):      # drawer build: the Drawer strip, across the top, before the sidebar
+            app.drawer_strip_build(root)
         if PAGES:
             from .sidebar import Sidebar
             self.sidebar = Sidebar(self, root)
@@ -813,6 +877,28 @@ class Shell:
         for cls in ("Tk", "Toplevel"):
             self.root.bind_class(cls, "<KeyPress>", self._stray_key, add="+")
         self.root.after(1000, self._tick)
+        for seq in ("<Control-k>", "<Control-K>"):                # UI overhaul: Go to anything
+            self.root.bind_all(seq, lambda e: (self.goto(), "break")[1], add="+")
+
+    def goto(self):
+        """UI overhaul: the Go to anything box (Ctrl+K)."""
+        from .goto import GoTo
+        if getattr(self, "_goto", None) is None:
+            self._goto = GoTo(self.app)
+        self._goto.show()
+
+    def where(self, key):
+        """UI overhaul: where a page lives - its sidebar group, then the pages above it ("Trade › Price Checks")."""
+        from .sidebar import group_of
+        chain, k = [], self.modules.get(key)
+        k = getattr(k, "parent", None)
+        while k and k in self.modules and k not in chain:
+            chain.insert(0, k)
+            k = getattr(self.modules[k], "parent", None)
+        top = chain[0] if chain else key
+        group = group_of(top)                  # nav phase 1: "" for Dashboard / Overlay / Settings (not "Tools")
+        parts = ([group] if group else []) + [self.modules[c].title for c in chain]
+        return " › ".join(parts)
 
     # ---- 2.10.0: keys that lost their way
     def _paint_tkbtn(self, hover):
@@ -883,6 +969,8 @@ class Shell:
         """Cover the page you're on (the main area) with a dim layer; a click on it closes what's over it.
         2.131.5 (issue #234, Linux / Hyprland: "Settings opens as a black page"): no window alpha under XWayland, so
         the layer came out solid black over Settings - on a Wayland desktop there's no layer (Settings has its ✕)."""
+        if EMBED:
+            return self._dim_embedded(lift)
         if sys.platform.startswith("linux") and os.environ.get("WAYLAND_DISPLAY"):
             return None
         d = getattr(self, "dim", None)
@@ -914,16 +1002,42 @@ class Shell:
             pass
         return d
 
+    def _dim_embedded(self, lift=True):
+        """EMBED: the dim layer is a frame in the main area too (under Settings, over the page). A frame can't be
+        see-through, so it's the theme's background, darkened; Settings covers most of it anyway."""
+        from . import themes as _th
+        d = getattr(self, "dim", None)
+        if d is None:
+            d = self.dim = tk.Frame(self.desk, bd=0, highlightthickness=0, cursor="hand2")
+            d.bind("<Button-1>", lambda e: self.dim_click())
+            self._dim_shown = False
+        try:
+            with _th.raw():
+                d.configure(bg=_th.mix(C["bg"], "#000000", .55))
+            if lift or not self._dim_shown:
+                d.place(in_=self.desk, x=0, y=0, relwidth=1, relheight=1)
+                d.lift()
+                self._dim_shown = True
+        except tk.TclError:
+            pass
+        return d
+
     def dim_hide(self):
         d = getattr(self, "dim", None)
         if d is not None:
             try:
-                d.withdraw()
+                if EMBED:
+                    d.place_forget()
+                    self._dim_shown = False
+                else:
+                    d.withdraw()
             except tk.TclError:
                 pass
 
     def dim_on(self):
         d = getattr(self, "dim", None)
+        if EMBED:
+            return d is not None and bool(getattr(self, "_dim_shown", False))
         try:
             return d is not None and d.state() != "withdrawn"
         except tk.TclError:
@@ -948,7 +1062,10 @@ class Shell:
 
     def misplaced(self, w, rect=None):
         """2.135.0: an open window that isn't where the app put it (it was placed while the app moved, or Windows left
-        it behind) -> True. rect: its real (left, top, right, bottom) - asked of Windows when not given."""
+        it behind) -> True. rect: its real (left, top, right, bottom) - asked of Windows when not given.
+        (EMBED: a page is drawn inside the app's window - it can't be anywhere else.)"""
+        if EMBED:
+            return False
         g = getattr(w, "_g", None)                   # (where it was last placed - a page, maxed or not)
         if not g:
             return False
@@ -995,8 +1112,8 @@ class Shell:
         self._last_place = (org, size)
         for w in self.windows.values():
             w.reposition()
-        self.check_owners()
         try:
+            self.check_owners()
             self.monitor_check()
         except Exception:
             buglog.caught()
@@ -1008,7 +1125,9 @@ class Shell:
         """2.129.3 (feedback: moved the app to another screen and the Wealth page stayed on the first one): when the
         app lands on another monitor, every page window is shown again in its place - Windows may rebuild a window
         that crosses to a screen of another scaling and leave the old one painted where it was - and any copy left
-        behind is hidden. -> True when the monitor changed."""
+        behind is hidden. -> True when the monitor changed. (EMBED: pages move with the app's window - nothing to do.)"""
+        if EMBED:
+            return False
         from .style import monitor_rect
         try:
             cx = self.root.winfo_rootx() + self.root.winfo_width() // 2
@@ -1028,11 +1147,34 @@ class Shell:
                     w.reposition()
                     w.deiconify()
                 else:
+                    w.withdraw()                     # (UI overhaul: a closed page left on the old screen goes too)
                     w.hide_ghosts()
             except tk.TclError:
                 pass
         self.restack()
         return True
+
+    def _stray_hide(self, w):
+        """UI overhaul (feedback: Farming Strategies stayed on the other monitor after the app moved): every 2 s, a page
+        that isn't open but whose window is still on screen is hidden again, with any copy Windows left behind. Pages
+        only ever show inside the app. (EMBED: a closed page is simply not placed - see heal.)"""
+        if EMBED:
+            return
+        try:
+            shown = w.state() != "withdrawn" and w.winfo_ismapped()
+            if not shown and sys.platform == "win32":
+                import ctypes
+                u = ctypes.windll.user32
+                u.GetParent.restype = ctypes.c_void_p
+                u.GetParent.argtypes = [ctypes.c_void_p]
+                u.IsWindowVisible.argtypes = [ctypes.c_void_p]
+                shown = bool(u.IsWindowVisible(u.GetParent(w.winfo_id()) or w.winfo_id()))
+            if shown:
+                buglog.debug("page window", f"{w.key} was still showing while closed - hidden")
+                w.withdraw()
+            w.hide_ghosts()
+        except Exception:
+            buglog.caught()
 
     def app_follow(self):
         """Pop-ups of the app that sit on the desktop (the what's new card) follow too."""
@@ -1043,6 +1185,9 @@ class Shell:
     def hide_all(self):
         """The app went to the tray / was minimized: its windows go with it."""
         self._all_hidden = True
+        if EMBED:                                 # (pages are inside the app's window: they go with it)
+            self.close_menu()
+            return
         for w in self.windows.values():
             if w.state_ == "open":
                 w.withdraw()
@@ -1055,6 +1200,10 @@ class Shell:
         if not getattr(self, "_all_hidden", False):
             return
         self._all_hidden = False
+        if EMBED:
+            self.restack()
+            self.app_follow()
+            return
         for w in self.windows.values():
             if w.state_ == "open":
                 w.reposition()
@@ -1064,6 +1213,8 @@ class Shell:
 
     def check_owners(self):
         """2.10.2: any open window whose real window Tk rebuilt gets its owner back (then the stacking order)."""
+        if EMBED:
+            return False
         changed = False
         for w in self.windows.values():
             if w.state_ == "open":
@@ -1074,7 +1225,20 @@ class Shell:
 
     def heal(self):
         """2.10.1, every 2 s: a window that is open in the app but hidden by the system (it vanished when the app was
-        resized) is shown again, in its place. Not while the app itself is minimized or in the tray."""
+        resized) is shown again, in its place. Not while the app itself is minimized or in the tray.
+        EMBED: only the bookkeeping - an open page is placed, a closed one isn't (no OS window to go astray)."""
+        if EMBED:
+            for w in self.windows.values():
+                try:
+                    if w.state_ == "open" and w.state() == "withdrawn":
+                        w.deiconify()
+                        self.restack()
+                    elif w.state_ != "open" and w.state() != "withdrawn":
+                        buglog.debug("page", f"{w.key} was still placed while closed - hidden")
+                        w.withdraw()
+                except tk.TclError:
+                    pass
+            return
         try:
             if getattr(self, "_all_hidden", False) or self.root.state() not in ("normal", "zoomed"):
                 return
@@ -1083,6 +1247,7 @@ class Shell:
         self.check_owners()
         for w in self.windows.values():
             if w.state_ != "open":
+                self._stray_hide(w)                          # UI overhaul: a closed page still showing - hide it
                 continue
             gone = w.state() == "withdrawn" or not w.winfo_ismapped()
             if not gone:                                     # shown, but off the app's desktop area
@@ -1117,6 +1282,17 @@ class Shell:
     def restack(self):
         """Put the open windows back above the app's window, in their stacking order (2.7.1: also after Always on top
         is switched, so they never end up behind the app's own window)."""
+        if EMBED:
+            self._stack()
+            if self.menu is not None:
+                try:
+                    self.menu.lift()
+                except tk.TclError:
+                    pass
+            keep = getattr(self.app, "keep_on_top", None)
+            if keep:
+                keep()
+            return
         for k in getattr(self, "zorder", []) + [k for k in self.windows if k not in getattr(self, "zorder", [])]:
             w = self.windows.get(k)
             if w is not None and w.state_ == "open":
@@ -1139,6 +1315,31 @@ class Shell:
         keep = getattr(self.app, "keep_on_top", None)
         if keep:
             keep()
+
+    def _stack(self):
+        """EMBED: the stacking order inside the main area - the open page, then (if Settings is open) the dim
+        layer, then Settings."""
+        order = getattr(self, "zorder", [])
+        keys = [k for k in order if k in self.windows] + [k for k in self.windows if k not in order]
+        over = []
+        for k in keys:
+            w = self.windows[k]
+            if w.state_ != "open":
+                continue
+            if k in OVER:
+                over.append(w)
+                continue
+            try:
+                w.lift()
+            except tk.TclError:
+                pass
+        if over:
+            self.dim_show(lift=True)
+            for w in over:
+                try:
+                    w.lift()
+                except tk.TclError:
+                    pass
 
     def paint_wallpaper(self):
         self._wall_job = None
@@ -1243,9 +1444,15 @@ class Shell:
             bar.pick = pick
 
     def _tabs_changed(self):
+        self.new_where()
         sb = getattr(self, "sidebar", None)
         if sb is not None:
             sb.redraw()
+        if hasattr(self.app, "drawer_tabs"):            # drawer build: the Drawer's tab row follows
+            try:
+                self.app.drawer_tabs()
+            except Exception:
+                buglog.caught()
 
     def tab_titles(self, key):
         """The tabs listed under a page (not its home tab)."""
@@ -1294,7 +1501,8 @@ class Shell:
             pw, cw = self.windows[par], self.windows[mod.key]
             ptitle = self.modules[par].title
             cw.title = f"{ptitle} › {mod.title}"
-            cw.bar.itemconfigure(cw.lbl, text=f"{mod.icon}  {ptitle} › {mod.title}")
+            if not PAGES:                 # (UI overhaul: a page header shows the path itself)
+                cw.bar.itemconfigure(cw.lbl, text=f"{mod.icon}  {ptitle} › {mod.title}")
             if PAGES:                     # 2.120.0 (UX pass 2): the sidebar lists the children under their parent -
                 continue                  # the same buttons in the page's title bar were a second way to the same place
             b = pw.add_child(f"{mod.icon} {mod.title}", lambda k=mod.key: self.open(k))
@@ -1370,7 +1578,8 @@ class Shell:
                          tags=("settings",))
         self._orb_tile = self._round_rect(d, cx - t // 2, 8, cx + t // 2, 8 + t, 10, fill="#1c2a47", outline="#3d5582",
                                           width=1, tags=("settings",))
-        d.create_text(cx, 8 + t // 2, text="⚙", fill="#cfdaf0", font=("Segoe UI Symbol", 22), tags=("settings",))
+        from . import gearicon                          # (UI overhaul: drawn - the ⚙ glyph looked like a flower)
+        gearicon.draw(d, cx, 8 + t // 2, 26, "#cfdaf0", tags=("settings",))
         d.create_text(cx, 8 + t + 11, text="Settings", fill="#cfdaf0", font=("Segoe UI", 8, "bold"), tags=("settings",))
         d.create_line(10, 8 + t + 24, DOCK_W - 10, 8 + t + 24, fill="#26365a")
         d.tag_bind("settings", "<Button-1>", lambda e: self.open("settings"))
@@ -1485,7 +1694,7 @@ class Shell:
             opened = ["pricecheck"] if "pricecheck" in self.windows else list(self.windows)[:1]
         order = sorted(opened, key=lambda k: saved.get(k, {}).get("z", 0))
         if PAGES:                                   # 2.62.0: the page you were on last time
-            page = self.cfg.get("page")
+            page = "dashboard" if "dashboard" in self.windows else self.cfg.get("page")   # UI overhaul: start home
             order = [page if page in self.windows and self.visible(self.modules[page]) else order[-1]]
         for k in order:
             self.open(k, save=False)
@@ -1530,6 +1739,9 @@ class Shell:
         if key == "calc" and hasattr(self.app, "calc_ov_toggle"):  # 2.74.0: the calculator is over the game now
             self.app.calc_ov_toggle(True)
             return
+        if key == "ovset" and "tracker" in self.windows:   # nav phase 2: that page is gone - the Overlay page's tabs
+            self.open_tab("tracker", "Helpers")            # (an old saved page or link)
+            return
         win = self.windows.get(key)
         if not win:
             return
@@ -1571,12 +1783,15 @@ class Shell:
         win = self.windows.get(key)
         if not win or win.state_ != "open":
             return
-        win.own_by_app()
-        win.follow_on_top()
-        win.lift()
+        self.zorder = [k for k in getattr(self, "zorder", []) if k != key] + [key]
+        if EMBED:
+            self._stack()                                   # (Settings stays over the page under it)
+        else:
+            win.own_by_app()
+            win.follow_on_top()
+            win.lift()
         if self.menu is not None:
             self.menu.lift()
-        self.zorder = [k for k in getattr(self, "zorder", []) if k != key] + [key]
         keep = getattr(self.app, "keep_on_top", None)         # e.g. the welcome card on the first start
         if keep:
             keep()
@@ -1590,6 +1805,22 @@ class Shell:
             win.set_active(True)
             self.app.on_focus_module(key)
         self.refresh_taskbar()
+        self.new_where()
+
+    def new_where(self):
+        """3.0.0: the page and tab you're on now, for the NEW chips (newchip.at: a new feature living here counts as
+        opened)."""
+        try:
+            from . import newchip
+            key = self.active
+            if key == "settings":
+                nb = getattr(self.app, "set_nb", None)
+                tab = nb.titles[nb.cur] if nb is not None and nb.cur is not None else None
+            else:
+                tab = self.tab_current(key) if key else None
+            newchip.at(key, tab)
+        except Exception:
+            buglog.caught()
 
     def _any_click(self, e):
         """A click anywhere inside a window brings that window to the front."""
@@ -1736,7 +1967,8 @@ class Shell:
             self.refresh_dots()
             if self.sidebar is not None:                         # (the utilities' running dots)
                 self.sidebar.redraw()
-                self.sidebar.set_compact(self.root.winfo_width() < 1100)
+                look = getattr(self.app, "drawer_look_on", None)       # the Drawer: always the rail
+                self.sidebar.set_compact(bool(look and look()) or self.root.winfo_width() < 1100)
         except Exception:
             buglog.caught()
         try:
@@ -1794,8 +2026,13 @@ class Shell:
 
     def open_menu(self):
         P1 = C["panel"]
-        m = InDeskToplevel(self, bg=P1, highlightthickness=1, highlightbackground="#3d5582")
+        m = tk.Toplevel(self.root, bg=P1, highlightthickness=1, highlightbackground="#3d5582")
         m.withdraw()                                  # 2.98.2: shown only once it's in place (not at 0, 0 first)
+        m.overrideredirect(True)
+        try:
+            m.transient(self.root)
+        except tk.TclError:
+            pass
         self.menu = m
         self._place_menu()
         m.lift()
@@ -1870,7 +2107,7 @@ class Shell:
         foot = tk.Frame(m, bg=P1, highlightthickness=0)
         foot.pack(fill="x", side="bottom", padx=8, pady=8, before=cols)   # 2.69.1: gets its room before the lists
         # 2.69.1: two rows of even buttons, so none is cut off in a narrow Toolkit
-        btns = (("⚙ Settings", lambda: self.open("settings")), ("✦ What's new", lambda: self.app.show_whatsnew(True)),
+        btns = (("Settings", lambda: self.open("settings")), ("✦ What's new", lambda: self.app.show_whatsnew(True)),
                 ("➜ Quick start", lambda: self.app.show_quickstart(force=True)),
                 ("⟳ Check for updates", self.app.check_updates), ("✕ Quit", self.app.on_close))
         self.menu_foot_btns = []

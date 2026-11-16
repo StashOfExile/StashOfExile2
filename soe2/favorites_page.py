@@ -114,7 +114,7 @@ class FavoritesPage:
         tv.bind("<F2>", lambda e: (self.fav_rename(), "break")[-1])
         tv.bind("<Alt-Up>", lambda e: (self.fav_step(-1), "break")[-1])
         tv.bind("<Alt-Down>", lambda e: (self.fav_step(1), "break")[-1])
-        tv.bind("<Control-v>", lambda e: (self.fav_paste(), "break")[-1])
+        tv.bind("<Control-v>", lambda e: (self.fav_paste(e), "break")[-1])     # (a key press: one read)
         tv.bind("<ButtonPress-1>", self.fav_drag_start, add="+")
         tv.bind("<B1-Motion>", self.fav_drag_move, add="+")
         tv.bind("<ButtonRelease-1>", self.fav_drag_end, add="+")
@@ -386,7 +386,7 @@ class FavoritesPage:
                      ("Move group up", lambda: self.fav_step(-1), True, "Alt+↑"),
                      ("Move group down", lambda: self.fav_step(1), True, "Alt+↓"),
                      ("Search every favorite in it", lambda: self.fav_search_group(gids[0]), True)]
-        acts += [None, ("New group…", self.fav_new_group, True), ("Paste a trade link", self.fav_paste, True, "Ctrl+V")]
+        acts += [None, ("New group…", self.fav_new_group, True)]   # (GGG policy: no Paste item - a click never reads)
         return acts
 
     # ---------------------------------------------------------------- adding
@@ -405,7 +405,7 @@ class FavoritesPage:
         self.fav_changed([f["id"]])
         self.pc_fav_state(rec)
         try:
-            self.app_toast(f"\"{f['name']}\" is in Price Checks ↳ Favorites.", title="Added to favorites",
+            self.app_toast(f"\"{f['name']}\" is in Trade › Favorites.", title="Added to favorites",
                            kind="success", actions=(("Open", lambda: (self.shell.open(KEY), self.fav_pick(f["id"]))),
                                                     ("Rename", lambda: (self.shell.open(KEY), self.fav_pick(f["id"]),
                                                                         self.fav_rename()))))
@@ -419,11 +419,10 @@ class FavoritesPage:
         on = bool(rec and rec.get("fav") and self.favs().get(rec["fav"]))
         b.config(text="★ In favorites" if on else "☆ Add to favorites", state="normal" if rec else "disabled")
 
-    def fav_paste(self):
-        try:
-            t = self.root.clipboard_get()
-        except tk.TclError:
-            t = ""
+    def fav_paste(self, event):
+        """Ctrl+V on the list: the trade link on the clipboard, read once for this key press."""
+        from .clipread import app_paste
+        t = app_paste(self.root, event)
         if not FV.is_link(t):
             return self.fav_say("The clipboard has no trade-site link. Copy the address of a trade search first.",
                                 C["red"])

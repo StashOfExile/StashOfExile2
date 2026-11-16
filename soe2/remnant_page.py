@@ -1,5 +1,5 @@
 """Expedition Remnant Price Checker in the app (2.37.0): the "Remnant" helper next to Delirium, Breach and Ritual -
-its row in Overlay › Overlay Settings › Helpers, its cell in the timer's Helpers bar, and the price tags over the game.
+its row in Overlay › Helpers, its cell in the timer's Helpers bar, and the price tags over the game.
 The reading and matching are in remnant.py. Idea: PoE Ancients Price Helper by Pedro Quitério (no code from it)."""
 import sys
 import threading
@@ -26,6 +26,8 @@ def capture_affinity(win, hide=True):
         h = u.GetParent(win.winfo_id()) or win.winfo_id()
         u.SetWindowDisplayAffinity.argtypes = [ctypes.c_void_p, ctypes.c_uint]
         u.SetWindowDisplayAffinity(h, 0x11 if hide else 0x0)
+        from . import layered
+        layered.keep(win)                   # (a see-through color stays in force - the overlay's line ends)
     except Exception:
         buglog.caught()
 
@@ -74,7 +76,7 @@ class RemnantPage:
         if self.remnant_status() == "warn":
             return f"Can't read the screen: {self.rm_problem}."
         last = getattr(self, "rm_last", "")
-        head = "On - Watching for Remnants."
+        head = self.look_status(f"On - press {self.look_key_text()} with a remnant's book open.")
         return head + (f"  ·  {last}" if last else "")
 
     def remnant_toggle(self, want):
@@ -84,13 +86,10 @@ class RemnantPage:
         self.rm_problem = None
         if not want:
             self.remnant_hide()
-            self.ru_stop()                            # 2.83.0: Island Rumors is part of it
-        elif getattr(self, "ru_here", False):
-            self.ru_start()
+            self.ru_hide()                            # 2.83.0: Island Rumors is part of it
         if want and not getattr(self, "_br_ticking", False):
             self.breach_start()                       # 2.83.0: the game's log says where you are
         st = self.remnant_status()
-        self.remnant_auto_sync()
         return f"Can't read the screen: {self.rm_problem}." if want and st == "warn" else None
 
     def remnant_tips_changed(self, on):
@@ -115,117 +114,68 @@ class RemnantPage:
                 except tk.TclError:
                     pass
                 self.rm_win.remove(w)
-        self._say("Runeshape tips are off. Overlay › Overlay Settings › Helpers › Expedition › Runeshape tips turns them back on.", 8)
+        self._say("Runeshape tips are off. Overlay › Helpers › Expedition › Runeshape tips turns them back on.", 8)
 
-    # ---------------- Auto: a light watcher on the learned area
-    def remnant_auto_sync(self):
-        """Start / stop the watcher to match the settings (on + OCR works)."""
-        c = self.remnant_cfg()
+    # ---------------- a Read Key press (GGG policy, Nov 2026 - it was a watcher on the book's place)
+    def remnant_look_job(self, ctx):
+        """A Read Key press where remnants can be: is the reward book open (its parchment and title), and if so its
+        rewards are read once and priced. The tags stay until your next press or a new area."""
         from . import features as FEAT
-        want = bool(c.get("on") and self.remnant_status() == "on" and FEAT.on("overlay"))
-        running = getattr(self, "rm_auto_gen", 0) and getattr(self, "rm_auto_alive", False)
-        if want and not running:
-            self.rm_auto_gen = getattr(self, "rm_auto_gen", 0) + 1
-            self.rm_auto_alive = True
-            threading.Thread(target=self._remnant_watch, args=(self.rm_auto_gen,), daemon=True).start()
-        elif not want and running:
-            self.rm_auto_gen += 1                      # the thread sees a newer generation and stops
-            self.rm_auto_alive = False
-            if getattr(self, "rm_auto_shown", False):
-                self.remnant_hide()
+        c = self.remnant_cfg()
+        if not (c.get("on") and FEAT.on("overlay")) or not self.rm_zone_ok() or self.remnant_status() != "on":
+            return None
+        from . import screenread as SR
+        rect = ctx["rect"]
+        area = RM.reading_area(c.get("area"))
+        unsure = self.rm_unsure()                     # 2.98.6: a map where no full book was read yet
+        league = SETTINGS.get("league", "")
 
-    def _remnant_watch(self, gen):
-        from .alerts_page import game_rect
-        from .overlay import game_active
-        last, misses, settle, found, read_at = None, 0, 0, False, 0.0
-        opened = None                                 # 2.127.0: when this book showed (for the log)
-        from .wealth import WPRICES
-        try:
-            while gen == getattr(self, "rm_auto_gen", 0):
-                time.sleep(RM.AUTO_POLL)
-                lg = SETTINGS.get("league", "")
-                if opened is None and (WPRICES.league != lg or (WPRICES.age() or 1e9) > 3000):
-                    self.remnant_prefetch(lg)         # 2.129.2: prices ready before a book opens
-                c = SETTINGS.get("remnant") or {}
-                area = RM.reading_area(c.get("area"))
-                if not game_active() or getattr(self, "rm_busy", False):
-                    continue
-                g = game_rect()
-                if not g:
-                    continue
-                rect = (g[0], g[1], g[0] + g[2], g[1] + g[3])
-                self.rm_mark_check(rect)              # 2.83.0: in a map, is there an Expedition?
-                if not self.rm_zone_ok():
-                    continue                          # not in hideouts / towns / campaign
-                unsure = self.rm_unsure()             # 2.98.6: a map whose Expedition mark wasn't seen (yet)
-                ar = RM.area_rect(area, rect)
-                try:
-                    img = RM.mask_own(RM.grab(ar), ar[:2])     # 2.128.1: our tags show in captures - not to us
-                    share = RM.parchment_share(img)
-                    if share >= RM.PARCHMENT and opened is None:     # 2.129.0: parchment-colored, but not the book
-                        tg = RM.grab(RM.area_rect(RM.TITLE_AREA, rect))
-                        if not RM.has_title(tg, rect[3] - rect[1]):   # (no title) - 2.129.1: the title has its own
-                            if time.time() - getattr(self, "_rm_notitle", 0) > 30:     # place (TITLE_AREA)
-                                self._rm_notitle = time.time()
-                                ts = RM.title_score(tg, rect[3] - rect[1])
-                                RM.log(f"parchment ({share:.0%}) but no book title (match {ts:.2f})")
-                            share = 0.0
-                    if share < RM.PARCHMENT:     # no book there: nothing to read (cheap)
-                        if opened is not None:
-                            RM.log(f"book gone after {time.time() - opened:.1f} s")
-                        lines, last, settle, found, opened = [], None, 0, False, None
-                        misses += 1
-                        if misses == RM.AUTO_GONE:
-                            self.ui_q.put(("remnant_auto", rect, []))
-                        continue
-                    th = RM.thumb(img)
-                    # 2.79.0 (feedback: "not popping up on time"): the book just opened - its first look can land
-                    # mid-animation and find no lines; read a few more times while it settles, not only when the
-                    # picture changes a lot. 2.126.0 (feedback: "sat on this screen 10 s"): a still picture (the game
-                    # paused) was never read again, so a book read mid-animation, or before prices or the map's
-                    # Expedition mark were in, showed nothing until something moved. No tags yet: read every second
-                    if last is None:
-                        settle = RM.SETTLE_READS
-                        if opened is None:
-                            opened = time.time()
-                            RM.log(f"book seen ({share:.0%} parchment) in a {getattr(self, 'rm_zone', None)} "
-                                   f"(Expedition mark {'seen' if not unsure else 'not seen yet'})")
-                    if getattr(self, "rm_force_read", False):        # 2.130.0: gem prices came in
-                        self.rm_force_read, settle = False, max(settle, 1)
-                    if not RM.changed(last, th) and settle <= 0:
-                        if found or time.time() - read_at < RM.RETRY_SECS:
-                            continue
-                    settle -= 1
-                    last = th
-                    read_at = time.time()
-                    lines = RM.shift(RM.ocr(img), ar[0] - rect[0], ar[1] - rect[1])
-                    rows = self.remnant_price(lines, SETTINGS.get("league", ""))
-                    if not found:
-                        used = {r.get("text") for r in rows}
-                        left = [t for t, _b in lines if t not in used and len(t) > 3]
-                        RM.log(f"  read at +{read_at - (opened or read_at):.1f} s took {time.time() - read_at:.2f} s: "
-                               f"{len(lines)} lines, {len(rows)} priced" + (f" ({rows[0]['name']} ...)" if rows else "")
-                               + (f"; not used: {left[:6]}" if left else ""))
-                except RM.OcrUnavailable:
-                    break
-                except Exception as ex:          # 2.127.0: logged (it was silent - a read that fails is a late tag)
-                    if opened is not None:
-                        RM.log(f"  read failed: {ex.__class__.__name__}: {ex}")
-                    continue
-                misses = 0                       # 2.43.0: the book is still open - a read with fewer rows (the
-                if rows and unsure:              # 2.98.6: mark not seen - a real book lists several rewards; once
-                    if len(rows) < RM.UNSURE_ROWS:   # one is read, this map has an Expedition
-                        continue
-                    self.rm_map_exp = True
-                if rows and not found and opened is not None:
-                    RM.log(f"  tags up at +{time.time() - opened:.1f} s")
-                found = bool(rows)
-                if rows:                         # game's tooltip over a reward) never takes tags away; only the
-                    self.ui_q.put(("remnant_auto", rect, rows))      # book closing does
-                    settle = min(settle, 1)      # (found them: one more read to catch the rest of the list)
-        finally:
-            if gen == getattr(self, "rm_auto_gen", 0):
-                self.rm_auto_alive = False
+        def work():
+            ar = RM.area_rect(area, rect)
+            pic = SR.capture(ar, "Expedition")
+            if pic is None:
+                return None
+            img = RM.mask_own(pic, ar[:2])            # 2.128.1: our tags show in captures - not to us
+            share = RM.parchment_share(img)
+            if share >= RM.PARCHMENT:                 # 2.129.0: parchment-colored, but not the book (no title)
+                tg = SR.capture(RM.area_rect(RM.TITLE_AREA, rect), "Expedition")
+                if tg is None or not RM.has_title(tg, rect[3] - rect[1]):
+                    RM.log(f"parchment ({share:.0%}) but no book title")
+                    share = 0.0
+            if share < RM.PARCHMENT:
+                return []                             # no book open: the tags go
+            t0 = time.time()
+            lines = RM.shift(RM.ocr(img), ar[0] - rect[0], ar[1] - rect[1])
+            self.rm_lines = (rect, lines, league)         # (kept to price again when a gem's price comes in)
+            rows = self.remnant_price(lines, league)
+            used = {r.get("text") for r in rows}
+            left = [t for t, _b in lines if t not in used and len(t) > 3]
+            RM.log(f"book read in a {getattr(self, 'rm_zone', None)} in {time.time() - t0:.2f} s: {len(lines)} lines, "
+                   f"{len(rows)} priced" + (f" ({rows[0]['name']} ...)" if rows else "")
+                   + (f"; not used: {left[:6]}" if left else ""))
+            if rows and unsure:
+                if len(rows) < RM.UNSURE_ROWS:        # a real book lists several rewards
+                    return []
+                self.rm_map_exp = True
+            return rows
+        work.found = bool                                 # (the read mark: a book's rewards read)
+
+        def done(rows):
+            if rows is None:
+                return
+            if not rows:
+                self.rm_kept = {}
+                self.rm_lines = None
+            self.ev_remnant_auto(rect, rows)
+        return "Expedition", work, done
+
+    def remnant_reprice(self):
+        """A gem's price came in: the book's last read lines are priced again (no new screen read)."""
+        got = getattr(self, "rm_lines", None)
+        if not got or getattr(self, "rm_win", None) is None:
+            return
+        rect, lines, league = got
+        self.run_bg(lambda: self.remnant_price(lines, league), lambda rows: rows and self.ev_remnant_auto(rect, rows))
 
     def ev_remnant_auto(self, rect, rows):
         rows = self.remnant_keep(rows)
@@ -233,7 +183,11 @@ class RemnantPage:
         sig = tuple((r["name"], r["qty"]) for r in rows)
         if rows:
             if sig != getattr(self, "rm_auto_sig", None) or getattr(self, "rm_win", None) is None:
-                self.remnant_show(rect, rows, secs=None)
+                from . import screenread as SR            # (read in real pixels; the tags go in the app's - DPI fix)
+                kx, ky = SR.ui_scale()
+                self.remnant_show(SR.to_ui(rect), [dict(r, box=tuple(int(round(v * k)) for v, k in
+                                                                     zip(r["box"], (kx, ky, kx, ky))))
+                                                   for r in rows], secs=None)
                 self.rm_auto_shown = True
                 self.rm_auto_sig = sig
                 self.remnant_note(rows)
@@ -444,7 +398,8 @@ class RemnantPage:
                 RM.log(f"  gem {low}: search failed ({ex.__class__.__name__})")
             pend.pop(0)
             self._gem_save()
-            self.rm_force_read = True                 # (the open book is read again: each gem's price shows as it comes)
+            self.on_ui(self.remnant_reprice)          # (the last read is priced again: each gem's price shows as it
+            #                                           comes - from the lines already read, not a new screen read)
 
     # ---------------- the tags over the game
     # 2.38.0: one small, solid, click-through window per tag. (2.37.0 drew them on ONE window as big as the game, made

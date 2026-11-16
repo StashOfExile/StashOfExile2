@@ -207,7 +207,7 @@ class InsightsPage:
         for e in recs:                                     # 2.105.0: no Status column (listing marks are gone)
             iid = tv.insert("", "end", values=(e["name"], e["base"], fmt_div(e["est"])))
             self.ins_rowmap[iid] = e
-        self._ins_empty(empty, not recs, f"No priced {ONE[kind]}s yet.\nPrice some with Ctrl+Alt+C or Bulk Pricing.")
+        self._ins_empty(empty, not recs, f"No priced {ONE[kind]}s yet.\nPrice some on Price Checks or Bulk Pricing.")
         # ---- mods worth the most (the Mod book's data)
         tv, empty = self.ins_tables["mods"]
         tv.delete(*tv.get_children())
@@ -228,7 +228,7 @@ class InsightsPage:
                                                base.replace(" Tablet", ""), fmt_div(st["med"]), st["n"]),
                             tags=("star",) if star else ())
             self.ins_modmap[iid] = f"{base}|{sid}"
-        why = (f"Nothing learned about {ONE[kind]} mods yet.\nPrice a few {ONE[kind]}s (Ctrl+Alt+C or Bulk Pricing) -\n"
+        why = (f"Nothing learned about {ONE[kind]} mods yet.\nPrice a few {ONE[kind]}s (Price Checks or Bulk Pricing) -\n"
                f"each one teaches the Mod Book.")
         self._ins_empty(empty, not rows, why)
         self._ins_fill_seen(kind)
@@ -255,7 +255,7 @@ class InsightsPage:
         for _o, text, n, best in rows:
             tv.insert("", "end", values=("★ " + text, kind[:-1], fmt_div(best) if best is not None else "-",
                                          n or "-"), tags=("star",))
-        self._ins_empty(empty, not rows, f"No ★ {kind[:-1].lower()} mods yet.\nRate them in Mod Book > "
+        self._ins_empty(empty, not rows, f"No ★ {kind[:-1].lower()} mods yet.\nRate them in Mod Book › "
                                          f"{kind[:-1]} rules,\nor right-click a mod in Regex.")
 
     def _ins_fill_seen(self, kind):

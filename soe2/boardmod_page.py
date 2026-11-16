@@ -70,7 +70,11 @@ class BoardModPage:
         if ok and hasattr(self, "cy_paint"):
             self.cy_paint()                                      # (your name, admin / reviewer, fresh)
         if ok and (d.get("user") or {}).get("name_reset"):
-            self.board_name_prompt(force=True, reset=True)
+            if not self.drawer_defer(self.board_name_reset_prompt):    # (drawer build: put away - asked at the
+                self.board_name_reset_prompt()                        # next show)
+
+    def board_name_reset_prompt(self):
+        return self.board_name_prompt(force=True, reset=True)
 
     def board_name_prompt(self, force=False, reset=False):
         """Start-up: no community name yet - ask once (it's the name on Money Makers and any board feature).

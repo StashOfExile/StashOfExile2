@@ -15,6 +15,7 @@ class Marks:
         self.root = root
         self.win = None
         self.drawn = None
+        self.layered = None             # UI overhaul: the smooth drawing (vaallens_draw), Windows
 
     def _make(self):
         w = tk.Toplevel(self.root)
@@ -33,12 +34,17 @@ class Marks:
 
     def shown(self):
         try:
+            lw = self.layered.win if self.layered is not None else None
+            if lw is not None and lw.winfo_exists() and lw.winfo_ismapped():
+                return True
             return self.win is not None and self.win.winfo_exists() and self.win.winfo_ismapped()
         except tk.TclError:
             return False
 
     def hide(self):
         self.drawn = None
+        if self.layered is not None:
+            self.layered.hide()
         if self.win is not None:
             try:
                 self.win.withdraw()
@@ -46,6 +52,9 @@ class Marks:
                 pass
 
     def destroy(self):
+        if self.layered is not None:
+            self.layered.destroy()
+            self.layered = None
         w, self.win = self.win, None
         self.drawn = None
         if w is not None:
@@ -54,7 +63,33 @@ class Marks:
             except tk.TclError:
                 pass
 
-    def show(self, game, marks, P, icons=None):
+    def _smooth(self, game, marks, P, icons, chain):
+        """UI overhaul (feedback: "very janky"): one smooth picture in a layered window. -> True when shown."""
+        import sys
+        if sys.platform != "win32":
+            return False
+        try:
+            from . import vaallens_draw as VD
+            if self.layered is None:
+                self.layered = VD.Layered(self.root)
+            if not self.layered.ok:
+                return False
+            img, xy = VD.render(game, marks, P, icons, chain)
+            if img is None:
+                self.layered.hide()
+                return True
+            if self.layered.show(img, xy):
+                if self.win is not None:                    # (the old canvas window, if it was up)
+                    try:
+                        self.win.withdraw()
+                    except tk.TclError:
+                        pass
+                return True
+        except Exception:
+            buglog.caught()
+        return False
+
+    def show(self, game, marks, P, icons=None, chain=None):
         """game: (left, top, width, height); marks: {tile: (kind, what)} - "p" (step, room): a planned room, its own
         picture and its step; "now" (step or None, room or card): where the picked card goes, framed solid; "x": a
         tile that touches a reward room. icons: {room or card name: its picture (PIL)}. P: the overlay palette.
@@ -63,8 +98,12 @@ class Marks:
         if not marks:
             return self.hide()
         icons = icons or {}
-        key = (tuple(game), tuple(sorted((t, repr(v)) for t, v in marks.items())), tuple(sorted(icons)))
+        key = (tuple(game), tuple(sorted((t, repr(v)) for t, v in marks.items())), tuple(sorted(icons)),
+               tuple(chain or ()))
         if key == self.drawn and self.shown():
+            return
+        if self._smooth(game, marks, P, icons, chain):         # UI overhaul: smooth, see-through (Windows)
+            self.drawn = key
             return
         from . import vaallens as V
         w = self.win if self.win is not None else self._make()
@@ -83,6 +122,14 @@ class Marks:
         big = -max(14, int(40 * s))
         small = -max(10, int(20 * s))
         side = max(16, int(hh * 1.15))
+        # 2.143.0: the path to the Architect - a gold lane from your tiles through its tiles to him, like the game's
+        # own paths (chain: [your tile, the path's tiles..., the Architect])
+        if chain and len(chain) >= 2:
+            c_ = [(ox + V.xy(*t)[0] * s, oy + V.xy(*t)[1] * s) for t in chain]
+            mid = lambda a, b: ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)
+            pts_ = [mid(c_[0], c_[1])] + c_[1:-1] + [mid(c_[-2], c_[-1])]
+            cv.create_line(*[v for pt in pts_ for v in pt], fill=P.get("gold") or "#d9b13a",
+                           width=max(4, int(14 * s)), capstyle="round", joinstyle="round")
         for t, (m, what) in marks.items():
             x, y = V.xy(*t)
             x, y = ox + x * s, oy + y * s
@@ -96,11 +143,13 @@ class Marks:
                 cv.create_polygon(*pts, fill="", outline=accent, width=max(3, int(7 * s)))
             else:
                 cv.create_polygon(*pts, fill="", outline=accent, width=max(2, int(3 * s)), dash=(5, 4))
-            pic = icons.get(room)
-            if pic is not None:
+            pic = icons.get(room) if room != "path" else None
+            if room == "path":                              # (the gold lane above is its picture)
+                pic = False
+            if pic:
                 try:
                     from PIL import ImageTk
-                    ph = ImageTk.PhotoImage(pic.convert("RGB").resize((side, side)))
+                    ph = ImageTk.PhotoImage(pic.convert("RGBA").resize((side, side)))   # (2.143.0: cut out)
                     self.photos.append(ph)
                     cv.create_image(x, y, image=ph)
                 except Exception:

@@ -309,66 +309,6 @@ class Refs:
         return None, top, top - nxt
 
 
-def rerolls_left(img, win):
-    """2.129.0: the reroll button (the dice) is red while you have rerolls, gray at 0. -> True / False (None: can't
-    tell)."""
-    _cv2, np = _cv()
-    x, y, s, _sc = win
-    cut = img[int(y + 64 * s):int(y + 154 * s), int(x - 265 * s):int(x - 180 * s)]
-    if not cut.size:
-        return None
-    a = cut.astype(np.int16)
-    red = ((a[..., 2] > a[..., 1] + 40) & (a[..., 2] > a[..., 0] + 40)).mean()
-    return bool(red > 0.12)
-
-
-def tribute_offered(img, win):
-    """2.131.2 (feedback: "I click the offer tribute button and quickly exit the favour window ... it needs to be
-    fool-proof"): OFFER TRIBUTE TO THE KING turns gray the moment it's clicked (the number then counts down) and is
-    gray with nothing to offer; red while there's tribute to offer. -> True (gray: nothing owed), False (red),
-    None (can't tell). Measured on 1440p shots: gray has no color at all, red ~19% clearly red pixels."""
-    _cv2, np = _cv()
-    x, y, s, _sc = win
-    cut = img[int(y + 972 * s):int(y + 1008 * s), int(x - 82 * s):int(x + 274 * s)]
-    if not cut.size:
-        return None
-    a = cut.astype(np.int16)
-    red = ((a[..., 2] > a[..., 1] + 30) & (a[..., 2] > a[..., 0] + 30)).mean()
-    sat = (a.max(2) - a.min(2)).mean()
-    if red >= 0.08:
-        return False
-    if red < 0.02 and sat < 8:
-        return True
-    return None
-
-
-def tribute_box(img, win):
-    """The "4,749 TRIBUTE" line (BGR), for reading the number."""
-    x, y, s, _sc = win
-    return img[int(y + 95 * s):int(y + 143 * s), int(x + 15 * s):int(x + 250 * s)]
-
-
-def tribute_of(lines):
-    """OCR lines of tribute_box -> the number (4749), or None. 2.130.1 (feedback: the reminder came after the tribute
-    was offered - the plate said "0 Tribute"): a lone 0 is often read as the letter O; "Tribute" with no number
-    readable before it counts as 0 (never a reminder from an old number)."""
-    import re
-    said = False
-    for text, _b in lines or []:
-        t = str(text)
-        m = re.search(r"(\d[\d,.\s]*\d|\d)\s*T", t, re.I)
-        if m:
-            try:
-                return int(re.sub(r"[^\d]", "", m.group(1)))
-            except ValueError:
-                continue
-        if re.search(r"(^|\s)[OoQD]\s*Tr", t):
-            return 0
-        said = said or bool(re.search(r"Tribu", t, re.I))
-    return 0 if said else None
-
-
-
 # 2.131.5 (feedback: "add tribute count to the ritual counter overlay ... the overlay over xp bar blocks it"): the
 # game's own tribute counter, bottom middle over the XP bar (a gold arch with the number). It counts down when the
 # tribute is offered, then goes - which also tells an offer made with the window closed at once.
@@ -376,7 +316,7 @@ HUD_BOX = (0.05, 0.950, 0.982)    # half its width (parts of the game's height),
 
 
 def hud_rect(g):
-    """The game's rect (x, y, w, h) -> the counter's box as an mss region."""
+    """The game's rect (x, y, w, h) -> the counter's box {"left", "top", "width", "height"} (screen pixels)."""
     gx, gy, gw, gh = g
     half = int(HUD_BOX[0] * gh)
     return {"left": int(gx + gw / 2 - half), "top": int(gy + HUD_BOX[1] * gh), "width": 2 * half,

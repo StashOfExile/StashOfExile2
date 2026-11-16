@@ -14,8 +14,10 @@ import urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FILE = os.path.join(ROOT, "campaign.json")
-KINDS = {"points", "spirit", "res_cold", "res_fire", "res_lightning", "life", "mana", "other"}
+KINDS = {"points", "spirit", "res_cold", "res_fire", "res_lightning", "life", "life_pct", "mana", "other"}
 MIN_SEEN = 3
+MAX_LINE = 70                    # style 2: a step's line is written whole (verb, target, gain, → next) - at most this
+CUE_KINDS = {"s", "d", "q"}      # a boss fight began / the boss is down / a quest moved on
 
 
 def norm(name):
@@ -25,8 +27,8 @@ def norm(name):
 
 def problems(d):
     out = []
-    if d.get("schema") != 1:
-        out.append("schema must be 1")
+    if d.get("schema") != 2:
+        out.append("schema must be 2")
     keys = [a.get("key") for a in d.get("acts") or []]
     if len(set(keys)) != len(keys) or not keys:
         out.append("acts: every act needs its own key")
@@ -38,6 +40,16 @@ def problems(d):
             out.append(f"act {a.get('key')}: a step has no zone")
         if len(set(zones)) != len(zones):
             out.append(f"act {a.get('key')}: a zone is listed twice")
+        for s in a.get("steps") or []:
+            texts = [s.get("do"), (s.get("speed") or {}).get("do"), (s.get("rush") or {}).get("do"), s.get("back"),
+                     s.get("early")]
+            for t in texts:
+                if d.get("style", 1) >= 2 and t and len(t) > MAX_LINE:
+                    out.append(f"{s.get('zone')}: a line is {len(t)} characters (at most {MAX_LINE}): {t}")
+                if t and "On you go" in t:
+                    out.append(f"{s.get('zone')}: say what to do (never 'On you go')")
+            if s.get("side") and not (s.get("speed") or {}).get("skip") and not (s.get("speed") or {}).get("do"):
+                out.append(f"{s.get('zone')}: a side zone needs its own speed text (or speed skip)")
     ids = [r.get("id") for r in d.get("rewards") or []]
     if len(set(ids)) != len(ids):
         out.append("rewards: every reward needs its own id")
@@ -48,6 +60,13 @@ def problems(d):
             out.append(f"reward {r.get('id')}: kind must be one of {sorted(KINDS)}")
         if not r.get("zone") or not r.get("what") or not r.get("gives"):
             out.append(f"reward {r.get('id')}: needs zone, what and gives")
+    for aid, cues in (d.get("cues") or {}).items():
+        for c in cues:
+            if not isinstance(c, list) or len(c) < 3 or c[0] not in CUE_KINDS or not c[1] or not c[2]:
+                out.append(f"cue in {aid}: needs [kind (s/d/q), speaker, line(, note)]: {c}")
+    for r in d.get("rewards") or []:
+        if r.get("cue") and r["cue"] not in (d.get("cues") or {}):
+            out.append(f"reward {r.get('id')}: its cue area {r['cue']} has no cues")
     for v in d.get("vendor") or []:
         if not v.get("name") or not v.get("regex") or (v.get("act") != "*" and v.get("act") not in keys):
             out.append(f"vendor search {v.get('name')}: needs name, regex and an act (or *)")

@@ -1,54 +1,72 @@
-"""2.131.0 Feature Picker (feedback: "ask a person what features they're interested in ... Menu options to
+"""2.131.0 Feature Picker, now Setup (feedback: "ask a person what features they're interested in ... Menu options to
 enable/disable features ... Any disabled features should not listen for their hotkey"): the app's features in a few
 groups, each one switch. Off: its pages leave the menu and its keys do nothing (the game gets them); its data is
-kept. Asked once in a popup (new installs and once after updating): closed without choosing, it comes back at the
-next start; "Never ask again" stops it for good. The same switches live in Settings › General › Features (one place
-in Settings). The beta features are a cluster of their own - this replaces the single "Show beta features" switch."""
+kept. Setup asks on a new install, one question a screen (features_page.py): closed without choosing, it comes back
+at the next start. The same switches live in Settings › General › Features (one place in Settings). The beta features are a cluster of their own - this replaces the single "Show beta features" switch.
+Only app pages and features are here; every overlay helper's one switch is in Overlay › Helpers (HELPER_SWITCHES)."""
 from .config import SETTINGS
 
 GROUPS = (
     {"key": "price", "name": "Price checking", "keys": "pc_key",
-     "what": "Price the item under your mouse: Price Checks, Favorites, Mod Book, Rate Mods.",
+     "what": "Hover an item in game and press the key: its price from the trade site's listings. Pages: "
+             "Price Checks, Favorites, Rate Mods, Mod Book.",
      "modules": ("pricecheck", "favorites", "modbook", "ratemods", "library")},
     {"key": "bulk", "name": "Bulk Pricing", "keys": "Ctrl+Alt+C",
-     "what": "Price many tablets, waystones and jewels at once, in the background. Other items work, but it isn't "
-             "built for them - price expensive items by hand.",
+     "what": "Copy many items in game, or read a stash tab: they're priced as a list, in the background. Best for "
+             "tablets, waystones and jewels; price expensive gear with Price Checks.",
      "modules": ("checks",)},
-    {"key": "overlay", "name": "Game Overlay", "keys": "its keys",
-     "what": "Over the game: the timer bar, Notes, Calc, Regex and the helpers (Breach, Delirium, Ritual, Expedition, "
-             "Trade whispers...).",
-     "modules": ("ovset", "notes", "regex")},
-    {"key": "planning", "name": "Planning & Farming", "keys": "",
-     "what": "League Plan, Map Library, Leaderboards.",
+    # nav phase 1: named as the sidebar names it (was "Game Overlay"); the Regex page is no longer in it - switching
+    # the overlay off hides the overlay's Regex part and the Regex keys, not the Regex page
+    {"key": "overlay", "name": "Overlay", "keys": "",
+     "what": "Over the game: a session timer, Notes, Calc, Regex and the helpers (Breach, Ritual, "
+             "Expedition, Trade whispers...).",
+     "modules": ("notes",)},                  # (nav phase 2: its page, Overlay, is in SHARED - Overlay Settings is gone)
+    {"key": "planning", "name": "League tools", "keys": "",             # nav phase 1: the sidebar's group name (was
+                                                                  # "Planning & Farming")
+     "what": "League Plan (your goals and farm plan), Map Library (rank every map) and Leaderboards (fastest "
+             "runs).",
      "modules": ("plan", "maps", "leaderboards")},
     {"key": "rates", "name": "Exchange Rates", "keys": "",
-     "what": "Currency rates from poe.ninja, and the Rates menu on the Game Overlay.",
+     "what": "What each currency is worth in divines (poe.ninja), a converter, and the Rates menu on the Overlay.",
      "modules": ("rates",)},
+    {"key": "wealth", "name": "Wealth",
+     "what": "What your stash is worth in divines: Scan stash reads your currency and league tabs from the screen; "
+             "each scan adds a point to your worth over time.",
+     "modules": ("wealth",)},
+    {"key": "insights", "name": "Market Insights",
+     "what": "From your own price checks: your most valuable items, the mods worth the most and the priciest listings "
+             "seen - by kind of item. Nothing extra is searched.",
+     "modules": ("insights",)},
+    {"key": "search", "name": "Game Search",                  # (2.143.0: these three out of BETA)
+     "what": "Look up any skill, item, mod or keyword in the game's own data, on your PC.", "modules": ("search",)},
 )
 BETA = (
-    {"key": "wealth", "name": "Wealth", "what": "What your stash is worth: Scan stash, totals over time.",
-     "modules": ("wealth",)},
-    {"key": "insights", "name": "Market Insights", "what": "What sells, and for how much, over time.",
-     "modules": ("insights",)},
-    {"key": "search", "name": "Game Search", "what": "Search the game's items and mods.", "modules": ("search",)},
-    {"key": "money", "name": "Money Makers", "what": "Community farming strats and the Craft Helper.",
+    {"key": "money", "name": "Farming Strategies",
+     "what": "Farming strategies from the community: pick one, run it, see what it really made.",
      "modules": ("money",)},
-    # 2.132.2 (feedback: "anything else helper-wise until it's fully tested and checklist approved should be marked
-    # beta. desecration helper can come out of beta"): the newer helpers are BETA; the Desecration Helper isn't
-    {"key": "topup", "name": "Top Up Reminders", "what": "What's running low in your inventory, back from a map.",
-     "modules": (), "was": ("topup", "on")},
-    {"key": "breaks", "name": "Break reminders", "what": "A kind nudge in long sessions, in your hideout or a town.",
-     "modules": (), "was": ("breaks", "on")},
-    {"key": "mapprofit", "name": "Map profit", "what": "What each map earned, from your inventory - on your PC only.",
-     "modules": ("mapprofit",), "was": ("map_profit", "on")},
-    {"key": "temple", "name": "Temple Helper", "what": "Clear a Vaal Beacon to track your Crystals.",
-     "modules": (), "was": ("temple", "on")},
-    {"key": "music", "name": "Music Controls", "what": "Previous, play / pause and next for any music player.",
-     "modules": (), "was": ("music", "on")},                    # 2.134.0
+    {"key": "crafthelper", "name": "Craft Helper",
+     "what": "Copy a tablet or jewel: each mod gets a letter, S to F, and the item a next step - worth pricing, craft "
+             "on, reforge or vendor. No prices are shown.",
+     "modules": ("crafthelper",)},
 )
+# Features owner feedback ("the overlay related helpers/features should not be in this features menu, they should be
+# grouped with the overlay settings helpers and only there"): these helpers are no features - each has ONE switch,
+# its own row in Overlay › Helpers (the helper's own setting below). Their old feature keys are gone
+# (migrations._helpers_one_switch).
+HELPER_SWITCHES = {       # Helpers-table key -> (its settings dict, its on key, its name - names.FEATURES)
+    "topup": ("topup", "on", "Top Up Reminders"),
+    "breaks": ("breaks", "on", "Break reminders"),
+    "mapprofit": ("map_profit", "on", "Map profit"),
+    "temple": ("temple", "on", "Temple Helper"),
+    "music": ("music", "on", "Music Controls"),                    # 2.134.0
+    "sekhemas": ("sekhemas", "on", "Trial of the Sekhemas"),       # the trial map's legend (BETA)
+}
+# the BETA helpers (Overlay › Helpers and Setup say "Beta · " in their gray line). (Owner: Break reminders, Top Up
+# Reminders and Music Controls are out of beta.)
+BETA_HELPERS = ("temple", "mapprofit", "sekhemas")
 ALL = GROUPS + BETA
-# the Overlay page (the session timer) holds the overlay's settings and the planning pages: shown while either is on
-SHARED = {"tracker": ("overlay", "planning")}
+# the Overlay page (its tabs: Helpers, On the Overlay, Look, Options, Sessions): shown while the overlay feature is on
+SHARED = {"tracker": ("overlay",)}          # (UI overhaul: the planning pages are their own now)
 
 
 def cfg():
@@ -56,22 +74,13 @@ def cfg():
     c = SETTINGS.setdefault("features", {})
     for g in GROUPS:
         c.setdefault(g["key"], True)
-    beta = bool(SETTINGS.get("labs"))
     for g in BETA:
-        was = g.get("was")                     # (2.132.2: a helper you already use stays on as it becomes BETA)
-        c.setdefault(g["key"], beta or bool(was and (SETTINGS.get(was[0]) or {}).get(was[1])))
-    c.pop("desecrate", None)                   # (2.132.2: the Desecration Helper isn't BETA any more)
+        c.setdefault(g["key"], True)
     return c
 
 
 def on(key):
     return bool(cfg().get(key, True))
-
-
-def beta_on(key, value=True):
-    """2.132.2: turning a BETA helper on turns its feature on too (as Features shows it)."""
-    if value and not on(key):
-        set_on(key, True)
 
 
 def group_of(module_key):
@@ -89,8 +98,19 @@ def module_on(module_key):
     return True if g is None else on(g)
 
 
+def helper_on(key):
+    """One of HELPER_SWITCHES' helpers: its own switch (Overlay › Helpers) - its one setting (defaults filled in)."""
+    import importlib
+    d, k, _name = HELPER_SWITCHES[key]
+    try:
+        return bool(importlib.import_module("." + key, __package__).cfg().get(k))
+    except Exception:
+        return bool((SETTINGS.get(d) or {}).get(k))
+
+
 def any_beta():
-    return any(on(g["key"]) for g in BETA)
+    """A BETA feature or a BETA helper is on (their notes in What's new show then)."""
+    return any(on(g["key"]) for g in BETA) or any(helper_on(k) for k in BETA_HELPERS)
 
 
 def set_on(key, value):
@@ -99,5 +119,6 @@ def set_on(key, value):
 
 
 def asked():
-    """None (ask), "done" (answered) or "never" (Never ask again)."""
+    """Setup (features_page.py): None (ask at the next start), "done" (answered or skipped) or "never" (an older
+    build's Never ask again)."""
     return SETTINGS.get("features_asked")

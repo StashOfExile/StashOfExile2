@@ -2,7 +2,6 @@
 
 Part of StashOfExile2. Split out of the single-file app in 1.37 (see the launcher's VERSION HISTORY)."""
 
-import os
 import sys
 import threading
 import time
@@ -157,6 +156,8 @@ class KeyWatch:
         self.esc_double = 0.0
         self.ctrl = self.alt = self.shift = False
         self.listener = None        # 2.0: f(vk, ctrl, alt, shift) -> True to swallow the key (Utilities hotkeys)
+        self.up_listener = None     # GGG policy (Nov 2026): f(vk) on a key's release - a held key's repeats aren't
+        #                             new presses (screenread / clipread grant once per press)
         self._swallowed = set()
         self.mouse_on, self._mouse_hook, self._tid = False, None, None     # 2.0 beta 17: mouse buttons as hotkeys
         # 2.88.2 (feedback): Windows quietly drops a keyboard hook that answers too slowly. When it did,
@@ -164,8 +165,6 @@ class KeyWatch:
         # alive; rehook() puts a fresh one in.
         self.last_phys = self.last_inj = 0.0
         self._hook = None
-        self.keys_source = lambda: []   # (linux branch, #235) the app's keybinds, for Hyprland's pass-through binds
-        self.sent_copy = 0.0            # (linux branch) when the app itself sent Ctrl+Alt+C (price check / Top Up key)
 
     def note_esc(self, down, up, now=None):
         """2.25.0: Esc went down / up. Two fresh presses within DOUBLE_TAP = a double tap (esc_double); a held key's
@@ -193,41 +192,46 @@ class KeyWatch:
             except Exception:
                 buglog.caught()
 
+    def feed(self, vk, down, up):
+        """One key event from YOUR keyboard (vk: Windows' key code) -> True when one of the app's own hotkeys used it
+        (Windows then keeps it from the game; Linux can't - its key watchers only listen). Windows' hook and the Linux
+        key watchers (linkeys.py) both come here."""
+        self.last_phys = time.time()
+        if vk in (0xA2, 0xA3, 0x11):
+            self.ctrl = down or (self.ctrl and not up)
+        elif vk in (0xA4, 0xA5, 0x12):
+            self.alt = down or (self.alt and not up)
+        elif vk in (0xA0, 0xA1, 0x10):
+            self.shift = down or (self.shift and not up)
+        elif vk == 0x43 and down and self.ctrl and self.alt:
+            self.combo_time = time.time()
+        elif vk == 0x43 and down and self.ctrl and not self.shift:
+            self.copy_time = time.time()
+        if vk == 0x1B:                                   # Esc: never swallowed, only timed
+            self.note_esc(down, up)
+        if up and self.up_listener:
+            try:
+                self.up_listener(vk)
+            except Exception:
+                buglog.caught()
+        if up and vk in self._swallowed:            # the release of a key we acted on
+            self._swallowed.discard(vk)
+            return True
+        if down and self.listener and vk not in (0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0x10, 0x11, 0x12):
+            if self.listener(vk, self.ctrl, self.alt, self.shift):
+                self._swallowed.add(vk)
+                return True
+        return False
+
     def start(self):
         if sys.platform == "win32":
             threading.Thread(target=self._run, daemon=True).start()
-        elif sys.platform.startswith("linux"):
-            from .linsys import hypr_socket
-            if hypr_socket() or os.environ.get("SOE2_LINUX_KEYS"):     # (linux branch, #235: Hyprland only)
-                from .linkeys import LinuxKeys
-                self._linux = LinuxKeys(self.on_line, self.keys_source)
-                self._linux.start()
-
-    def on_line(self, line, now=None):
-        """(linux branch, #235 - Tylo's fix) One key from Hyprland's pass-through bind ("ctrl+d"): handled like the
-        Windows hook's key - the same times, the same listener. The game gets the key as well (non-consuming)."""
-        from .linkeys import line_key
-        k = line_key(line)
-        if not k:
-            return False
-        now = time.time() if now is None else now
-        vk, ctrl, alt, shift = k
-        self.active, self.last_phys = True, now
-        if vk == 0x43 and ctrl and alt:
-            if now - self.sent_copy < 1.5:             # the app's own Ctrl+Alt+C (a price check): not Bulk Pricing
-                return False
-            self.combo_time = now
-        elif vk == 0x43 and ctrl and not shift:
-            self.copy_time = now
-        if vk == 0x1B:
-            self.note_esc(True, False, now)
-            self.note_esc(False, True, now)
-        if self.listener:
+        elif sys.platform.startswith("linux"):         # X11 / XWayland key watcher + the desktop-shortcut socket
             try:
-                return bool(self.listener(vk, ctrl, alt, shift))
-            except Exception:
-                buglog.caught()
-        return False
+                from . import linkeys
+                linkeys.start(self)
+            except Exception as e:
+                self.err = str(e) or e.__class__.__name__
 
     def hook_stale(self, secs=3.0):
         """2.88.2: a copy just came from the game, yet the hook saw no key at all for `secs` - Windows dropped it."""
@@ -277,32 +281,10 @@ class KeyWatch:
                 try:
                     if n >= 0:
                         k = ctypes.cast(l, ctypes.POINTER(KBD)).contents
-                        if k.flags & 0x10:
+                        if k.flags & 0x10:                          # 0x10 = injected by a program, not your keyboard
                             self.last_inj = time.time()
-                        else:
-                            self.last_phys = time.time()
-                        if not (k.flags & 0x10):                    # 0x10 = injected by a program, not your keyboard
-                            down, up = w in (0x100, 0x104), w in (0x101, 0x105)
-                            vk = k.vkCode
-                            if vk in (0xA2, 0xA3, 0x11):
-                                self.ctrl = down or (self.ctrl and not up)
-                            elif vk in (0xA4, 0xA5, 0x12):
-                                self.alt = down or (self.alt and not up)
-                            elif vk in (0xA0, 0xA1, 0x10):
-                                self.shift = down or (self.shift and not up)
-                            elif vk == 0x43 and down and self.ctrl and self.alt:
-                                self.combo_time = time.time()
-                            elif vk == 0x43 and down and self.ctrl and not self.shift:
-                                self.copy_time = time.time()
-                            if vk == 0x1B:                                   # Esc: never swallowed, only timed
-                                self.note_esc(down, up)
-                            if up and vk in self._swallowed:            # the release of a key we acted on
-                                self._swallowed.discard(vk)
-                                return 1
-                            if down and self.listener and vk not in (0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0x10, 0x11, 0x12):
-                                if self.listener(vk, self.ctrl, self.alt, self.shift):
-                                    self._swallowed.add(vk)
-                                    return 1                            # the key did something: the game doesn't get it
+                        elif self.feed(k.vkCode, w in (0x100, 0x104), w in (0x101, 0x105)):
+                            return 1                                # the key did something: the game doesn't get it
                 except Exception:
                     buglog.caught()
                 return user32.CallNextHookEx(None, n, w, l)
@@ -325,6 +307,8 @@ class KeyWatch:
                         if not (m.flags & 0x01):                    # 0x01 = injected by a program
                             vk = 0x04 if w in (0x207, 0x208) else (0x05 if (m.mouseData >> 16) == 1 else 0x06)
                             if w in (0x208, 0x20C):
+                                if self.up_listener:
+                                    self.up_listener(vk)
                                 if vk in self._swallowed:
                                     self._swallowed.discard(vk)
                                     return 1
@@ -367,10 +351,16 @@ class Tray:
     def __init__(self, post):
         self.post, self.icon, self.available = post, None, False
         try:
+            if sys.platform.startswith("linux") and getattr(sys, "frozen", False):
+                import os                                # the Linux build bundles pystray's X11 tray only
+                os.environ.setdefault("PYSTRAY_BACKEND", "xorg")
             import pystray
             self.pystray = pystray
             self.image = app_icon_image()
             self.available = self.image is not None
+            if self.available and sys.platform.startswith("linux") and "xorg" in pystray.Icon.__module__:
+                from .linsys import x_systray            # Linux: only when a tray is there to show the icon in
+                self.available = x_systray()
         except Exception:
             self.available = False
 

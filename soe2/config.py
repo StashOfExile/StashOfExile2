@@ -30,6 +30,7 @@ def pretty_version(v=None):
 
 TAGLINE = "One tool to rule them all."          # 2.73.2
 APP_TITLE = f"StashOfExile2 v{pretty_version()}  -  {TAGLINE}"
+UI_OVERHAUL = False       # True only in a local test build: no error reports (3.0.0: the release has them, opt-in)
 
 
 APP_DIR = os.path.dirname(sys.executable if getattr(sys, "frozen", False)     # the folder with the exe / launcher:
@@ -149,7 +150,7 @@ import_old_data()
 # ---- bundled reference data (1.37): tabs.txt and jewels.txt come inside the app. A newer copy in a new version
 # replaces the one in the data folder (the old one is kept as a .bak); your own files (settings, rules, lists) are
 # never touched. Bump a number here when you ship a changed file.
-BUNDLED_DATA = {"tabs.txt": 2, "jewels.txt": 2, "gamedata.json": 1, "regexdata.json": 2, "default_rules.json": 3, "searchdata.json": 1, "anointdata.json": 1, "cxnames.json": 1}   # gamedata 1.38, regexdata 1.44
+BUNDLED_DATA = {"tabs.txt": 2, "jewels.txt": 2, "gamedata.json": 1, "regexdata.json": 2, "default_rules.json": 4, "searchdata.json": 1, "anointdata.json": 1, "cxnames.json": 1}   # gamedata 1.38, regexdata 1.44
 DATA_UPDATED = []
 
 
@@ -183,7 +184,7 @@ BASE = os.environ.get("SOE2_TRADE_API") or "https://www.pathofexile.com/api/trad
 
 # 2.92.0: every request says honestly which app is asking and where to find it (GGG asks apps to identify themselves);
 # no name, account or email of the user
-APP_UA = f"StashOfExile2/{APP_VERSION} (+https://github.com/tiwomm/StashOfExile2)"
+APP_UA = f"StashOfExile2/{APP_VERSION} (contact: stashofexile@gmail.com)"
 HEADERS = {"User-Agent": APP_UA, "Content-Type": "application/json"}
 
 
@@ -204,6 +205,7 @@ DEFAULTS = {
     "pc_popup": False,     # 2.113.0: ...or shows it in a card over the game instead (pcpop.py)
     "pc_both": False,      # 2.123.2: ...and the app shows it too (Here | Overlay | Both)
     "pc_close_key": "Esc",  # 2.121.1: closes that card (only while it's open and the game is in front)
+    "drawer_key": "Ctrl+Shift+Space",   # drawer build: shows the app and puts it away (SETTINGS["drawer"]: drawer.py)
     "pc_art": True,        # ...with the items' pictures from the trade site's image server
     "memory_hours": 24,
     "market_league": "",        # the league market.db's current data belongs to (1.23)
