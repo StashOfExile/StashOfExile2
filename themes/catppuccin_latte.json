@@ -1,0 +1,254 @@
+{
+ "schema": 1,
+ "id": "catppuccin_latte",
+ "name": "Catppuccin Latte",
+ "order": 14,
+ "extends": "frost",
+ "light": true,
+ "description": "Catppuccin's light flavor: pale gray paper, slate text, mauve (Catppuccin, MIT).",
+ "colors": {
+  "chassis": "#dce0e8",
+  "surface": "#eff1f5",
+  "surface_raised": "#f5f6f9",
+  "surface_sunken": "#fafbfc",
+  "surface_high": "#e6e9ef",
+  "border": "#ccd0da",
+  "border_light": "#fafbfc",
+  "border_dark": "#acb0be",
+  "shadow": "#bcc0cc",
+  "text": "#4c4f69",
+  "text_muted": "#5c5f77",
+  "text_strong": "#4c4f69",
+  "text_disabled": "#9ca0b0",
+  "accent": "#7d34dc",
+  "accent_2": "#1a58d3",
+  "selection": "#ccd0da",
+  "selection_text": "#4c4f69",
+  "hover": "#e6e9ef",
+  "stripe": "#f2f4f7",
+  "good": "#2c6e1e",
+  "warn": "#865511",
+  "bad": "#c10e34",
+  "money": "#865511",
+  "link": "#1a58d3",
+  "purple": "#8f487c",
+  "orange": "#a54107",
+  "magic": "#2a3db0",
+  "rare": "#735900"
+ },
+ "fonts": {
+  "head": [
+   "Segoe UI Semibold",
+   "Segoe UI",
+   "DejaVu Sans"
+  ],
+  "num": [
+   "Consolas",
+   "Segoe UI",
+   "DejaVu Sans Mono"
+  ]
+ },
+ "bars": {
+  "title": {
+   "fill": [
+    [
+     0,
+     "#dce0e8"
+    ],
+    [
+     1,
+     "#d7dbe4"
+    ]
+   ],
+   "top": "#eff1f5",
+   "bottom": "#acb0be",
+   "text": "#4c4f69",
+   "texture": "none"
+  },
+  "title_off": {
+   "fill": [
+    [
+     0,
+     "#e6e9ef"
+    ],
+    [
+     1,
+     "#dce0e8"
+    ]
+   ],
+   "top": "#eff1f5",
+   "bottom": "#ccd0da",
+   "text": "text_muted",
+   "texture": "none"
+  },
+  "section": {
+   "fill": [
+    [
+     0,
+     "#e6e9ef"
+    ],
+    [
+     1,
+     "#dce0e8"
+    ]
+   ],
+   "top": "#eff1f5",
+   "bottom": "#ccd0da",
+   "text": "#1a58d3",
+   "texture": "none"
+  }
+ },
+ "buttons": {
+  "normal": {
+   "fill": [
+    [
+     0,
+     "#f5f6f9"
+    ],
+    [
+     1,
+     "#dce0e8"
+    ]
+   ],
+   "hover": [
+    [
+     0,
+     "#fafbfc"
+    ],
+    [
+     1,
+     "#e6e9ef"
+    ]
+   ],
+   "pressed": [
+    [
+     0,
+     "#ccd0da"
+    ],
+    [
+     1,
+     "#dce0e8"
+    ]
+   ],
+   "border": "#acb0be",
+   "hover_border": "#7d34dc",
+   "inner": "#fafbfc",
+   "radius": 2,
+   "text": "text",
+   "text_hover": "text_strong"
+  },
+  "primary": {
+   "fill": [
+    [
+     0,
+     "#8e50df"
+    ],
+    [
+     1,
+     "#7c33da"
+    ]
+   ],
+   "hover": [
+    [
+     0,
+     "#9960e2"
+    ],
+    [
+     1,
+     "#843fdc"
+    ]
+   ],
+   "pressed": [
+    [
+     0,
+     "#662ab3"
+    ],
+    [
+     1,
+     "#7c33da"
+    ]
+   ],
+   "border": "#572499",
+   "hover_border": "#572499",
+   "inner": "#b085e9",
+   "radius": 2,
+   "text": "#fafbfc",
+   "text_hover": "#fafbfc"
+  },
+  "heading": {
+   "fill": [
+    [
+     0,
+     "#e6e9ef"
+    ],
+    [
+     1,
+     "#dce0e8"
+    ]
+   ],
+   "hover": [
+    [
+     0,
+     "#f5f6f9"
+    ],
+    [
+     1,
+     "#e6e9ef"
+    ]
+   ],
+   "pressed": [
+    [
+     0,
+     "#dce0e8"
+    ],
+    [
+     1,
+     "#e6e9ef"
+    ]
+   ],
+   "border": "#ccd0da",
+   "hover_border": "#ccd0da",
+   "inner": "#fafbfc",
+   "radius": 0,
+   "text": "#5c5f77",
+   "text_hover": "accent"
+  }
+ },
+ "card": {
+  "header": "plate",
+  "border": "#acb0be",
+  "sep": "#ccd0da"
+ },
+ "meter": {
+  "style": "bar",
+  "on": "#2c6e1e",
+  "off": "#dce0e8",
+  "lcd_bg": "#fafbfc"
+ },
+ "nav": {
+  "bg": "#e6e9ef",
+  "marker": "pill",
+  "marker_color": "accent",
+  "sel_bg": "#dce0e8",
+  "sel_border": "#acb0be",
+  "hover_bg": "#f5f6f9",
+  "hover_border": "#ccd0da",
+  "text": "text",
+  "sel_text": "#4c4f69",
+  "group": "#5c5f77"
+ },
+ "panels": {
+  "viewport": {
+   "edges": [
+    [
+     "#acb0be",
+     "#ccd0da"
+    ],
+    [
+     "#e6e9ef",
+     "#fafbfc"
+    ]
+   ]
+  }
+ }
+}

@@ -1,0 +1,246 @@
+{
+ "schema": 1,
+ "id": "tokyonight",
+ "name": "Tokyo Night",
+ "order": 17,
+ "extends": "daybreak",
+ "description": "Downtown Tokyo's lights at night: ink-blue dark, soft blue-white text, blue (Tokyo Night by enkia, MIT).",
+ "colors": {
+  "chassis": "#16161e",
+  "surface": "#1a1b26",
+  "surface_raised": "#24283b",
+  "surface_sunken": "#16161e",
+  "surface_high": "#2f334d",
+  "border": "#24283b",
+  "border_light": "#414868",
+  "border_dark": "#101014",
+  "shadow": "#000000",
+  "text": "#c0caf5",
+  "text_muted": "#9aa5ce",
+  "text_strong": "#c0caf5",
+  "text_disabled": "#565f89",
+  "accent": "#7aa2f7",
+  "accent_2": "#7dcfff",
+  "selection": "#2e3c64",
+  "selection_text": "#c0caf5",
+  "hover": "#2f334d",
+  "stripe": "#181922",
+  "good": "#9ece6a",
+  "warn": "#e0af68",
+  "bad": "#f7768e",
+  "money": "#e0af68",
+  "link": "#7aa2f7",
+  "purple": "#bb9af7",
+  "orange": "#ff9e64"
+ },
+ "fonts": {
+  "head": [
+   "Segoe UI Semibold",
+   "Segoe UI",
+   "DejaVu Sans"
+  ],
+  "num": [
+   "Consolas",
+   "Segoe UI",
+   "DejaVu Sans Mono"
+  ]
+ },
+ "bars": {
+  "title": {
+   "fill": [
+    [
+     0,
+     "#2f334d"
+    ],
+    [
+     1,
+     "#24283b"
+    ]
+   ],
+   "top": "#414868",
+   "bottom": "#16161e",
+   "text": "#c0caf5",
+   "texture": "none"
+  },
+  "title_off": {
+   "fill": [
+    [
+     0,
+     "#24283b"
+    ],
+    [
+     1,
+     "#1a1b26"
+    ]
+   ],
+   "top": "#24283b",
+   "bottom": "#16161e",
+   "text": "text_muted",
+   "texture": "none"
+  },
+  "section": {
+   "fill": [
+    [
+     0,
+     "#24283b"
+    ],
+    [
+     1,
+     "#1a1b26"
+    ]
+   ],
+   "top": "#24283b",
+   "bottom": "#16161e",
+   "text": "#7dcfff",
+   "texture": "none"
+  }
+ },
+ "buttons": {
+  "normal": {
+   "fill": [
+    [
+     0,
+     "#4e5576"
+    ],
+    [
+     1,
+     "#414868"
+    ]
+   ],
+   "hover": [
+    [
+     0,
+     "#585f81"
+    ],
+    [
+     1,
+     "#4b5273"
+    ]
+   ],
+   "pressed": [
+    [
+     0,
+     "#24283b"
+    ],
+    [
+     1,
+     "#414868"
+    ]
+   ],
+   "border": "#101014",
+   "hover_border": "#7aa2f7",
+   "inner": "#5a6284",
+   "radius": 2,
+   "text": "text",
+   "text_hover": "text_strong"
+  },
+  "primary": {
+   "fill": [
+    [
+     0,
+     "#85a9f8"
+    ],
+    [
+     1,
+     "#6b8fd9"
+    ]
+   ],
+   "hover": [
+    [
+     0,
+     "#95b5f9"
+    ],
+    [
+     1,
+     "#7fa6f7"
+    ]
+   ],
+   "pressed": [
+    [
+     0,
+     "#5571ad"
+    ],
+    [
+     1,
+     "#6b8fd9"
+    ]
+   ],
+   "border": "#101014",
+   "hover_border": "#101014",
+   "inner": "#a9c3fa",
+   "radius": 2,
+   "text": "#16161e",
+   "text_hover": "#16161e"
+  },
+  "heading": {
+   "fill": [
+    [
+     0,
+     "#24283b"
+    ],
+    [
+     1,
+     "#1a1b26"
+    ]
+   ],
+   "hover": [
+    [
+     0,
+     "#2f334d"
+    ],
+    [
+     1,
+     "#24283b"
+    ]
+   ],
+   "pressed": [
+    [
+     0,
+     "#1a1b26"
+    ],
+    [
+     1,
+     "#2f334d"
+    ]
+   ],
+   "border": "#101014",
+   "hover_border": "#101014",
+   "inner": "#2f334d",
+   "radius": 0,
+   "text": "#c0caf5",
+   "text_hover": "accent"
+  }
+ },
+ "card": {
+  "header": "plate",
+  "border": "#414868",
+  "sep": "#24283b"
+ },
+ "meter": {
+  "style": "bar",
+  "on": "#9ece6a",
+  "off": "#2f334d",
+  "lcd_bg": "#16161e"
+ },
+ "nav": {
+  "bg": "surface_raised",
+  "marker": "pill",
+  "marker_color": "accent",
+  "sel_bg": "#2e3c64",
+  "hover_bg": "#2f334d",
+  "text": "text",
+  "sel_text": "#c0caf5",
+  "group": "#9aa5ce",
+  "texture": "none"
+ },
+ "panels": {
+  "viewport": {
+   "edges": [
+    [
+     "#101014",
+     "#24283b"
+    ]
+   ]
+  }
+ }
+}

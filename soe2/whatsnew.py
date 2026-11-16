@@ -44,6 +44,16 @@ BETA_AREAS = ("Wealth", "Money Makers", "Game Search", "Market Insights", "Craft
 # repeats. Someone coming from rollup["since"] or older (or a fresh install) sees it instead of each version; someone
 # on a pre-release already saw them and gets only this version's own lines (notes_between).
 NOTES = {
+    # 3.0.2 (owner): eleven editor color schemes as themes; the new Discord invite.
+    "3.0.2": {
+        "big": [
+            ("🎨", "New themes", "New themes: Catppuccin, Nord, Dracula, Tokyo Night, Rosé Pine, Everforest, Kanagawa, "
+             "Solarized.", ("Open Appearance", "settings:Appearance"), "Settings"),
+        ],
+        "small": [
+            ("App", "New Discord invite link."),
+        ],
+    },
     # 3.0.1 (owner feedback on 3.0.0): the Look key is the Read Key; What's new scrolls over its cards; the price check
     # overlay's Min / Max boxes take typing.
     "3.0.1": {
