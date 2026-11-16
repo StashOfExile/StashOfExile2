@@ -24,8 +24,8 @@ import soe2                                                    # noqa: E402
 
 class Version(unittest.TestCase):
     def test_version(self):
-        self.assertEqual(soe2.__version__, "3.0.1")                 # (3.0.1: the Read Key, What's new scrolling,
-        self.assertEqual(config.APP_VERSION, "3.0.1")               #  the overlay's Min / Max typing)
+        self.assertEqual(soe2.__version__, config.APP_VERSION)      # 3.x from now on (3.0.2: no fixed number here)
+        self.assertGreaterEqual(tuple(int(x) for x in config.APP_VERSION.split(".")[:3]), (3, 0, 0))
         self.assertNotIn("TEST BUILD", config.APP_TITLE)
         self.assertTrue(config.APP_TITLE.endswith(config.TAGLINE))
         self.assertFalse(config.UI_OVERHAUL)

@@ -1,0 +1,246 @@
+{
+ "schema": 1,
+ "id": "kanagawa",
+ "name": "Kanagawa",
+ "order": 21,
+ "extends": "daybreak",
+ "description": "After Hokusai's Great Wave: sumi-ink dark, old-paper text, wave blue and carp yellow (Kanagawa by rebelot, MIT).",
+ "colors": {
+  "chassis": "#16161d",
+  "surface": "#1f1f28",
+  "surface_raised": "#2a2a37",
+  "surface_sunken": "#181820",
+  "surface_high": "#363646",
+  "border": "#363646",
+  "border_light": "#54546d",
+  "border_dark": "#121218",
+  "shadow": "#000000",
+  "text": "#dcd7ba",
+  "text_muted": "#95948e",
+  "text_strong": "#dcd7ba",
+  "text_disabled": "#54546d",
+  "accent": "#7e9cd8",
+  "accent_2": "#7fb4ca",
+  "selection": "#2d4f67",
+  "selection_text": "#dcd7ba",
+  "hover": "#363646",
+  "stripe": "#1a1a22",
+  "good": "#98bb6c",
+  "warn": "#ff9e3b",
+  "bad": "#e5707d",
+  "money": "#e6c384",
+  "link": "#7fb4ca",
+  "purple": "#9f8bbe",
+  "orange": "#ffa066"
+ },
+ "fonts": {
+  "head": [
+   "Segoe UI Semibold",
+   "Segoe UI",
+   "DejaVu Sans"
+  ],
+  "num": [
+   "Consolas",
+   "Segoe UI",
+   "DejaVu Sans Mono"
+  ]
+ },
+ "bars": {
+  "title": {
+   "fill": [
+    [
+     0,
+     "#363646"
+    ],
+    [
+     1,
+     "#2a2a37"
+    ]
+   ],
+   "top": "#54546d",
+   "bottom": "#16161d",
+   "text": "#dcd7ba",
+   "texture": "none"
+  },
+  "title_off": {
+   "fill": [
+    [
+     0,
+     "#2a2a37"
+    ],
+    [
+     1,
+     "#1f1f28"
+    ]
+   ],
+   "top": "#363646",
+   "bottom": "#16161d",
+   "text": "text_muted",
+   "texture": "none"
+  },
+  "section": {
+   "fill": [
+    [
+     0,
+     "#2a2a37"
+    ],
+    [
+     1,
+     "#1f1f28"
+    ]
+   ],
+   "top": "#363646",
+   "bottom": "#16161d",
+   "text": "#e6c384",
+   "texture": "none"
+  }
+ },
+ "buttons": {
+  "normal": {
+   "fill": [
+    [
+     0,
+     "#474652"
+    ],
+    [
+     1,
+     "#363646"
+    ]
+   ],
+   "hover": [
+    [
+     0,
+     "#54535b"
+    ],
+    [
+     1,
+     "#43434f"
+    ]
+   ],
+   "pressed": [
+    [
+     0,
+     "#2a2a37"
+    ],
+    [
+     1,
+     "#363646"
+    ]
+   ],
+   "border": "#121218",
+   "hover_border": "#7e9cd8",
+   "inner": "#57565d",
+   "radius": 2,
+   "text": "text",
+   "text_hover": "text_strong"
+  },
+  "primary": {
+   "fill": [
+    [
+     0,
+     "#88a4db"
+    ],
+    [
+     1,
+     "#6f89be"
+    ]
+   ],
+   "hover": [
+    [
+     0,
+     "#98b0e0"
+    ],
+    [
+     1,
+     "#83a0da"
+    ]
+   ],
+   "pressed": [
+    [
+     0,
+     "#586d97"
+    ],
+    [
+     1,
+     "#6f89be"
+    ]
+   ],
+   "border": "#121218",
+   "hover_border": "#121218",
+   "inner": "#abbfe6",
+   "radius": 2,
+   "text": "#16161d",
+   "text_hover": "#16161d"
+  },
+  "heading": {
+   "fill": [
+    [
+     0,
+     "#2a2a37"
+    ],
+    [
+     1,
+     "#1f1f28"
+    ]
+   ],
+   "hover": [
+    [
+     0,
+     "#363646"
+    ],
+    [
+     1,
+     "#2a2a37"
+    ]
+   ],
+   "pressed": [
+    [
+     0,
+     "#1f1f28"
+    ],
+    [
+     1,
+     "#363646"
+    ]
+   ],
+   "border": "#121218",
+   "hover_border": "#121218",
+   "inner": "#363646",
+   "radius": 0,
+   "text": "#dcd7ba",
+   "text_hover": "accent"
+  }
+ },
+ "card": {
+  "header": "plate",
+  "border": "#54546d",
+  "sep": "#363646"
+ },
+ "meter": {
+  "style": "bar",
+  "on": "#98bb6c",
+  "off": "#363646",
+  "lcd_bg": "#181820"
+ },
+ "nav": {
+  "bg": "surface_raised",
+  "marker": "pill",
+  "marker_color": "accent",
+  "sel_bg": "#2d4f67",
+  "hover_bg": "#363646",
+  "text": "text",
+  "sel_text": "#dcd7ba",
+  "group": "#95948e",
+  "texture": "none"
+ },
+ "panels": {
+  "viewport": {
+   "edges": [
+    [
+     "#121218",
+     "#363646"
+    ]
+   ]
+  }
+ }
+}

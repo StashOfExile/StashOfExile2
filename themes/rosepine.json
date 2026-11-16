@@ -1,0 +1,246 @@
+{
+ "schema": 1,
+ "id": "rosepine",
+ "name": "Rosé Pine",
+ "order": 18,
+ "extends": "daybreak",
+ "description": "All natural pine, faux fur and a bit of soho vibes: violet night, rose and iris (Rosé Pine, MIT).",
+ "colors": {
+  "chassis": "#13111c",
+  "surface": "#191724",
+  "surface_raised": "#1f1d2e",
+  "surface_sunken": "#13111c",
+  "surface_high": "#26233a",
+  "border": "#26233a",
+  "border_light": "#403d52",
+  "border_dark": "#0e0d15",
+  "shadow": "#000000",
+  "text": "#e0def4",
+  "text_muted": "#908caa",
+  "text_strong": "#e0def4",
+  "text_disabled": "#6e6a86",
+  "accent": "#ebbcba",
+  "accent_2": "#c4a7e7",
+  "selection": "#403d52",
+  "selection_text": "#e0def4",
+  "hover": "#26233a",
+  "stripe": "#161420",
+  "good": "#9ccfd8",
+  "warn": "#f6c177",
+  "bad": "#eb6f92",
+  "money": "#f6c177",
+  "link": "#9ccfd8",
+  "purple": "#c4a7e7",
+  "orange": "#f6c177"
+ },
+ "fonts": {
+  "head": [
+   "Segoe UI Semibold",
+   "Segoe UI",
+   "DejaVu Sans"
+  ],
+  "num": [
+   "Consolas",
+   "Segoe UI",
+   "DejaVu Sans Mono"
+  ]
+ },
+ "bars": {
+  "title": {
+   "fill": [
+    [
+     0,
+     "#26233a"
+    ],
+    [
+     1,
+     "#1f1d2e"
+    ]
+   ],
+   "top": "#403d52",
+   "bottom": "#13111c",
+   "text": "#e0def4",
+   "texture": "none"
+  },
+  "title_off": {
+   "fill": [
+    [
+     0,
+     "#1f1d2e"
+    ],
+    [
+     1,
+     "#191724"
+    ]
+   ],
+   "top": "#26233a",
+   "bottom": "#13111c",
+   "text": "text_muted",
+   "texture": "none"
+  },
+  "section": {
+   "fill": [
+    [
+     0,
+     "#1f1d2e"
+    ],
+    [
+     1,
+     "#191724"
+    ]
+   ],
+   "top": "#26233a",
+   "bottom": "#13111c",
+   "text": "#c4a7e7",
+   "texture": "none"
+  }
+ },
+ "buttons": {
+  "normal": {
+   "fill": [
+    [
+     0,
+     "#504d62"
+    ],
+    [
+     1,
+     "#403d52"
+    ]
+   ],
+   "hover": [
+    [
+     0,
+     "#5d5a6f"
+    ],
+    [
+     1,
+     "#4d4a5f"
+    ]
+   ],
+   "pressed": [
+    [
+     0,
+     "#1f1d2e"
+    ],
+    [
+     1,
+     "#403d52"
+    ]
+   ],
+   "border": "#0e0d15",
+   "hover_border": "#ebbcba",
+   "inner": "#605d72",
+   "radius": 2,
+   "text": "text",
+   "text_hover": "text_strong"
+  },
+  "primary": {
+   "fill": [
+    [
+     0,
+     "#edc1c0"
+    ],
+    [
+     1,
+     "#cfa5a4"
+    ]
+   ],
+   "hover": [
+    [
+     0,
+     "#efc9c8"
+    ],
+    [
+     1,
+     "#ecbfbd"
+    ]
+   ],
+   "pressed": [
+    [
+     0,
+     "#a48482"
+    ],
+    [
+     1,
+     "#cfa5a4"
+    ]
+   ],
+   "border": "#0e0d15",
+   "hover_border": "#0e0d15",
+   "inner": "#f2d3d2",
+   "radius": 2,
+   "text": "#13111c",
+   "text_hover": "#13111c"
+  },
+  "heading": {
+   "fill": [
+    [
+     0,
+     "#1f1d2e"
+    ],
+    [
+     1,
+     "#191724"
+    ]
+   ],
+   "hover": [
+    [
+     0,
+     "#26233a"
+    ],
+    [
+     1,
+     "#1f1d2e"
+    ]
+   ],
+   "pressed": [
+    [
+     0,
+     "#191724"
+    ],
+    [
+     1,
+     "#26233a"
+    ]
+   ],
+   "border": "#0e0d15",
+   "hover_border": "#0e0d15",
+   "inner": "#26233a",
+   "radius": 0,
+   "text": "#e0def4",
+   "text_hover": "accent"
+  }
+ },
+ "card": {
+  "header": "plate",
+  "border": "#403d52",
+  "sep": "#26233a"
+ },
+ "meter": {
+  "style": "bar",
+  "on": "#9ccfd8",
+  "off": "#26233a",
+  "lcd_bg": "#13111c"
+ },
+ "nav": {
+  "bg": "surface_raised",
+  "marker": "pill",
+  "marker_color": "accent",
+  "sel_bg": "#403d52",
+  "hover_bg": "#26233a",
+  "text": "text",
+  "sel_text": "#e0def4",
+  "group": "#908caa",
+  "texture": "none"
+ },
+ "panels": {
+  "viewport": {
+   "edges": [
+    [
+     "#0e0d15",
+     "#26233a"
+    ]
+   ]
+  }
+ }
+}

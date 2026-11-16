@@ -1,0 +1,246 @@
+{
+ "schema": 1,
+ "id": "everforest",
+ "name": "Everforest Dark",
+ "order": 20,
+ "extends": "daybreak",
+ "description": "A green forest scheme, easy on the eyes: gray-green dark, warm sand text, leaf green (Everforest by sainnhe, MIT).",
+ "colors": {
+  "chassis": "#1e2326",
+  "surface": "#272e33",
+  "surface_raised": "#2e383c",
+  "surface_sunken": "#1e2326",
+  "surface_high": "#374145",
+  "border": "#374145",
+  "border_light": "#414b50",
+  "border_dark": "#171b1d",
+  "shadow": "#000000",
+  "text": "#d3c6aa",
+  "text_muted": "#9da9a0",
+  "text_strong": "#d3c6aa",
+  "text_disabled": "#7a8478",
+  "accent": "#a7c080",
+  "accent_2": "#83c092",
+  "selection": "#4c3743",
+  "selection_text": "#d3c6aa",
+  "hover": "#374145",
+  "stripe": "#22282c",
+  "good": "#a7c080",
+  "warn": "#dbbc7f",
+  "bad": "#e88688",
+  "money": "#dbbc7f",
+  "link": "#7fbbb3",
+  "purple": "#d699b6",
+  "orange": "#e69875"
+ },
+ "fonts": {
+  "head": [
+   "Segoe UI Semibold",
+   "Segoe UI",
+   "DejaVu Sans"
+  ],
+  "num": [
+   "Consolas",
+   "Segoe UI",
+   "DejaVu Sans Mono"
+  ]
+ },
+ "bars": {
+  "title": {
+   "fill": [
+    [
+     0,
+     "#374145"
+    ],
+    [
+     1,
+     "#2e383c"
+    ]
+   ],
+   "top": "#414b50",
+   "bottom": "#1e2326",
+   "text": "#d3c6aa",
+   "texture": "none"
+  },
+  "title_off": {
+   "fill": [
+    [
+     0,
+     "#2e383c"
+    ],
+    [
+     1,
+     "#272e33"
+    ]
+   ],
+   "top": "#374145",
+   "bottom": "#1e2326",
+   "text": "text_muted",
+   "texture": "none"
+  },
+  "section": {
+   "fill": [
+    [
+     0,
+     "#2e383c"
+    ],
+    [
+     1,
+     "#272e33"
+    ]
+   ],
+   "top": "#374145",
+   "bottom": "#1e2326",
+   "text": "#dbbc7f",
+   "texture": "none"
+  }
+ },
+ "buttons": {
+  "normal": {
+   "fill": [
+    [
+     0,
+     "#505759"
+    ],
+    [
+     1,
+     "#414b50"
+    ]
+   ],
+   "hover": [
+    [
+     0,
+     "#5b6160"
+    ],
+    [
+     1,
+     "#4d5557"
+    ]
+   ],
+   "pressed": [
+    [
+     0,
+     "#2e383c"
+    ],
+    [
+     1,
+     "#414b50"
+    ]
+   ],
+   "border": "#171b1d",
+   "hover_border": "#a7c080",
+   "inner": "#5e6462",
+   "radius": 2,
+   "text": "text",
+   "text_hover": "text_strong"
+  },
+  "primary": {
+   "fill": [
+    [
+     0,
+     "#aec58a"
+    ],
+    [
+     1,
+     "#93a971"
+    ]
+   ],
+   "hover": [
+    [
+     0,
+     "#b9cd99"
+    ],
+    [
+     1,
+     "#abc385"
+    ]
+   ],
+   "pressed": [
+    [
+     0,
+     "#75865a"
+    ],
+    [
+     1,
+     "#93a971"
+    ]
+   ],
+   "border": "#171b1d",
+   "hover_border": "#171b1d",
+   "inner": "#c6d6ac",
+   "radius": 2,
+   "text": "#1e2326",
+   "text_hover": "#1e2326"
+  },
+  "heading": {
+   "fill": [
+    [
+     0,
+     "#2e383c"
+    ],
+    [
+     1,
+     "#272e33"
+    ]
+   ],
+   "hover": [
+    [
+     0,
+     "#374145"
+    ],
+    [
+     1,
+     "#2e383c"
+    ]
+   ],
+   "pressed": [
+    [
+     0,
+     "#272e33"
+    ],
+    [
+     1,
+     "#374145"
+    ]
+   ],
+   "border": "#171b1d",
+   "hover_border": "#171b1d",
+   "inner": "#374145",
+   "radius": 0,
+   "text": "#d3c6aa",
+   "text_hover": "accent"
+  }
+ },
+ "card": {
+  "header": "plate",
+  "border": "#414b50",
+  "sep": "#374145"
+ },
+ "meter": {
+  "style": "bar",
+  "on": "#a7c080",
+  "off": "#374145",
+  "lcd_bg": "#1e2326"
+ },
+ "nav": {
+  "bg": "surface_raised",
+  "marker": "pill",
+  "marker_color": "accent",
+  "sel_bg": "#4c3743",
+  "hover_bg": "#374145",
+  "text": "text",
+  "sel_text": "#d3c6aa",
+  "group": "#9da9a0",
+  "texture": "none"
+ },
+ "panels": {
+  "viewport": {
+   "edges": [
+    [
+     "#171b1d",
+     "#374145"
+    ]
+   ]
+  }
+ }
+}

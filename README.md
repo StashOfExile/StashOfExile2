@@ -104,6 +104,14 @@ Thank you!
 - **[Path of Building PoE2](https://github.com/PathOfBuildingCommunity/PathOfBuilding-PoE2)**: the anoint recipes.
 - **[poe2pricer](https://github.com/saxe78/poe2pricer)** (saxe78): the idea for Favours prices (finding the Ritual window by a piece of its own art, its rewards by their pictures). Written from scratch here; none of its code is used.
 - **gruvbox** by Pavel Pertsev (morhetz), MIT: the colors of the Gruvbox Dark and Gruvbox Light themes ([github](https://github.com/morhetz/gruvbox)).
+- **Catppuccin** by the Catppuccin team, MIT: the colors of the Catppuccin Mocha and Catppuccin Latte themes ([github](https://github.com/catppuccin/catppuccin)).
+- **Nord** by Sven Greb (Arctic Ice Studio), MIT: the colors of the Nord theme ([github](https://github.com/nordtheme/nord)).
+- **Dracula** by Zeno Rocha and the Dracula Theme team, MIT: the colors of the Dracula theme ([github](https://github.com/dracula/dracula-theme)).
+- **Tokyo Night** by Enkia, MIT: the colors of the Tokyo Night theme ([github](https://github.com/enkia/tokyo-night-vscode-theme)).
+- **Rosé Pine** by the Rosé Pine team, MIT: the colors of the Rosé Pine and Rosé Pine Dawn themes ([github](https://github.com/rose-pine/rose-pine-theme)).
+- **Everforest** by sainnhe, MIT: the colors of the Everforest Dark theme ([github](https://github.com/sainnhe/everforest)).
+- **Kanagawa** by Tommaso Laurenzi (rebelot), MIT: the colors of the Kanagawa theme ([github](https://github.com/rebelot/kanagawa.nvim)).
+- **Solarized** by Ethan Schoonover, MIT: the colors of the Solarized Dark and Solarized Light themes ([github](https://github.com/altercation/solarized)).
 - **NeverSink and Ryonnen** (reddit): the game's hidden setting that applies your item filter to the Ritual window (`apply_item_filter_to_ritual`), which Filter in the Ritual window walks you through ([NeverSink's video](https://www.youtube.com/watch?v=6hiQtcQhB3k)).
 - **[PoE Ancients Price Helper](https://github.com/pedro-quiterio/PoeAncientsPriceHelper)** (Pedro Quitério): the idea for the Expedition Remnant Price Checker. None of its code is used.
 - **[Path of Exile 2 Wiki](https://www.poe2wiki.net/wiki/Guide:Acts_quick_guide)** (poe2wiki.net editors): the Campaign Helper's Rush (carry) route follows the order and essentials of its Guide:Acts quick guide, rewritten here from the carrier's side.
