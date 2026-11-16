@@ -20,21 +20,17 @@ concurrency:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04          # system Python 3.12 + Tk 8.6.14: setup-python's Tk crashed under Xvfb on 22.04
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6
-        with:
-          python-version: "3.12"
-
       - name: Read the version
         id: ver
         run: |
-          APP=$(python -c "import re;print(re.search(r'APP_VERSION = \"([^\"]+)\"', open('stashofexile2.py', encoding='utf-8').read()).group(1))")
-          PKG=$(python -c "import re;print(re.search(r'__version__ = \"([^\"]+)\"', open('soe2/__init__.py', encoding='utf-8').read()).group(1))")
+          APP=$(python3 -c "import re;print(re.search(r'APP_VERSION = \"([^\"]+)\"', open('stashofexile2.py', encoding='utf-8').read()).group(1))")
+          PKG=$(python3 -c "import re;print(re.search(r'__version__ = \"([^\"]+)\"', open('soe2/__init__.py', encoding='utf-8').read()).group(1))")
           echo "launcher $APP, soe2 $PKG"
           if [ "$APP" != "$PKG" ]; then echo "::error::APP_VERSION $APP and __version__ $PKG differ"; exit 1; fi
           echo "version=$APP" >> "$GITHUB_OUTPUT"
@@ -42,9 +38,11 @@ jobs:
       - name: Install the system packages (Tk, Xvfb, the Linux helpers' tools)
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends tcl8.6 tk8.6 libxft2 fontconfig fonts-dejavu-core \
-            xvfb xauth xdotool xclip tesseract-ocr tesseract-ocr-eng
-          python -c "import tkinter; print('Tk', tkinter.TkVersion)"
+          sudo apt-get install -y --no-install-recommends python3.12 python3.12-venv python3.12-dev python3-tk \
+            tcl8.6 tk8.6 libxft2 fontconfig fonts-dejavu-core xvfb xauth xdotool xclip tesseract-ocr tesseract-ocr-eng
+          python3.12 -m venv --system-site-packages "$RUNNER_TEMP/venv"
+          echo "$RUNNER_TEMP/venv/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/venv/bin/python" -c "import tkinter; print('Tk', tkinter.Tcl().eval('info patchlevel'))"
           tesseract --version | head -1
 
       - name: Install the build tools
@@ -54,11 +52,10 @@ jobs:
         env:
           PYTHONUTF8: "1"
         run: |
-          ln -sf "$(command -v python)" "$RUNNER_TEMP/python3.12" && export PATH="$RUNNER_TEMP:$PATH"
           xvfb-run -a -s "-screen 0 1920x1200x24" bash tests/runall.sh
           for f in tools/check_*.py; do
             echo "== $f"
-            if [ "$f" = tools/check_ux.py ]; then        # it opens every page at once; ubuntu-22.04's Tk 8.6.12
+            if [ "$f" = tools/check_ux.py ]; then        # it opens every page at once; it has crashed a runner's Tk
               xvfb-run -a -s "-screen 0 1920x1200x24" python3.12 "$f" || \
                 echo "::warning::check_ux crashed on this runner's Tk (it passes on the Windows build and in dev)"
               continue
