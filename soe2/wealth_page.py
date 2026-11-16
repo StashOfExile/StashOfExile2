@@ -187,12 +187,8 @@ class WealthPage:
         se.bind("<FocusOut>", placeholder, add="+")
         self.w_filter.trace_add("write", placeholder)
         self.root.after(200, placeholder)
-        self.w_unpriced = tk.BooleanVar(value=False)
-        ttk.Checkbutton(ibar, text="No price found", variable=self.w_unpriced, style="Bar.TCheckbutton",
-                        command=self.wealth_fill_items).pack(side="left", padx=(12, 4))
-        self.w_combine = tk.BooleanVar(value=True)
-        ttk.Checkbutton(ibar, text="Combine stacks", variable=self.w_combine, style="Bar.TCheckbutton",
-                        command=self.wealth_fill_items).pack(side="left", padx=4)
+        # 3.0.4 (owner): no No price found / Combine stacks switches - stacks of one item are always one row, and an
+        # item with no price says so in its row
         self.w_filter_chip = tk.Label(ibar, text="", bg="#2c4a84", fg="#ffffff", padx=8, pady=2, cursor="hand2",
                                       font=("Segoe UI", 9, "bold"))
         self.w_filter_chip.bind("<Button-1>", lambda e: self.wealth_clear_filters())
@@ -876,9 +872,13 @@ class WealthPage:
                  self.wealth_show_unpriced)
 
     def wealth_show_unpriced(self):
-        self.w_unpriced.set(True)
+        """The items with no price found: selected in the list, the first one scrolled into view."""
         self.wealth_show_page("Overview")
-        self.wealth_fill_items()
+        rows = [iid for iid in self.w_items.get_children()
+                if (self.w_items.item(iid, "values") or ("",) * 4)[3] == "—"]
+        if rows:
+            self.w_items.selection_set(rows)
+            self.w_items.see(rows[0])
 
     def wealth_pc_tab(self):
         """(amount, currency) of the tab read in Price checks > Stash tab, if it isn't a Wealth tab yet."""
@@ -1353,31 +1353,27 @@ class WealthPage:
     def wealth_fill_items(self):
         rows = getattr(self, "w_rows", [])
         needle = self.w_filter.get().strip().lower()
-        only_unpriced = self.w_unpriced.get()
         shown = []
         for it, each, tot, src in rows:
-            if only_unpriced and each is not None:
-                continue
             if self.w_tabfilter is not None and it["stash"] != self.w_tabfilter:
                 continue
             name = wealth_display_name(it)
             if needle and needle not in name.lower() and not any(needle in m.lower() for m in it["mods"]):
                 continue
             shown.append([it, name, it["qty"], each, tot, src, 1, [it]])
-        if self.w_combine.get():
-            merged = {}
-            for r in shown:
-                it = r[0]
-                k = it["lid"] if it["frame"] in (1, 2) else (it["stash"], r[1], it["corrupted"], r[3])
-                if k in merged:
-                    m = merged[k]
-                    m[2] += r[2]
-                    m[4] = (m[4] or 0) + (r[4] or 0) if m[4] is not None else None
-                    m[6] += 1
-                    m[7] = m[7] + r[7]
-                else:
-                    merged[k] = list(r)
-            shown = list(merged.values())
+        merged = {}                                      # 3.0.4: stacks of one item are always one row
+        for r in shown:
+            it = r[0]
+            k = it["lid"] if it["frame"] in (1, 2) else (it["stash"], r[1], it["corrupted"], r[3])
+            if k in merged:
+                m = merged[k]
+                m[2] += r[2]
+                m[4] = (m[4] or 0) + (r[4] or 0) if m[4] is not None else None
+                m[6] += 1
+                m[7] = m[7] + r[7]
+            else:
+                merged[k] = list(r)
+        shown = list(merged.values())
         col = self.w_sort_col
         trend = {id(r): self._w_trend(r[0], r[4]) for r in shown}
         keyf = {"item": lambda r: r[1].lower(), "tab": lambda r: r[0]["stash"].lower(), "qty": lambda r: r[2],
@@ -1523,11 +1519,11 @@ class WealthPage:
             1 for _it, e, t, _s in getattr(self, "w_rows", []) if e is not None and self._w_trend(_it, t))
 
         def line(mark_word, value, tip, col):
-            f = tk.Frame(box, bg=C["odd"], padx=8, pady=8)
-            f.pack(fill="x", pady=(0, 8))
+            f = tk.Frame(box, bg=C["odd"], padx=8, pady=2)      # (compact: the price moves stay in view)
+            f.pack(fill="x", pady=(0, 4))
             a = tk.Label(f, text=mark_word, bg=C["odd"], fg=C["text"], font=("Segoe UI", 10), anchor="w")
             a.pack(side="left")
-            b = tk.Label(f, text=value, bg=C["odd"], fg=col, font=("Segoe UI", 16, "bold"), anchor="e")
+            b = tk.Label(f, text=value, bg=C["odd"], fg=col, font=("Segoe UI", 12, "bold"), anchor="e")
             b.pack(side="right")
             for x in (f, a, b):
                 Tooltip(x, tip)

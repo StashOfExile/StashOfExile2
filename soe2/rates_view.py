@@ -431,10 +431,13 @@ class RatesList(tk.Frame):
                 x += w + 6
             kc.configure(height=y + 30)
             W = max(self.cv.winfo_width(), 400)
-            cols = (56, W * 0.42, W * 0.60, W * 0.78)       # name, worth, 1 div buys, traded
+            cols = (56, W * 0.34, W * 0.48, W * 0.76, W * 0.64)   # name, worth, 1 div buys, traded; 7 days (3.0.4)
+            from .wealth import WPRICES
+            trends = getattr(WPRICES, "trend_by_slug", {}) if WPRICES.for_league() else {}
             hd = self.head
             hd.delete("all")
             for x0, label, anchor in ((cols[0], "Item", "w"), (cols[2] - 16, "1 is worth", "e"),
+                                      (cols[4] - 16, "7 days", "e"),
                                       (cols[3] - 16, "1 divine buys", "e"), (W - 8, "Traded (div)", "e")):
                 hd.create_text(x0, 14, text=label.upper(), anchor=anchor, font=("Segoe UI", 8, "bold"), fill=mut)
             cv = self.cv
@@ -472,6 +475,23 @@ class RatesList(tk.Frame):
                 cv.create_text(cols[0], cy, text=name, anchor="w", font=("Segoe UI", 10, "bold"),
                                fill=strong, width=cols[1] - cols[0])
                 cv.create_text(cols[2] - 16, cy, text=f"{fmt_worth(v)} div", anchor="e", font=("Segoe UI", 10), fill=txt)
+                tr = trends.get(str(cid).lower()) if cid != "divine" else (0.0, [0.0] * 7)
+                if tr:                                     # 3.0.4: the week in divines - a small line, then ▲/▼ and %
+                    pct, pts = tr
+                    good, bad = t.c("good", txt), t.c("bad", warn)
+                    col = good if pct > 0.05 else bad if pct < -0.05 else mut
+                    word = "• 0%" if abs(pct) < 0.05 else f"{'▲ +' if pct > 0 else '▼ −'}{abs(pct):.1f}%"
+                    cv.create_text(cols[4] - 16, cy, text=word, anchor="e", font=("Segoe UI", 10), fill=col)
+                    vals = [p for p in pts if p is not None]
+                    sx0, sx1 = cols[2] + 8, cols[4] - 86
+                    if len(vals) >= 2 and sx1 - sx0 > 30:
+                        lo, hi = min(vals), max(vals)
+                        span = (hi - lo) or 1.0
+                        xy = []
+                        for j, p in enumerate(pts):
+                            if p is not None:
+                                xy += [sx0 + j * (sx1 - sx0) / max(1, len(pts) - 1), cy + 8 - (p - lo) / span * 16]
+                        cv.create_line(*xy, fill=col, width=2)
                 per = 1 / v
                 cv.create_text(cols[3] - 16, cy, text=f"{per:,.0f}" if per >= 10 else f"{per:.2g}", anchor="e",
                                font=("Segoe UI", 10), fill=txt)
@@ -485,5 +505,6 @@ class RatesList(tk.Frame):
                 else:
                     cv.create_text(W - 12, cy, text=f"{vol:,.0f}", anchor="e", font=("Segoe UI", 9), fill=mut)
         self.status.config(text=RATES.status_text() + (f"  ·  last problem: {RATES.error}" if RATES.error else "")
-                           + f"  ·  {len(rows)} items. Traded: how much poe.ninja saw change hands, in divines; "
+                           + f"  ·  {len(rows)} items. 7 days: the price change in divines over the last week "
+                             f"(poe.ninja). Traded: how much poe.ninja saw change hands, in divines; "
                              f"under {THIN} is marked ! Thin - its price is shaky.")

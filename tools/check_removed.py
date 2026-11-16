@@ -28,9 +28,9 @@ REMOVED = [
     ("3.0.4", "Wealth prices typed by hand (owner: never ask for a price - poe.ninja, else the trade site's exchange, "
               "else No price found) and the Where it is card (owner: it told nothing; What moved it took its place)",
      ("Set my own price", "Use the market price again", "Double-click a price to set your own", "Where it is",
-      "Needs a price", "need a price", "set price"),
+      "Needs a price", "need a price", "set price", "Combine stacks"),
      ("wealth_set_price", "wealth_clear_price", "wealth_breakdown", "wealth_pick_cat", "w_catfilter", "w_bd_mode",
-      "wealth_key")),
+      "wealth_key", "w_combine", "w_unpriced")),
     ("3.0.1", "the name Look key (owner: \"ctrl + shift + r = Read. R for Read.\" - it is the Read Key; its setting "
               "is still look_key, its NEW chip's seen state moves over: migrations.read_key_name) and every line saying "
               "the game still gets the key (owner: nobody understands it - the key still reaches the game)",
