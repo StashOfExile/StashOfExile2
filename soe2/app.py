@@ -728,6 +728,10 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         from . import features as FEAT
         beta = FEAT.any_beta()                            # 2.125.6: beta features' notes only with them on
         lead = lead_of(notes)
+        if not lead and not force and lead_due(SETTINGS.get("whatsnew_lead"), APP_VERSION):
+            from .whatsnew import NOTES, lead_version         # 3.0.3: the lead lives in 3.0.0's notes - a later
+            lead = lead_of([(lead_version(APP_VERSION),       # version's card brings it too (it reopened forever)
+                             NOTES.get(lead_version(APP_VERSION)))])
         if seen and not force and not lead and notes and split_notes(notes, beta) == ([], []):
             SETTINGS["seen_version"] = APP_VERSION        # (only beta notes, beta off: nothing to show)
             save_json("settings.json", SETTINGS)
@@ -752,6 +756,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         head.pack(fill="x")
         welcome = not seen and not force
         self._wn_lead_shown = bool(lead)
+        self._wn_notes_card = True                         # (not the quick start: closing it never reopens it)
         # 2.116.0 (P10): the version once - "What's new · 2.116.0", then what you had and how many updates
         tk.Label(head, text="Welcome to StashOfExile2" if welcome else f"What's new  ·  {pretty_version()}",
                  bg=P2, fg=C["text"], font=(FONT_TITLE, 16, "bold"), anchor="w").pack(fill="x")
@@ -938,7 +943,8 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
     def close_whatsnew(self):
         from .whatsnew import lead_due, lead_version
         SETTINGS["seen_version"] = APP_VERSION
-        if getattr(self, "_wn_lead_shown", False):             # 3.0.0: "Why 3.0" seen - once for everyone
+        notes_card, self._wn_notes_card = getattr(self, "_wn_notes_card", False), False
+        if getattr(self, "_wn_lead_shown", False) or notes_card:     # 3.0.0: "Why 3.0" seen - once for everyone
             SETTINGS["whatsnew_lead"] = lead_version(APP_VERSION)
             self._wn_lead_shown = False
         save_json("settings.json", SETTINGS)

@@ -44,6 +44,12 @@ BETA_AREAS = ("Wealth", "Money Makers", "Game Search", "Market Insights", "Craft
 # repeats. Someone coming from rollup["since"] or older (or a fresh install) sees it instead of each version; someone
 # on a pre-release already saw them and gets only this version's own lines (notes_between).
 NOTES = {
+    # 3.0.3: What's new closes for good (issue #278); Exchange Rates draws only the rows in view.
+    "3.0.3": {
+        "small": [
+            ("Exchange Rates", "Pictures load in the background, one at a time."),
+        ],
+    },
     # 3.0.2 (owner): eleven editor color schemes as themes; the new Discord invite.
     "3.0.2": {
         "big": [
