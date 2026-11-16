@@ -81,9 +81,10 @@ def first_tool(names, path=None):
 
 
 def clipboard_tool(env=None, path=None):
-    """The tool clipread.py reads / writes the clipboard with: "wl-paste" (Wayland), "xclip", "xsel", or None (then
-    Tk's own clipboard, X11 / XWayland only)."""
-    order = ("wl-paste", "xclip", "xsel") if session_type(env) == "wayland" else ("xclip", "xsel", "wl-paste")
+    """The tool clipread.py uses off the window thread (and to write): "xclip" / "xsel" (X11, XWayland), "wl-paste"
+    (Wayland without X), or None. On the window thread reads use Tk's own clipboard (player-tested on Hyprland)."""
+    # the game is an X window (Proton / XWayland): its copies are on X11's clipboard - read that one directly
+    order = ("xclip", "xsel", "wl-paste") if has_x(env) else ("wl-paste",)
     for n in order:
         if n == "wl-paste" and not (which("wl-paste", path) and which("wl-copy", path)):
             continue
@@ -110,6 +111,7 @@ PKGS = {"tesseract": {"debian": "tesseract-ocr", "fedora": "tesseract tesseract-
                          "suse": "wl-clipboard"},
         "xdotool": {"debian": "xdotool", "fedora": "xdotool", "arch": "xdotool", "suse": "xdotool"},
         "ydotool": {"debian": "ydotool", "fedora": "ydotool", "arch": "ydotool", "suse": "ydotool"},
+        "socat": {"debian": "socat", "fedora": "socat", "arch": "socat", "suse": "socat"},
         "python3-xlib": {"debian": "python3-xlib", "fedora": "python3-xlib", "arch": "python-xlib",
                          "suse": "python3-python-xlib"}}
 INSTALL = {"debian": "sudo apt install", "fedora": "sudo dnf install", "arch": "sudo pacman -S",

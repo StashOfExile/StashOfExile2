@@ -248,7 +248,14 @@ def _tk_root():
 
 
 def _raw_linux():
+    import os
     import subprocess
+    root = _tk_root() if os.environ.get("DISPLAY") else None
+    if root is not None and TOOL[0] is None:        # the window thread: Tk's own (X11 / XWayland - player-tested)
+        try:
+            return root.clipboard_get()
+        except Exception:
+            return ""
     tool = linux_tool()
     if tool:
         try:

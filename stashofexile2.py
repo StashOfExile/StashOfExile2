@@ -3927,6 +3927,7 @@ def main():
         if code:
             print("StashOfExile2 isn't running." if code == 2 else f"Not a key: {sys.argv[2]}")
         sys.exit(code)
+    _linux_fonts()
     if "--selftest" in sys.argv:                                 # the build's smoke run: start, show, close cleanly
         sys.argv.remove("--selftest")
         _selftest_hook()
@@ -3942,6 +3943,17 @@ def main():
         return
     from soe2.app import main as run
     run()
+
+
+def _linux_fonts():
+    """Linux: the app's own fonts.conf (linux/fonts.conf - Segoe UI, Tahoma, Consolas ... -> Linux fonts), for this
+    app only, before anything starts fontconfig. Yours wins (FONTCONFIG_FILE already set); SOE2_SYSTEM_FONTS=1: none."""
+    if not sys.platform.startswith("linux") or os.environ.get("FONTCONFIG_FILE") or os.environ.get("SOE2_SYSTEM_FONTS"):
+        return
+    base = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
+    conf = os.path.join(base, "linux", "fonts.conf")
+    if os.path.isfile(conf):
+        os.environ["FONTCONFIG_FILE"] = conf
 
 
 def _selftest_hook(secs=12):

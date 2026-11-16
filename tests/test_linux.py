@@ -72,8 +72,9 @@ class Session(unittest.TestCase):
         empty = tool_dir()
         both = tool_dir("xclip", "wl-paste", "wl-copy", "xdotool", "ydotool")
         self.assertEqual(L.clipboard_tool(x11, both), "xclip")
-        self.assertEqual(L.clipboard_tool(way, both), "wl-paste")
-        self.assertEqual(L.clipboard_tool(way, tool_dir("wl-paste")), None, "wl-paste without wl-copy can't write")
+        self.assertEqual(L.clipboard_tool(way, both), "xclip", "the game's copies are on XWayland's clipboard")
+        self.assertEqual(L.clipboard_tool(pure, both), "wl-paste")
+        self.assertEqual(L.clipboard_tool(pure, tool_dir("wl-paste")), None, "wl-paste without wl-copy can't write")
         self.assertIsNone(L.clipboard_tool(x11, empty))
         self.assertEqual(L.key_tool(x11, both), "xdotool")
         self.assertEqual(L.key_tool(way, both), "xdotool", "the game is an XWayland window: xdotool reaches it")
@@ -345,15 +346,14 @@ class Keys(unittest.TestCase):
         ev = []
         OV.send_copy(sender=ev.extend)
         self.assertEqual(LK.xdotool_args(ev), [["xdotool", "keyup", "Shift_L", "keydown", "Control_L", "keydown",
-                                                "Alt_L", "keydown", "c", "keyup", "c", "keyup", "Alt_L", "keyup",
-                                                "Control_L"]])
+                                                "Alt_L", "keydown", "c", "sleep", "0.01", "keyup", "c", "keyup",
+                                                "Alt_L", "keyup", "Control_L"]])
         self.assertEqual(LK.ydotool_args(ev), [["ydotool", "key", "42:0", "29:1", "56:1", "46:1", "46:0", "56:0",
                                                 "29:0"]])
         typed = [(0x0D, None, False), (0x0D, None, True), (None, "h", False), (None, "h", True), (None, "i", False),
                  (None, "i", True), (0x0D, None, False), (0x0D, None, True)]
-        self.assertEqual(LK.xdotool_args(typed), [["xdotool", "keydown", "Return", "keyup", "Return"],
-                                                  ["xdotool", "type", "--delay", "0", "--", "hi"],
-                                                  ["xdotool", "keydown", "Return", "keyup", "Return"]])
+        enter = ["xdotool", "keydown", "Return", "sleep", "0.01", "keyup", "Return"]
+        self.assertEqual(LK.xdotool_args(typed), [enter, ["xdotool", "type", "--delay", "0", "--", "hi"], enter])
 
     @unittest.skipUnless(LINUX, "Linux")
     def test_send_keys_linux(self):
@@ -394,6 +394,182 @@ class Keys(unittest.TestCase):
         time.sleep(0.4)
         LK.SENDING[0] = 0.0
         self.assertNotIn(0x77, [g[0] for g in got])
+
+
+class FakeHyprland:
+    """Hyprland's IPC socket ($XDG_RUNTIME_DIR/hypr/<sig>/.socket.sock) and a hyprctl on PATH that records the binds
+    it's given (they then show in j/binds, like the real one)."""
+
+    def __init__(self, active=None, clients=()):
+        import json
+        import socket
+        import threading
+        self.json = json
+        self.run_dir = tempfile.mkdtemp(prefix="soe2-hypr-")
+        self.sig = "testsig"
+        d = os.path.join(self.run_dir, "hypr", self.sig)
+        os.makedirs(d)
+        self.active, self.clients = active or {}, list(clients)
+        self.log = os.path.join(self.run_dir, "hyprctl.log")
+        self.bin = tool_dir("hyprctl", body='#!/bin/sh\nprintf "%s\\n" "$*" >> "' + self.log + '"\n'
+                            'case "$1" in eval) echo "error: no lua here"; exit 0;; esac\necho ok\n')
+        self.srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self.srv.bind(os.path.join(d, ".socket.sock"))
+        self.srv.listen(8)
+        threading.Thread(target=self.serve, daemon=True).start()
+        self.env = mock.patch.dict(os.environ, {"HYPRLAND_INSTANCE_SIGNATURE": self.sig,
+                                                "XDG_RUNTIME_DIR": self.run_dir,
+                                                "PATH": self.bin + os.pathsep + os.environ.get("PATH", "")})
+
+    def binds(self):
+        out = []
+        try:
+            with open(self.log) as f:
+                for ln in f:
+                    if ln.startswith("keyword bindnd "):
+                        parts = [p.strip() for p in ln[len("keyword bindnd "):].split(",", 4)]
+                        out.append({"modmask": parts[0], "key": parts[1], "description": parts[2],
+                                    "arg": parts[4].strip()})
+        except OSError:
+            pass
+        return out
+
+    def calls(self):
+        try:
+            with open(self.log) as f:
+                return [ln.rstrip("\n") for ln in f]
+        except OSError:
+            return []
+
+    def serve(self):
+        while True:
+            try:
+                c, _ = self.srv.accept()
+            except OSError:
+                return
+            with c:
+                cmd = c.recv(256).decode()
+                ans = {"j/version": {"tag": "v0.56.0"}, "j/binds": self.binds(), "j/activewindow": self.active,
+                       "j/clients": self.clients}.get(cmd)
+                c.sendall(self.json.dumps(ans).encode())
+
+    def __enter__(self):
+        self.env.start()
+        return self
+
+    def __exit__(self, *a):
+        self.env.stop()
+        self.srv.close()
+
+
+GAME = {"class": "steam_app_2694490", "initialClass": "steam_app_2694490", "title": "Path of Exile 2",
+        "at": [0, 0], "size": [2560, 1440], "pid": 4242}
+
+
+@unittest.skipUnless(LINUX, "Linux")
+class Hyprland(unittest.TestCase):
+    """The main tested setup (Arch + Hyprland, the game through Proton): IPC, the pass-through binds, the socket."""
+
+    def tearDown(self):
+        LK.RUN[0] = None
+        LK.HYPR.update(keys=None, added=[], have=0, want=0, err=None, writer=None)
+        L._X["sup_t"] = 0
+
+    def test_key_names(self):
+        for text, line in (("Ctrl+Shift+R", "ctrl+shift+r"), ("Ctrl+D", "ctrl+d"), ("F6", "f6"), ("Esc", "escape"),
+                           ("Ctrl+;", "ctrl+semicolon"), ("Numpad3", "kp_3"), ("Ctrl+Alt+C", "ctrl+alt+c")):
+            self.assertEqual(LK.key_line(text), line, text)
+            self.assertEqual(LK.line_key(line), __import__("soe2.overlay", fromlist=["x"]).parse_key(text), line)
+        self.assertIsNone(LK.key_line("Mouse4"), "mouse buttons can't be Hyprland binds")
+        self.assertIsNone(LK.key_line(""))
+        self.assertEqual(LK.bind_parts("ctrl+shift+r"), (["CTRL", "SHIFT"], "R"))
+        cmd = "echo {line} | socat - UNIX-CONNECT:/run/user/1000/stashofexile2.sock"
+        self.assertEqual(LK.keyword_bind("ctrl+shift+r", cmd), "CTRL SHIFT, R, SoE2 ctrl+shift+r, exec, echo "
+                         "ctrl+shift+r | socat - UNIX-CONNECT:/run/user/1000/stashofexile2.sock")
+        self.assertEqual(LK.lua_bind("f6", cmd), 'hl.bind("F6", hl.dsp.exec_cmd("echo f6 | socat - UNIX-CONNECT:'
+                         '/run/user/1000/stashofexile2.sock"), { non_consuming = true, description = "SoE2 f6" })')
+
+    def test_only_missing_binds_are_added(self):
+        calls = []
+        LK.RUN[0] = lambda args: (calls.append(args), (0, "ok") if args[1] == "eval" else (0, "ok"))[1]
+        keys = ["Ctrl+Shift+R", "Ctrl+D", "Esc", "F1", "Mouse4", "Ctrl+D"]       # Read Key, price check, close, chat
+        have = [{"description": "SoE2 ctrl+d"}, {"description": "my own bind"}]
+        added = LK.sync_binds(keys, binds=have, path="/x.sock")
+        self.assertEqual(added, ["ctrl+shift+r", "escape", "f1", "ctrl+alt+c", "ctrl+c"])
+        self.assertEqual([c[1] for c in calls], ["eval"] * 5, "Lua configs: hl.bind")
+        self.assertEqual((LK.HYPR["want"], LK.HYPR["have"]), (6, 6))
+        calls.clear()
+        LK.RUN[0] = lambda args: (calls.append(args), (0, "error: lua isn't on") if args[1] == "eval" else (0, "ok"))[1]
+        self.assertEqual(LK.sync_binds(["F9"], binds=[], path="/x.sock")[:1], ["f9"])
+        self.assertEqual([c[1:3] for c in calls[:2]], [["eval", calls[0][2]], ["keyword", "bindnd"]],
+                         "classic configs: keyword bindnd")
+        calls.clear()
+        everything = [{"description": "SoE2 " + ln} for ln in LK.wanted_lines(keys)]
+        self.assertEqual(LK.sync_binds(keys, binds=everything, path="/x.sock"), [])
+        self.assertEqual(calls, [], "all there: no hyprctl at all (one IPC request was the whole check)")
+        self.assertEqual(LK.sync_binds(keys, binds="nope"), [])
+        self.assertEqual(LK.HYPR["err"], "Hyprland's IPC didn't answer")
+
+    def test_ipc_game_window(self):
+        with FakeHyprland(active=GAME, clients=[GAME]):
+            self.assertIsNotNone(L.hypr_socket())
+            self.assertTrue(L.can_tell())
+            self.assertTrue(L.game_active())
+            self.assertEqual(L.game_rect(), (0, 0, 2560, 1440))
+            self.assertIs(L.app_in_front(), False)
+        tab = dict(GAME, **{"class": "firefox", "initialClass": "firefox", "title": "Path of Exile 2 - wiki"})
+        with FakeHyprland(active=tab, clients=[tab]):
+            self.assertFalse(L.game_active(), "a browser tab isn't the game")
+
+    @unittest.skipUnless(shutil.which("socat"), "socat")
+    def test_bind_to_socket_end_to_end(self):
+        """The app adds the binds; Hyprland running one (its command, here run by hand) is one key press."""
+        with FakeHyprland(active=GAME, clients=[GAME]) as hy:
+            kw, got, ups = KeyWatch(), [], []
+            kw.listener = lambda *a: got.append(a)
+            kw.up_listener = ups.append
+            kw.keys_source = lambda: ["Ctrl+Shift+R", "Ctrl+D", "F1"]
+            LK.start(kw)
+            try:
+                for _ in range(50):
+                    if len(hy.binds()) >= 5:
+                        break
+                    time.sleep(0.1)
+                self.assertIsNot(LK.STATE["x11"], True, "Hyprland: no X11 watcher (a press would come twice)")
+                b = {x["description"]: x for x in hy.binds()}
+                self.assertEqual(sorted(b), sorted("SoE2 " + ln for ln in ("ctrl+shift+r", "ctrl+d", "f1",
+                                                                          "ctrl+alt+c", "ctrl+c")))
+                self.assertTrue(any(c.startswith("eval hl.bind(") for c in hy.calls()), "Lua tried first")
+                subprocess.run(b["SoE2 ctrl+shift+r"]["arg"], shell=True, check=True, capture_output=True)
+                for _ in range(30):
+                    if got:
+                        break
+                    time.sleep(0.05)
+                self.assertEqual(got, [(0x52, True, False, True)], "the Read Key, once")
+                self.assertEqual(ups, [0x52, 0xA0, 0xA2], "and let go (the next press is a new one)")
+                n = len(hy.calls())
+                LK.sync_binds(kw.keys_source())
+                self.assertEqual(len(hy.calls()), n, "binds in place: the check runs no hyprctl")
+                from soe2 import lincheck as LC
+                st, what, fix = LC.hypr_line(running={"hypr": True})
+                self.assertEqual(st, "ok", what)
+                self.assertIn("IPC ok (0.56.0)", what)
+                self.assertIn("5 of 5 pass-through binds", what)
+                rows = LC.report(running={"hypr": True, "socket": True})
+                self.assertEqual(rows[0][0], "Hyprland", "Hyprland comes first")
+                self.assertEqual({r[0]: r[1] for r in rows}["Keys"], "ok")
+            finally:
+                try:
+                    os.remove(LK.sock_path())
+                except OSError:
+                    pass
+
+    def test_check_without_socat(self):
+        from soe2 import lincheck as LC
+        with FakeHyprland(active=GAME, clients=[GAME]):
+            st, what, fix = LC.hypr_line(path=tool_dir())
+        self.assertEqual(st, "fix")
+        self.assertIn("install socat", fix)
 
 
 class Clipboard(unittest.TestCase):

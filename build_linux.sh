@@ -5,6 +5,8 @@
 #   SMOKE=0 ./build_linux.sh      no smoke run
 #   PYTHON=python3.12 ./build_linux.sh
 #
+# Tested setup: Arch + Hyprland (a player builds every release with this script). Run time (not bundled):
+#   sudo pacman -S tesseract tesseract-data-eng grim socat xdotool
 # Needs: python3 (3.11+) with Tk built with Xft (Debian / Ubuntu: python3-tk), pip install -r linux/requirements-linux.txt,
 # for the smoke run xvfb-run (Debian / Ubuntu: xvfb) or a desktop session. The data files are the same as the Windows
 # build's --add-data list (build_uioverhaul.bat / release.yml) plus crafthelper.json.
@@ -21,6 +23,8 @@ if tkinter.TkVersion < 8.6:
 print("Tk", tkinter.TkVersion, "-", _tkinter.__file__)
 EOF
 
+for t in tesseract grim socat xdotool; do command -v "$t" >/dev/null || echo "note: $t not found - needed at run time on Hyprland (linux/README.md)"; done
+
 "$PY" -m PyInstaller --noconfirm --clean --onefile --name StashOfExile2 --collect-submodules soe2 \
   --add-data "tabs.txt:." --add-data "jewels.txt:." --add-data "gamedata.json:." --add-data "regexdata.json:." \
   --add-data "default_rules.json:." --add-data "searchdata.json:." --add-data "anointdata.json:." \
@@ -28,7 +32,7 @@ EOF
   --add-data "crafthelper.json:." --add-data "tierdata.json:." --add-data "themes:themes" \
   --add-data "stashofexile2.ico:." \
   --add-data "soe2/templates:soe2/templates" --add-data "soe2/ritual_glyphs.json:soe2" \
-  --add-data "soe2/sekhemas.json:soe2" --add-data "soe2/fonts:soe2/fonts" \
+  --add-data "soe2/sekhemas.json:soe2" --add-data "soe2/fonts:soe2/fonts" --add-data "linux/fonts.conf:linux" \
   --hidden-import PIL._tkinter_finder --hidden-import cv2 --hidden-import mss --hidden-import numpy \
   --collect-submodules Xlib --hidden-import pystray._xorg --hidden-import pystray._base \
   --exclude-module pystray._win32 --exclude-module pystray._darwin --exclude-module pystray._appindicator \
@@ -60,6 +64,7 @@ rm -rf "dist/$PKG" "dist/$PKG.tar.gz" dist/SHA256SUMS
 mkdir -p "dist/$PKG"
 cp "$BIN" "dist/$PKG/StashOfExile2"
 cp linux/README.md "dist/$PKG/README.md"
+cp linux/hyprland.conf linux/hyprland.lua linux/fonts.conf "dist/$PKG/"
 cp LICENSE THIRD_PARTY_NOTICES.txt TOS.md "dist/$PKG/"
 chmod +x "dist/$PKG/StashOfExile2"
 tar -C dist -czf "dist/$PKG.tar.gz" "$PKG"

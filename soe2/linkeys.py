@@ -1,12 +1,19 @@
 """Linux key watchers for KeyWatch (winsys.py) - they only listen, like Windows' hook, and never block a key:
 
+  * Hyprland (the main, player-tested setup - issue #235, found and tested by a player on Hyprland 0.56 / Proton):
+    for every key in Settings › Keybinds (the Read Key, the price check and copy keys, chat keys ...) the app adds a
+    pass-through bind (non-consuming: the key isn't blocked) that writes the key to the app's socket. Added with
+    `hyprctl eval 'hl.bind(...)'` (Lua configs), else `hyprctl keyword bindnd` (classic configs), each described
+    "SoE2 <key>" so only missing ones are added - your config is never edited. The check is one IPC request
+    ("j/binds") every RESYNC_SECS; hyprctl only runs for a bind that's missing. It never reads the screen.
+
   * X11 / XWayland: the X server's RECORD extension (python-xlib) hears your key presses and releases - on X11 every
     key, under Wayland the keys that go to X windows (the game runs as one under Proton, so the keys you press in it).
     Each press goes to KeyWatch.feed as Windows' key code. Key presses this app sends itself (overlay.py, a chat
     command) are not yours: they're ignored while SENDING says so.
   * The desktop-shortcut socket ($XDG_RUNTIME_DIR/stashofexile2.sock): on a Wayland desktop that keeps keys from
     X windows, bind a key in your desktop's settings to  StashOfExile2 --key "Ctrl+Shift+R"  (Hyprland: bindn, so the
-    game still gets it). One message = one key press (down, then up) - it only ever comes from a key you pressed.
+    key isn't blocked). One message = one key press (down, then up) - it only ever comes from a key you pressed.
 
 GGG policy: a key press opens at most one read (screenread / clipread decide that); a held key's auto-repeat is not a
 press - X11 sends a repeat as a release and a press with the same time stamp, and those are dropped here."""
@@ -17,9 +24,10 @@ import time
 
 from . import buglog
 
+HOLD = "0.01"                       # seconds xdotool holds a key it presses
 SENDING = [0.0]                     # overlay.py: until when key events are the app's own (xdotool / ydotool)
 SOCK_NAME = "stashofexile2.sock"
-STATE = {"x11": None, "socket": None}   # what runs: True / an error text / None (not tried)
+STATE = {"x11": None, "socket": None, "hypr": None}   # what runs: True / an error text / None (not tried)
 
 # X keysym names -> Windows' key codes (overlay.VK uses those)
 _NAMED = {"Return": 0x0D, "KP_Enter": 0x0D, "space": 0x20, "Tab": 0x09, "ISO_Left_Tab": 0x09, "Escape": 0x1B,
@@ -87,6 +95,8 @@ def xdotool_args(events):
             text = ""
         name = x_name(vk)
         if name:
+            if up and vk not in (0x10, 0x11, 0x12) and keys[-1:] == [name]:
+                keys += ["sleep", HOLD]                 # (held ~10 ms, like the player-tested build: the game hears it)
             keys += ["keyup" if up else "keydown", name]
     if keys:
         runs.append(["xdotool"] + keys)
@@ -302,7 +312,9 @@ class SocketKeys:
     def press(self, text):
         """One key press from the socket: its modifiers down, the key down and up, the modifiers up."""
         from .overlay import parse_key
-        k = parse_key(text)
+        if ours():
+            return True                                 # (the app's own key presses - not yours)
+        k = parse_key(text) or line_key(text)
         if not k:
             return False
         vk, ctrl, alt, shift = k
@@ -337,18 +349,191 @@ def send(text, path=None):
         return 2
 
 
-# ================================================================ start both
+# ================================================================ Hyprland: pass-through binds -> the socket
+TAG = "SoE2 "                       # every bind the app adds is described "SoE2 <key>"
+RESYNC_SECS = 20                    # binds are checked again this often (a config reload drops them)
+ALWAYS = ("Ctrl+Alt+C", "Ctrl+C")   # the copy keys: the app must know you pressed them, like on Windows
+# our key names (overlay.VK) -> xkb names (what Hyprland and xdotool call them)
+XKB = {"esc": "Escape", "escape": "Escape", "enter": "Return", "space": "space", "tab": "Tab",
+       "backspace": "BackSpace", "insert": "Insert", "ins": "Insert", "delete": "Delete", "del": "Delete",
+       "home": "Home", "end": "End", "pgup": "Prior", "pageup": "Prior", "pgdn": "Next", "pagedown": "Next",
+       "up": "Up", "down": "Down", "left": "Left", "right": "Right", "pause": "Pause", "break": "Pause",
+       "`": "grave", "-": "minus", "=": "equal", "[": "bracketleft", "]": "bracketright", ";": "semicolon",
+       "'": "apostrophe", ",": "comma", ".": "period", "/": "slash", "\\": "backslash"}
+HYPR = {"keys": None, "added": [], "have": 0, "want": 0, "err": None, "writer": None}   # the last check (Linux check)
+RUN = [None]                        # tests: fn(args) -> (returncode, stdout) instead of running hyprctl
+
+
+def xkb_name(name):
+    """Our key name ("d", "f6", "esc", "numpad3") -> the xkb one ("D", "F6", "Escape", "KP_3")."""
+    if name in XKB:
+        return XKB[name]
+    if name.startswith("numpad"):
+        return "KP_" + name[6:]
+    if len(name) == 1 or (name[0] == "f" and name[1:].isdigit()):
+        return name.upper()
+    return name
+
+
+def key_line(text):
+    """A key as Settings › Keybinds shows it ("Ctrl+Shift+R", "F6", "Esc", "Ctrl+;") -> the line its bind writes
+    ("ctrl+shift+r", "f6", "escape", "ctrl+semicolon": letters, digits, + and _ only - safe in a shell), or None
+    (a mouse button, or not understood)."""
+    from .overlay import parse_key, MOUSE_VKS, VK
+    k = parse_key(text)
+    if not k or k[0] in MOUSE_VKS:
+        return None
+    name = next((n for n, v in VK.items() if v == k[0]), None)
+    if name is None:
+        return None
+    return "+".join([m for m, on in zip(("ctrl", "alt", "shift"), k[1:]) if on] + [xkb_name(name).lower()])
+
+
+def line_key(line):
+    """The other way: "ctrl+semicolon" -> (vk, ctrl, alt, shift), or None."""
+    from .overlay import parse_key
+    parts = str(line or "").strip().lower().split("+")
+    back = {v.lower(): k for k, v in XKB.items()}
+    name = parts[-1]
+    name = back.get(name) or ("numpad" + name[3:] if name.startswith("kp_") else name)
+    return parse_key("+".join(parts[:-1] + [name]))
+
+
+def bind_parts(line):
+    """"ctrl+shift+r" -> (["CTRL", "SHIFT"], "R"); "escape" -> ([], "Escape")."""
+    from .overlay import VK
+    parts = line.split("+")
+    k = line_key(line)
+    name = next((n for n, v in VK.items() if k and v == k[0]), parts[-1])
+    return [m.upper() for m in parts[:-1]], xkb_name(name)
+
+
+def writer(path=None):
+    """How a bind tells the app: socat (fast, player-tested), else this app's own  --key  (slower: it starts a
+    process each press). -> a shell command with {line} left in, or None."""
+    import shlex
+    import shutil
+    import sys
+    path = path or sock_path()
+    if shutil.which("socat"):
+        return f"echo {{line}} | socat - UNIX-CONNECT:{path}"
+    me = [sys.executable] if getattr(sys, "frozen", False) else \
+        [sys.executable, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "stashofexile2.py")]
+    if not all(os.path.exists(p) for p in me):
+        return None
+    return " ".join(shlex.quote(p) for p in me) + " --key {line}"
+
+
+def lua_bind(line, cmd):
+    mods, key = bind_parts(line)
+    return (f'hl.bind("{"+".join(mods + [key])}", hl.dsp.exec_cmd("{cmd.format(line=line)}"), '
+            f'{{ non_consuming = true, description = "{TAG}{line}" }})')
+
+
+def keyword_bind(line, cmd):
+    mods, key = bind_parts(line)
+    return f"{' '.join(mods)}, {key}, {TAG}{line}, exec, {cmd.format(line=line)}"
+
+
+def wanted_lines(keys):
+    """Key texts (Settings › Keybinds) -> the lines to bind, no repeats; the copy keys always."""
+    out = []
+    for t in list(keys) + list(ALWAYS):
+        ln = key_line(t) if t else None
+        if ln and ln not in out:
+            out.append(ln)
+    return out
+
+
+def bound_lines(binds):
+    """Hyprland's j/binds -> the lines this app already bound."""
+    return {str(b.get("description"))[len(TAG):] for b in binds or [] if isinstance(b, dict)
+            and str(b.get("description") or "").startswith(TAG)}
+
+
+def hyprctl(*args):
+    """One hyprctl call -> True when Hyprland took it."""
+    import subprocess
+    try:
+        if RUN[0] is not None:
+            code, out = RUN[0](["hyprctl", *args])
+        else:
+            r = subprocess.run(["hyprctl", *args], capture_output=True, text=True, timeout=3)
+            code, out = r.returncode, r.stdout or ""
+    except (OSError, subprocess.SubprocessError):
+        return False
+    low = str(out).lower()
+    return code == 0 and "error" not in low and "invalid" not in low
+
+
+def sync_binds(keys, binds=None, path=None):
+    """Add the missing pass-through binds (one IPC request to see which are there) -> the lines added."""
+    from .linsys import hypr
+    if binds is None:
+        binds = hypr("j/binds")
+    want = wanted_lines(keys)
+    HYPR.update(keys=list(keys), want=len(want))
+    if not isinstance(binds, list):
+        HYPR["err"] = "Hyprland's IPC didn't answer"
+        return []
+    cmd = writer(path)
+    HYPR["writer"] = "socat" if cmd and "socat" in cmd else ("--key" if cmd else None)
+    if cmd is None:
+        HYPR["err"] = "no socat"
+        return []
+    have = bound_lines(binds)
+    added = []
+    for ln in want:
+        if ln in have:
+            continue
+        if hyprctl("eval", lua_bind(ln, cmd)) or hyprctl("keyword", "bindnd", keyword_bind(ln, cmd)):
+            added.append(ln)
+        else:
+            buglog.debug("Keys", f"Hyprland didn't take the bind for {ln}")
+    HYPR.update(added=added, have=len([ln for ln in want if ln in have]) + len(added),
+                err=None if len(have & set(want)) + len(added) == len(want) else "some binds were refused")
+    return added
+
+
+class HyprBinds:
+    """Keeps the binds in place: a check every RESYNC_SECS (a config reload drops them). keys_source: the app's
+    keybinds (KeyWatch.keys_source); the first check waits until the app has set it."""
+
+    def __init__(self, kw):
+        self.kw = kw
+
+    def run(self):
+        while True:
+            try:
+                src = getattr(self.kw, "keys_source", None)
+                if src is not None:
+                    added = sync_binds([k for k in src() if k])
+                    if added:
+                        buglog.debug("Keys", f"Hyprland binds added: {len(added)}")
+            except Exception:
+                buglog.caught()
+            time.sleep(RESYNC_SECS if getattr(self.kw, "keys_source", None) is not None else 1)
+
+
+# ================================================================ start
 def start(kw):
-    """KeyWatch.start on Linux: the X key watcher (when there's an X server) and the socket. kw.active when either
-    runs; kw.err says why the X one couldn't."""
-    xw = XRecordWatch(kw)
-    why = xw.open()
-    if not why:
-        threading.Thread(target=xw.run, daemon=True, name="soe2-xrecord").start()
-        STATE["x11"] = True
+    """KeyWatch.start on Linux. Hyprland: the socket + the pass-through binds (no X11 watcher - it would hear the
+    same press twice). Elsewhere: the X key watcher (when there's an X server) and the socket (for desktop
+    shortcuts). kw.active when one runs; kw.err says why the X one couldn't."""
+    from .linsys import hypr_socket
+    if hypr_socket():
+        STATE["x11"] = "not used on Hyprland (its pass-through binds tell the app)"
+        threading.Thread(target=HyprBinds(kw).run, daemon=True, name="soe2-hyprbinds").start()
+        STATE["hypr"] = True
     else:
-        STATE["x11"] = why
-        kw.err = why
+        xw = XRecordWatch(kw)
+        why = xw.open()
+        if not why:
+            threading.Thread(target=xw.run, daemon=True, name="soe2-xrecord").start()
+            STATE["x11"] = True
+        else:
+            STATE["x11"] = why
+            kw.err = why
     sk = SocketKeys(kw)
     why2 = sk.open()
     if not why2:

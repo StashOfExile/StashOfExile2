@@ -29,6 +29,7 @@ class UtilitiesPage:
         self._ensure_overlay()
         self.keys.listener = self.on_any_key         # 2.0 beta 9: the session tracker's keys come first
         self.keys.up_listener = self.on_any_key_up   # GGG policy: a key's release - its next key-down is a new press
+        self.keys.keys_source = self.keys_for_binds  # Linux / Hyprland: a pass-through bind for each key (linkeys)
         from . import screenread as _sr
         from .alerts_page import game_rect as _gr
         _sr.AREA[0] = _gr                            # (one press = one picture of the game window)
@@ -541,6 +542,14 @@ class UtilitiesPage:
         self._say("Notes is on the overlay bar (Notes ▾) and shows while the game is in front. Double-click a tab to "
                   "rename it; right-click for more.", 10)
         return True
+
+    def keys_for_binds(self):
+        """(any thread: settings only) Every key in Settings › Keybinds - on Hyprland each gets a pass-through bind."""
+        try:
+            return [k for _w, k, _g, _id in self.all_hotkeys() if k]
+        except Exception:
+            buglog.caught()
+            return []
 
     def _linux_key_tool(self):
         """Linux: the tool chat commands press keys with (xdotool / ydotool), or None - looked up once."""

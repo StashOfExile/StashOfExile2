@@ -13,9 +13,34 @@ OK, WARN, FIX = "ok", "warn", "fix"
 MARK = {OK: "✓ OK  ", WARN: "⚠ NOTE", FIX: "✗ FIX "}
 
 
+def hypr_line(env=None, path=None, running=None, binds=None):
+    """Hyprland (the main tested setup): its IPC, the pass-through binds, socat. -> (state, what, fix)."""
+    from . import linkeys, linsys
+    ver = linsys.hypr("j/version")
+    if not isinstance(ver, dict):
+        return FIX, "Hyprland's IPC socket didn't answer", "is HYPRLAND_INSTANCE_SIGNATURE from this session?"
+    binds = linsys.hypr("j/binds") if binds is None else binds
+    ours = len(linkeys.bound_lines(binds)) if isinstance(binds, list) else 0
+    tag = str(ver.get("tag") or ver.get("version") or "").lstrip("v")
+    what = f"IPC ok{f' ({tag})' if tag else ''} · {ours} pass-through binds in place"
+    socat = linsys.which("socat", path)
+    if running and running.get("hypr") is True:
+        h = linkeys.HYPR
+        if h.get("want"):
+            what = f"IPC ok{f' ({tag})' if tag else ''} · {h.get('have', 0)} of {h['want']} pass-through binds in place"
+        if h.get("err") and h["err"] != "no socat":
+            return WARN, what + f" - {h['err']}", "Settings › Advanced › Problems › the app's log says which"
+    what += " · socat" if socat else " · no socat"
+    if not socat:
+        return FIX, what, f"install socat ({linsys.install_cmd('socat')}) - the binds use it to tell the app"
+    return OK, what, ""
+
+
 def _keys_line(env, path, running=None):
     """The key watcher: running = linkeys.STATE (in the app), else what would start."""
     from . import linkeys, linsys
+    if linsys.hypr_socket():
+        return OK, "Hyprland's pass-through binds tell the app", ""
     if running and running.get("x11") is True:
         return OK, "your key presses are heard (X11 RECORD)", ""
     sess = linsys.session_type(env)
@@ -46,10 +71,16 @@ def report(env=None, path=None, running=None):
     out = []
     sess, desk = linsys.session_type(env), linsys.desktop(env)
     what = {"x11": "X11", "wayland": "Wayland"}.get(sess, "no desktop session")
-    out.append(("Session", OK if sess == "x11" else WARN if sess == "wayland" else FIX,
-                what + (f" ({desk})" if desk else ""),
-                "" if sess == "x11" else "X11 (\"Xorg\" at the login screen) works best - see linux/README.md"
-                if sess == "wayland" else "start it from your desktop, not a plain terminal"))
+    if linsys.hypr_socket():                         # the main tested setup: Arch + Hyprland, the game through Proton
+        out.append(("Hyprland",) + hypr_line(env, path, running))
+        out.append(("Session", OK if linsys.has_x(env) else FIX,
+                    f"Wayland (Hyprland){' + XWayland' if linsys.has_x(env) else ''}",
+                    "" if linsys.has_x(env) else "the app needs XWayland (Tk is an X11 toolkit)"))
+    else:
+        out.append(("Session", OK if sess == "x11" else WARN if sess == "wayland" else FIX,
+                    what + (f" ({desk})" if desk else ""),
+                    "" if sess == "x11" else "Hyprland or X11 (\"Xorg\" at the login screen) work best - see "
+                    "linux/README.md" if sess == "wayland" else "start it from your desktop, not a plain terminal"))
     if linsys.hypr_socket():
         out.append(("Game window", OK, "Hyprland tells which window is in front", ""))
     elif linsys.has_x(env) and linsys.x_can_tell():
