@@ -136,6 +136,48 @@ LOW_TIER = 6                 # 2.72.0: an affix of tier 6 or lower (T6, T7 ...) 
 GOOD_ROLL = 0.75             # 2.72.0: a unique's mod rolled in the top quarter of its range is searched on
 
 
+USES = re.compile(r"^(\d+)\s+uses?\s+remaining$", re.I)
+ADDS = re.compile(r"^Adds .+ to a Map$", re.I)
+
+
+def _tablet_uses(mods):
+    """3.0.4 (feedback: "Adds Ritual Altars to a Map" and "5 uses remaining" said "not on the trade site"): a tablet's
+    two implicit lines are ONE stat on the trade site - "Adds Ritual Altars to a Map # use remaining", its value the
+    uses left. The two lines become one mod with that id."""
+    i = 0
+    while i < len(mods) - 1:
+        a, b = mods[i], mods[i + 1]
+        ua = USES.match(strip_markup(b["text"]).strip())
+        if a["kind"] == "Implicit" and b["kind"] == "Implicit" and ADDS.match(strip_markup(a["text"]).strip()) and ua:
+            n = int(ua.group(1))
+            ids = live_ids(f"{strip_markup(a['text']).strip()} {n} use remaining")
+            a.update(text=f"{a['text']}\n{b['text']}", shown=f"{a['shown']}, {b['shown']}", value=float(n),
+                     lo=None, hi=None, novalue=False, roll=None, at_least=True)
+            if ids:
+                a.update(sid=ids[0], ids=ids, note=a.get("covered"))
+            del mods[i + 1]
+        i += 1
+
+
+# 3.0.4 (owner): uniques priced by the exact value of one mod - searched with Min and Max both at that value
+# (10% -> 10 to 10). Unique name -> the mod's wording with # for the number (lower case).
+EXACT_ROLLS = {
+    "freedom of faith": ("favours at ritual altars in area costs #% increased tribute",),
+}
+
+
+def _exact_rolls(name, mods):
+    keys = EXACT_ROLLS.get((name or "").lower())
+    if not keys:
+        return
+    from .mods import norm
+    for m in mods:
+        if m.get("value") is not None and m.get("sid") and norm(m["text"]) in keys:
+            v = m["value"]
+            m.update(exact=True, auto="high", covered=None,
+                     note=f"priced by its exact value: searched at {v:g} to {v:g}")
+
+
 def is_gear(g):
     """A gamedata.read_item() result that the gear checker handles."""
     if not (g and g.get("class") and g.get("base")):
@@ -448,6 +490,9 @@ def _parse_gear(text):
         mods.append(m)
         refs_of.append(stat["ref"] if stat else None)
     _merge_same_stat(mods, refs_of)
+    _tablet_uses(mods)
+    if unique:
+        _exact_rolls(g["name"], mods)
 
     # 2.98.4 (feedback: "I am unable to accurately price check a mageblood"): what a Mageblood's price hangs on -
     # its Legacies (which ones, how many of each: searched as Min N), its charm slots, and - with a duplicate - the
