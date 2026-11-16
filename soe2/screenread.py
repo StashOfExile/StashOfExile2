@@ -4,12 +4,12 @@ GGG's rule for tools that use the screen, the clipboard or the game's log: "You 
 as the user is aware of what you are doing with that data." and "Reading from the screen or clipboard may only be
 performed once per manual key press." The owner's reading is the strictest one, so:
   * grant(key_name)  - the key watcher (App.on_any_key -> look_on_key, on its own thread) calls this when YOU press
-                       the Look key: Ctrl+Shift+R as the app comes, or a key you pick only for this (Settings ›
-                       Keybinds; cleared - no Look key, no reads at all - and never a key the game or the app uses for something else, never
+                       the Read Key: Ctrl+Shift+R as the app comes, or a key you pick only for this (Settings ›
+                       Keybinds; cleared - no Read Key, no reads at all - and never a key the game or the app uses for something else, never
                        a mouse button: a click is not a key press). One grant per physical press: a held key's
                        auto-repeat doesn't grant again - the key has to be let go (release) first.
   * capture(region, purpose) - one screenshot of the game window per grant, taken the first time it's asked for (the
-                       Look key's dispatcher asks at once), and only within GRANT_SECS of the press. Every helper
+                       Read Key's dispatcher asks at once), and only within GRANT_SECS of the press. Every helper
                        that applies (Ritual, Temple ...) cuts its part out of that same picture - it's never taken
                        twice; a slow helper may still cut from it until finish(). No grant, a press too old to take
                        its picture, or a second picture: None.
@@ -35,7 +35,7 @@ import threading
 import time
 
 GRANT_SECS = 1.5                    # a press lets the helpers read for this long (then the picture is dropped)
-DEFAULT_KEY = "Ctrl+Shift+R"        # the Look key as the app comes (owner); "" in the settings = you cleared it: no key
+DEFAULT_KEY = "Ctrl+Shift+R"        # the Read Key as the app comes (owner); "" in the settings = you cleared it: no key
 MOUSE = frozenset((0x01, 0x02, 0x04, 0x05, 0x06))   # mouse buttons: never a read (a click is not a key press)
 
 _LOCK = threading.RLock()
@@ -46,7 +46,7 @@ AREA = [None]                       # the app: fn() -> the game window (x, y, w,
 LOGGER = [None]                     # tests: fn(line); the app's log otherwise
 SAID = [None]                       # the app: fn("screen", key, [purposes]) after each read (the read mark)
 NOTHING = "nothing found"           # finish(found=False): the last of the purposes (the read mark's words)
-ONLY_KEY = [None]                   # the app: fn() -> the Look key's key code (None = no key). grant() refuses any other key
+ONLY_KEY = [None]                   # the app: fn() -> the Read Key's key code (None = no key). grant() refuses any other key
 COUNT = {"grants": 0, "shots": 0, "refused": 0}   # (the runtime test reads these)
 
 
@@ -63,7 +63,7 @@ def _log(line):
 
 
 def grant(key_name, hold=None, now=None):
-    """A real key-down of the Look key (the key watcher only). key_name: the words for the log ("F9"); hold: what the
+    """A real key-down of the Read Key (the key watcher only). key_name: the words for the log ("F9"); hold: what the
     key's release is told by (the key watcher's key code; key_name when not given). -> True if it opened a new grant,
     False for a key that's still held (Windows repeats a held key's key-down: those are not presses) or a mouse
     button."""
@@ -72,7 +72,7 @@ def grant(key_name, hold=None, now=None):
     if hold in MOUSE:
         return False
     fn = ONLY_KEY[0]
-    if fn is not None:                              # the one key: nothing but the Look key opens a read (runtime gate)
+    if fn is not None:                              # the one key: nothing but the Read Key opens a read (runtime gate)
         try:
             only = fn()
         except Exception:

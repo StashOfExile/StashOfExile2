@@ -19,7 +19,7 @@ A free, open-source Windows companion for **Path of Exile 2**: price checks, bul
 ![What's new in 3.0: Why 3.0 and How helpers work now](docs/screenshots/whats-new.png)
 
 - **Why 3.0** - to follow Grinding Gear Games' third-party policy: the app reads your screen or clipboard only when you press a key, once per press. Nothing watches your screen by itself.
-- **How helpers work now** - press your **Look key** (**Ctrl+Shift+R**) where a helper applies. The read mark (👁) shows what was read. A price check reads the clipboard on its key (**Ctrl+D**).
+- **How helpers work now** - press your **Read Key** (**Ctrl+Shift+R**) where a helper applies. The read mark (👁) shows what was read. A price check reads the clipboard on its key (**Ctrl+D**).
 - **Drawer** - the app over the game's side: suggested for one monitor. **Full window** is suggested for two or more.
 - **Trial of the Sekhemas** (BETA), **Back from a map** (Map profit + Top Up Reminders in one card), **Campaign Bar**, **Broaden Search** on price checks.
 - Gone, because they watched the screen by themselves: the Delirium helper, the Temple Helper's Vaal Beacon read, Map Content reads. The Toolkit row is gone too (Go to anything, Ctrl+K, finds every page).
@@ -31,7 +31,7 @@ A small **NEW** chip marks what's new on its row and on its page's icon, until y
 GGG's rule for tools: *"Reading from the screen or clipboard may only be performed once per manual key press."* The app follows it at its strictest - only a key you press for the read, never a timer, a click, a file change or the app starting.
 
 - **One read per key press.** Holding a key reads once. Each read shows the read mark (👁) for a second and writes a line in the app's log.
-- **Your screen: only on the Look key.** **Ctrl+Shift+R** as the app comes (Settings › Keybinds). The game still gets the key. One picture of the game window; every helper that applies where you are reads its part, then it's dropped. Clear the key and nothing reads the screen.
+- **Your screen: only on the Read Key.** **Ctrl+Shift+R** as the app comes (Settings › Keybinds). One picture of the game window; every helper that applies where you are reads its part, then it's dropped. Clear the key and nothing reads the screen.
 - **Your clipboard: only on a copy key.** The price check key (Ctrl+D), Ctrl+Alt+C for Bulk Pricing, the Top Up key: one read, 0.2 s after the press. A chat command key reads it once, to put your text back. Ctrl+V in one of the app's boxes. Nothing watches the clipboard.
 - **The game's log (Client.txt)** is followed all the time: where you are, Breach warnings, rituals started, whispers.
 - **Never** the game's memory, files or network traffic. The game client is never changed.
@@ -49,7 +49,7 @@ This product isn't affiliated with or endorsed by Grinding Gear Games in any way
 - **Favorites**, **Rate Mods** (your ratings tune your price checks), **Exchange Rates** (poe.ninja, a converter, a flip check), **Market Insights**.
 
 **Stash**
-- **Wealth** - what your stash is worth: Scan stash reads one tab per Look key press.
+- **Wealth** - what your stash is worth: Scan stash reads one tab per Read Key press.
 - **Regex** - stash search strings for tablets, waystones, relics, jewels and gear.
 - **Craft Helper** (BETA) - each mod of a tablet or jewel rated S to F, and a next step.
 
@@ -61,7 +61,7 @@ This product isn't affiliated with or endorsed by Grinding Gear Games in any way
 
 **Overlay** (over the game, Bar or Panel layout)
 - **Session timer**, Notes, Calc, Regex and Rates menus, the **Price check overlay**.
-- Helpers - press your **Look key** where one applies: **Ritual** (counter, Favours prices, Ritual Identifier), **Expedition** (remnant rewards, Island rumors), **Desecration Helper**, **Temple Helper** (BETA, Vaal Lens), **Trial of the Sekhemas** (BETA), **Back from a map** (Map profit, Top Up Reminders).
+- Helpers - press your **Read Key** where one applies: **Ritual** (counter, Favours prices, Ritual Identifier), **Expedition** (remnant rewards, Island rumors), **Desecration Helper**, **Temple Helper** (BETA, Vaal Lens), **Trial of the Sekhemas** (BETA), **Back from a map** (Map profit, Top Up Reminders).
 - From the game's log: **Breach**, **Campaign Helper** and the **Campaign Bar**, **Trade whispers**, **Break reminders**. Plus **Music Controls**.
 
 ## Window: Drawer or Full window

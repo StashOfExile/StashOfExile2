@@ -1,10 +1,10 @@
-"""Owner decisions (GGG policy round, Nov 2026): what's gone stays gone, and what's left reads only on the Look key.
+"""Owner decisions (GGG policy round, Nov 2026): what's gone stays gone, and what's left reads only on the Read Key.
 
   * Temple: no Vaal Beacon read, no crystals on the overlay, no Crystals full card - the Temple Console only.
   * Maps: Map Content is never read (no Ritual all-done tick, no Expedition mark); Ritual follows the game's log.
   * Map profit + Top Up Reminders: one Back from a map card; one press counts the map and checks the top ups.
-  * Ritual Identifier, Favours prices, Expedition prices, Island rumors: each a Look key job, nothing else calls it.
-  * Each helper's one line names the current Look key; Settings › About has GGG's notice word for word.
+  * Ritual Identifier, Favours prices, Expedition prices, Island rumors: each a Read Key job, nothing else calls it.
+  * Each helper's one line names the current Read Key; Settings › About has GGG's notice word for word.
   * The settings gear is drawn in the color it's given.
 
     python3.12 -m unittest discover -s tests        (or tests/runall.sh)"""
@@ -52,7 +52,7 @@ class TempleConsoleOnly(unittest.TestCase):
                 return True                       # (the Temple Helper on, Vaal Lens on - but not in the temple)
         app = App()
         ctx = {"area": "map", "g": (0, 0, 1920, 1080), "ptr": (900, 500)}
-        self.assertIsNone(app.hover_look_job(ctx), "a Look key press in a map reads nothing for the Temple Helper")
+        self.assertIsNone(app.hover_look_job(ctx), "a Read Key press in a map reads nothing for the Temple Helper")
         app.tm_in_temple = True
         self.assertEqual(app.hover_look_job(ctx)[0], "Vaal Lens", "in the temple: Vaal Lens' medallion names")
 
@@ -97,7 +97,7 @@ class NoMapContent(unittest.TestCase):
                 return {"on": True, "readout": True}
 
             def look_key_text(self):
-                return "your Look key (Ctrl+Shift+R)"
+                return "your Read Key (Ctrl+Shift+R)"
         txt = App().ritual_readout()
         self.assertIn("2 rituals started", txt)
         self.assertIn("Ctrl+Shift+R", txt)
@@ -134,7 +134,7 @@ class BackFromAMap(unittest.TestCase):
 
     def test_no_card(self):
         self.assertIsNone(self.app(tu=False, mp=False).back_card_text("X"))
-        self.assertIsNone(self.app(key="").back_card_text("X"), "no Look key: nothing to press")
+        self.assertIsNone(self.app(key="").back_card_text("X"), "no Read Key: nothing to press")
 
     def test_one_card_no_buttons(self):
         a = self.app()
@@ -194,7 +194,7 @@ class LookKeyOnly(unittest.TestCase):
 class LookKeyNamed(unittest.TestCase):
     def test_every_reading_helper_names_the_key(self):
         for k in AP.LOOK_HELPERS:
-            self.assertIn("Ctrl+Shift+R", AP.helper_blurb(k, "your Look key (Ctrl+Shift+R)"), k)
+            self.assertIn("Ctrl+Shift+R", AP.helper_blurb(k, "your Read Key (Ctrl+Shift+R)"), k)
         for k in ("ritual", "remnant", "desecrate", "topup", "mapprofit", "temple"):
             self.assertIn(k, AP.LOOK_HELPERS)
 
@@ -202,10 +202,10 @@ class LookKeyNamed(unittest.TestCase):
         from soe2.config import SETTINGS
         from soe2.look_page import LookPage
         SETTINGS.pop("look_key", None)
-        self.assertEqual(LookPage().look_key_text(), "your Look key (Ctrl+Shift+R)")
+        self.assertEqual(LookPage().look_key_text(), "your Read Key (Ctrl+Shift+R)")
         SETTINGS["look_key"] = "F9"
         try:
-            self.assertEqual(LookPage().look_key_text(), "your Look key (F9)")
+            self.assertEqual(LookPage().look_key_text(), "your Read Key (F9)")
         finally:
             SETTINGS.pop("look_key", None)
 
@@ -251,7 +251,7 @@ class Gear(unittest.TestCase):
                     self.fail(f"soe2/{f}:{n}: the ⚙ glyph in the UI")
 
 class LookClear(unittest.TestCase):
-    """Round 18: Esc in the game clears everything the Look key drew over it; the game still gets Esc."""
+    """Round 18: Esc in the game clears everything the Read Key drew over it; the game still gets Esc."""
 
     def test_esc_clears_everything(self):
         from soe2.readmark import ReadMarkPage

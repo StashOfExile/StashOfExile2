@@ -1,4 +1,4 @@
-"""2.132.3 Ritual Identifier - the alert card when you hover a Ritual Altar and press the Look key (ritualid.py reads;
+"""2.132.3 Ritual Identifier - the alert card when you hover a Ritual Altar and press the Read Key (ritualid.py reads;
 hover_page.py looks, once per press).
 2.132.4 (feedback: "should be part of the Ritual Helper that can be toggled on/off"): an option of the Ritual helper
 (Overlay › Helpers › Ritual), on with it - not a helper of its own."""

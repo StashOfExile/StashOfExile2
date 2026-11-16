@@ -3,7 +3,7 @@
 Path of Exile 2 doesn't write Ritual progress to Client.txt (only that a ritual started, or was disrupted - gamelog),
 so this reads a small part of the screen: the Ritual icon (horned skull in a red ring) at the bottom, right of center,
 with the counter in a black box next to it.
-GGG policy (Nov 2026): once per press of your Look key (a key just for it), in a map - look() cuts that corner and the
+GGG policy (Nov 2026): once per press of your Read Key (a key just for it), in a map - look() cuts that corner and the
 tribute counter out of the press's one picture (screenread.py). Nothing runs by itself (it was a helper process
 reading twice a second); nothing is sent to the game. Between presses the game's log (Client.txt: a ritual started /
 disrupted) moves the count on. (Owner decision: Map Content's Ritual icon - its "all done" tick - is never read.)
@@ -209,7 +209,7 @@ def read_counter(gray, tpl_gray, ui):
 
 
 class RitualState:
-    """What the last Look key press read (GGG policy, Nov 2026 - was a helper process reading twice a second)."""
+    """What the last Read Key press read (GGG policy, Nov 2026 - was a helper process reading twice a second)."""
 
     def __init__(self):
         self.count = None               # (done, total) - the Ritual counter at the bottom, as last read
@@ -236,7 +236,7 @@ def template():
 
 
 def look(game, tribute=True):
-    """(a Look key press, background thread) The game (x, y, w, h) -> {"kind", "val", "tribute"} from this press's
+    """(a Read Key press, background thread) The game (x, y, w, h) -> {"kind", "val", "tribute"} from this press's
     one picture (screenread), or None when there's no picture."""
     import cv2
     import numpy as np

@@ -81,7 +81,7 @@ class ReadMark:
             from . import alertcard
             from .style import C
             row = alertcard.show(self.root, text, "", color=C.get("steel") or C["accent"], mark=EYE, secs=secs,
-                                 game=rect, tag="Look key", rank=9)
+                                 game=rect, tag="Read Key", rank=9)
             self.win = row
             self._quiet(row.card.win)
             return row
@@ -121,11 +121,11 @@ class ReadMarkPage:
             mark = self.read_mark = ReadMark(self.root)
         return mark.show(card_text(source, what), rect, SECS_MISSED if missed else SECS)
 
-    # Round 18 (feedback): Esc in the game clears what the Look key drew over it. The game still gets Esc.
+    # Round 18 (feedback): Esc in the game clears what the Read Key drew over it. The game still gets Esc.
     LOOK_DRAWN = ("remnant_hide", "favours_hide", "ru_hide", "ws_hide", "temple_pad_close", "sek_hide")
 
     def ev_look_clear(self):
-        """Esc while the game is in front: every tag, card and mark the Look key put over the game goes - Expedition
+        """Esc while the game is in front: every tag, card and mark the Read Key put over the game goes - Expedition
         prices and Runeshapes, Favours, Island Rumors, Desecration tiers, the Vaal Lens card and its marks, the
         Ritual Identifier's card, the Trial of the Sekhemas legend and the read mark."""
         for fn in self.LOOK_DRAWN:

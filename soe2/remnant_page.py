@@ -116,9 +116,9 @@ class RemnantPage:
                 self.rm_win.remove(w)
         self._say("Runeshape tips are off. Overlay › Helpers › Expedition › Runeshape tips turns them back on.", 8)
 
-    # ---------------- a Look key press (GGG policy, Nov 2026 - it was a watcher on the book's place)
+    # ---------------- a Read Key press (GGG policy, Nov 2026 - it was a watcher on the book's place)
     def remnant_look_job(self, ctx):
-        """A Look key press where remnants can be: is the reward book open (its parchment and title), and if so its
+        """A Read Key press where remnants can be: is the reward book open (its parchment and title), and if so its
         rewards are read once and priced. The tags stay until your next press or a new area."""
         from . import features as FEAT
         c = self.remnant_cfg()

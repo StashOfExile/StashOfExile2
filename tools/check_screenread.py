@@ -12,7 +12,7 @@ It proves:
     it, no retry), a held key's auto-repeat reads nothing more, a chat key reads once;
   * no clipboard timer exists - the app has no clipboard watcher, nothing asks Windows' copy counter, nothing that reads
     the clipboard runs again on a timer;
-  * Look key unset -> no reads at all; Tab / a mouse button / another app key can't be the Look key;
+  * Read Key unset -> no reads at all; Tab / a mouse button / another app key can't be the Read Key;
   * every read writes its log line and shows the read mark;
   * tools/check_tos.py catches each of these if it came back."""
 import ast
@@ -114,21 +114,21 @@ def test_gate():
         ok(not SR.grant("Mouse", hold=vk, now=T + 20), f"a mouse button (vk {vk}) never grants a screen read")
     ok(SR.capture((200, 100, 300, 200), "Ritual", now=T + 20.1) is None and len(shots) == 2,
        "a click takes no picture")
-    SR.ONLY_KEY[0] = lambda: 0x78                            # the app's gate: only the Look key (F9 here) opens a read
+    SR.ONLY_KEY[0] = lambda: 0x78                            # the app's gate: only the Read Key (F9 here) opens a read
     SR.release(0x41)
-    ok(not SR.grant("A", hold=0x41, now=T + 30) and SR.COUNT["refused"] >= 1, "a key that isn't the Look key can't open a read")
+    ok(not SR.grant("A", hold=0x41, now=T + 30) and SR.COUNT["refused"] >= 1, "a key that isn't the Read Key can't open a read")
     SR.ONLY_KEY[0] = lambda: None
     SR.release(0x78)
-    ok(not SR.grant("F9", hold=0x78, now=T + 31), "no Look key: no key opens a read")
+    ok(not SR.grant("F9", hold=0x78, now=T + 31), "no Read Key: no key opens a read")
     SR.ONLY_KEY[0] = None
     SR.release(0x78)
     ok("ONLY_KEY[0] = self.look_key_vk" in open(os.path.join(ROOT, "soe2", "utilities_page.py"), encoding="utf-8").read(),
-       "the app wires the gate: only the Look key's code opens a read")
-    ok(SR.DEFAULT_KEY == "Ctrl+Shift+R", "the Look key is Ctrl+Shift+R as the app comes")
+       "the app wires the gate: only the Read Key's code opens a read")
+    ok(SR.DEFAULT_KEY == "Ctrl+Shift+R", "the Read Key is Ctrl+Shift+R as the app comes")
 
 
 class FakeApp:
-    """Just enough of the app for the Look key and Scan stash: the key watcher's listener, the window thread's queue,
+    """Just enough of the app for the Read Key and Scan stash: the key watcher's listener, the window thread's queue,
     the jobs."""
     def __init__(self, jobs=None):
         from soe2.look_page import LookPage
@@ -152,7 +152,7 @@ class FakeApp:
 
     def all_hotkeys(self):
         return [("Price check", "Ctrl+D", "Price Checks", "checks:pc_key"), ("Go to hideout", "F1", "Chat", "x"),
-                ("Look key", "", "Overlay", "checks:look_key")]
+                ("Read Key", "", "Overlay", "checks:look_key")]
 
     def run_bg(self, work, done):
         return done(work())
@@ -187,25 +187,25 @@ def test_look_key():
         def helper(name, box):
             return lambda ctx: (name, lambda: SR.capture(box, name), lambda res: got.append((name, res)))
         app = FakeApp([helper("Ritual", (10, 10, 50, 50)), helper("Temple", (100, 100, 200, 200))])
-        # ---- no Look key: nothing reads, whatever is pressed
+        # ---- no Read Key: nothing reads, whatever is pressed
         SETTINGS["look_key"] = ""
-        ok(not app.look_key_set() and app.look_key_text() == "your Look key", "unset: the text says 'your Look key'")
+        ok(not app.look_key_set() and app.look_key_text() == "your Read Key", "unset: the text says 'your Read Key'")
         for vk in VKS:
             for mods in ((False, False, False), (True, False, False), (False, False, True)):
                 if app.look_on_key(vk, *mods):
-                    FAILS.append(f"Look key unset: key {vk} was taken")
+                    FAILS.append(f"Read Key unset: key {vk} was taken")
                 SR.release(vk)
-        ok(app.ui_q.empty() and SR.COUNT["grants"] == 0, "Look key unset: no key press grants a read")
+        ok(app.ui_q.empty() and SR.COUNT["grants"] == 0, "Read Key unset: no key press grants a read")
         app.ev_look()
-        ok(not shots and all(r is None for _n, r in got), "Look key unset: no picture at all")
+        ok(not shots and all(r is None for _n, r in got), "Read Key unset: no picture at all")
         got.clear()
         # ---- set: F9 reads once per press
         SETTINGS["look_key"] = "F9"
-        ok(app.look_key_text() == "your Look key (F9)", f"set: the text names it ({app.look_key_text()})")
+        ok(app.look_key_text() == "your Read Key (F9)", f"set: the text names it ({app.look_key_text()})")
         for _ in range(8):                                  # F9 held: one key-down, then repeats
-            ok(app.look_on_key(0x78, False, False, False), "the Look key in the game opens a read")
+            ok(app.look_on_key(0x78, False, False, False), "the Read Key in the game opens a read")
         ok(app.ui_q.qsize() == 1, f"F9 held: one press for the helpers (got {app.ui_q.qsize()})")
-        ok(not app.look_on_key(0x09, False, False, False), "Tab is not the Look key any more")
+        ok(not app.look_on_key(0x09, False, False, False), "Tab is not the Read Key any more")
         ok(not app.look_on_key(0x41, False, False, False), "another key reads nothing")
         ok(app.ui_q.qsize() == 1, "other keys add no read")
         while not app.ui_q.empty():
@@ -224,23 +224,23 @@ def test_look_key():
         SR.release(0x78)
         app.ui_q = queue.Queue()
         ok(not app.look_on_key(0x78, False, False, False) and app.ui_q.empty(),
-           "the Look key outside the game reads nothing (and is yours)")
+           "the Read Key outside the game reads nothing (and is yours)")
         overlay.game_active = lambda *_a: True
         SETTINGS["look_key"] = "Mouse4"
-        ok(not app.look_on_key(0x05, False, False, False), "a mouse-button Look key (an old setting) never reads")
+        ok(not app.look_on_key(0x05, False, False, False), "a mouse-button Read Key (an old setting) never reads")
         from soe2.look_page import look_key_problem
         # ---- the default: Ctrl+Shift+R (never set = the default; cleared = no key)
         SETTINGS.pop("look_key", None)
-        ok(app.look_key() == "Ctrl+Shift+R" and app.look_key_set(), "never set: the Look key is Ctrl+Shift+R")
+        ok(app.look_key() == "Ctrl+Shift+R" and app.look_key_set(), "never set: the Read Key is Ctrl+Shift+R")
         SR.release(0x52)
         app.ui_q = queue.Queue()
         ok(not app.look_on_key(0x52, False, False, False) and not app.look_on_key(0x52, True, False, False)
-           and app.ui_q.empty(), "R alone and Ctrl+R are not the Look key")
+           and app.ui_q.empty(), "R alone and Ctrl+R are not the Read Key")
         ok(app.look_on_key(0x52, True, False, True) and app.ui_q.qsize() == 1, "Ctrl+Shift+R reads once")
         SETTINGS["look_key"] = ""
-        ok(not app.look_key_set() and app.look_key_text() == "your Look key", "cleared: no Look key (stays cleared)")
+        ok(not app.look_key_set() and app.look_key_text() == "your Read Key", "cleared: no Read Key (stays cleared)")
         SETTINGS["look_key"] = "F9"
-        # ---- passed through: the key watcher's listener never swallows the Look key (the game still gets it)
+        # ---- passed through: the key watcher's listener never swallows the Read Key (the game still gets it)
         from soe2.utilities_page import UtilitiesPage
         from soe2 import features as FEAT_
         no = lambda *_a, **_k: False                       # noqa: E731
@@ -253,7 +253,7 @@ def test_look_key():
             for look in ("F9", "Ctrl+Shift+R"):
                 SETTINGS["look_key"] = look
                 SR.release(key[0])
-                ok(not UtilitiesPage.on_any_key(listener, *key), f"the key watcher never swallows the Look key "
+                ok(not UtilitiesPage.on_any_key(listener, *key), f"the key watcher never swallows the Read Key "
                                                                   f"({look}) - the game still gets it")
         SETTINGS["look_key"] = "F9"
         # ---- the default clashes with no other key of the app
@@ -261,20 +261,20 @@ def test_look_key():
         from soe2.tracker_page import DEFAULT_HOTKEYS
         for kid, key in DEFAULT_HOTKEYS.items():
             if kid != "checks:look_key" and key:
-                ok(parse_key(key) != parse_key(SR.DEFAULT_KEY), f"the default Look key isn't {key} ({kid})")
-        ok(DEFAULT_HOTKEYS["checks:look_key"] == SR.DEFAULT_KEY, "Keybinds' defaults put the Look key back to the default")
+                ok(parse_key(key) != parse_key(SR.DEFAULT_KEY), f"the default Read Key isn't {key} ({kid})")
+        ok(DEFAULT_HOTKEYS["checks:look_key"] == SR.DEFAULT_KEY, "Keybinds' defaults put the Read Key back to the default")
         for taken, what in (((0x4B, True, False, False), "Ctrl+K (Go to anything)"),
                             ((0x20, True, False, True), "Ctrl+Shift+Space (the drawer)"),
                             ((0x43, True, False, False), "Ctrl+C"), ((0x43, True, True, False), "Ctrl+Alt+C")):
-            ok(parse_key(SR.DEFAULT_KEY) != taken, f"the default Look key isn't {what}")
+            ok(parse_key(SR.DEFAULT_KEY) != taken, f"the default Read Key isn't {what}")
         ok(look_key_problem(SR.DEFAULT_KEY, [(w, k) for w, k, _x, _i in app.all_hotkeys()]) is None,
-           "the default Look key passes the same test as one you pick")
-        # ---- what may be the Look key
+           "the default Read Key passes the same test as one you pick")
+        # ---- what may be the Read Key
         others = app.look_key_others()
         for bad_key in ("Tab", "Enter", "Space", "Esc", "Mouse4", "Middle", "Ctrl+C", "Ctrl+D", "F1"):
-            ok(look_key_problem(bad_key, others), f"{bad_key} can't be the Look key")
+            ok(look_key_problem(bad_key, others), f"{bad_key} can't be the Read Key")
         for good in ("F9", "Ctrl+F9", "Numpad5", ""):
-            ok(look_key_problem(good, others) is None, f"{good or 'no key'} can be the Look key")
+            ok(look_key_problem(good, others) is None, f"{good or 'no key'} can be the Read Key")
     _with_game(run)
 
 
@@ -290,11 +290,11 @@ def test_scan_stash_click():
         ok(not shots and SR.COUNT["grants"] == n0, "a click on Start reading reads nothing (it only arms)")
         ok(app.ss.get("armed"), "the scan is armed")
         jobs = app.look_jobs({"rect": (0, 0, 1920, 1080)})
-        ok(len(jobs) == 1 and jobs[0][0] == "Scan stash", "armed: the Look key press goes to Scan stash alone")
+        ok(len(jobs) == 1 and jobs[0][0] == "Scan stash", "armed: the Read Key press goes to Scan stash alone")
         app.ss = {"i": 0, "got": {}, "unread": {}, "busy": False, "note": "", "kind": ""}
         ok(app.stash_scan_job({"rect": (0, 0, 10, 10)}) is None, "not armed: the card alone reads nothing")
         SETTINGS["look_key"] = ""
-        ok(not app.stash_scan_read() and not app.ss.get("armed"), "no Look key: Start reading can't arm")
+        ok(not app.stash_scan_read() and not app.ss.get("armed"), "no Read Key: Start reading can't arm")
     _with_game(run)
 
 
@@ -485,13 +485,13 @@ def test_migration():
     from soe2 import migrations as M
     S = {"look_key": "Tab", "seen_version": "2.143.0"}
     M._look_key_dedicated(S)
-    ok(S["look_key"] == "" and S.get("look_key_notice"), "an old Tab Look key is cleared, with a notice")
+    ok(S["look_key"] == "" and S.get("look_key_notice"), "an old Tab Read Key is cleared, with a notice")
     S = {"seen_version": "2.143.0", "migrations_done": ["look_key_policy"]}
     M._look_key_dedicated(S)
     ok(S["look_key"] == "" and S.get("look_key_notice"), "unset meant Tab: cleared, with a notice")
     S = {"seen_version": "2.143.0"}
     M._look_key_dedicated(S)
-    ok(S["look_key"] == "" and not S.get("look_key_notice"), "from a build before the Look key: no Tab notice")
+    ok(S["look_key"] == "" and not S.get("look_key_notice"), "from a build before the Read Key: no Tab notice")
     S = {"look_key": "F9", "seen_version": "2.143.0"}
     M._look_key_dedicated(S)
     ok(S["look_key"] == "F9" and not S.get("look_key_notice"), "a key you picked stays")

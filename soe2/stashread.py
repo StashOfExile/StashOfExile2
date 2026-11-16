@@ -367,7 +367,7 @@ def _same_item(icon, icons):
 
 
 def scan(rect, want, purpose="Scan stash"):
-    """Read the tab `want` from the press's one picture of the game (screenread: a Look key press) - kept in memory only, then dropped. -> the read, or None when there's no picture for this press."""
+    """Read the tab `want` from the press's one picture of the game (screenread: a Read Key press) - kept in memory only, then dropped. -> the read, or None when there's no picture for this press."""
     cv2, np = _np()
     from . import screenread as SR
     pic = SR.capture(rect, purpose)

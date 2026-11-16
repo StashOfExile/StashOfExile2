@@ -1,7 +1,7 @@
 """2.83.0: Island Rumors in the app (part of the Expedition helper, Remnant's row in Overlay › Helpers) and the
 Remnant watcher's places: it watches only where remnants can be (feedback: "it keeps popping up in random areas").
   * Island Rumors: only in your hideout (Client.txt; feedback: "watch only in hideout"). GGG policy (Nov 2026): on a
-    Look key press, the press's one picture is checked for the Uncharted Waters card's parchment; only then its part
+    Read Key press, the press's one picture is checked for the Uncharted Waters card's parchment; only then its part
     is read. Each rumor gets a tag: the island and your Map library rank.
   * Remnant: in a Grand Expedition island (Client.txt: ExpeditionLogBook_...) and maps, never in hideouts, towns and
     the campaign.
@@ -57,7 +57,7 @@ class RumoursPage:
             self.ru_hide()
 
     def ru_look_job(self, ctx):
-        """A Look key press in your hideout with the Uncharted Waters card open: its rumors are read once and tagged.
+        """A Read Key press in your hideout with the Uncharted Waters card open: its rumors are read once and tagged.
         The tags stay until your next press or a new area."""
         from . import features as FEAT
         if not (getattr(self, "ru_here", False) and self.ru_on() and FEAT.on("overlay")) or RM.ocr_available():

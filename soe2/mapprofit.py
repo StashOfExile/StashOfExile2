@@ -4,7 +4,7 @@ published or sent to the cloudflare database"; "would not count waystones, only 
 per session/map/hour/day and log somewhere locally that only the user can see").
 
 How: Top Up's quick inventory read (the inventory panel only, never the stash side) is taken in your hideout or a
-town, only when you press your Look key there. Owner decision: back from a map, one card (topup_page.back_card) asks
+town, only when you press your Read Key there. Owner decision: back from a map, one card (topup_page.back_card) asks
 for that press - it counts the map's loot and checks your top ups from the same read; skip it and that map has no
 entry. The last clear read at home before a map is "before"; the first clear read after it is "after". What changed is that
 map's loot. Each cell is named by its picture - the ones you taught with Ctrl+C (Top Up) or the ones Scan stash

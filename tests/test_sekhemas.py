@@ -1,5 +1,5 @@
 """Trial of the Sekhemas helper (BETA): the legend's lines, the trial map check against the owner's screenshots, the
-game's log (floor, leaving), the legend's windows (Rooms, Boons, Afflictions; a click closes it), the hovered tooltip's card - and that nothing reads without a Look key press.
+game's log (floor, leaving), the legend's windows (Rooms, Boons, Afflictions; a click closes it), the hovered tooltip's card - and that nothing reads without a Read Key press.
 
     python3.12 -m unittest tests.test_sekhemas        (or tests/runall.sh)"""
 import os
@@ -331,7 +331,7 @@ class Panels(unittest.TestCase):
 
 
 class LookKeyOnly(unittest.TestCase):
-    """Nothing reads the screen without a Look key press: the job only cuts from the press's one picture."""
+    """Nothing reads the screen without a Read Key press: the job only cuts from the press's one picture."""
 
     def setUp(self):
         SR.reset()
@@ -357,7 +357,7 @@ class LookKeyOnly(unittest.TestCase):
                 return line
 
             def look_key_text(self):
-                return "your Look key (Ctrl+Shift+R)"
+                return "your Read Key (Ctrl+Shift+R)"
 
             def sek_show(self, game=None):
                 App.shown += 1
@@ -429,8 +429,8 @@ class LookKeyOnly(unittest.TestCase):
 class Wiring(unittest.TestCase):
     def test_helpers_row(self):
         from soe2 import alerts_page as AP, features as FEAT, names
-        line = AP.helper_blurb("sekhemas", "your Look key (Ctrl+Shift+R)")
-        self.assertEqual(line, "Press your Look key (Ctrl+Shift+R) on the trial map: shows what to avoid and what "
+        line = AP.helper_blurb("sekhemas", "your Read Key (Ctrl+Shift+R)")
+        self.assertEqual(line, "Press your Read Key (Ctrl+Shift+R) on the trial map: shows what to avoid and what "
                                "to take.")
         self.assertIn("sekhemas", AP.LOOK_HELPERS)
         self.assertIn("sekhemas", dict(AP.AlertsPage.HELPER_GROUPS)["In maps"])

@@ -1,8 +1,8 @@
-"""The Look key (GGG policy, Nov 2026): every helper that reads the screen does it once, when you press the Look key.
+"""The Read Key (GGG policy, Nov 2026): every helper that reads the screen does it once, when you press the Read Key.
 
-The owner takes GGG's rule at its strictest: a read needs a key pressed FOR the read. So the Look key is a key you pick
+The owner takes GGG's rule at its strictest: a read needs a key pressed FOR the read. So the Read Key is a key you pick
 only for this (Settings › Keybinds, or Setup's helpers step): Ctrl+Shift+R as the app comes (screenread.DEFAULT_KEY).
-If you clear it nothing reads the screen at all and the helpers that need it say so with one button, "Set the Look key". It can't be a key the app uses
+If you clear it nothing reads the screen at all and the helpers that need it say so with one button, "Set the Read Key". It can't be a key the app uses
 for something else, one of the game's everyday keys (Tab, Enter, Space, Esc ...) or a mouse button, and while the
 game is in front the app only listens (the key is never blocked - the game still gets it). Old settings with Tab - the
 game's map key, the default before - are cleared once (migrations.look_key_dedicated) and the app says why.
@@ -23,19 +23,19 @@ from . import buglog
 from . import screenread as SR
 from .config import SETTINGS
 
-NAME = "Look key"                   # (names.py)
-SET_BUTTON = "Set the Look key"
-# the game's everyday keys (its defaults) and keys that mean something everywhere: never the Look key
+NAME = "Read Key"                   # (names.py)
+SET_BUTTON = "Set the Read Key"
+# the game's everyday keys (its defaults) and keys that mean something everywhere: never the Read Key
 GAME_KEYS = {0x09: "Tab (the game's map key)", 0x0D: "Enter (the game's chat)", 0x20: "Space",
              0x1B: "Esc", 0x08: "Backspace", 0x10: "Shift", 0x11: "Ctrl", 0x12: "Alt"}
 AREA_WORDS = {"map": "in a map", "hideout": "in your hideout", "town": "in a town", "other": "in this area",
               "login": "at the character screen"}
-UNSET_STATUS = "No Look key set: it reads nothing until you set one."
-NEED_LINE = "The screen helpers read only when you press your Look key - a key just for that. None is set yet."
+UNSET_STATUS = "No Read Key set: it reads nothing until you set one."
+NEED_LINE = "The screen helpers read only when you press your Read Key - a key just for that. None is set yet."
 
 
 def look_key_problem(text, others=()):
-    """Why this key can't be the Look key (one line), or None. others: [(what, key text)] - the app's other keys."""
+    """Why this key can't be the Read Key (one line), or None. others: [(what, key text)] - the app's other keys."""
     from .overlay import MOUSE_VKS, key_label, parse_key
     t = (text or "").strip()
     if not t:
@@ -44,9 +44,9 @@ def look_key_problem(text, others=()):
     if not k:
         return f"\"{t}\" isn't a key the app knows."
     if k[0] in MOUSE_VKS:
-        return "A mouse button can't be the Look key - a click is not a key press."
+        return "A mouse button can't be the Read Key - a click is not a key press."
     if k[0] in GAME_KEYS and not any(k[1:]):
-        return f"{GAME_KEYS[k[0]]} can't be the Look key - pick a key only for this."
+        return f"{GAME_KEYS[k[0]]} can't be the Read Key - pick a key only for this."
     if k[0] == 0x43 and k[1]:
         return "Ctrl+C is the game's copy - pick a key only for this."
     for what, key in others:
@@ -82,7 +82,7 @@ class LookPage:
         return bool(parse_key(self.look_key()))
 
     def look_key_vk(self):
-        """The Look key's key code, or None (screenread.ONLY_KEY: the one key that may open a read)."""
+        """The Read Key's key code, or None (screenread.ONLY_KEY: the one key that may open a read)."""
         from .overlay import parse_key
         k = parse_key(self.look_key())
         return k[0] if k else None
@@ -93,20 +93,20 @@ class LookPage:
         return key_label(self.look_key()) if self.look_key_set() else ""
 
     def look_key_text(self):
-        """How the app's text names it: "your Look key (F9)", or "your Look key" until one is set."""
+        """How the app's text names it: "your Read Key (F9)", or "your Read Key" until one is set."""
         k = self.look_key_label()
         return f"your {NAME} ({k})" if k else f"your {NAME}"
 
     def look_on_key(self, vk, ctrl, alt, shift):
-        """(keyboard thread) The Look key's key-down in the game -> one read for the helpers. -> True: the key was the
-        Look key in the game and a read was opened or held. It is only heard: the caller never swallows it (the game
-        still gets the key). No Look key: never."""
+        """(keyboard thread) The Read Key's key-down in the game -> one read for the helpers. -> True: the key was the
+        Read Key in the game and a read was opened or held. It is only heard: the caller never swallows it (the game
+        still gets the key). No Read Key: never."""
         from .overlay import parse_key, game_active, POE_TITLE
         k = parse_key(self.look_key())
         if not k or vk != k[0] or vk in SR.MOUSE:
             return False
         if any(k[1:]) and (ctrl, alt, shift) != k[1:]:
-            return False                                # (a Look key with Ctrl / Alt / Shift: only with them)
+            return False                                # (a Read Key with Ctrl / Alt / Shift: only with them)
         if not any(k[1:]) and (ctrl or alt):
             return False                                # (a plain one: with Shift held too - you may be moving)
         if not game_active((getattr(self, "overlay", None) and self.overlay.cfg.get("poe_title")) or POE_TITLE):
@@ -116,7 +116,7 @@ class LookPage:
         return True
 
     def look_area(self):
-        """Where you are for the Look key (the game's log): "map" / "hideout" / "town" / "other", "login" at the
+        """Where you are for the Read Key (the game's log): "map" / "hideout" / "town" / "other", "login" at the
         character screen, or None (not known yet). Until the first area change after the app starts, the log's last
         area (alerts_page.breach_start) - not "anywhere"."""
         if getattr(self, "look_at_login", False):
@@ -141,16 +141,16 @@ class LookPage:
             try:
                 job = make(ctx)
             except Exception:
-                self.log_error("the Look key")
+                self.log_error("the Read Key")
                 job = None
             if job:
                 out.append(job)
         return out
 
     def ev_look(self):
-        """(window thread) A Look key press: the helpers that apply read their part of one picture."""
+        """(window thread) A Read Key press: the helpers that apply read their part of one picture."""
         from . import newchip
-        newchip.used(NAME)                               # 3.0.0: the Look key's NEW chip goes (used)
+        newchip.used(NAME)                               # 3.0.0: the Read Key's NEW chip goes (used)
         from .alerts_page import game_rect
         app_g = game_rect()                              # (in the app's pixels: where its tags go)
         if not app_g:
@@ -197,7 +197,7 @@ class LookPage:
 
     # ---------------------------------------------------------------- setting it
     def look_key_others(self):
-        """The app's other keys: [(what, key text)] (a Look key may not be one of them)."""
+        """The app's other keys: [(what, key text)] (a Read Key may not be one of them)."""
         try:
             return [(what, key) for what, key, _w, kid in self.all_hotkeys() if kid != "checks:look_key" and key]
         except Exception:
@@ -205,7 +205,7 @@ class LookPage:
             return []
 
     def look_key_save(self, text):
-        """Set the Look key (Settings › Keybinds, Setup). -> None when saved, else the one line saying why not (the
+        """Set the Read Key (Settings › Keybinds, Setup). -> None when saved, else the one line saying why not (the
         old key stays)."""
         from .config import save_json
         why = look_key_problem(text, self.look_key_others())
@@ -217,16 +217,16 @@ class LookPage:
         return None
 
     def look_status(self, line):
-        """A helper's "On - press your Look key ..." status line - or, with no Look key, that it reads nothing yet."""
+        """A helper's "On - press your Read Key ..." status line - or, with no Read Key, that it reads nothing yet."""
         return line if self.look_key_set() else UNSET_STATUS
 
     def look_key_open(self):
-        """"Set the Look key": Settings › Keybinds, its row lit up and its box waiting for the key."""
+        """"Set the Read Key": Settings › Keybinds, its row lit up and its box waiting for the key."""
         self.hotkeys_open("checks:look_key")
 
     # ---------------------------------------------------------------- until it's set (the empty state)
     def look_needed(self, parent, bg, line=NEED_LINE, wrap=520):
-        """One line and one button, "Set the Look key", shown while no Look key is set (it goes once one is). ->
+        """One line and one button, "Set the Read Key", shown while no Read Key is set (it goes once one is). ->
         the frame that holds it (packed by the caller; it's empty when a key is set)."""
         holder = tk.Frame(parent, bg=bg)
         box = tk.Frame(holder, bg=bg)
@@ -241,7 +241,7 @@ class LookPage:
         return holder
 
     def look_key_changed(self):
-        """A Look key was set or cleared: every "Set the Look key" line shows or goes; texts naming it repaint."""
+        """A Read Key was set or cleared: every "Set the Read Key" line shows or goes; texts naming it repaint."""
         on = self.look_key_set()
         keep = []
         for h in getattr(self, "_look_needed", []):
@@ -262,7 +262,7 @@ class LookPage:
                 buglog.caught()
 
     def look_key_notice(self):
-        """Once, after the update that gave the Look key its default (or replaced an old Tab): say which key it is."""
+        """Once, after the update that gave the Read Key its default (or replaced an old Tab): say which key it is."""
         if not SETTINGS.pop("look_key_notice", False):
             return None
         from .config import save_json
@@ -271,9 +271,9 @@ class LookPage:
         if not k:
             return None
         text = f"Helpers read the screen once when you press {k}. Change it in Settings › Keybinds."
-        self.status_text = f"Look key: {k} - helpers read the screen once when you press it."
+        self.status_text = f"Read Key: {k} - helpers read the screen once when you press it."
         try:
-            return self.app_toast(text, title="Look key", kind="info",
+            return self.app_toast(text, title="Read Key", kind="info",
                                   actions=(("Change…", self.look_key_open),))
         except Exception:
             buglog.caught()

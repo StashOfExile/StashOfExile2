@@ -2,8 +2,8 @@
 
 The card asks for one tab at a time ("Open your Currency tab"), reads it (stashread.scan, in a thread: one picture,
 kept in memory, then dropped) and moves on. GGG policy (Nov 2026, the strictest reading): a click is not a key press -
-Start reading only gets the scan ready (armed); each press of your Look key in the game then reads the tab that shows,
-one picture a press. No Look key set: the card says so, with Set the Look key. At the end - or Finish at any time - a window in the
+Start reading only gets the scan ready (armed); each press of your Read Key in the game then reads the tab that shows,
+one picture a press. No Read Key set: the card says so, with Set the Read Key. At the end - or Finish at any time - a window in the
 app lists what was read; fix any number (double-click), drop rows (Delete), then Save sets them in Wealth › Counted by
 hand, like Count currency's Finish does. Nothing is saved before you press Save.
 The card is left out of screen captures (so it never covers what's read) and never takes the keyboard from the game."""
@@ -96,7 +96,7 @@ class StashScanPage:
 
     # ---------------------------------------------------------------- reading
     def stash_scan_read(self):
-        """Start reading (your click on the card): gets the scan ready - nothing is read. Each Look key press in the
+        """Start reading (your click on the card): gets the scan ready - nothing is read. Each Read Key press in the
         game then reads the tab that shows (look_jobs -> stash_scan_job). -> True when armed."""
         if not self.ss or self.ss["busy"] or not self.look_key_set():
             return False
@@ -106,7 +106,7 @@ class StashScanPage:
         return True
 
     def stash_scan_job(self, ctx):
-        """A Look key press while the armed card shows: this tab, from the press's one picture."""
+        """A Read Key press while the armed card shows: this tab, from the press's one picture."""
         ss = self.ss
         if not ss or ss["busy"] or not ss.get("armed"):
             return None
@@ -193,8 +193,8 @@ class StashScanPage:
         if ss["busy"]:
             tk.Label(row, text="Reading…", bg=BG, fg=TXT, font=("Segoe UI", 10)).pack(side="left")
         else:
-            if not self.look_key_set():                  # (the empty state: no Look key, nothing can read)
-                ttk.Button(row, text="Set the Look key", style="Primary.TButton",
+            if not self.look_key_set():                  # (the empty state: no Read Key, nothing can read)
+                ttk.Button(row, text="Set the Read Key", style="Primary.TButton",
                            command=self.look_key_open).pack(side="left")
             elif armed:
                 tk.Label(row, text=f"▶ Ready - press {self.look_key_label()}", bg=BG, fg=TXT,
@@ -206,7 +206,7 @@ class StashScanPage:
             done = sum(len(v) for v in ss["got"].values())
             ttk.Button(row, text=f"Finish ({done})" if done else "Finish",
                        command=self.stash_scan_finish).pack(side="left", padx=(8, 0))
-        line = ("No Look key yet: the scan reads only when you press a key just for that." if not self.look_key_set()
+        line = ("No Read Key yet: the scan reads only when you press a key just for that." if not self.look_key_set()
                 else f"Press {self.look_key_text()} in the game: reads this tab once. Nothing is saved until you "
                      f"check it." if armed else
                 f"Start reading gets it ready; then each press of {self.look_key_text()} reads one tab. Nothing is "

@@ -272,7 +272,7 @@ def _user32():
 
 
 UI_DPI = "gdiscaled"         # the window thread's DPI: "gdiscaled" (Windows scales every window, crisp text) |
-                            # "unaware" | "off" (as master). ON (owner-approved): a Look key press reads the game and
+                            # "unaware" | "off" (as master). ON (owner-approved): a Read Key press reads the game and
                             # takes its picture in real pixels itself (screenread.game_real / real_pixels)
 UI_DPI_SET = [None]         # what pin_ui_dpi did (for the owner's checklist / bug reports)
 
@@ -285,7 +285,7 @@ def pin_ui_dpi():
     the whole process to per-monitor mid-run; every window made after that was drawn 1:1 (smaller) beside a main
     window Windows was scaling - and the Drawer's sizes were read in one space and written in the other.
     A thread's own awareness wins over the process default, so the switch no longer reaches this thread; other
-    threads (the Look key's one-picture thread) keep the process default exactly as before. Windows 10 1607+; a
+    threads (the Read Key's one-picture thread) keep the process default exactly as before. Windows 10 1607+; a
     no-op elsewhere. -> the context set, or None.
     Screen reading doesn't depend on this thread's DPI: look_page.ev_look reads the game window and the mouse in real
     pixels (screenread.game_real - this thread per-monitor for the two reads, then back), the picture is taken the

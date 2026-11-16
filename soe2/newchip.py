@@ -23,7 +23,7 @@ SINCE = "3.0.0"
 # feature (its name in names.FEATURES) -> where it lives: the rail's page, and the tab of that page whose opening
 # counts as opening it. Only the genuinely new 3.0 features with a place of their own.
 FEATURES = {
-    "Look key": ("settings", "Keybinds"),              # Settings › Keybinds: the key every screen read waits for
+    "Read Key": ("settings", "Keybinds"),              # Settings › Keybinds: the key every screen read waits for
     "Drawer": ("settings", "General"),                 # Settings › General › Window: Drawer or Full window
     "Trial of the Sekhemas": ("tracker", "Helpers"),   # Overlay › Helpers: the trial map's legend (BETA)
 }
@@ -56,7 +56,7 @@ def page_new(key):
 
 
 def page_tip(key):
-    """What's new on this page, for the rail's tip: "NEW: Look key, Drawer" (or "")."""
+    """What's new on this page, for the rail's tip: "NEW: Read Key, Drawer" (or "")."""
     names = [n for n, (page, _tab) in FEATURES.items() if page == key and is_new(n)]
     return f"{WORD}: " + ", ".join(names) if names else ""
 
@@ -82,7 +82,7 @@ def _mark(name):
 
 
 def used(name):
-    """The feature was used (a Look key press, the Drawer shown, the trial's legend shown): its chips go for good."""
+    """The feature was used (a Read Key press, the Drawer shown, the trial's legend shown): its chips go for good."""
     _leaving.discard(name)
     changed = _mark(name)
     _paint(name)

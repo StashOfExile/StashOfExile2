@@ -1,7 +1,7 @@
 """Trial of the Sekhemas helper (BETA) - the legend over the game and its row in Overlay › Helpers (sekhemas.py has
 the data, the map check and the log's trial status).
 
-On a Look key press in the trial (the game's log says "Sanctum_..."), the press's one picture of the game is looked
+On a Read Key press in the trial (the game's log says "Sanctum_..."), the press's one picture of the game is looked
 at (sekhemas_look_job): the trial map open -> the legend shows beside it in the empty space either side of the map
 window - Afflictions on the left, Rooms and Boons on the right, each group's lines marked ✓ Take / ✕ Avoid / ! Mild.
 The map closed on a press -> the legend goes (and the read mark says nothing was found). With Windows' text reader, a
@@ -58,7 +58,7 @@ class SekhemasPage:
         if left:
             buglog.debug("Sekhemas", "left the trial")
 
-    # ---------------------------------------------------------------- a Look key press
+    # ---------------------------------------------------------------- a Read Key press
     def sekhemas_look_job(self, ctx):
         """A press in the trial: is the trial map open (the frame round it) -> the legend; a tooltip under the mouse
         naming an affliction or a boon -> its card. All from the press's one picture."""

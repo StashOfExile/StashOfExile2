@@ -1,4 +1,4 @@
-"""The Ritual Identifier (Round 18, owner: hover a Ritual Altar, press the Look key - nothing showed but the read mark).
+"""The Ritual Identifier (Round 18, owner: hover a Ritual Altar, press the Read Key - nothing showed but the read mark).
 The game calls the place a Ritual Rune ("Tainted Ritual Rune"); a long danger line wraps ("Clouds of Elemental /
 Disturbance ..."); and a frame found round the mouse may be another box. A drawn altar tooltip (a dark panel with a
 bright frame, as find_tooltip looks for) and a stand-in for Windows' text reader check the whole path: the picture

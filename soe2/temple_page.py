@@ -1,4 +1,4 @@
-"""2.132.1 Temple Helper - its read (GGG policy, Nov 2026: once per Look key press - the Temple Console in a temple
+"""2.132.1 Temple Helper - its read (GGG policy, Nov 2026: once per Read Key press - the Temple Console in a temple
 area, temple_console_job), Vaal Lens (the card in Vaal Ruins and the temple: the crystals, the plan) and its row in
 Overlay › Helpers (temple.py parses). Owner decision: the Vaal Beacon tooltip read in maps, the crystals on the
 overlay's line and the "crystals full" alert are gone."""
@@ -85,7 +85,7 @@ class TemplePage:
             buglog.caught()
 
     def temple_console_job(self, ctx):
-        """2.136.1 (GGG policy: on a Look key press in a temple area): the Temple Console's "18/60" under its Run Temple
+        """2.136.1 (GGG policy: on a Read Key press in a temple area): the Temple Console's "18/60" under its Run Temple
         button (the bar is out of captures there, so it sees under it); with Vaal Lens on, the board and the Medallions
         panel too - all from the press's one picture. No console open = nothing read, nothing changed."""
         if not getattr(self, "tm_in_temple", False) or not self.temple_on():
@@ -95,7 +95,7 @@ class TemplePage:
         box = TM.console_box(g)
         st = TM.state()
         most = st["most"] if st else None
-        # 2.140.0 Vaal Lens: the board is read while the card shows (GGG policy: each Look key press).
+        # 2.140.0 Vaal Lens: the board is read while the card shows (GGG policy: each Read Key press).
         # 2.142.0: in the temple too (the console opens there), from one picture of the game; the Medallions panel
         # (V) is read each look while the card shows - its count, and a hovered slot's name with the slot under the mouse
         lens = self.temple_pad_shown()

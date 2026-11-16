@@ -1,4 +1,4 @@
-"""The Look key with nothing to read (owner: "if it doesn't have anything to read it shouldn't give the alert"):
+"""The Read Key with nothing to read (owner: "if it doesn't have anything to read it shouldn't give the alert"):
 which helpers apply is decided BEFORE any picture - from where you are (the game's log), each helper's switch and what
 it needs. None applies -> no picture, no read mark (👁 card), one line in the app's log. One applies -> one picture
 and the card, as before (a read that happened is never hidden).
@@ -36,7 +36,7 @@ AREAS = ("map", "hideout", "town", "other", None)
 
 class App(LookPage, AP.AlertsPage, HoverPage, TemplePage, RemnantPage, FavoursPage, RumoursPage, WellSoulsPage,
           TopUpPage, SekhemasPage, StashScanPage, RitualIdPage, MapProfitPage):
-    """Every Look key helper of the app (look_page.look_jobs' list), without windows."""
+    """Every Read Key helper of the app (look_page.look_jobs' list), without windows."""
     mm_sync = True
 
     def __init__(self):
@@ -161,7 +161,7 @@ class NothingToRead(Base):
 
 
 class NothingFound(Base):
-    """A press whose picture no helper could use (owner: the trial map closed + the Look key): it was read, so the
+    """A press whose picture no helper could use (owner: the trial map closed + the Read Key): it was read, so the
     👁 card still shows - with honest words, "Read the screen · nothing here"."""
 
     def test_the_words(self):
@@ -195,7 +195,7 @@ class NothingFound(Base):
                                                   "'nothing here')")
 
     def test_closed_trial_map(self):
-        """The owner's case: in the trial, the map closed, the Look key -> one read, "nothing here" on the card."""
+        """The owner's case: in the trial, the map closed, the Read Key -> one read, "nothing here" on the card."""
         self.all_off()
         SETTINGS["sekhemas"] = {"on": True}
         app = App()

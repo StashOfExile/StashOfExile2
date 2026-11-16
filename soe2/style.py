@@ -1354,6 +1354,49 @@ class SbGuard:
             self.flips = []
 
 
+WHEEL_EVENTS = ("<MouseWheel>", "<Button-4>", "<Button-5>")
+
+
+def wheel_scrolls(target, host):
+    """3.0.1 (owner: the What's new card only scrolled with the mouse over its text, not over its cards): the mouse
+    wheel anywhere over host scrolls target - a Text whose cards are windows in it (window_create), or a Canvas. A
+    Toplevel host takes it for every widget in it (its binding is on all of them); any other host gets it on itself and
+    everything in it, as it is now. target itself scrolls by its own binding (not twice). -> host."""
+    def wheel(e):
+        if e.widget is target:
+            return None
+        try:
+            if not target.winfo_exists():
+                return None
+            if getattr(e, "num", None) in (4, 5):
+                step = -1 if e.num == 4 else 1
+                px = 50 * step                               # (X11: Tk's own Text step)
+            else:
+                d = int(getattr(e, "delta", 0) or 0)
+                if not d:
+                    return "break"
+                step = -1 if d > 0 else 1
+                px = -d // 3 if abs(d) >= 30 else 40 * step  # (Windows: 120 a notch = 40 px; macOS: small deltas)
+            if isinstance(target, tk.Text):
+                target.yview_scroll(px, "pixels")
+            else:
+                target.yview_scroll(step * 2, "units")
+        except tk.TclError:
+            return None
+        return "break"
+
+    def hook(w):
+        for ev in WHEEL_EVENTS:
+            w.bind(ev, wheel, add="+")
+        if not isinstance(w, tk.Toplevel):
+            for ch in w.winfo_children():
+                if ch is not target:
+                    hook(ch)
+    hook(host)
+    host._wheel_to = target                          # (tests)
+    return host
+
+
 class ScrollArea(tk.Frame):
     """A frame whose content scrolls up and down (scroll bar + mouse wheel) when it is taller than the window
     (2.0 beta 14: Settings). Put the content in .inner; it is always as wide as the area.

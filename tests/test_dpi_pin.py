@@ -1,5 +1,5 @@
 """The DPI fix (drawer build, owner-approved): the app's window thread keeps one DPI all run (drawer.pin_ui_dpi, ON),
-and a Look key press reads the game window, the mouse and its one picture in REAL pixels whatever that DPI is
+and a Read Key press reads the game window, the mouse and its one picture in REAL pixels whatever that DPI is
 (screenread.game_real / real_pixels), so the capture regions don't depend on Windows' scaling. Windows is mocked: a
 fake user32 that virtualizes coordinates the way Windows does for a DPI-unaware thread (real / scale), keeps a DPI
 context per thread, and - like mss on the first screen read - lets a capture switch the PROCESS to per-monitor.
@@ -142,7 +142,7 @@ class DpiPin(unittest.TestCase):
         SR.USER32[0] = SR.GRABBER[0] = SR.MAP[0] = SR.LOGGER[0] = None
 
     def press(self, u, real=True):
-        """One Look key press through the app's own path (look_page.ev_look) -> (the helpers' boxes, the picture's
+        """One Read Key press through the app's own path (look_page.ev_look) -> (the helpers' boxes, the picture's
         box, the press's ctx)."""
         from PIL import Image
 

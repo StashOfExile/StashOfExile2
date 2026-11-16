@@ -1,6 +1,6 @@
 """The utility windows (2.0 beta 7): Chat commands and Notes (the POE2 Overlay, rebuilt, now two separate utilities)
 (the helpers are in Overlay › Helpers: alerts_page.py). The keyboard watcher's listener is here: every key
-you press in the game, and (GGG policy, Nov 2026) the Look key and copy keys that let the app read once (look_page.py)."""
+you press in the game, and (GGG policy, Nov 2026) the Read Key and copy keys that let the app read once (look_page.py)."""
 import os
 import sys
 import threading
@@ -32,7 +32,7 @@ class UtilitiesPage:
         from . import screenread as _sr
         from .alerts_page import game_rect as _gr
         _sr.AREA[0] = _gr                            # (one press = one picture of the game window)
-        _sr.ONLY_KEY[0] = self.look_key_vk           # (the one key: a read opens on the Look key and nothing else)
+        _sr.ONLY_KEY[0] = self.look_key_vk           # (the one key: a read opens on the Read Key and nothing else)
         _sr.SAID[0] = lambda src, key, what: self.ui_q.put(("read_mark", src, key, what))   # (the read mark)
         try:                                         # (the app window's handle, read once here on the Tk thread)
             import sys as _sys
@@ -61,11 +61,11 @@ class UtilitiesPage:
         if CAPTURING[0] is not None:                   # a hotkey box is waiting: the key (or button) goes to it
             self.ui_q.put(("keycap", vk, ctrl, alt, shift))
             return True
-        try:                                           # GGG policy (Nov 2026): the Look key - one screen read a press.
+        try:                                           # GGG policy (Nov 2026): the Read Key - one screen read a press.
             self.look_on_key(vk, ctrl, alt, shift)     # It is only heard: the game still gets the key (never True)
         except Exception:
             buglog.caught()
-        try:                                           # Round 18: Esc in the game clears what the Look key drew
+        try:                                           # Round 18: Esc in the game clears what the Read Key drew
             self.look_esc_on_key(vk, ctrl, alt, shift)  # (only heard: the game still gets Esc)
         except Exception:
             buglog.caught()
@@ -131,7 +131,7 @@ class UtilitiesPage:
         return self.overlay.on_key(vk, ctrl, alt, shift)
 
     def look_esc_on_key(self, vk, ctrl, alt, shift):
-        """(keyboard thread) Esc while the game is in front -> ("look_clear",): what the Look key drew over the game
+        """(keyboard thread) Esc while the game is in front -> ("look_clear",): what the Read Key drew over the game
         goes. Never True - Esc is never swallowed."""
         if vk != 0x1B or ctrl or alt or shift:
             return False

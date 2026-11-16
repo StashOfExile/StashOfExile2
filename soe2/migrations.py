@@ -223,7 +223,7 @@ def _no_dev_options(S):
 
 
 def _look_key_policy(S):
-    """GGG policy (Nov 2026: one screen read per key press): the helpers read on the Look key. Gone: the Delirium
+    """GGG policy (Nov 2026: one screen read per key press): the helpers read on the Read Key. Gone: the Delirium
     helper process (its switch util_delirium_autostart; the helper itself is gone - _delirium_gone), Fast Beacon
     Read (temple.fast_read) and the Ritual tribute reminder (ritual_alert.tribute_reminder)."""
     S.pop("util_delirium_autostart", None)
@@ -248,7 +248,7 @@ def _delirium_gone(S):
 
 
 def _look_key_default(S):
-    """GGG policy, owner decision: the Look key is Ctrl+Shift+R as the app comes. A Look key that is unset (or was the
+    """GGG policy, owner decision: the Read Key is Ctrl+Shift+R as the app comes. A Read Key that is unset (or was the
     old Tab, cleared by look_key_dedicated) becomes it; a key you picked is kept. A person with an older install is
     told once (look_page.look_key_notice). Cleared later by you: it stays cleared (the empty state)."""
     from .screenread import DEFAULT_KEY
@@ -260,7 +260,7 @@ def _look_key_default(S):
 
 
 def _look_key_dedicated(S):
-    """GGG policy, the strictest reading (owner): a read needs a key pressed for it - the Look key is a key only for
+    """GGG policy, the strictest reading (owner): a read needs a key pressed for it - the Read Key is a key only for
     the read, not set as the app comes. Tab (the game's map key, the old default - an unset key meant Tab after
     look_key_policy) is cleared; someone who read on Tab gets one notice saying why (look_page.look_key_notice)."""
     k = S.get("look_key")
@@ -270,6 +270,16 @@ def _look_key_dedicated(S):
         S["look_key"] = ""
         if was_tab and S.get("seen_version"):    # (someone who read on Tab is told why; others meet it in What's new)
             S["look_key_notice"] = True
+
+
+def _read_key_name(S):
+    """3.0.1 (owner: "ctrl + shift + r = Read. R for Read."): the Look key is the Read Key. Its NEW chip went once
+    you opened Settings › Keybinds or pressed it (settings.json "new_seen", by the feature's name) - that stays so
+    under the new name; the old name is kept too (an older build put back still finds it). The key itself was always
+    saved as look_key: nothing to move."""
+    seen = S.get("new_seen")
+    if isinstance(seen, dict) and seen.get("Look key") and not seen.get("Read Key"):
+        seen["Read Key"] = seen["Look key"]
 
 
 STEPS = (
@@ -299,6 +309,7 @@ STEPS = (
     ("look_key_dedicated", "GGG policy", "settings", _look_key_dedicated, None),
     ("delirium_gone", "GGG policy", "settings", _delirium_gone, None),
     ("look_key_default", "GGG policy", "settings", _look_key_default, None),
+    ("read_key_name", "3.0.1", "settings", _read_key_name, None),
 )
 
 

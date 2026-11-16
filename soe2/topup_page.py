@@ -1,8 +1,8 @@
 """2.131.0 Top Up Reminders - the read, teaching an item, the reminder card and the Items list (topup.py reads the
-pictures). Overlay › Helpers has its switch. GGG policy (Nov 2026): it reads once when you press your Look key with
+pictures). Overlay › Helpers has its switch. GGG policy (Nov 2026): it reads once when you press your Read Key with
 your inventory open in a hideout or town - it used to look every 1.5 s by itself.
 Owner decision: Top Up and Map profit share one flow - back from a map (the game's log says so), one card asks you to
-open your inventory and press the Look key (back_card). That one press is Map profit's count for the map and Top
+open your inventory and press the Read Key (back_card). That one press is Map profit's count for the map and Top
 Up's check, from the same picture. Nothing reads by itself; skip the card and that map has no profit entry."""
 import time
 import tkinter as tk
@@ -16,7 +16,7 @@ from .style import C, Tooltip
 MOVING = "moving"
 HIST_SECS = 20                      # 2.131.2: recent looks kept to find the taught cell without the hover glow
 REFINE_SAME = TU.SAME * 3       # (the glow changes it this much at most)
-TEACH_SECS = 120                    # the Top Up key teaches from the last Look key read this recent
+TEACH_SECS = 120                    # the Top Up key teaches from the last Read Key read this recent
 CARD_COLOR = "#8ec5ff"
 BACK_SECS = 30                      # the Back from a map card waits this long (a click on it closes it: not now)
 PC_CARD_SECS = 8                    # 2.131.5: a price check's card may cover the inventory this long
@@ -48,7 +48,7 @@ class TopUpPage:
             return self.topup_on()
 
     def topup_look_job(self, ctx):
-        """A Look key press in a hideout or town (Top Up Reminders or Map profit on): is the inventory open, and if so
+        """A Read Key press in a hideout or town (Top Up Reminders or Map profit on): is the inventory open, and if so
         what's in it - from the press's one picture."""
         if not self.topup_looking() or ctx["area"] not in ("hideout", "town"):
             return None
@@ -227,7 +227,7 @@ class TopUpPage:
 
     # ---------------------------------------------------------------- Back from a map (Top Up + Map profit, one card)
     def back_card_text(self, map_name=""):
-        """-> (title, line) of the Back from a map card, or None when neither helper is on or no Look key is set.
+        """-> (title, line) of the Back from a map card, or None when neither helper is on or no Read Key is set.
         Round 18 (feedback: "nobody is gonna read that"): the title and one short line - "Back from <map>" / "Open
         inventory, press Ctrl+Shift+R" (the key from the setting). The stash tip is on Map Profit's page line."""
         tu, mp = self.topup_on(), self.mp_on()

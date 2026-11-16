@@ -1,4 +1,4 @@
-"""2.128.0 Favours prices in the app (the Ritual helper's option): the read on a Look key press (GGG policy, Nov 2026 -
+"""2.128.0 Favours prices in the app (the Ritual helper's option): the read on a Read Key press (GGG policy, Nov 2026 -
 it was a watcher thread), the price tags over the game, and learning a reward's picture when you price check it. The
 reading itself is in favours.py. (The tribute reminder needed the window watched until it closed: it's gone.)
 Switch: Overlay › Helpers › Ritual › Favours prices (on with the Ritual helper)."""
@@ -52,9 +52,9 @@ class FavoursPage:
         self.fv_stars = FV.star_refs()
         return self.fv_refs
 
-    # ---------------------------------------------------------------- a Look key press (GGG policy, Nov 2026)
+    # ---------------------------------------------------------------- a Read Key press (GGG policy, Nov 2026)
     def favours_look_job(self, ctx):
-        """A Look key press with the Ritual Favours window open: its rewards, read once from the press's one picture,
+        """A Read Key press with the Ritual Favours window open: its rewards, read once from the press's one picture,
         get their price tags. The tags stay until your next press (the window may be closed by then - only a read
         could tell) or a new area."""
         if not self.favours_on() or ctx["area"] not in ("map", "other", None):
