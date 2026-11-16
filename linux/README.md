@@ -1,8 +1,8 @@
-# StashOfExile2 on Linux (preview)
+# StashOfExile2 on Linux
 
 > **GGG ToS safety check - read first.** One key press = one action, only when you press it · nothing acts in the game by itself (helpers only read and show) · never touch the game's memory, code or traffic · the mouse is never moved or clicked for you · it reads Client.txt, the trade site (within its limits) and poe.ninja, and your clipboard or screen only once per key press (the Read Key, a copy key). The same rules hold on Linux - see [TOS.md](../TOS.md).
 
-The official app is Windows. The Linux build is a preview. **Tested setup: Arch + Hyprland** (Wayland, the game through Steam / Proton as an XWayland window) - a player builds every release there with `build_linux.sh` and plays with it daily. X11 desktops and other Wayland compositors work too, with the limits below.
+The Linux build comes with every release, from the same code as the Windows app. **Tested setup: Arch + Hyprland** (Wayland, the game through Steam / Proton as an XWayland window) - a player builds every release there with `build_linux.sh` and plays with it daily. X11 desktops and other Wayland compositors work too, with the limits below.
 
 ## Arch + Hyprland (tested)
 
@@ -11,7 +11,7 @@ The official app is Windows. The Linux build is a preview. **Tested setup: Arch 
    sudo pacman -S tesseract tesseract-data-eng grim socat xdotool ttf-liberation
    ```
    tesseract: OCR for the helpers that read text · grim: the Read Key's screen picture · socat: the key binds tell the app · xdotool: the price check key's copy and chat commands (the game hears XTest keys; `wtype` doesn't reach it) · ttf-liberation: fonts for the app's text.
-2. Get the app: the newest **linux-preview** pre-release on [Releases](https://github.com/StashOfExile/StashOfExile2/releases) (`sha256sum -c SHA256SUMS`, then `tar xzf StashOfExile2-*-linux.tar.gz`), or build it: `./build_linux.sh` (makes `dist/StashOfExile2`).
+2. Get the app: `StashOfExile2-<version>-linux.tar.gz` on the [latest release](https://github.com/StashOfExile/StashOfExile2/releases/latest) (`sha256sum -c SHA256SUMS-linux.txt`, then `tar xzf StashOfExile2-*-linux.tar.gz`), or build it: `./build_linux.sh` (makes `dist/StashOfExile2`).
 3. Window rules: add `hyprland.lua` (Lua configs) or `hyprland.conf` (classic) from this folder to your config. The app's class is `Stashofexile2`.
 4. Run it: `./StashOfExile2`. Then `./StashOfExile2 --check-linux` (or Settings › Advanced › Linux check): the first line should read `Hyprland: IPC ok · N of N pass-through binds in place · socat`.
 
@@ -19,7 +19,7 @@ The official app is Windows. The Linux build is a preview. **Tested setup: Arch 
 
 **Fonts:** the app asks for Windows fonts (Segoe UI, Tahoma, Consolas). Its own `fonts.conf` maps them to Liberation / Noto / DejaVu for this app only (`FONTCONFIG_FILE`; yours wins if set, `SOE2_SYSTEM_FONTS=1` turns it off).
 
-**Data:** `~/.stashofexile2`. Updates: the Linux build checks the linux-preview releases only and saves the new `.tar.gz` next to the app.
+**Data:** `~/.stashofexile2`. Updates: the Linux build checks the releases for the newest `-linux.tar.gz` and saves it next to the app.
 
 ## Known issues (Hyprland)
 

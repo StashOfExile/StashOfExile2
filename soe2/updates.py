@@ -19,8 +19,9 @@ RELEASE_URL = f"https://api.github.com/repos/{REPO}/releases/latest"      # GitH
 
 
 FROZEN = bool(getattr(sys, "frozen", False))       # True when running as the built .exe
-# The Linux build (preview): its releases are pre-releases tagged v<version>-linux-preview, never "latest" - so the
-# Windows app's check (releases/latest) never sees them, and the Linux build reads the newest of those instead.
+# The Linux build: 3.0.5 on, its StashOfExile2-<version>-linux.tar.gz is on the same full release as the Windows exe
+# (release.yml builds both). Before that it had its own pre-releases, v<version>-linux-preview - still read, so a
+# Linux build from then finds the first full release. The Windows app reads releases/latest and takes the .exe.
 LINUX_TAG = "-linux-preview"
 LINUX_URL = f"https://api.github.com/repos/{REPO}/releases?per_page=30"
 
@@ -88,15 +89,20 @@ def latest_release():
         return "error", "GitHub's answer could not be read."
 
 
+def _has_linux(r):
+    return any(str(a.get("name", "")).lower().endswith("-linux.tar.gz") for a in r.get("assets") or [])
+
+
 def newest_linux(releases):
-    """The newest v<version>-linux-preview release in GitHub's list, or None."""
+    """The newest release a Linux build can update from: a full release with the -linux.tar.gz on it (3.0.5 on), or
+    an old v<version>-linux-preview - or None. Never a draft, never another pre-release."""
     rels = [r for r in releases or [] if isinstance(r, dict) and not r.get("draft")
-            and str(r.get("tag_name", "")).endswith(LINUX_TAG)]
+            and (str(r.get("tag_name", "")).endswith(LINUX_TAG) or (not r.get("prerelease") and _has_linux(r)))]
     return max(rels, key=lambda r: vtuple(r.get("tag_name", "")), default=None)
 
 
 def latest_linux():
-    """The Linux build's check: the newest Linux preview release (one small public request)."""
+    """The Linux build's check: the newest release with a Linux download (one small public request)."""
     try:
         r = requests.get(LINUX_URL, headers={"Accept": "application/vnd.github+json", "User-Agent": APP_UA}, timeout=20)
     except Exception as e:

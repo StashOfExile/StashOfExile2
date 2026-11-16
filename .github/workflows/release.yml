@@ -18,6 +18,9 @@ permissions:
 jobs:
   build:
     runs-on: windows-latest
+    outputs:                       # (3.0.5: for the Linux job below - the Windows steps are unchanged)
+      version: ${{ steps.ver.outputs.version }}
+      skip: ${{ steps.ver.outputs.skip }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
         with:
@@ -112,3 +115,57 @@ jobs:
             dist/StashOfExile2.exe
             StashOfExile2_build_kit_*.zip
             SHA256SUMS.txt
+
+  # 3.0.5 (owner: "join main as long as it isn't going to create issues for windows builds"): the Linux build, after the
+  # Windows release is published, onto the SAME full release - StashOfExile2-<version>-linux.tar.gz + its checksum.
+  # Its own job and machine: if it fails, the Windows release is already out and untouched. (Was linux-build.yml on
+  # the linux branch, with its own pre-releases.)
+  linux:
+    needs: build
+    if: needs.build.outputs.skip == 'false'
+    runs-on: ubuntu-24.04          # system Python 3.12 + Tk 8.6.14: setup-python's Tk crashed under Xvfb on 22.04
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      V: ${{ needs.build.outputs.version }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
+        with:
+          fetch-depth: 0
+
+      - name: Install the system packages (Tk, Xvfb, the Linux helpers' tools)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends python3.12 python3.12-venv python3.12-dev python3-tk \
+            tcl8.6 tk8.6 libxft2 fontconfig fonts-dejavu-core xvfb xauth xdotool xclip tesseract-ocr tesseract-ocr-eng
+          python3.12 -m venv --system-site-packages "$RUNNER_TEMP/venv"
+          echo "$RUNNER_TEMP/venv/bin" >> "$GITHUB_PATH"
+
+      - name: Install the build tools
+        run: python -m pip install -r linux/requirements-linux.txt     # exact versions (see the file)
+
+      - name: Tests (headless)
+        env:
+          PYTHONUTF8: "1"
+        run: xvfb-run -a -s "-screen 0 1920x1200x24" bash tests/runall.sh
+
+      - name: Build and smoke-run the binary
+        run: PYTHON=python SMOKE=1 ./build_linux.sh          # no display here: build_linux.sh uses xvfb-run
+
+      - name: Add it to the release
+        run: |
+          cp dist/SHA256SUMS dist/SHA256SUMS-linux.txt
+          gh release upload "v$V" "dist/StashOfExile2-$V-linux.tar.gz" dist/SHA256SUMS-linux.txt --clobber
+          SUM=$(cut -d' ' -f1 dist/SHA256SUMS)
+          gh release view "v$V" --json body -q .body > body.md
+          if ! grep -q "### Linux" body.md; then
+            {
+              echo
+              echo "### Linux"
+              echo "\`StashOfExile2-$V-linux.tar.gz\` (built on Ubuntu 24.04; tested on Arch + Hyprland). Install and limits:"
+              echo "[linux/README.md](https://github.com/${GITHUB_REPOSITORY}/blob/v$V/linux/README.md)."
+              echo
+              echo "SHA-256: \`$SUM\`"
+            } >> body.md
+            gh release edit "v$V" --notes-file body.md
+          fi

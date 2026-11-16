@@ -710,6 +710,12 @@ class Updates(unittest.TestCase):
                 {"tag_name": "v3.0.9-linux-preview", "draft": True}]
         self.assertEqual(U.newest_linux(rels)["tag_name"], "v3.0.2-linux-preview")
         self.assertIsNone(U.newest_linux([{"tag_name": "v3.0.0"}]))
+        # 3.0.5 on: the Linux download is on the full release itself
+        tar = [{"name": "StashOfExile2-3.0.5-linux.tar.gz"}]
+        both = rels + [{"tag_name": "v3.0.5", "assets": [{"name": "StashOfExile2.exe"}] + tar},
+                       {"tag_name": "v3.0.6", "assets": [{"name": "StashOfExile2.exe"}]},           # (Linux job failed)
+                       {"tag_name": "v3.0.7", "prerelease": True, "assets": tar}]
+        self.assertEqual(U.newest_linux(both)["tag_name"], "v3.0.5")
         base = f"https://github.com/{U.REPO}/releases/download/v3/"
         rel = {"assets": [{"name": "StashOfExile2.exe", "browser_download_url": base + "StashOfExile2.exe"},
                           {"name": "StashOfExile2-3.0.1-linux.tar.gz",
