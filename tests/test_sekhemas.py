@@ -83,8 +83,12 @@ class Legend(unittest.TestCase):
         for n in ("Ghastly Scythe", "Branded Balbalakh", "Orb of Negation", "Corrosive Concoction"):
             self.assertIn(n, bad)
             self.assertEqual(affl[n]["rating"], "run-ending")
+        rules = {r["name"] for r in SK.data()["legend"]["afflictions"] if r.get("rule")}
+        self.assertEqual(rules, {"Random affliction"})                         # 3.0.4 (owner): a rule, not one affliction
+        self.assertEqual(bad[0], "Random affliction")
         for n in bad:
-            self.assertIn(affl[n]["rating"], ("run-ending", "bad"), n)
+            if n not in rules:
+                self.assertIn(affl[n]["rating"], ("run-ending", "bad"), n)
         for n in self.names(SK.AFFLICTIONS, SK.MILD):
             self.assertEqual(affl[n]["rating"], "minor", n)                     # (the hover card's "Mild" too)
 
