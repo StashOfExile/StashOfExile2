@@ -38,6 +38,7 @@ GGG's rule for tools: *"Reading from the screen or clipboard may only be perform
 - **Never a macro.** After your key press the app does at most one thing in the game: the game's own item copy, or one chat command. The mouse is never moved or clicked for you.
 - The trade site is searched only for what you started, well inside its limits, with a User-Agent that says who is asking. Rates come from poe.ninja.
 - The full list of every read and its trigger: [TOS.md](TOS.md).
+- **Older versions are gone.** Every release before 3.0.0 was removed from GitHub, because those versions read the screen by themselves. Please don't use them with the game. Details: [docs/REMOVED_VERSIONS.md](docs/REMOVED_VERSIONS.md).
 
 This product isn't affiliated with or endorsed by Grinding Gear Games in any way.
 
