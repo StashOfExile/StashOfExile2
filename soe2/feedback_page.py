@@ -26,6 +26,26 @@ REPO = "StashOfExile/StashOfExile2"
 UPDATE_EVERY = 3600                 # 2.79.1 (feedback): every hour (was 6 h)
 
 
+
+def os_line():
+    """3.0.6 (owner: bug reports say the OS and the version): "Windows 11" / "Windows 10", or on Linux the distro
+    family, the desktop and the session ("Linux (arch) · Hyprland · wayland") - never a build number or user name."""
+    import sys
+    if sys.platform == "win32":
+        try:
+            build = int((platform.version() or "0").split(".")[-1])
+        except ValueError:
+            build = 0
+        return "Windows 11" if build >= 22000 else f"Windows {platform.release()}"
+    if sys.platform.startswith("linux"):
+        try:
+            from . import linsys
+            d = linsys.distro() or "?"
+            return f"Linux ({d}) · {linsys.desktop() or '?'} · {linsys.session_type() or '?'}"
+        except Exception:
+            return "Linux"
+    return platform.system() or "?"
+
 class FeedbackPage:
     """Mixed into App."""
 
@@ -112,7 +132,7 @@ class FeedbackPage:
             parts.append(f"**What I expected**\n{expected.strip()}")
         # 2.89.3: no exact Windows build or screen size (they help pick one person out); a private league's name stays here
         res = "4K" if sh >= 2000 else "1440p" if sh >= 1400 else "1080p" if sh >= 1000 else "under 1080p" if sh else "?"
-        parts.append(f"**App** {APP_VERSION} · {platform.system()} {platform.release()} · {res} · "
+        parts.append(f"**App** {APP_VERSION} · {os_line()} · {res} · "
                      f"league {public_league(SETTINGS.get('league')) or '?'}")
         if with_log:                                 # 2.115.0: the one log - the last crash / freeze / slow report and
             from . import buglog                     # the newest entries of app_log.txt, cleaned, capped

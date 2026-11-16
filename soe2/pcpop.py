@@ -30,7 +30,7 @@ from tkinter import ttk
 
 from . import gearicon
 from .config import SETTINGS, save_json
-from .style import C, MOD_COL
+from .style import C, MOD_COL, trade_icon
 
 def ilvl_matters(it):
     """Round 18: does a listing's item level matter for this item (gear, jewels, bases)? Not for waystones (their
@@ -583,7 +583,8 @@ class PricePopup:
         go = self._pcpop_btn(search_word(rec), lambda: self._pcpop_go(rec), primary=True)     # (owner: ↔ Broaden
         go.pack(side="left")                                                             # Search - one step a click)
         Tooltip(go, search_tip(rec))
-        self._pcpop_btn("Trade site", self.pc_open_trade, enabled=bool(rec.get("qid"))).pack(side="left", padx=(8, 0))
+        tb = self._pcpop_btn("Trade Site", self.pc_open_trade, enabled=bool(rec.get("qid")))
+        trade_icon(tb, color=tb.cget("fg"), size=14).pack(side="left", padx=(8, 0))
         self._pcpop_btn("Open in app", lambda: self._pcpop_in_app(rec)).pack(side="right")
         self.root.after_idle(lambda: self._pcpop_after(top))
         want, self._pp_refocus = getattr(self, "_pp_refocus", None), None

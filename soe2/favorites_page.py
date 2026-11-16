@@ -17,7 +17,7 @@ from urllib.parse import quote
 from . import buglog
 from . import favorites as FV
 from .config import SETTINGS
-from .style import over_app
+from .style import over_app, trade_icon
 from .style import C
 
 KEY = "favorites"
@@ -90,6 +90,8 @@ class FavoritesPage:
                               ("▲ Upvote", self.fav_vote, "Upvote it"),
                               ("Trade Site", self.fav_shared_open, "Open its search on the trade site")):
             b = ttk.Button(self.fav_share_bar, text=text, command=fn)
+            if text == "Trade Site":
+                trade_icon(b)
             b.pack(side="left", padx=(0, 8))
             Tooltip(b, tip)
             self.fav_share_btns[text] = b
@@ -136,7 +138,7 @@ class FavoritesPage:
         head.pack(fill="x")
         count = tk.Label(head, text="", bg=P1, fg=C["text"], font=("Segoe UI", 10, "bold"))
         count.pack(side="left")
-        ob = ttk.Button(head, text="Trade Site", command=self.fav_open_trade, state="disabled")
+        ob = trade_icon(ttk.Button(head, text="Trade Site", command=self.fav_open_trade, state="disabled"))
         rcanvas, lst = self._pc_scroller(right, padx=12, bg_key="panel")
         self.favv = PCView(left, lcanvas, lst, rcanvas, count, ob)
         self.favv.rid = None
@@ -1127,7 +1129,7 @@ class FavoritesPage:
         btns.pack(fill="x", pady=(8, 0))
         ttk.Button(btns, text="Search", style="Primary.TButton", command=self.fav_search).pack(
             side="left", fill="x", expand=True)
-        ob = ttk.Button(btns, text="Trade Site", command=self.fav_open_trade)   # P2: under the card
+        ob = trade_icon(ttk.Button(btns, text="Trade Site", command=self.fav_open_trade))   # P2: under the card
         ob.pack(side="left", padx=(8, 0))
         v.open_btn = ob
         v.lcanvas.yview_moveto(0)

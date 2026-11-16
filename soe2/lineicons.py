@@ -48,6 +48,8 @@ ICONS = {
     "note": '<path d="M6 4h9l4 4v12H6z"/><path d="M14 4v5h5"/><path d="M9 13h7M9 16h5"/>',
     "bars": '<path d="M5 20V11M10 20V6M15 20v-7M20 20V9"/>',
     "dot": '<circle cx="12" cy="12" r="3"/>',
+    "globe": '<circle cx="12" cy="12" r="8"/><ellipse cx="12" cy="12" rx="3.5" ry="8"/><path d="M4 12h16"/>'
+             '<path d="M5.5 8h13M5.5 16h13"/>',          # 3.0.6: Trade Site (a web browser)
 }
 
 # a page's key -> its icon (the sidebar's rail in the Drawer); a page not named here gets "dot". Settings is not here:

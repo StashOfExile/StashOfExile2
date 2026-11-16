@@ -19,7 +19,7 @@ from tkinter import ttk
 
 from . import buglog
 from .config import APP_UA, P, SETTINGS
-from .style import C, Splitter, flowify
+from .style import C, Splitter, flowify, trade_icon
 from .trade import ago, RAW_LISTINGS, strip_markup
 
 PC_MAX = 20                  # items kept in Recent
@@ -187,12 +187,13 @@ def widened_line(rec):
     return "↔ Widened: " + rec["widened"]
 
 
-BROADEN = "↔ Broaden Search"     # owner: the card's one orange button while a base found too few (names.py)
+BROADEN = "↔ Broaden Search"     # owner: the card's one orange button while an item found too few (names.py)
 
 
 def broaden_offer(rec):
-    """Owner (Broaden Search): the next widening step the card offers ({"next": its words, ...}), or None - a white /
-    blue base priced with too few listings, a next step left and no box changed since."""
+    """Owner (Broaden Search): the next widening step the card offers ({"next": its words, ...}), or None - an item
+    priced with too few listings (a white / blue base: its boxes; 3.0.6, any other: one mod fewer), a next step left
+    and no box changed since."""
     b = rec.get("broaden")
     return b if b and rec.get("state") == "done" and not rec.get("changed") else None
 
@@ -300,7 +301,15 @@ class PriceCheckPage:
         """The card's orange button: ↔ Broaden Search runs the ladder's next step (one search, its boxes set to what
         is searched); otherwise the boxes as they are (Search again)."""
         b = broaden_offer(rec)
-        if b:
+        if b and b.get("drop"):                          # 3.0.6: every item - the offered mod out (fewer_offer)
+            from .trade import ov_key
+            m = next((x for x in rec["item"]["mods"] if ov_key(x) == b["drop"]), None)
+            rec["broaden"] = None
+            if m is not None:
+                self.toggle_mod(rec, m, False)
+                self.status_text, self.status_until = f"Searched without: {str(b.get('text') or '')[:60]}", \
+                    time.time() + 6
+        elif b:
             from .gear import broadened_opts
             rec["opts"] = broadened_opts(rec.get("opts"), b)
             rec["broaden"] = None
@@ -564,12 +573,12 @@ class PriceCheckPage:
         # 2.123.2 (hotfix, feedback: the buttons belong under the item): Search again, fewer mods, Clear, favorites and
         # Trade Site are made with each card, under it (pcv_card). These stand in, unshown, while there's no item.
         hold = tk.Frame(f, bg=C["panel2"])
-        self.pc_open_btn0 = self.pc_open_btn = ttk.Button(hold, text="Trade Site", command=self.pc_open_trade,
-                                                          state="disabled")
+        self.pc_open_btn0 = self.pc_open_btn = trade_icon(ttk.Button(hold, text="Trade Site", command=self.pc_open_trade,
+                                                                     state="disabled"))
         self.pc_fav_btn0 = self.pc_fav_btn = ttk.Button(hold, text="☆ Add to favorites", command=self.pc_add_fav,
                                                         state="disabled")
         self.pc_search_btn = ttk.Button(hold, text="Search again", style="Primary.TButton")
-        self.pc_fewer_btn = ttk.Button(hold, text="Search with fewer mods")
+        self.pc_fewer_btn = ttk.Button(hold, text=BROADEN)
 
     def pc_verdict_paint(self, rec):
         """The strip says it with a mark and a word, never by color alone."""
@@ -612,9 +621,8 @@ class PriceCheckPage:
             self.pc_v_how.config(text="No listings matched these filters" if not rec.get("manual") else "", fg=C["text"])
             why = (f"{on} mod filter{'s are' if on != 1 else ' is'} on. " if on else "") + \
                 "Untick the rarest mod or lower a Min, then search again."
-            if broaden_offer(rec):                       # owner: a base - the ladder's next step, one click
+            if broaden_offer(rec):                       # owner: the next step, one click (3.0.6: every item)
                 why = f"Press {BROADEN} to try {broaden_offer(rec)['next']}."
-            fewer = on > 1
         elif st == "error":
             reason = rec.get("label") or "The trade site didn't answer."
             low = reason.lower()
@@ -859,8 +867,8 @@ class PriceCheckPage:
         self.pcs_last.config(text=last)
 
     def _pc_card_buttons(self, v, rec):
-        """The card's buttons in the Drawer (mockups.html): Search again (the one orange button), Trade Site ↗,
-        Add to favorites, then Search with fewer mods (when it helps) and Clear - one row that wraps."""
+        """The card's buttons in the Drawer (mockups.html): Search again (the one orange button), Trade Site,
+        Add to favorites, then Broaden Search (too many filters for one search) and Clear - one row that wraps."""
         from .style import Tooltip
         P2 = C["panel2"]
         old = getattr(self, "_pc_btnrow", None)
@@ -874,10 +882,10 @@ class PriceCheckPage:
         btn = self.pc_search_button(btns, rec)
         btn.pack(side="left")
         self.pc_search_btn = btn
-        self.pc_fewer_btn = ttk.Button(btns, text="Search with fewer mods", command=lambda: self.pc_fewer(rec))
-        Tooltip(self.pc_fewer_btn, "Unticks the last ticked mod and searches again.")
-        self.pc_open_btn = ttk.Button(btns, text="Trade Site ↗", command=self.pc_open_trade,
-                                      state="normal" if rec.get("qid") else "disabled")
+        self.pc_fewer_btn = ttk.Button(btns, text=BROADEN, command=lambda: self.pc_fewer(rec))
+        Tooltip(self.pc_fewer_btn, "Searches without your lowest-rated ticked mod.")
+        self.pc_open_btn = trade_icon(ttk.Button(btns, text="Trade Site", command=self.pc_open_trade,
+                                                 state="normal" if rec.get("qid") else "disabled"))
         self.pc_open_btn.pack(side="left", padx=(8, 0))
         Tooltip(self.pc_open_btn, "Opens this search on the trade site")
         self.pc_fav_btn = ttk.Button(btns, text="☆ Add to favorites", command=self.pc_add_fav, state="disabled")
@@ -1308,15 +1316,15 @@ class PriceCheckPage:
             btn = self.pc_search_button(btns, rec)
             btn.pack(side="left", fill="x", expand=True)
             self.pc_search_btn = btn
-            self.pc_fewer_btn = ttk.Button(btns, text="Search with fewer mods", command=lambda: self.pc_fewer(rec))
-            Tooltip(self.pc_fewer_btn, "Unticks the last ticked mod and searches again.")
+            self.pc_fewer_btn = ttk.Button(btns, text=BROADEN, command=lambda: self.pc_fewer(rec))
+            Tooltip(self.pc_fewer_btn, "Searches without your lowest-rated ticked mod.")
             ttk.Button(btns, text="Clear", command=self.pc_clear).pack(side="right", padx=(8, 0))
             more = tk.Frame(v.left, bg=P2)
             more.pack(fill="x", pady=(8, 0))
             self.pc_fav_btn = ttk.Button(more, text="☆ Add to favorites", command=self.pc_add_fav, state="disabled")
             self.pc_fav_btn.pack(side="left", fill="x", expand=True)
-            self.pc_open_btn = ttk.Button(more, text="Trade Site", command=self.pc_open_trade,
-                                          state="normal" if rec.get("qid") else "disabled")
+            self.pc_open_btn = trade_icon(ttk.Button(more, text="Trade Site", command=self.pc_open_trade,
+                                                     state="normal" if rec.get("qid") else "disabled"))
             self.pc_open_btn.pack(side="left", fill="x", expand=True, padx=(8, 0))
             v.open_btn = self.pc_open_btn
         else:
@@ -1326,8 +1334,8 @@ class PriceCheckPage:
                              style="Primary.TButton", command=lambda: self.reprice([rec["id"]]))
             btn.pack(side="left", fill="x", expand=True)
             if v is getattr(self, "favv", None):            # P2 (2.104.0): Open on trade site under the card
-                ob = ttk.Button(btns, text="Trade Site", command=self.fav_open_trade,
-                                state="normal" if rec.get("qid") else "disabled")
+                ob = trade_icon(ttk.Button(btns, text="Trade Site", command=self.fav_open_trade,
+                                           state="normal" if rec.get("qid") else "disabled"))
                 ob.pack(side="left", padx=(8, 0))
                 v.open_btn = ob
         note = self._detail_note(rec) if v is not getattr(self, "pcv", None) or rec.get("state") == "done" else None
@@ -1393,7 +1401,8 @@ class PriceCheckPage:
             on = len(self.pc_ticked(rec))                    # P2: Favorites says why too
             self.pc_why_box(v, rec, "No listings matched these filters",
                             (f"{on} mod filter{'s are' if on != 1 else ' is'} on. " if on else "")
-                            + "Untick the rarest mod or lower a Min, then press Search.", fewer=on > 1)
+                            + (f"Press {BROADEN} to try {broaden_offer(rec)['next']}." if broaden_offer(rec) else
+                               "Untick the rarest mod or lower a Min, then press Search."))
 
     def pc_ticked(self, rec):
         """P1 (2.103.0): the card's ticked mods, top to bottom (the card on screen)."""
@@ -1415,20 +1424,25 @@ class PriceCheckPage:
         row.pack(fill="x", pady=(8, 0))
         self.pc_search_button(row, rec).pack(side="left")
         if fewer:
-            b = ttk.Button(row, text="Search with fewer mods", command=lambda: self.pc_fewer(rec))
+            b = ttk.Button(row, text=BROADEN, command=lambda: self.pc_fewer(rec))
             b.pack(side="left", padx=(8, 0))
             from .style import Tooltip
-            Tooltip(b, "Unticks the last ticked mod and searches again.")
+            Tooltip(b, "Searches without your lowest-rated ticked mod.")
         v.why_box = box
         return box
 
     def pc_fewer(self, rec):
-        """Untick the last ticked mod and search again."""
+        """Broaden Search when the search was too big for the trade site: without the lowest-rated ticked mod
+        (engine.fewer_offer - the same pick as the orange button's), then search again."""
+        from .engine import fewer_offer
+        from .trade import ov_key
         ticked = self.pc_ticked(rec)
-        if not ticked:
+        b = fewer_offer(rec, ticked) if ticked else None
+        m = next((x for x in ticked if ov_key(x) == b["drop"]), None) if b else None
+        if m is None:
             return self.reprice([rec["id"]])
-        self.toggle_mod(rec, ticked[-1], False)
-        self.status_text, self.status_until = f"Unticked: {ticked[-1].get('text', '')[:60]}", time.time() + 6
+        self.toggle_mod(rec, m, False)
+        self.status_text, self.status_until = f"Searched without: {m.get('text', '')[:60]}", time.time() + 6
         self.reprice([rec["id"]])
 
     def pcv_entries(self, v, entries, total, n, head=None):

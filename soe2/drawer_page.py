@@ -19,6 +19,9 @@ from . import drawer as D
 from .config import save_json, SETTINGS
 
 
+
+SHAPE_WORD = {"drawer": "Drawer", "full": "Full window"}      # 3.0.6: the Window toggle's two words (names.py)
+
 class DrawerHost:
     """Mixed into App."""
 
@@ -945,28 +948,29 @@ class DrawerHost:
         tk.Label(r1, text="Window", **lab).pack(side="left", padx=(0, 8))
         from . import newchip as _NEW                      # 3.0.0: the Drawer is NEW until opened or used
         _NEW.chip(r1, "Drawer").pack(side="left", padx=(0, 8))
-        col = tk.Frame(r1, bg=P2)                           # (one under the other: each says when it suits)
-        col.pack(side="left")
-        self._drawer_rb = ttk.Radiobutton(col, text="Drawer — suggested for one monitor", value="drawer",
-                                          variable=v["shape"], command=self._drawer_shape_pick)
-        self._drawer_rb.pack(anchor="w")
-        ttk.Radiobutton(col, text="Full window — suggested for two or more monitors", value="full",
-                        variable=v["shape"], command=self._drawer_shape_pick).pack(anchor="w", pady=(4, 0))
+        # 3.0.6 (owner: "a toggle option like how we switch from bar to panel"): Drawer | Full window, the same
+        # toggle as the overlay's Layout; one gray line says when each suits
+        from .style import SegBar
+        self._drawer_seg = SegBar(r1, list(SHAPE_WORD.values()), value=SHAPE_WORD.get(v["shape"].get(), "Full window"),
+                                  command=self._drawer_seg_pick, size=10, pad=(16, 4))
+        self._drawer_seg.pack(side="left")
+        tk.Label(r1, text="Suggested: Drawer for one monitor, Full window for two or more", bg=P2, fg=C["muted"],
+                 font=("Segoe UI", 9)).pack(side="left", padx=(8, 0))
         tip = tk.Label(r1, text="ⓘ", bg=P2, fg=C["muted"], font=("Segoe UI", 10), cursor="question_arrow")
         tip.pack(side="left", padx=(8, 0), anchor="n")
         Tooltip(tip, "Drawer: the app over the game's side, from the top of the game to just above the skill bar. "
                      "The Drawer key (Settings › Keybinds) shows it and puts it away; so do Esc and a click on the "
                      "game. If Ctrl+Shift+Space switches your keyboard layout, set F3 instead. Full window: a normal "
                      "window, where you left it.")
-        self._drawer_rb_tip = Tooltip(self._drawer_rb, "")
+        self._drawer_rb_tip = Tooltip(self._drawer_seg.btns["Drawer"][0], "")
         self._drawer_note = tk.Label(row, text="", bg=P2, fg=C["muted"], font=("Segoe UI", 9), anchor="w")
         self._drawer_note.pack(fill="x", pady=(0, 8))
         r2 = tk.Frame(row, bg=P2)
         r2.pack(fill="x")
         tk.Label(r2, text="Side", **lab).pack(side="left", padx=(0, 8))
-        for val, txt in (("right", "Right"), ("left", "Left")):
-            ttk.Radiobutton(r2, text=txt, value=val, variable=v["side"], command=self._drawer_side_pick).pack(
-                side="left", padx=(0, 12))
+        self._drawer_side_seg = SegBar(r2, ["Left", "Right"], value=v["side"].get().title(), size=10, pad=(16, 4),
+                                       command=lambda o: (v["side"].set(o.lower()), self._drawer_side_pick()))
+        self._drawer_side_seg.pack(side="left", padx=(0, 12))
         tk.Label(r2, text="Width", **lab).pack(side="left", padx=(12, 8))
         sp = ttk.Spinbox(r2, from_=int(D.SHARE_LO * 100), to=int(D.SHARE_HI * 100), increment=5, width=5,
                          textvariable=v["share"], command=self._drawer_share_pick)
@@ -993,15 +997,26 @@ class DrawerHost:
         try:
             v["shape"].set(self.drawer_st.shape)
             v["side"].set(self.drawer_cfg()["side"])
+            self._drawer_seg.pick(SHAPE_WORD.get(self.drawer_st.shape, "Full window"), notify=False)
+            self._drawer_side_seg.pick(str(self.drawer_cfg()["side"]).title(), notify=False)
             v["share"].set(int(round(float(self.drawer_cfg().get("share", D.SHARE)) * 100)))   # (a drag shows here)
             has_key = bool(self.drawer_key_label())
-            self._drawer_rb.state(["!disabled"] if has_key else ["disabled"])
             self._drawer_rb_tip.text = "" if has_key else "Set a Drawer key first (Settings › Keybinds)"
             k = self.drawer_key_label()
             self._drawer_note.config(text=(f"{k} shows the app and puts it away (Settings › Keybinds)." if k else
                                            "No Drawer key: set one in Settings › Keybinds to use the Drawer."))
         except (tk.TclError, AttributeError):
             pass
+
+    def _drawer_seg_pick(self, word):
+        """The Window toggle: Drawer | Full window. The Drawer needs its key (Settings › Keybinds) - without one the
+        toggle stays on Full window and the line under it says so."""
+        want = next((k for k, w in SHAPE_WORD.items() if w == word), "full")
+        if want == "drawer" and not self.drawer_key_label():
+            self._drawer_seg.pick(SHAPE_WORD["full"], notify=False)
+            return
+        self._drawer_vars["shape"].set(want)
+        self._drawer_shape_pick()
 
     def _drawer_shape_pick(self):
         want = self._drawer_vars["shape"].get()

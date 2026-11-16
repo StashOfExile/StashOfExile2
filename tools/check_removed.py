@@ -25,6 +25,9 @@ DOCS = ("README.md", "TOS.md", "linux/README.md", "themes/README.md", "strats/RE
 
 # (version, what it was, words a person read, names in the code / settings keys[, pending])
 REMOVED = [
+    ("3.0.6", "the Search with fewer mods button (owner: Broaden Search does it for every item - the orange button "
+              "searches without the lowest-rated ticked mod; one name for it)",
+     ("Search with fewer mods",), ()),
     ("3.0.4", "Wealth prices typed by hand (owner: never ask for a price - poe.ninja, else the trade site's exchange, "
               "else No price found) and the Where it is card (owner: it told nothing; What moved it took its place)",
      ("Set my own price", "Use the market price again", "Double-click a price to set your own", "Where it is",

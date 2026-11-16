@@ -13,7 +13,7 @@ from .market import MARKET
 from .valuelog import VALUE_LOG, sig_of
 from .mods import impact_key, JEWEL_BASE, norm, SIDTEXT
 from .pricefmt import fmt_div
-from .style import C, SegBar
+from .style import C, SegBar, trade_icon
 from .chrome import section as chrome_section
 
 KINDS = ["All", "Gear", "Tablets", "Waystones", "Jewels", "Relics"]     # P2 (2.104.0): All and Gear (gear showed nowhere)
@@ -105,7 +105,7 @@ class InsightsPage:
         self.ins_det_btns = {
             "open": ttk.Button(dbar, text="Show in Bulk Pricing", command=self.ins_open_record),
             "again": ttk.Button(dbar, text="Price it again", command=self.ins_price_again),
-            "trade": ttk.Button(dbar, text="Trade Site", command=self.ins_open_search),
+            "trade": trade_icon(ttk.Button(dbar, text="Trade Site", command=self.ins_open_search)),
             "remove": ttk.Button(dbar, text="Remove", command=self.ins_remove_picked, style="Quiet.TButton")}
         self.undo_button(dbar, "insights", side="bottom", pady=(8, 0))   # P2: only with something to undo
         self.ins_card = tk.Frame(det, bg=P2)

@@ -57,6 +57,30 @@ def spread_of(stages, league):
 
 # ------------------------------------------------------------------ background engine
 
+
+def fewer_offer(rec, ticked):
+    """3.0.6 (owner: "for all price checks, similar to how we did bases, there should be an option to broaden
+    search"): an item that found too few -> the Broaden Search step that searches without one mod, or None (fewer
+    than two mods ticked). Which one: the lowest-rated ticked mod (your Rate letter, S best ... D; an unrated mod
+    counts as C), the last on the card on a tie; a total (pseudo, DPS, defences) goes last."""
+    from .ratemods import current, key_for
+    from .mods import TIER_ORDER, tier_rank
+    from .trade import ov_key
+    mods = [m for m in ticked if m.get("sid") and not str(m["sid"]).startswith(("equip:", "map:"))]
+    if len(ticked) < 2 or not mods:
+        return None
+
+    def rank(i_m):
+        i, m = i_m
+        if m.get("group") in ("total", "pseudo") or m.get("kind") == "Total":
+            return (-1, i)
+        k = key_for(rec, m)
+        g = current([k]) if k else None
+        return (tier_rank(g) if g in TIER_ORDER else tier_rank("C"), i)
+    _i, worst = max(enumerate(mods), key=rank)
+    shown = re.sub(r"\s+", " ", str(worst.get("shown") or worst.get("text") or "")).strip()
+    return {"next": f"without {shown[:48]}", "drop": ov_key(worst), "text": worst.get("text")}
+
 class Superseded(Exception):
     """(2.87.0) A Price Checks item's Search was pressed again: this pricing stops; the newer one runs."""
 
@@ -718,6 +742,8 @@ class Engine(TabReaderJobs, WealthJobs, StratCostJobs, threading.Thread):
         how = waystone.summary(item) if item.get("waystone") else gear.summary(item)
         widened, broaden = gear.widen_state(item, base_o, default_opts(item), hours, not enough)   # owner: the card's
         # Widened line, and its Broaden Search (the ladder's next step - one search a click) while too few are found
+        if broaden is None and not enough and not base_steps and not item.get("waystone"):
+            broaden = fewer_offer(rec, must + opt)            # 3.0.6 (owner): every item - the least-rated mod out
         if not some:
             return dict(blank, label=f"no listings match - not priced ({how.lower()})", widened="", broaden=broaden,
                         qid=stages[0]["qid"] if stages else None, nomatch=True, stages=stages)

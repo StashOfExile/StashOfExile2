@@ -22,7 +22,7 @@ from .wealth import (
     parse_price_text, parse_trade_link, WEALTH, WEALTH_CURRENCIES, wealth_display_name,
     wealth_rows, WEALTH_SYNC, wealth_trade_url, WPRICES, WEALTH_RARES, rare_sig, parse_stack,
 )
-from .style import C, SegBar, Tooltip, autowrap
+from .style import C, SegBar, Tooltip, autowrap, trade_icon
 
 
 class _MenuItem:
@@ -277,7 +277,7 @@ class WealthPage:
         acts.pack(fill="x", pady=(8, 0))
         self.w_acts = acts
         ttk.Button(acts, text="Include / leave out", command=self.wealth_toggle_tab).pack(side="left")
-        ttk.Button(acts, text="Trade Site", command=self.wealth_open_trade).pack(side="left", padx=8)
+        trade_icon(ttk.Button(acts, text="Trade Site", command=self.wealth_open_trade)).pack(side="left", padx=8)
         ttk.Button(acts, text="Remove", command=self.wealth_remove_tab, style="Danger.TButton").pack(side="left")
         self.w_tabinfo = tk.Label(sf, text="", bg=P2, fg=C["muted"], justify="left", anchor="w",
                                   wraplength=700, font=("Segoe UI", 9))

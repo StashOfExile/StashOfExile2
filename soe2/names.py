@@ -92,8 +92,9 @@ FEATURES = (
     "Drawer key",               # shows the app and puts it away (Settings › Keybinds; Ctrl+Shift+Space)
     "Widened",                  # owner (base widening): a white / blue base's card - the line saying how its search
                                 # widened (quality, item level, listed within) after Broaden Search
-    "Broaden Search",           # owner: a white / blue base's orange button while too few were found - each click
-                                # runs the next widening step (one search); shown as "↔ Broaden Search"
+    "Broaden Search",           # owner: the price check's orange button while too few were found - each click
+                                # runs the next widening step (one search); shown as "↔ Broaden Search". A white /
+                                # blue base widens its boxes; 3.0.6, any other item: one mod fewer (engine.fewer_offer)
     "Price check overlay",      # the price card over the game (pcpop.py) - "Where the price shows"
     "NEW chip",                 # 3.0.0 (newchip.py): the word NEW on a new feature's row and its page's rail icon,
                                 # until you open or use it

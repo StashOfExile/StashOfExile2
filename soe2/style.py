@@ -38,6 +38,21 @@ ROLE = {                              # color roles -> which C color plays them
 }
 
 
+TRADE_SITE = "Trade Site"      # 3.0.6 (owner): every Trade Site button carries the same browser (globe) icon
+
+
+def trade_icon(btn, color=None, size=16):
+    """A Trade Site button (ttk.Button or tk.Label) -> the same button with the globe icon on its left."""
+    try:
+        from . import lineicons
+        img = lineicons.icon(btn, "globe", size, color or C["text"])
+        if img is not None:
+            btn.configure(image=img, compound="left")
+    except Exception:
+        buglog.caught()
+    return btn
+
+
 def role(name):
     """The color for a role (follows the theme and accent)."""
     return C[ROLE[name]]
