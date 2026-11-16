@@ -454,9 +454,17 @@ class Wiring(unittest.TestCase):
     def test_shipped(self):
         self.assertTrue(os.path.isfile(SK.data_path()))
         self.assertEqual(len(SK.data()["frame"]["parts"]), 9)
-        with open(os.path.join(ROOT, "build_uioverhaul.bat"), encoding="utf-8") as f:
-            bat = f.read()
-        self.assertIn('--add-data "soe2\\sekhemas.json;soe2"', bat)
+        found = 0                                       # every build script that's here bundles the data file
+        for name, line in (("build_uioverhaul.bat", '--add-data "soe2\\sekhemas.json;soe2"'),
+                           ("build_exe.bat", '--add-data "soe2\\sekhemas.json;soe2"'),
+                           (os.path.join(".github", "workflows", "release.yml"), '--add-data "soe2\\sekhemas.json;soe2"'),
+                           ("build_linux.sh", '--add-data "soe2/sekhemas.json:soe2"')):
+            path = os.path.join(ROOT, name)
+            if os.path.isfile(path):
+                found += 1
+                with open(path, encoding="utf-8") as f:
+                    self.assertIn(line, f.read(), name)
+        self.assertTrue(found, "no build script found")
 
 
 if __name__ == "__main__":
