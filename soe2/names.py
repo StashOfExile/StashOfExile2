@@ -97,6 +97,8 @@ FEATURES = (
     "Price check overlay",      # the price card over the game (pcpop.py) - "Where the price shows"
     "NEW chip",                 # 3.0.0 (newchip.py): the word NEW on a new feature's row and its page's rail icon,
                                 # until you open or use it
+    "Linux check",              # Linux build: Settings › Advanced and  StashOfExile2 --check-linux  - session, keys,
+                                # screen picture, clipboard, key sending, OCR, Client.txt, each with its fix
 )
 
 OLD = {

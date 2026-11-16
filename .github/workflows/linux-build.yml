@@ -1,0 +1,97 @@
+# The Linux build (preview) - build_linux.sh on GitHub's Ubuntu 22.04 machine (an older glibc, so the binary runs on
+# more distros), the tests headless (Xvfb), then a PRE-RELEASE "v<version>-linux-preview" with the .tar.gz and
+# SHA256SUMS. It is never "latest" (make_latest: false): the Windows app's update check reads releases/latest only, so
+# it never sees this; the Linux build looks for the newest *-linux-preview release itself (soe2/updates.py).
+# Runs on a push to the linux branch, and by hand (Actions > Linux build > Run workflow).
+# Put this file in .github/workflows/linux-build.yml.
+name: Linux build
+
+on:
+  push:
+    branches: [linux]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: linux-build
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6
+        with:
+          python-version: "3.12"
+
+      - name: Read the version
+        id: ver
+        run: |
+          APP=$(python -c "import re;print(re.search(r'APP_VERSION = \"([^\"]+)\"', open('stashofexile2.py', encoding='utf-8').read()).group(1))")
+          PKG=$(python -c "import re;print(re.search(r'__version__ = \"([^\"]+)\"', open('soe2/__init__.py', encoding='utf-8').read()).group(1))")
+          echo "launcher $APP, soe2 $PKG"
+          if [ "$APP" != "$PKG" ]; then echo "::error::APP_VERSION $APP and __version__ $PKG differ"; exit 1; fi
+          echo "version=$APP" >> "$GITHUB_OUTPUT"
+
+      - name: Install the system packages (Tk, Xvfb, the Linux helpers' tools)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends tcl8.6 tk8.6 libxft2 fontconfig fonts-dejavu-core \
+            xvfb xauth xdotool xclip tesseract-ocr tesseract-ocr-eng
+          python -c "import tkinter; print('Tk', tkinter.TkVersion)"
+          tesseract --version | head -1
+
+      - name: Install the build tools
+        run: python -m pip install -r linux/requirements-linux.txt     # exact versions (see the file)
+
+      - name: Tests and checks (headless)
+        env:
+          PYTHONUTF8: "1"
+        run: |
+          ln -sf "$(command -v python)" "$RUNNER_TEMP/python3.12" && export PATH="$RUNNER_TEMP:$PATH"
+          xvfb-run -a -s "-screen 0 1920x1200x24" bash tests/runall.sh
+          for f in tools/check_*.py; do
+            echo "== $f"; xvfb-run -a -s "-screen 0 1920x1200x24" python3.12 "$f"
+          done
+
+      - name: Build and smoke-run the binary
+        run: PYTHON=python SMOKE=1 ./build_linux.sh          # no display here: build_linux.sh uses xvfb-run
+
+      - name: Release notes
+        run: |
+          V="${{ steps.ver.outputs.version }}"
+          SUM=$(cut -d' ' -f1 dist/SHA256SUMS)
+          {
+            echo "**Linux preview build** of StashOfExile2 v$V (built from \`${GITHUB_SHA::7}\` on Ubuntu 22.04)."
+            echo
+            echo "Not the official release - the Windows app is. Install, packages, X11 / Wayland and known limits:"
+            echo "[linux/README.md](https://github.com/${GITHUB_REPOSITORY}/blob/${GITHUB_SHA}/linux/README.md)."
+            echo
+            echo '```'
+            echo "tar xzf StashOfExile2-$V-linux.tar.gz && cd StashOfExile2-$V-linux && ./StashOfExile2 --check-linux"
+            echo '```'
+            echo
+            echo "SHA-256: \`$SUM\` StashOfExile2-$V-linux.tar.gz"
+            echo
+            echo "Report Linux bugs as issues titled \`[Linux] ...\` with the output of \`./StashOfExile2 --check-linux\`."
+          } > notes.md
+          cat notes.md
+
+      - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65  # v2
+        with:
+          tag_name: v${{ steps.ver.outputs.version }}-linux-preview
+          target_commitish: ${{ github.sha }}
+          name: StashOfExile2 v${{ steps.ver.outputs.version }} - Linux preview
+          body_path: notes.md
+          prerelease: true          # a preview, never the full release
+          make_latest: false        # never "latest": the Windows app's update check (releases/latest) can't see it
+          overwrite_files: true     # a new push of the same version replaces the files
+          files: |
+            dist/StashOfExile2-${{ steps.ver.outputs.version }}-linux.tar.gz
+            dist/SHA256SUMS

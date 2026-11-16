@@ -3918,6 +3918,18 @@ def main():
         sys.exit(finish_update(sys.argv[2]))
     if len(sys.argv) > 1 and sys.argv[1] in ("--ritual", "--delirium"):
         sys.exit(0)        # GGG policy (Nov 2026): the screen-watching helper processes are gone (an old app's call)
+    if len(sys.argv) > 1 and sys.argv[1] == "--check-linux":    # Linux check: what works here, each with its fix
+        from soe2.lincheck import main as check
+        sys.exit(check())
+    if len(sys.argv) > 2 and sys.argv[1] == "--key":            # Linux: a desktop shortcut tells the app a key press
+        from soe2.linkeys import send
+        code = send(sys.argv[2])
+        if code:
+            print("StashOfExile2 isn't running." if code == 2 else f"Not a key: {sys.argv[2]}")
+        sys.exit(code)
+    if "--selftest" in sys.argv:                                 # the build's smoke run: start, show, close cleanly
+        sys.argv.remove("--selftest")
+        _selftest_hook()
     try:
         import soe2
         from soe2 import config
@@ -3930,6 +3942,37 @@ def main():
         return
     from soe2.app import main as run
     run()
+
+
+def _selftest_hook(secs=12):
+    """--selftest: the app starts as usual; SECS after its window loop starts it prints what it showed and closes
+    (exit 0) - the Linux build's smoke run (build_linux.sh, the workflow)."""
+    import tkinter as tk
+    loop = tk.Misc.mainloop
+
+    def mainloop(self, n=0):
+        def done():
+            try:
+                self.update_idletasks()
+                print(f"selftest: window '{self.title()}' {self.winfo_width()}x{self.winfo_height()} "
+                      f"mapped={bool(self.winfo_ismapped())}", flush=True)
+                if sys.platform.startswith("linux"):
+                    from soe2 import linkeys, ocrengine
+                    print(f"selftest: key watchers {linkeys.STATE}, OCR engine '{ocrengine.engine()}'", flush=True)
+            except Exception as e:
+                print(f"selftest: window check failed ({e})", flush=True)
+            try:                                                 # the app's own close (saves, then goes)
+                cmd = self.tk.call("wm", "protocol", self._w, "WM_DELETE_WINDOW")
+                if cmd:
+                    self.tk.call(cmd)
+                    return
+            except Exception:
+                pass
+            self.quit()
+        self.after(int(secs * 1000), done)
+        tk.Misc.mainloop = loop
+        return loop(self, n)
+    tk.Misc.mainloop = mainloop
 
 
 def _fail(msg):

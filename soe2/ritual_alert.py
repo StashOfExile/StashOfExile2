@@ -260,6 +260,7 @@ def look(game, tribute=True):
             himg = SR.capture((r["left"], r["top"], r["left"] + r["width"], r["top"] + r["height"]), "Ritual")
             if himg is not None:
                 out["tribute"] = FV.hud_number(RM.ocr(FV.hud_prep(np.asarray(himg.convert("RGB"))[:, :, ::-1].copy())))
-        except Exception:
-            buglog.caught()
+        except Exception as e:
+            if e.__class__.__name__ != "OcrUnavailable":     # (Linux with no OCR engine: the row says so)
+                buglog.caught()
     return out

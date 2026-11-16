@@ -318,9 +318,10 @@ def changed(a, b, tol=6.0):
 
 # ================================================================ the picture and the OCR (Windows)
 def ocr_available():
-    """'' when Windows' OCR can be used, else why not."""
+    """'' when Windows' OCR can be used, else why not. Linux: Tesseract (ocrengine.py decides the engine)."""
     if sys.platform != "win32":
-        return "needs Windows (its built-in text reader)"
+        from . import ocrengine
+        return ocrengine.problem()
     try:
         from winrt.windows.media.ocr import OcrEngine  # noqa: F401
     except Exception:
@@ -407,7 +408,7 @@ def ocr(img):
     2.136.2 (feedback: the crystal count never changed - its log: an OSError in the Temple Console read): one read at
     a time (two readers on two threads shared one engine), and a failed read is tried once more with a fresh engine."""
     if sys.platform != "win32":
-        raise OcrUnavailable(ocr_available())
+        return _ocr_linux(img)
     eng, lock = _ENGINE, _OCR_LOCK
     if not lock.acquire(timeout=WAIT_SECS):
         _said("busy", "another read held the text reader over %d s - this look skipped" % WAIT_SECS)
@@ -428,6 +429,30 @@ def ocr(img):
             return _ocr(img, eng)
     finally:
         lock.release()
+
+
+def _ocr_linux(img):
+    """Linux: the same, with Tesseract (ocrengine.py) - one read at a time, given up after READ_SECS."""
+    from . import ocrengine
+    why = ocrengine.problem()
+    if why:
+        raise OcrUnavailable(why)
+    if not _OCR_LOCK.acquire(timeout=WAIT_SECS):
+        _said("busy", "another read held the text reader over %d s - this look skipped" % WAIT_SECS)
+        raise OcrStuck("busy")
+    try:
+        return ocrengine.tesseract(img, timeout=READ_SECS)
+    except ocrengine.Slow:
+        _said("slow", "a read took over %d s" % READ_SECS)
+        raise OcrStuck("slow")
+    except OSError as e:
+        code = getattr(e, "errno", None)
+        if code not in _OCR_ERRS:
+            _OCR_ERRS.add(code)
+            buglog.debug("OCR", f"tesseract failed (error {code})")
+        return []
+    finally:
+        _OCR_LOCK.release()
 
 
 _SAID = {}

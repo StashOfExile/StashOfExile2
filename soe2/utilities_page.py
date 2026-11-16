@@ -542,6 +542,13 @@ class UtilitiesPage:
                   "rename it; right-click for more.", 10)
         return True
 
+    def _linux_key_tool(self):
+        """Linux: the tool chat commands press keys with (xdotool / ydotool), or None - looked up once."""
+        if not hasattr(self, "_lin_kt"):
+            from .linsys import key_tool
+            self._lin_kt = key_tool()
+        return self._lin_kt
+
     def notes_status(self):
         cfg = self.overlay.cfg if getattr(self, "overlay", None) else {}
         return bool(cfg.get("notes_enabled"))
@@ -558,7 +565,10 @@ class UtilitiesPage:
         cfg = self.overlay.cfg
         if not cfg.get("chat_enabled"):
             st, col = "Off", C["muted"]
-        elif sys.platform != "win32":
+        elif sys.platform.startswith("linux") and not self._linux_key_tool():
+            from .linsys import install_cmd
+            st, col = f"On, but chat keys need xdotool ({install_cmd('xdotool')})", C["red"]
+        elif sys.platform != "win32" and not sys.platform.startswith("linux"):
             st, col = "On (keys work on Windows only)", C["good"]
         elif getattr(self, "keys", None) is None or not self.keys.active:
             keys = getattr(self, "keys", None)
