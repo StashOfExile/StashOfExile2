@@ -44,6 +44,12 @@ BETA_AREAS = ("Wealth", "Money Makers", "Game Search", "Market Insights", "Craft
 # repeats. Someone coming from rollup["since"] or older (or a fresh install) sees it instead of each version; someone
 # on a pre-release already saw them and gets only this version's own lines (notes_between).
 NOTES = {
+    # 3.0.5: Linux joins main - its download is on the same release page.
+    "3.0.5": {
+        "small": [
+            ("Linux", "The Linux download is on the same release page as Windows, built at the same time."),
+        ],
+    },
     # 3.0.4 (owner): Wealth's What moved it, 7-day prices, no typed prices; Exchange Rates 7 days; Freedom of Faith;
     # Scan stash at other sizes; the Sekhemas legend's random affliction line.
     "3.0.4": {

@@ -189,6 +189,8 @@ def _raw():
     fn = READER[0]
     if fn is not None:
         return fn()
+    if sys.platform.startswith("linux"):
+        return _raw_linux()
     if sys.platform != "win32":
         return ""
     try:
@@ -218,6 +220,83 @@ def _raw():
         return None
 
 
+# ---------------------------------------------------------------- Linux (one tool run per read)
+LINUX_READ = {"wl-paste": ["wl-paste", "--no-newline", "--type", "text"],
+              "xclip": ["xclip", "-selection", "clipboard", "-o"],
+              "xsel": ["xsel", "--clipboard", "--output"]}
+LINUX_WRITE = {"wl-paste": ["wl-copy"], "xclip": ["xclip", "-selection", "clipboard", "-i"],
+               "xsel": ["xsel", "--clipboard", "--input"]}
+LINUX_CLEAR = {"wl-paste": ["wl-copy", "--clear"], "xclip": ["xclip", "-selection", "clipboard", "-i", "/dev/null"],
+               "xsel": ["xsel", "--clipboard", "--clear"]}
+TOOL = [None]                      # tests: the Linux tool's name ("" = Tk's own clipboard)
+
+
+def linux_tool():
+    """wl-paste (Wayland) / xclip / xsel, or "" (Tk's own clipboard on X11 / XWayland) - linsys.clipboard_tool."""
+    if TOOL[0] is not None:
+        return TOOL[0]
+    from .linsys import clipboard_tool
+    return clipboard_tool() or ""
+
+
+def _tk_root():
+    """The app's Tk root - only on the window thread (Tk can't be called from another)."""
+    import tkinter
+    if threading.current_thread() is not threading.main_thread():
+        return None
+    return getattr(tkinter, "_default_root", None)
+
+
+def _raw_linux():
+    import os
+    import subprocess
+    root = _tk_root() if os.environ.get("DISPLAY") else None
+    if root is not None and TOOL[0] is None:        # the window thread: Tk's own (X11 / XWayland - player-tested)
+        try:
+            return root.clipboard_get()
+        except Exception:
+            return ""
+    tool = linux_tool()
+    if tool:
+        try:
+            r = subprocess.run(LINUX_READ[tool], capture_output=True, timeout=1.5)
+        except (OSError, subprocess.SubprocessError):
+            return None
+        return r.stdout.decode("utf-8", "replace") if r.returncode == 0 else ""
+    root = _tk_root()
+    if root is None:
+        return None
+    try:
+        return root.clipboard_get()
+    except Exception:
+        return ""
+
+
+def _write_linux(text):
+    """text (None: empty it) -> True if done. The tool stays in the background to hand the text over (X11 / Wayland
+    clipboards belong to a running program)."""
+    import subprocess
+    tool = linux_tool()
+    if tool:
+        args = LINUX_CLEAR[tool] if text is None else LINUX_WRITE[tool]
+        try:
+            r = subprocess.run(args, input=None if text is None else text.encode("utf-8"), stdout=subprocess.DEVNULL,
+                               stderr=subprocess.DEVNULL, timeout=2)
+            return r.returncode == 0
+        except (OSError, subprocess.SubprocessError):
+            return False
+    root = _tk_root()
+    if root is None:
+        return False
+    try:
+        root.clipboard_clear()
+        if text:
+            root.clipboard_append(text)
+        return True
+    except Exception:
+        return False
+
+
 # ---------------------------------------------------------------- writing (never a read)
 WRITER = [None]                    # tests: fn(text or None) -> True ("None": emptied)
 
@@ -235,6 +314,8 @@ def write_text(text):
     fn = WRITER[0]
     if fn is not None:
         return fn(text or "")
+    if sys.platform.startswith("linux"):
+        return _write_linux(text or "")
     if sys.platform != "win32":
         return False
     try:
@@ -268,6 +349,8 @@ def clear():
     fn = WRITER[0]
     if fn is not None:
         return fn(None)
+    if sys.platform.startswith("linux"):
+        return _write_linux(None)
     if sys.platform != "win32":
         return False
     try:

@@ -79,7 +79,16 @@ The project moved to [github.com/StashOfExile/StashOfExile2](https://github.com/
 
 Each release lists the SHA-256 of every download and a VirusTotal scan of the exe: open the [latest release](https://github.com/StashOfExile/StashOfExile2/releases/latest), then the VirusTotal link under **Check your download**.
 
-From source (Python 3.12): `py -m pip install requests pystray pillow mss numpy opencv-python-headless` then `py stashofexile2.py`. Linux: see [linux/](linux/README.md).
+From source (Python 3.12): `py -m pip install requests pystray pillow mss numpy opencv-python-headless` then `py stashofexile2.py`.
+
+### Linux
+
+Every release has a Linux download on the same page: `StashOfExile2-<version>-linux.tar.gz` (and its checksum, `SHA256SUMS-linux.txt`). Same code and same version as the Windows app, built at the same time.
+
+- Tested on Arch + Hyprland. X11 desktops and other Wayland compositors work too, with limits.
+- `tar xzf StashOfExile2-*-linux.tar.gz`, then `./StashOfExile2 --check-linux`: it lists what works on your setup, each with its fix.
+- The same third-party rules hold: the screen and clipboard are read only once per key press.
+- It updates itself from the same releases. Packages, window rules and known issues: [linux/README.md](linux/README.md).
 
 ## Privacy
 

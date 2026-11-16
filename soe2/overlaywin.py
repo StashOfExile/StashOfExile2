@@ -325,10 +325,10 @@ def foreground_ok():
     popped up over the app's own windows."""
     if not GAME_ONLY[0]:
         return True
-    if sys.platform != "win32":                      # 2.10.0: Hyprland can tell; anywhere else, don't block
+    if sys.platform != "win32":                      # Linux: Hyprland or X11's window hints can tell; else don't block
         if sys.platform.startswith("linux"):
             from . import linsys
-            if linsys.hypr_socket():
+            if linsys.can_tell():
                 return linsys.game_active(GAME_TITLE[0] or "Path of Exile 2") or bool(linsys.app_in_front())
         return True
     try:

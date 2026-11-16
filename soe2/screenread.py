@@ -244,11 +244,107 @@ def _game_box(region):
     return tuple(int(v) for v in region)
 
 
+# ---------------------------------------------------------------- Linux: which tool takes the press's one picture
+CAPTURE_TOOLS = ("mss", "grim", "spectacle", "gnome-screenshot")
+CAPTURE_PKG = {"grim": "grim", "spectacle": "spectacle (KDE)", "gnome-screenshot": "gnome-screenshot"}
+
+
+def capture_tool(env=None, path=None):
+    """Linux: the one way this app takes a picture - decided from the session, never by trying (nothing is read here):
+      X11 (and anything with an X server): "mss" (X11's own XGetImage);
+      Wayland: "grim" (wlroots: Hyprland, sway ...), "spectacle" (KDE), "gnome-screenshot" (GNOME), else "mss"
+      through XWayland (the game runs there under Proton - it may come out black on some desktops).
+    SOE2_CAPTURE=<one of CAPTURE_TOOLS> picks one by hand. -> (tool, why) or (None, why)."""
+    import os
+    from . import linsys as L
+    env = os.environ if env is None else env
+    forced = str(env.get("SOE2_CAPTURE") or "").strip()
+    if forced in CAPTURE_TOOLS:
+        return (forced, "picked with SOE2_CAPTURE") if forced == "mss" or L.which(forced, path) else \
+            (None, f"SOE2_CAPTURE={forced}, but {forced} isn't installed")
+    sess, desk = L.session_type(env), L.desktop(env).lower()
+    if sess == "wayland":
+        if desk in ("gnome", "ubuntu", "pop") and L.which("gnome-screenshot", path):
+            return "gnome-screenshot", "GNOME on Wayland"
+        if desk in ("kde", "plasma") and L.which("spectacle", path):
+            return "spectacle", "KDE on Wayland"
+        if L.which("grim", path) and desk not in ("gnome", "ubuntu", "pop", "kde", "plasma"):
+            return "grim", "Wayland (wlroots)"
+        if L.has_x(env):
+            return "mss", "Wayland through XWayland (may be black - see linux/README.md)"
+        return None, "Wayland with no capture tool (install grim, or use an X11 session)"
+    if L.has_x(env):
+        return "mss", "X11"
+    return None, "no desktop session"
+
+
+def capture_check(env=None, path=None):
+    """The Linux check's line for the press's one picture: (state "ok" / "warn" / "fix", what, how to fix). It says
+    which tool would be used - it takes no picture."""
+    tool, why = capture_tool(env, path)
+    if tool is None:
+        return "fix", why, ("install grim (Hyprland, sway), spectacle (KDE) or gnome-screenshot (GNOME) - or log in "
+                            "with an X11 session")
+    if tool == "mss":
+        import importlib.util
+        if importlib.util.find_spec("mss") is None:
+            return "fix", "the mss module is missing", "pip install mss (the release build has it)"
+        if "XWayland" in why:
+            return "warn", f"mss - {why}", ("if the helpers read nothing: install grim / spectacle / "
+                                            "gnome-screenshot, or log in with an X11 session")
+        return "ok", f"mss ({why})", ""
+    return "ok", f"{tool} ({why})", ""
+
+
+def _grab_linux(box):
+    """One picture of box (real pixels) on Linux, with capture_tool()'s one tool. -> PIL image or None."""
+    import io
+    import os
+    import subprocess
+    import tempfile
+    from PIL import Image
+    tool, _why = capture_tool()
+    l_, t, r, b = (int(v) for v in box)
+    if tool in (None, "mss"):
+        return None if tool is None else _grab_mss(box)
+    if tool == "grim":
+        out = subprocess.run(["grim", "-g", f"{l_},{t} {r - l_}x{b - t}", "-"], capture_output=True, timeout=5)
+        return Image.open(io.BytesIO(out.stdout)).convert("RGB") if out.returncode == 0 and out.stdout else None
+    fd, tmp = tempfile.mkstemp(suffix=".png", dir=os.environ.get("XDG_RUNTIME_DIR") or None)
+    os.close(fd)
+    try:                                            # (the whole screen to a private file, cut, file deleted at once)
+        args = ["spectacle", "-b", "-n", "-f", "-o", tmp] if tool == "spectacle" else ["gnome-screenshot", "-f", tmp]
+        subprocess.run(args, capture_output=True, timeout=8)
+        with Image.open(tmp) as im:
+            return im.convert("RGB").crop((l_, t, r, b))
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return None
+    finally:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+
+
+def _grab_mss(box):
+    import mss
+    from PIL import Image
+    l_, t, r, b = box
+    with (getattr(mss, "MSS", None) or mss.mss)() as one:
+        shot = one.grab({"left": int(l_), "top": int(t), "width": int(r - l_), "height": int(b - t)})
+    return Image.frombytes("RGB", shot.size, shot.rgb)
+
+
 def _grab(box):
     with real_pixels():                             # (real pixels, whatever the process's DPI awareness)
         fn = GRABBER[0]
         if fn is not None:
             return fn(box)
+        if sys.platform.startswith("linux"):
+            try:
+                return _grab_linux(box)
+            except Exception:
+                return None
         import mss
         from PIL import Image
         l_, t, r, b = box
@@ -275,6 +371,8 @@ def capture(region, purpose, now=None):
                 return None
             g["shot"], g["box"] = _grab(box), box
             COUNT["shots"] += 1
+            if g["shot"] is None:                   # (Linux: the capture tool gave nothing - no retry)
+                return None
         for p in str(purpose or "").split(", "):        # ("Temple, Ritual Identifier": two helpers, one part)
             if p and p not in g["for"]:
                 g["for"].append(p)

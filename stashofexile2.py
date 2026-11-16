@@ -2,7 +2,7 @@ r"""
 StashOfExile2 - a Path of Exile 2 price checker for tablets and jewels, with a window instead of a text dump.
 Free software under the GNU AGPL v3.0 (see LICENSE; up to 2.129.4: GNU GPL v3.0). Written by an AI (Claude, by Anthropic) under a human's direction.
 
-VERSION 3.0.4
+VERSION 3.0.5
   How versions are numbered (from 2.0.0 on):
     MAJOR.MINOR.PATCH.  The 22 betas ended here: this build is 2.0.0. From now on every build gets a plain number:
       2.0.1, 2.0.2 ...  fixes (nothing new to learn)
@@ -19,6 +19,13 @@ VERSION 3.0.4
   version (settings.json, session.json, modbook.json, mod_rules.json, wealth.json, tabs.txt ...).
 
 VERSION HISTORY
+  3.0.5
+       - Linux joins main (owner: "as long as it isn't going to create issues for windows builds"): release.yml builds
+         the Windows exe as before, then (its own job, ubuntu-24.04) the Linux build onto the SAME full release -
+         StashOfExile2-<version>-linux.tar.gz + SHA256SUMS-linux.txt, and a Linux section in the notes. No more
+         -linux-preview pre-releases or linux-build.yml; the Linux build updates from full releases (updates.newest_linux
+         still reads the old previews). All Linux code sits behind sys.platform; the Windows key hook's steps moved
+         into KeyWatch.feed (shared with the Linux key watchers), unchanged. README: a Linux section.
   3.0.4
        - No pre-releases: release.yml publishes the full release ("latest") with the "Coming from 2.x?" box; every
          version is tested on a local build first (owner). Everything older than 3.0.0 was removed from GitHub
@@ -3934,7 +3941,7 @@ THE "LEARNING" PART
 import os
 import sys
 
-APP_VERSION = "3.0.4"  # bump this and __version__ in soe2/__init__.py together (see VERSION above)
+APP_VERSION = "3.0.5"  # bump this and __version__ in soe2/__init__.py together (see VERSION above)
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -3949,6 +3956,19 @@ def main():
         sys.exit(finish_update(sys.argv[2]))
     if len(sys.argv) > 1 and sys.argv[1] in ("--ritual", "--delirium"):
         sys.exit(0)        # GGG policy (Nov 2026): the screen-watching helper processes are gone (an old app's call)
+    if len(sys.argv) > 1 and sys.argv[1] == "--check-linux":    # Linux check: what works here, each with its fix
+        from soe2.lincheck import main as check
+        sys.exit(check())
+    if len(sys.argv) > 2 and sys.argv[1] == "--key":            # Linux: a desktop shortcut tells the app a key press
+        from soe2.linkeys import send
+        code = send(sys.argv[2])
+        if code:
+            print("StashOfExile2 isn't running." if code == 2 else f"Not a key: {sys.argv[2]}")
+        sys.exit(code)
+    _linux_fonts()
+    if "--selftest" in sys.argv:                                 # the build's smoke run: start, show, close cleanly
+        sys.argv.remove("--selftest")
+        _selftest_hook()
     try:
         import soe2
         from soe2 import config
@@ -3961,6 +3981,48 @@ def main():
         return
     from soe2.app import main as run
     run()
+
+
+def _linux_fonts():
+    """Linux: the app's own fonts.conf (linux/fonts.conf - Segoe UI, Tahoma, Consolas ... -> Linux fonts), for this
+    app only, before anything starts fontconfig. Yours wins (FONTCONFIG_FILE already set); SOE2_SYSTEM_FONTS=1: none."""
+    if not sys.platform.startswith("linux") or os.environ.get("FONTCONFIG_FILE") or os.environ.get("SOE2_SYSTEM_FONTS"):
+        return
+    base = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
+    conf = os.path.join(base, "linux", "fonts.conf")
+    if os.path.isfile(conf):
+        os.environ["FONTCONFIG_FILE"] = conf
+
+
+def _selftest_hook(secs=12):
+    """--selftest: the app starts as usual; SECS after its window loop starts it prints what it showed and closes
+    (exit 0) - the Linux build's smoke run (build_linux.sh, the workflow)."""
+    import tkinter as tk
+    loop = tk.Misc.mainloop
+
+    def mainloop(self, n=0):
+        def done():
+            try:
+                self.update_idletasks()
+                print(f"selftest: window '{self.title()}' {self.winfo_width()}x{self.winfo_height()} "
+                      f"mapped={bool(self.winfo_ismapped())}", flush=True)
+                if sys.platform.startswith("linux"):
+                    from soe2 import linkeys, ocrengine
+                    print(f"selftest: key watchers {linkeys.STATE}, OCR engine '{ocrengine.engine()}'", flush=True)
+            except Exception as e:
+                print(f"selftest: window check failed ({e})", flush=True)
+            try:                                                 # the app's own close (saves, then goes)
+                cmd = self.tk.call("wm", "protocol", self._w, "WM_DELETE_WINDOW")
+                if cmd:
+                    self.tk.call(cmd)
+                    return
+            except Exception:
+                pass
+            self.quit()
+        self.after(int(secs * 1000), done)
+        tk.Misc.mainloop = loop
+        return loop(self, n)
+    tk.Misc.mainloop = mainloop
 
 
 def _fail(msg):
