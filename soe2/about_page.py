@@ -12,7 +12,7 @@ from .style import C, FONT_TITLE, Tooltip
 from .updates import REPO
 
 GITHUB_URL = f"https://github.com/{REPO}"
-DISCORD_URL = "https://discord.gg/jG5uCDYgbR"
+DISCORD_URL = "https://discord.gg/8dwn9kaGNr"
 DISCORD = "#5865F2"
 DISCORD_HOVER = "#4752c4"
 
