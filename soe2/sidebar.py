@@ -173,7 +173,7 @@ class Sidebar(tk.Canvas):
             top = sh.modules[top].parent
         grp = group_of(top)
         name = f"{grp} \u203a {mod.title}" if grp else mod.title
-        new = newchip.page_tip(k)                            # 3.0.0: "NEW: Look key, Drawer"
+        new = newchip.page_tip(k)                            # 3.0.0: "NEW: Read Key, Drawer"
         return f"{name}  ·  {new}" if new else name
 
     def _rail_tip(self, k):

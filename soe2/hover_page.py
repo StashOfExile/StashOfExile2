@@ -1,7 +1,7 @@
 """2.132.3 One read round the mouse for the helpers that read a tooltip: the Ritual Identifier (a Ritual Altar's type)
 and, in the temple, Vaal Lens (a medallion's name on the ground). One picture and one text read feeds both.
 GGG policy (Nov 2026: "Reading from the screen ... may only be performed once per manual key press"): it reads when
-you press your Look key with the tooltip on screen - the part round the mouse, from the press's one picture
+you press your Read Key with the tooltip on screen - the part round the mouse, from the press's one picture
 (screenread.py). It never reads by itself. (Owner decision: the Temple Helper's Vaal Beacon tooltip read and Map
 Content's Temple icon are gone - the Temple Console gives the crystals.)"""
 import time
@@ -66,7 +66,7 @@ def find_tooltip(rgb, game_h, xstep=2):
 
 def read_lines(img, game_h, ocr, want=lambda lines: True):
     """The part round the mouse (one cut of the press's picture) -> its text lines: the tooltip's frame found and read
-    on its own, bigger; Round 18 (feedback: a Ritual Altar hovered and the Look key pressed showed nothing): when that
+    on its own, bigger; Round 18 (feedback: a Ritual Altar hovered and the Read Key pressed showed nothing): when that
     isn't what's wanted (no tooltip found, or the frame found was another box - an altar's name not in it), the whole
     part is read too (the same picture - no second screen read)."""
     import numpy as np
@@ -94,7 +94,7 @@ class HoverPage:
         return self.ritid_on() or self.hover_medals()
 
     def hover_look_job(self, ctx):
-        """A Look key press in a map: the tooltip round the mouse -> a Ritual Altar's type; in the temple, a
+        """A Read Key press in a map: the tooltip round the mouse -> a Ritual Altar's type; in the temple, a
         medallion's name (Vaal Lens)."""
         if ctx["area"] not in ("map", None) or not self.hover_wanted():
             return None

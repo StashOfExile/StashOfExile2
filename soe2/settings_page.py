@@ -976,7 +976,7 @@ class SettingsPage:
                 i += 1
             col = C["red"] if what in clash_keys else C["text"]
             lab = tk.Label(f, text=what, bg=P2, fg=col, anchor="w", justify="left", wraplength=360)
-            lab.grid(row=i, column=0, sticky="w", padx=(12, 12))      # (wraps: the Look key's line fits the Drawer)
+            lab.grid(row=i, column=0, sticky="w", padx=(12, 12))      # (wraps: the Read Key's line fits the Drawer)
             if kid:
                 v = tk.StringVar(value=key)
                 self.hk_vars[kid] = v
@@ -992,11 +992,11 @@ class SettingsPage:
             if not kid:
                 tk.Label(f, text="the game's own copy - always on", bg=P2, fg=C["muted"], wraplength=120,
                          justify="left", font=("Segoe UI", 9)).grid(row=i, column=2, sticky="w", padx=(12, 0))
-            elif kid == "checks:look_key":                         # GGG policy: no Look key = no screen reads
+            elif kid == "checks:look_key":                         # GGG policy: no Read Key = no screen reads
                 cell = tk.Frame(f, bg=P2)
                 cell.grid(row=i, column=2, sticky="w", padx=(12, 0))
                 from . import newchip as _NEW                      # 3.0.0: NEW until opened or used
-                _NEW.chip(cell, "Look key").pack(side="left", padx=(0, 8))
+                _NEW.chip(cell, "Read Key").pack(side="left", padx=(0, 8))
                 if not key:
                     tk.Label(cell, text="○ Not set - nothing reads the screen", bg=P2, fg=C["muted"], wraplength=100,
                              justify="left", font=("Segoe UI", 9)).pack(side="left")
@@ -1021,10 +1021,10 @@ class SettingsPage:
 
     def hotkeys_defaults(self):
         """2.127.0 (feedback: "in case anything goes wrong"): every keybind back to the app's own - after a yes. The
-        keys of your own chat commands and Regex keys stay (they have no default); the Look key is Ctrl+Shift+R again."""
+        keys of your own chat commands and Regex keys stay (they have no default); the Read Key is Ctrl+Shift+R again."""
         from .tracker_page import DEFAULT_HOTKEYS
         if not messagebox.askyesno("Keybinds", "Set every keybind back to the default?\n\nYour chat commands, "
-                                   "Regex keys keep their keys. The Look key goes back to Ctrl+Shift+R.", parent=self.dlg_parent()):
+                                   "Regex keys keep their keys. The Read Key goes back to Ctrl+Shift+R.", parent=self.dlg_parent()):
             return False
         for kid, key in DEFAULT_HOTKEYS.items():
             v = self.hk_vars.get(kid)
@@ -1087,7 +1087,7 @@ class SettingsPage:
         self.fill_hotkeys()
         clash = self.hotkey_clashes()
         self.hk_msg.config(text=("✖ Not understood: " + ", ".join(bad)) if bad else
-                           ("✖ Look key not changed: " + look_why) if look_why else
+                           ("✖ Read Key not changed: " + look_why) if look_why else
                            ("⚠ Saved, but: " + "; ".join(clash)) if clash else "✔ Saved.",
                            fg=C["red"] if bad or clash or look_why else C["green"])
 

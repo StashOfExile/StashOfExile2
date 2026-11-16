@@ -11,7 +11,11 @@ listings - each a one-line summary that opens to the whole item (implicits, ever
 Trade site and Open in app sit at the bottom.
 
 Typing: click into a Min / Max box and the card takes the keyboard (Enter searches again); click back into the
-game and it has the keyboard again.
+game and it has the keyboard again. 3.0.1 (owner: "the Min / Max boxes don't take typing"): every box takes it - the
+item's own boxes (item level, quality, sockets) never asked for the keyboard, only the mods' did; on Windows the card's
+window is made one that can have it (overlaywin.take_keyboard); a gray box ticks its row and puts the cursor in it; the
+box keeps the keyboard when the card is drawn again; the card waits only while you type (a key since the last search
+- after Enter it shows what was found); closing the card hands the keyboard back to the game.
 
 Close key (2.121.1, feedback): Esc by default, as PoE Overlay closes its dialogs - only while the card is open and the
 game (or the card) is in front, and that press is used up (the game's menu doesn't open). Set it on Settings › Keybinds or
@@ -92,8 +96,12 @@ class PricePopup:
         self._pcpop_cancel()
         w, self.pp_win = getattr(self, "pp_win", None), None
         self.pp_rid, self.pp_up = None, False
+        back, self._pp_back = getattr(self, "_pp_back", None), None
+        self._pp_typed, self._pp_refocus = False, None
         if w is not None:
             try:
+                if back:                                  # 3.0.1: you typed in a box - the game gets the keyboard back
+                    w.give_keyboard_back(back)
                 w.destroy()
             except tk.TclError:
                 pass
@@ -104,6 +112,7 @@ class PricePopup:
             return None
         if getattr(self, "pp_rid", None) != rec["id"]:
             self.pp_open = set()                          # (which listings are opened - a new item starts closed)
+            self._pp_typed, self._pp_refocus = False, False      # (3.0.1: no box of the item before keeps the keyboard)
         self.pp_rid = rec["id"]
         self._pcpop_cancel()                              # (a refresh asked for the item before: not over this one)
         w = self._pcpop_window()
@@ -112,6 +121,10 @@ class PricePopup:
 
     def _pcpop_up(self, w):
         self.pp_up = True                                 # (read by the keyboard watcher: the close key works now)
+        from .overlaywin import foreign_foreground
+        game = foreign_foreground()                       # 3.0.1: the game in front as the card opens - it gets the
+        if game:                                          # keyboard back when the card closes, if you typed in it
+            self._pp_game = game
         w.show()
         try:
             w.lift()
@@ -161,7 +174,7 @@ class PricePopup:
         P, inner, foot = self.pp_P, self.pp_inner, self.pp_foot
         for c in list(inner.winfo_children()) + list(foot.winfo_children()):
             c.destroy()
-        self.pp_wraps = []
+        self.pp_wraps, self.pp_boxes, self._pp_refocus = [], {}, None
         body, head = P.get("body") or P["font"], P.get("hfont") or P["font"]
 
         def lab(parent, text, fg=None, size=10, bold=False, font=None, **pk):
@@ -415,13 +428,9 @@ class PricePopup:
 
         def go():
             self._pp_job = None
-            try:                                          # (never under your typing: a Min / Max box has the keyboard -
-                f = str(self.pp_win.tk.call("focus"))     #  try again in a moment)
-            except (tk.TclError, AttributeError):
-                f = ""
-            if f.startswith(str(self.pp_win)) and "entry" in f.lower():
-                self._pp_job = self.root.after(400, go)
-                return
+            if self._pcpop_typing():                      # (never under your typing - try again in a moment. 3.0.1:
+                self._pp_job = self.root.after(400, go)   #  only while you type: a box that just keeps the keyboard
+                return                                    #  after Enter / Search again no longer holds the card back)
             # (feedback: another price check showed the one before's Miscellaneous Yes / No): the item the card shows
             # NOW - a refresh asked for the item before must never fill the card over the new one
             cur = self.records.get(getattr(self, "pp_rid", None))
@@ -446,9 +455,12 @@ class PricePopup:
         P = self.pp_P
         inner = self.pp_inner
         top = self.pp_cv.yview()[0] if inner.winfo_children() else 0.0
+        if getattr(self, "_pp_refocus", None) is None:     # 3.0.1: a box you're in keeps the keyboard after a redraw
+            self._pp_refocus = self._pcpop_box_focused()
         for c in inner.winfo_children():
             c.destroy()
         self.pp_wraps = []
+        self.pp_boxes = {}
         it = rec.get("item") or {}
         body, head = P.get("body") or P["font"], P.get("hfont") or P["font"]
         pad = dict(padx=16)
@@ -568,12 +580,15 @@ class PricePopup:
             c.destroy()
         from .pricecheck_page import search_tip, search_word
         from .style import Tooltip
-        go = self._pcpop_btn(search_word(rec), lambda: self.pc_search_go(rec), primary=True)   # (owner: ↔ Broaden
+        go = self._pcpop_btn(search_word(rec), lambda: self._pcpop_go(rec), primary=True)     # (owner: ↔ Broaden
         go.pack(side="left")                                                             # Search - one step a click)
         Tooltip(go, search_tip(rec))
         self._pcpop_btn("Trade site", self.pc_open_trade, enabled=bool(rec.get("qid"))).pack(side="left", padx=(8, 0))
         self._pcpop_btn("Open in app", lambda: self._pcpop_in_app(rec)).pack(side="right")
         self.root.after_idle(lambda: self._pcpop_after(top))
+        want, self._pp_refocus = getattr(self, "_pp_refocus", None), None
+        if want:
+            self._pcpop_refocus(*want)
 
     def _pcpop_socketed(self, inner, P, rec, it, runes, body, head):
         """2.125.5 (feedback: "it doesn't say slots or show what is in them"): what's in the item's sockets - the
@@ -745,8 +760,9 @@ class PricePopup:
             v = cur.get(key)
             lo, hi = (v.get("min"), v.get("max")) if isinstance(v, dict) else (v, None)
             on = v not in (None, "", 0, {})
-            row = tick_row(on, label, lambda k=key, o=on, h=have: (
-                self.search_opt_set(rec, k, None if o else {"min": h}, redraw=False), changed()))
+            tick = (lambda k=key, o=on, h=have: (self.search_opt_set(rec, k, None if o else {"min": h}, redraw=False),
+                                                 changed()))
+            row = tick_row(on, label, tick)
             boxes = {}
             for k, val in (("max", hi if on else None), ("min", lo if on else have)):    # (packed from the right)
                 e = tk.Entry(row, width=5, bg=P.get("field", P["bg"]), fg=P["text"], insertbackground=P["text"],
@@ -773,10 +789,11 @@ class PricePopup:
                 rec["changed"] = True
                 self.dirty = True
                 return True
-            for e in boxes.values():
+            for k, e in boxes.items():
                 e.keep = keep                                 # (tests call it, as on the mods' boxes)
                 e.bind("<KeyRelease>", keep)
-                e.bind("<Return>", lambda _e, kp=keep: (self.reprice([rec["id"]]) if kp() else None, "break")[-1])
+                e.bind("<Return>", lambda _e, kp=keep: self._pcpop_enter(rec, kp))
+                self._pcpop_box(e, ("prop", key, k), tick)    # 3.0.1: a click here takes the keyboard (it never did)
             self.pp_props[key] = boxes
 
     def _pcpop_misc(self, inner, P, rec, it, body, head):
@@ -863,20 +880,105 @@ class PricePopup:
             rec["changed"] = True
             self.dirty = True
             return True
-        for e in boxes.values():
+        for key, e in boxes.items():
             e.keep = keep                                 # (tests call it: no window manager there to focus a box)
             e.bind("<KeyRelease>", keep)
-            e.bind("<Return>", lambda _e: (self.reprice([rec["id"]]) if keep() else None, "break")[-1])
-            e.bind("<Button-1>", lambda _e, ee=e: self._pcpop_type(ee), add="+")
+            e.bind("<Return>", lambda _e: self._pcpop_enter(rec, keep))
+            self._pcpop_box(e, ("mod", id(m), key), lambda: self._pcpop_tick(rec, m, True))
         return boxes
 
-    def _pcpop_type(self, e):
-        """The card takes the keyboard for typing (Windows: a click on a window over the game may not)."""
+    def _pcpop_go(self, rec):
+        """Search again / ↔ Broaden Search: what you typed is searched, and the card shows what it found."""
+        self._pp_typed = False
+        return self.pc_search_go(rec)
+
+    # ---------------------------------------------------------------- 3.0.1: typing in a Min / Max box
+    def _pcpop_box(self, e, box_id, tick):
+        """Every Min / Max box: a click takes the keyboard (a gray one ticks its row first), a key marks typing."""
+        e._pp_id = box_id
+        self.pp_boxes[box_id] = e
+        e.bind("<Button-1>", lambda _e, ee=e, t=tick: self._pcpop_box_click(ee, t), add="+")
+        e.bind("<KeyPress>", self._pcpop_key, add="+")
+
+    def _pcpop_box_click(self, e, tick):
+        """A click in a Min / Max box: you can type in it. A gray box (its row not ticked) ticks its row - the card is
+        drawn again with the box on - and the cursor goes in the new box."""
         try:
-            self.pp_win.focus_force()
+            gray = str(e.cget("state")) == "disabled"
+        except tk.TclError:
+            return None
+        if gray:
+            self._pp_refocus = (e._pp_id, True)
+            tick()
+            return "break"
+        self._pcpop_type(e)
+        return None
+
+    def _pcpop_type(self, e):
+        """The card takes the keyboard for typing - Windows: the card's window is made one that can have it and put
+        in front (overlaywin.take_keyboard: a click on a window over the game may not hand it over). The window that
+        had the keyboard (the game) gets it back when the card closes."""
+        w = getattr(self, "pp_win", None)
+        try:
+            take = getattr(w, "take_keyboard", None)
+            before = take(e) if take is not None else None
+            back = before or getattr(self, "_pp_game", None)    # (the click itself may have given the card the
+            if back:                                            #  keyboard already: then the game it opened over)
+                self._pp_back = back
+            if take is None:
+                w.focus_force()
             e.focus_set()
         except (tk.TclError, AttributeError):
             pass
+
+    def _pcpop_key(self, ev):
+        """A key in a Min / Max box: you're typing - the card isn't drawn again under it until you search."""
+        if ev.keysym not in ("Return", "KP_Enter", "Escape", "Tab", "ISO_Left_Tab"):
+            self._pp_typed = True
+
+    def _pcpop_enter(self, rec, keep):
+        """Enter in a Min / Max box: search again with it; the box keeps the keyboard when the card is drawn again."""
+        if not keep():
+            return "break"
+        self._pp_typed = False
+        self.reprice([rec["id"]])
+        return "break"
+
+    def _pcpop_typing(self):
+        """Are you typing in one of the card's boxes (a key since the last search, and the box has the keyboard)?"""
+        return bool(getattr(self, "_pp_typed", False)) and self._pcpop_box_focused() is not None
+
+    def _pcpop_box_focused(self):
+        """(box id, False) of the Min / Max box that has the keyboard, or None."""
+        w = getattr(self, "pp_win", None)
+        try:
+            f = str(w.tk.call("focus")) if w is not None else ""
+        except tk.TclError:
+            return None
+        for box_id, e in (getattr(self, "pp_boxes", None) or {}).items():
+            if f and str(e) == f:
+                return box_id, False
+        return None
+
+    def _pcpop_refocus(self, box_id, take=False):
+        """After the card is drawn again: the same box has the keyboard, the cursor at its end (once it's on screen -
+        Tk gives an unmapped box the keyboard only when it shows)."""
+        def go():
+            e = (getattr(self, "pp_boxes", None) or {}).get(box_id)
+            if e is None:
+                return
+            try:
+                if not e.winfo_exists() or str(e.cget("state")) == "disabled":
+                    return
+                e.update_idletasks()
+                if take:
+                    self._pcpop_type(e)
+                else:
+                    e.focus_set()
+                e.icursor("end")
+            except tk.TclError:
+                pass
+        self.root.after_idle(go)
 
     @staticmethod
     def _pcpop_mine(seller):

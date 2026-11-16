@@ -461,13 +461,13 @@ class TrackerPage:
         self._ov_on_overlay(self.ovh_areas["On the Overlay"].inner)
         self._ov_options(self.ovh_areas["Options"].inner)
         mo, mb = chrome_section(self.ovh_areas["Helpers"].inner, "Helpers",
-                                "Helpers that read the screen read it once each time you press your Look key in the "
+                                "Helpers that read the screen read it once each time you press your Read Key in the "
                                 "game. Each row: on / off, what it does, its options. They never act in the game, and "
                                 "no screen read runs by itself (GGG's rule: one read per key press) - each read shows "
-                                "for a second over the game. Your Look key is a key just for this: Settings › "
+                                "for a second over the game. Your Read Key is a key just for this: Settings › "
                                 "Keybinds. A helper marked Beta still has rough edges.")
         mo.pack(fill="x")
-        self.look_needed(mb, C["panel2"]).pack(fill="x")      # (no Look key yet: one line, Set the Look key)
+        self.look_needed(mb, C["panel2"]).pack(fill="x")      # (no Read Key yet: one line, Set the Read Key)
         self.build_alerts_panel(mb).pack(fill="x")
         self.build_overlay_look(self.ovh_areas["Look"].inner)
         self.tracker_campaign_card(self.ovh_areas["Options"].inner)        # 2.96.1: its own card, full width
@@ -586,7 +586,7 @@ class TrackerPage:
              lambda: self.ov_hidecap_set(bool(self.tk_hidecap.get())),
              "Screenshots, recordings and streams won't show it.",
              "Screenshots, recordings and streams won't show the overlay. Off: they show it - except in a Ritual "
-             "map, where it's left out by itself so a Look key read sees the game's counters under it."),
+             "map, where it's left out by itself so a Read Key read sees the game's counters under it."),
             ("Start a session with StashOfExile2", self.tk_auto, self.tracker_options_changed,
              "The Session timer starts by itself when the app starts.")), min_w=380)
         from .style import Tooltip
@@ -1399,7 +1399,7 @@ class TrackerPage:
                 ("Show / hide the overlay", tc.get("key_overlay", ""), "Overlay", "tracker:key_overlay"),
                 ("Campaign: a step back (◀)", tc.get("key_camp_prev", ""), "Overlay", "tracker:key_camp_prev"),
                 ("Campaign: a step on (▶)", tc.get("key_camp_next", ""), "Overlay", "tracker:key_camp_next"),
-                ("Look key: each press, the helpers read the screen once (a key the game doesn't use - it still gets it)",
+                ("Read Key: each press, the helpers read the screen once (a key the game doesn't use)",
                  self.look_key(), "Overlay", "checks:look_key"),       # GGG policy (Nov 2026)
                 ("Top Up: teach the item under the mouse (in game, inventory open)", SETTINGS.get("topup_key", ""),
                  "Overlay", "checks:topup_key"),             # 2.131.1 (feedback: the price check key left its card up)

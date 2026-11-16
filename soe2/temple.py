@@ -1,6 +1,6 @@
 """2.132.1 Temple Helper (feedback: "show how many crystals I am currently at"): your crystals, as the Temple
 Console prints them ("18/60" under its Run Temple button) in Vaal Ruins. GGG policy (Nov 2026: one screen read per
-manual key press): it reads that one line when you press your Look key with the console open (temple_page.
+manual key press): it reads that one line when you press your Read Key with the console open (temple_page.
 temple_console_job) and keeps the two numbers; Vaal Lens shows them. (The Vaal Beacon tooltip read in maps, the
 crystals on the overlay's line and the "crystals full" alert are gone - owner decision: the Temple Console only.)
 
@@ -30,7 +30,7 @@ def cfg():
 
 # 2.136.1 (feedback: "when I'm in the Vaal ruins, it should be able to see through the overlay (the same way ritual
 # does) and read the crystal count at the bottom of the screen"): the Temple Console prints "18/60" under its Run
-# Temple button. Read there (parts of the game; measured on 1080p and 1440p shots) on a Look key press in a temple area.
+# Temple button. Read there (parts of the game; measured on 1080p and 1440p shots) on a Read Key press in a temple area.
 CONSOLE_BOX = (0.465, 0.942, 0.555, 0.978)
 CONSOLE_LINE = re.compile(r"(?<!\d)(\d{1,3})\s*[/|l]\s*(\d{2,3})(?!\d)")
 

@@ -40,7 +40,7 @@ FEATURES = (
     "Temple Helper",
     "Music Controls",
     "Vaal Lens",                # 2.140.0 a card in Vaal Ruins and the temple: crystals, the console's board, notes
-    "Trial of the Sekhemas",    # BETA helper: press the Look key on the trial map - its legend beside it: Rooms,
+    "Trial of the Sekhemas",    # BETA helper: press the Read Key on the trial map - its legend beside it: Rooms,
                                 # Boons, Afflictions (✓ Take / ✕ Avoid / ! Mild); a hovered affliction or boon gets
                                 # a one-line card
     "Map profit",               # 2.132.0 what each map earned, from your inventory (Overlay › Helpers)
@@ -49,7 +49,7 @@ FEATURES = (
     "Setup",                    # the first start's questions, one a screen: features, the Overlay, its helpers
                                 # (2.131.0 - UI overhaul: the Feature Picker; Settings › General › Run setup again)
     "Top Up Reminders",         # 2.131.0 what's running low in your inventory (Overlay › Helpers)
-    "Back from a map",          # owner decision: the one card back home after a map - one Look key press counts the
+    "Back from a map",          # owner decision: the one card back home after a map - one Read Key press counts the
                                 # map's loot (Map profit) and checks your top ups (Top Up Reminders)
     "Features",                 # 2.131.0 Settings › General: one switch per app feature, plus the BETA ones (the
                                 # overlay's helpers are switched in Overlay › Helpers only)
@@ -62,7 +62,7 @@ FEATURES = (
     "Error reports",            # 2.137.0 Settings › Privacy & community: what went wrong in the app, opt-in
     "Data pack",                # the Craft Helper's mod data from GitHub
     "Keybinds",                 # Settings: every key the app listens for (2.127.0: was Keys)
-    "Look key",                 # GGG policy (Nov 2026): a key only for this - each press, the helpers read the
+    "Read Key",                 # GGG policy (Nov 2026): a key only for this - each press, the helpers read the
                                 # screen once (Ctrl+Shift+R as the app comes; Settings › Keybinds)
     "Read mark",                # GGG policy: the chip that shows for a second at each screen / clipboard read -
                                 # "Reading the screen", or "Read the screen · nothing here" when the press found
@@ -150,8 +150,9 @@ OLD = {
     "Settings › Keys": "Settings › Keybinds",          # 2.127.0
     "Settings > Keys": "Settings › Keybinds",
     "Overlay + Here": "Price check overlay",          # drawer build: each choice names one place (In the app | ...)
-    "Read key": "Look key",             # GGG policy: one name for the key the helpers read on
-    "Screen key": "Look key",
+    "Read key": "Read Key",             # GGG policy: one name for the key the helpers read on (a name: Title Case)
+    "Screen key": "Read Key",
+    "Look key": "Read Key",             # 3.0.1 (owner: "ctrl + shift + r = Read. R for Read.")
 }
 
 # an old page name that now means another page: before 2.80.0, Bulk Pricing was called "Price checks"

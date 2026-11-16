@@ -6,7 +6,7 @@ class MapProfit(Module):
     ... with graphs and bars ... All Time, Daily, Hourly"; "above leaderboards, below map library")."""
     key, title, short, icon, kind = "mapprofit", "Map Profit", "Map Profit", "▲", "tool"
     parent = None                      # UI overhaul: its own page (was under Overlay - it isn't an overlay setting)
-    blurb = ("What each map earned: one Look key press with your inventory open when you're back from it, priced by "
+    blurb = ("What each map earned: one Read Key press with your inventory open when you're back from it, priced by "
              "poe.ninja. On your PC only.")
 
     def shown(self):

@@ -24,7 +24,7 @@ FEATURE_AT = {
     "Layout": ("tracker", "Look"), "Style": ("tracker", "Look"), "Theme": ("settings", "Appearance"),
     "Regex keys": ("regex", None), "Data pack": ("crafthelper", None),
     "Scan stash": ("wealth", None), "Stash tab": ("pricecheck", None), "Clear All": ("checks", None),
-    "Keybinds": ("settings", "Keybinds"), "Look key": ("settings", "Keybinds"), "Features": ("settings", "General"), "Setup": ("settings", "General"),
+    "Keybinds": ("settings", "Keybinds"), "Read Key": ("settings", "Keybinds"), "Features": ("settings", "General"), "Setup": ("settings", "General"),
     "Data folder": ("settings", "Advanced"), "Search Options": ("settings", "Price checking"),
     "Error reports": ("settings", None), "Community data sharing": ("settings", None),
     "Drawer": ("settings", "General"), "Full window": ("settings", "General"), "Put away": ("settings", "General"),

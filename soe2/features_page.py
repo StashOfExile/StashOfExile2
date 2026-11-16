@@ -249,7 +249,7 @@ class FeaturesPage:
                     tk.Label(r, text=("Beta · " if k in FEAT.BETA_HELPERS else "") + helper_blurb(k, self.look_key_text()), bg=P2,
                              fg=C["muted"], font=("Segoe UI", 9), anchor="w", justify="left", wraplength=300).pack(
                         fill="x", padx=(24, 0))
-            # GGG policy: the helpers that read the screen need a Look key - a key just for that (Ctrl+Shift+R as the
+            # GGG policy: the helpers that read the screen need a Read Key - a key just for that (Ctrl+Shift+R as the
             # app comes). Shown here, while one of them is ticked, with Change…; the same setting as Settings › Keybinds.
             from .alerts_page import LOOK_HELPERS
             from .look_page import look_key_problem
@@ -257,7 +257,7 @@ class FeaturesPage:
             lk = tk.Frame(body, bg=P2)
             lk_top = tk.Frame(lk, bg=P2)
             lk_top.pack(fill="x")
-            tk.Label(lk_top, text="Look key", bg=P2, fg=C["text"], font=("Segoe UI", 10, "bold")).pack(side="left",
+            tk.Label(lk_top, text="Read Key", bg=P2, fg=C["text"], font=("Segoe UI", 10, "bold")).pack(side="left",
                                                                                                     padx=(0, 8))
             st.setdefault("look", tk.StringVar(value=self.look_key()))
             lk_msg = tk.Label(lk, text="", bg=P2, fg=C["muted"], font=("Segoe UI", 9), anchor="w", justify="left",
@@ -267,15 +267,14 @@ class FeaturesPage:
                 why = look_key_problem(st["look"].get(), self.look_key_others())
                 st["look_bad"] = why
                 lk_msg.config(text=("✖ " + why) if why else
-                              ("✔ Each press reads the screen once for the helpers you ticked. The game still gets "
-                               "the key." if st["look"].get()
-                               else "○ No Look key: the helpers above read nothing. Pick a key the game doesn't use."),
+                              ("✔ Each press reads the screen once for the helpers you ticked." if st["look"].get()
+                               else "○ No Read Key: the helpers above read nothing. Pick a key the game doesn't use."),
                               fg=C["red"] if why else C["muted"])
             kc = KeyCapture(lk_top, st["look"], width=16, on_change=look_said)
             kc.pack(side="left")
             chg = ttk.Button(lk_top, text="Change…", command=kc.start)
             chg.pack(side="left", padx=(8, 0))
-            Tooltip(chg, "Press the key you want for the Look key, one the game doesn't use.")
+            Tooltip(chg, "Press the key you want for the Read Key, one the game doesn't use.")
             Tooltip(kc, "Click, then press the key. Right-click clears it. Settings › Keybinds changes it later.")
             lk_msg.pack(fill="x", pady=(2, 0))
             look_said()
@@ -354,7 +353,7 @@ class FeaturesPage:
         def apply(feats, overlay, helpers, layout, shape="drawer"):
             lv = st.get("look")
             if overlay and lv is not None and lv.get().strip() != self.look_key() and not st.get("look_bad"):
-                self.look_key_save(lv.get())                    # (the Look key asked on the helpers step)
+                self.look_key_save(lv.get())                    # (the Read Key asked on the helpers step)
             for k, v in feats.items():
                 FEAT.set_on(k, bool(v))
             FEAT.set_on("overlay", bool(overlay))

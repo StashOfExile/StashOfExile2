@@ -44,8 +44,23 @@ BETA_AREAS = ("Wealth", "Money Makers", "Game Search", "Market Insights", "Craft
 # repeats. Someone coming from rollup["since"] or older (or a fresh install) sees it instead of each version; someone
 # on a pre-release already saw them and gets only this version's own lines (notes_between).
 NOTES = {
+    # 3.0.1 (owner feedback on 3.0.0): the Look key is the Read Key; What's new scrolls over its cards; the price check
+    # overlay's Min / Max boxes take typing.
+    "3.0.1": {
+        "big": [
+            ("⌨", "Read Key", "The Look key is now the Read Key - R for Read (Ctrl+Shift+R). Same key, same setting.",
+             ("Settings › Keybinds", "settings:Keybinds"), "Settings"),
+            ("◈", "Min / Max on the price check overlay", "Click a box to type in it, Enter searches again - this "
+             "should work in every box now. Closing the card hands the game the keyboard back.", None, "Price Checks"),
+        ],
+        "small": [
+            ("App", "What's new scrolls with the mouse wheel anywhere over it, its cards too."),
+            ("Price Checks", "A gray Min / Max box on the overlay: a click ticks its row and puts the cursor in it."),
+            ("Farming Strategies", "A guide scrolls with the mouse wheel over its item cards too."),
+        ],
+    },
     # 3.0.0 (owner): the card leads with "Why 3.0" and "How helpers work now" (LEAD) - shown to everyone once, after
-    # updating and on a first start (after the quick start). {look} is the Look key's name (Ctrl+Shift+R as it comes).
+    # updating and on a first start (after the quick start). {look} is the Read Key's name (Ctrl+Shift+R as it comes).
     "3.0.0": {
         "lead": [
             ("⚖", "Why 3.0", [
@@ -54,7 +69,7 @@ NOTES = {
                 ("✕", "Nothing watches your screen by itself any more."),
             ]),
             ("👁", "How helpers work now", [
-                ("⌨", "Press the Look key ({look}) where a helper applies. The game still gets the key."),
+                ("⌨", "Press your Read Key ({look}) where a helper applies."),
                 ("👁", "The read mark shows what was read, for a second."),
                 ("◈", "To price an item: hover it and press Ctrl+D - one copy, one read."),
             ]),
@@ -62,9 +77,9 @@ NOTES = {
         "big": [
             ("▥", "Drawer", "The app over the game's side. Suggested for one monitor; Full window for two or more.",
              ("Pick your window", "settings:General"), "Settings"),
-            ("⌛", "Trial of the Sekhemas", "BETA. Press the Look key on the trial map: what to avoid, what to take.",
+            ("⌛", "Trial of the Sekhemas", "BETA. Press the Read Key on the trial map: what to avoid, what to take.",
              ("Overlay › Helpers", "tab:tracker:Helpers"), "Overlay"),
-            ("⌂", "Back from a map", "One card, one Look key press: the map's loot (Map profit) and your Top Up "
+            ("⌂", "Back from a map", "One card, one Read Key press: the map's loot (Map profit) and your Top Up "
              "Reminders.", None, "Overlay"),
             ("🗺", "Campaign Bar", "The one thing to do now, over the XP bar. Zone, level, rewards, act time.", None,
              "Overlay"),
@@ -75,7 +90,7 @@ NOTES = {
             ("Overlay", "Delirium helper removed: it needed to watch the screen by itself."),
             ("Temple Helper", "Crystals are read from the Temple Console only. The Vaal Beacon read and the Crystals "
              "full card are gone."),
-            ("Overlay", "Map Content's icons are no longer read. Ritual follows the game's log between Look key "
+            ("Overlay", "Map Content's icons are no longer read. Ritual follows the game's log between Read Key "
              "presses."),
             ("Overlay", "Cards over the game close with a click anywhere on them."),
             ("App", "No Toolkit row: Go to anything (Ctrl+K) finds every page."),

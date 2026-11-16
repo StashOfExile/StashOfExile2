@@ -477,7 +477,7 @@ class MergedOverlay:
         cfg = self.tracker_cfg()
         # 2.129.4 (feedback: the line said 0 of 3 after 2 were done - the overlay's Ritual line covers the game's
         # counter, so a read never saw it change): in a Ritual map the bar is left out of captures by itself, so a
-        # Look key press sees the counter (and the tribute) under it. A Ritual map is known from the game's log (a
+        # Read Key press sees the counter (and the tribute) under it. A Ritual map is known from the game's log (a
         # ritual started) or a counter read - never from Map Content (owner decision). Elsewhere screenshots and
         # streams show it.
         # 2.136.1 (feedback: "see through the overlay (the same way ritual does) and read the crystal count"): in a temple

@@ -25,6 +25,11 @@ DOCS = ("README.md", "TOS.md", "linux/README.md", "themes/README.md", "strats/RE
 
 # (version, what it was, words a person read, names in the code / settings keys[, pending])
 REMOVED = [
+    ("3.0.1", "the name Look key (owner: \"ctrl + shift + r = Read. R for Read.\" - it is the Read Key; its setting "
+              "is still look_key, its NEW chip's seen state moves over: migrations.read_key_name) and every line saying "
+              "the game still gets the key (owner: nobody understands it - the key still reaches the game)",
+     ("Look key", "The game still gets the key", "the game still gets the key", "the game still gets it",
+      "it still gets it", "passed through to the game"), ()),
     ("Sekhemas legend", "the Trial of the Sekhemas key count (\"no keys yet\" / \"keys: 1 Silver\" under the legend: it "
                         "counted the log's \"Collected a ... Key\" lines from the app's start and missed keys; the "
                         "game shows them by the map) and the legend's Close buttons (a click on it closes it)",

@@ -24,11 +24,39 @@ import soe2                                                    # noqa: E402
 
 class Version(unittest.TestCase):
     def test_version(self):
-        self.assertEqual(soe2.__version__, "3.0.0")
-        self.assertEqual(config.APP_VERSION, "3.0.0")
+        self.assertEqual(soe2.__version__, "3.0.1")                 # (3.0.1: the Read Key, What's new scrolling,
+        self.assertEqual(config.APP_VERSION, "3.0.1")               #  the overlay's Min / Max typing)
         self.assertNotIn("TEST BUILD", config.APP_TITLE)
         self.assertTrue(config.APP_TITLE.endswith(config.TAGLINE))
         self.assertFalse(config.UI_OVERHAUL)
+
+
+class Release301(unittest.TestCase):
+    """3.0.1: a short What's new with no lead of its own - someone on 3.0.0 gets its lines, someone older still the
+    3.0.0 lead first; the Read Key's NEW chip, cleared under its old name, stays cleared."""
+
+    def test_notes(self):
+        notes = W.notes_between("3.0.0", "3.0.1")
+        self.assertEqual([v for v, _ in notes], ["3.0.1"])
+        self.assertEqual(W.lead_of(notes), [])
+        self.assertEqual(W.lead_version("3.0.1"), "3.0.0")
+        text = " ".join(t for _i, t, line, _g, _a in notes[0][1]["big"] for t in (t, line))
+        self.assertIn("Read Key", text)
+        self.assertIn("Min / Max", text)
+        self.assertTrue(any("scrolls" in line for _a, line in notes[0][1]["small"]))
+        heads = [h for _i, h, _l in W.lead_of(W.notes_between("2.142.2", "3.0.1"))]
+        self.assertEqual(heads, ["Why 3.0", "How helpers work now"])
+
+    def test_new_chip_seen_under_old_name(self):
+        from soe2 import migrations as MG
+        S = {"new_seen": {"Look key": "3.0.0", "Drawer": "3.0.0"}, "migrations_done": [s[0] for s in MG.STEPS
+                                                                                       if s[0] != "read_key_name"]}
+        MG.run(S, "settings")
+        self.assertEqual(S["new_seen"]["Read Key"], "3.0.0")
+        self.assertEqual(S["new_seen"]["Look key"], "3.0.0")       # (kept: an older build put back finds it)
+        S2 = {"new_seen": {}, "migrations_done": []}
+        MG._read_key_name(S2)
+        self.assertNotIn("Read Key", S2["new_seen"])                # (never seen: still NEW)
 
 
 class WhatsNewLead(unittest.TestCase):
@@ -38,7 +66,7 @@ class WhatsNewLead(unittest.TestCase):
         heads = [h for _i, h, _l in W.lead_of(notes)]
         self.assertEqual(heads, ["Why 3.0", "How helpers work now"])
         lines = " ".join(x for _i, _h, ls in W.lead_of(notes) for _ic, x in ls)
-        self.assertIn("{look}", lines)                 # (the Look key's own name goes there)
+        self.assertIn("{look}", lines)                 # (the Read Key's own name goes there)
         self.assertIn("Ctrl+D", lines)
         for _i, _h, ls in W.lead_of(notes):
             self.assertTrue(all(len(x.split()) <= 18 for _ic, x in ls), "short lines")
@@ -74,14 +102,14 @@ class NewChip(unittest.TestCase):
     def test_open_clears_rail_now_row_on_leave(self):
         self.assertTrue(newchip.page_new("settings") and newchip.page_new("tracker"))
         newchip.at("settings", "Keybinds")
-        self.assertFalse(newchip.is_new("Look key"))
-        self.assertTrue(newchip.row_shown("Look key"))          # still on Keybinds: the row keeps it
+        self.assertFalse(newchip.is_new("Read Key"))
+        self.assertTrue(newchip.row_shown("Read Key"))          # still on Keybinds: the row keeps it
         self.assertTrue(newchip.page_new("settings"))           # the Drawer (General) is still new
         self.assertIn("Drawer", newchip.page_tip("settings"))
         newchip.at("settings", "General")
-        self.assertFalse(newchip.row_shown("Look key"))         # left Keybinds: gone
+        self.assertFalse(newchip.row_shown("Read Key"))         # left Keybinds: gone
         self.assertFalse(newchip.page_new("settings"))
-        self.assertEqual(self.S["new_seen"]["Look key"], "3.0.0")
+        self.assertEqual(self.S["new_seen"]["Read Key"], "3.0.0")
         self.assertTrue(self.save.called)
 
     def test_use_clears_both(self):
@@ -92,7 +120,7 @@ class NewChip(unittest.TestCase):
     def test_kept(self):
         self.S["new_seen"] = {"Drawer": "3.0.0"}
         self.assertFalse(newchip.is_new("Drawer"))
-        self.assertTrue(newchip.is_new("Look key"))
+        self.assertTrue(newchip.is_new("Read Key"))
         self.assertFalse(newchip.is_new("Price Checks"))        # (only the listed features)
 
 

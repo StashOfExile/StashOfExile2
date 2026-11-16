@@ -141,7 +141,7 @@ def grant_callers(trees):
                                                f"press may grant a screen / clipboard read"))
                 if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr == "grant" and \
                         getattr(n.func.value, "id", "") in SCREEN_GRANT and (rel, d.name) != LOOK_WATCHER:
-                    bad.append((rel, n.lineno, f"a screen read is granted by {d.name} - the Look key (look_on_key) is "
+                    bad.append((rel, n.lineno, f"a screen read is granted by {d.name} - the Read Key (look_on_key) is "
                                                f"the one key that opens a screen read: no second key, no per-helper "
                                                f"keys, no clicks"))
         for n in ast.walk(tree):                 # (from .screenread import grant: a bare grant() call)
@@ -225,12 +225,12 @@ LISTENER_FILE = os.path.join("soe2", "utilities_page.py")
 LISTENER_OK = re.compile(r"CAPTURING|0x4B|pc_hotkey|pc_close_hotkey|rx_key_hit|topup_hotkey|poe2db_key|tracker_on_key|"
                          r"overlay\.on_key|drawer_hotkey|drawer_esc_hotkey")
 # (what the key watcher swallowed before the compliance work; drawer build: the Drawer key and, while the Drawer
-# shows, your close key - both the app's own keys, never the Look key: Settings › Keybinds keeps them apart)
+# shows, your close key - both the app's own keys, never the Read Key: Settings › Keybinds keeps them apart)
 READ_KEYS = re.compile(r"look_on_key|clip_on_key|look_key|screenread|clipread|\bSR\.|grant")
 
 
 def key_blocking(trees, src_of):
-    """The Look key is only heard - the game still gets it (owner: "must NOT be swallowed"). In the key watcher's
+    """The Read Key is only heard - the game still gets it (owner: "must NOT be swallowed"). In the key watcher's
     listener (UtilitiesPage.on_any_key): look_on_key / clip_on_key are called as plain statements (their answer is
     never returned or tested), and every statement that can swallow a key (return True or return of a call) belongs
     to a key the app already took before: the hotkey box, Ctrl+K, the price check / its close key, Regex keys, the Top
@@ -248,7 +248,7 @@ def key_blocking(trees, src_of):
         for n in ast.walk(f):
             if isinstance(n, ast.Call) and getattr(n.func, "attr", "") in ("look_on_key", "clip_on_key") \
                     and id(n) not in bare:
-                bad.append((rel, n.lineno, f"{n.func.attr}'s answer is used - the Look key and copy keys must pass "
+                bad.append((rel, n.lineno, f"{n.func.attr}'s answer is used - the Read Key and copy keys must pass "
                                            f"through to the game (call it as a plain statement)"))
         for st in f.body:
             seg = ast.get_source_segment(src_of[rel], st) or ""
@@ -256,7 +256,7 @@ def key_blocking(trees, src_of):
                                                               n.value.value is False) for n in ast.walk(st))
             if swallows and (READ_KEYS.search(seg) or not LISTENER_OK.search(seg)):
                 bad.append((rel, st.lineno, "a key is swallowed here that isn't one of the app's own hotkeys "
-                                            "(the Look key and copy keys are never blocked)"))
+                                            "(the Read Key and copy keys are never blocked)"))
     return bad
 
 

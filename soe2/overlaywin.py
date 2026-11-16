@@ -16,6 +16,7 @@ from .shell import GradientBar, UTIL_TITLE, TITLE_ON, BORDER_OFF
 
 BAR_H = 22
 EDGE = 4
+NOACTIVATE = 0x08000000            # WS_EX_NOACTIVATE: a click never hands the window the keyboard
 OUTLINE = "#5b77ad"              # the same 1px outline as the app's windows
 BODY_BG = "#0d1424"
 
@@ -301,6 +302,21 @@ def _child_hwnds(w):
     except Exception:
         buglog.caught()
     return out
+
+
+def foreign_foreground():
+    """3.0.1, Windows: the window in front when it isn't one of the app's own (the game, as a card over it opens), or
+    None - the window to hand the keyboard back to once you've typed in the card."""
+    if sys.platform != "win32":
+        return None
+    try:
+        import os
+        from . import drawer as D
+        fg = D._user32().GetForegroundWindow()
+        return fg if fg and D._pid_of(fg) != os.getpid() else None
+    except Exception:
+        buglog.caught()
+        return None
 
 
 def foreground_ok():
@@ -594,6 +610,56 @@ class OverlayWindow(tk.Toplevel):
                 u.SetForegroundWindow(fg)                     # hand the keyboard straight back
         except Exception:
             buglog.caught()
+
+    # ---- 3.0.1: typing in a window over the game (the price check overlay's Min / Max)
+    def take_keyboard(self, widget=None):
+        """A box in this window was clicked to type in: it gets the keyboard. Windows: a borderless window over the
+        game isn't always handed the keyboard by the click, and one that is no-activate or click-through never is -
+        so the window is made one that can have it (WS_EX_NOACTIVATE / WS_EX_TRANSPARENT off) and put in front, then
+        Tk puts the keyboard in the box. -> the window that had the keyboard before (the game), or None when that was
+        one of the app's own. GGG ToS: the app's own window's style - nothing is sent to the game."""
+        before = None
+        if sys.platform == "win32":
+            try:
+                import os
+                from . import drawer as D
+                from . import layered
+                u, du = layered.user32(), D._user32()
+                h = u.GetParent(self.winfo_id()) or self.winfo_id()
+                fg = du.GetForegroundWindow()
+                ex = u.GetWindowLongW(h, layered.GWL_EXSTYLE)
+                stuck = ex & (NOACTIVATE | layered.WS_EX_TRANSPARENT)
+                if stuck:
+                    u.SetWindowLongW(h, layered.GWL_EXSTYLE, ex & ~stuck)
+                    layered.keep(self)
+                self.no_activate, self._noact_done = False, False      # (shown again: it stays one you can type in)
+                if fg and fg != h:
+                    if D._pid_of(fg) != os.getpid():
+                        before = fg
+                    du.SetForegroundWindow(h)
+            except Exception:
+                buglog.caught()
+        try:
+            (widget if widget is not None else self).focus_force()
+        except tk.TclError:
+            pass
+        return before
+
+    def give_keyboard_back(self, hwnd):
+        """The window closes after you typed in it: the keyboard goes back to hwnd (the game) - only if one of the
+        app's own windows has it now (you didn't click somewhere else meanwhile). -> True when it was handed back."""
+        if sys.platform != "win32" or not hwnd:
+            return False
+        try:
+            import os
+            from . import drawer as D
+            fg = D._user32().GetForegroundWindow()
+            if fg and fg != hwnd and D._pid_of(fg) == os.getpid():
+                D.set_foreground(hwnd)
+                return True
+        except Exception:
+            buglog.caught()
+        return False
 
     # ---- title bar buttons
     def _bar_tip(self, text):

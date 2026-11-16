@@ -387,7 +387,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         from . import usage as _usage                 # UI overhaul: the anonymous usage count (Settings › Privacy)
         _usage.start(root)
         root.after(20000, self.er_start)             # 2.137.0: Error reports (opt-in, hourly)
-        root.after(4000, self.look_key_notice)       # GGG policy: an old Tab Look key was cleared - once, why
+        root.after(4000, self.look_key_notice)       # GGG policy: an old Tab Read Key was cleared - once, why
         root.after(2500, self.calc_ov_restore)
         root.after(2600, self.music_sync)            # 2.134.0: Music Controls, if on       # 2.74.0: the calculator over the game, if it was up
         # (2.92.2: which switches go on the bar is asked when you enable the overlay, not at start)
@@ -818,6 +818,8 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
                 self.wn_toggle_small()
         # (2.4.0: "Coming next" is no longer shown here - the plan lives in ROADMAP.md)
         t.config(state="disabled")
+        from .style import wheel_scrolls
+        wheel_scrolls(t, card)                  # 3.0.1: the wheel scrolls it anywhere over the card, its cards too
         card.lift()
 
     def _wn_lead(self, t, icon, title, lines):

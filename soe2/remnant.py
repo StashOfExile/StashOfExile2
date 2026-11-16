@@ -1,6 +1,6 @@
 """Expedition Remnant Price Checker (2.37.0): prices the reward list a remnant shows you, right next to each line.
 
-How (GGG policy, Nov 2026: once per press of your Look key - a key just for it): the app looks at the spot where the
+How (GGG policy, Nov 2026: once per press of your Read Key - a key just for it): the app looks at the spot where the
 reward book opens (AREA, scaled to the game window) in the press's one picture (screenread.py). Only when that spot
 looks like the book's parchment is its text read with Windows' own OCR
 (Windows.Media.Ocr - part of Windows, nothing to install); the lines that are items (a name, often with an amount like

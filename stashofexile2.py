@@ -2,7 +2,7 @@ r"""
 StashOfExile2 - a Path of Exile 2 price checker for tablets and jewels, with a window instead of a text dump.
 Free software under the GNU AGPL v3.0 (see LICENSE; up to 2.129.4: GNU GPL v3.0). Written by an AI (Claude, by Anthropic) under a human's direction.
 
-VERSION 3.0.0
+VERSION 3.0.1
   How versions are numbered (from 2.0.0 on):
     MAJOR.MINOR.PATCH.  The 22 betas ended here: this build is 2.0.0. From now on every build gets a plain number:
       2.0.1, 2.0.2 ...  fixes (nothing new to learn)
@@ -19,9 +19,24 @@ VERSION 3.0.0
   version (settings.json, session.json, modbook.json, mod_rules.json, wealth.json, tabs.txt ...).
 
 VERSION HISTORY
+  3.0.1
+       - The Look key is the Read Key (owner: "ctrl + shift + r = Read. R for Read."): names.py, every label, tip,
+         helper line, What's new, README / TOS / docs and tests. Its setting is still look_key; its NEW chip's seen
+         state moves over (migrations.read_key_name). check_removed: "Look key" and the lines saying the game still
+         gets the key never come back (owner: nobody understands them - the key still reaches the game).
+       - What's new: the wheel scrolls it anywhere over the card - its cards are windows in a Text and didn't pass the
+         wheel on (style.wheel_scrolls). Farming Strategies' guide (item cards, the tablets' button, the atlas
+         picture in its Text) had the same gap.
+       - Price check overlay, Min / Max typing: the item's own boxes (item level, quality, sockets) never asked for
+         the keyboard on a click - only the mods' did - and on Windows a borderless window over the game isn't handed
+         the keyboard by the click itself. Every box now takes it (overlaywin.take_keyboard: the card's window can
+         have the keyboard - no-activate / click-through off - and is put in front, then the box gets it); a gray box
+         ticks its row; a redraw keeps the box you're in; the card waits only while you type (a box that just kept
+         the keyboard after Enter held the new result back); closing the card hands the keyboard back to the game.
+         tests/test_pcpop_typing.py, tests/test_wheel_cards.py.
   3.0.0
        - GGG third-party policy (Nov 2026), at its strictest: the screen or the clipboard is read only once per manual
-         key press - the Look key (Ctrl+Shift+R as the app comes, passed through to the game) for every screen read,
+         key press - the Read Key (Ctrl+Shift+R as the app comes) for every screen read,
          the copy keys for the clipboard (price checks: Ctrl+D). No timed or automatic screen watching; each read
          shows the read mark (👁) and writes a log line. Client.txt is still followed. Removed: the Delirium helper,
          the Temple Helper's Vaal Beacon read (crystals from the Temple Console only), Map Content reads, the clipboard
@@ -31,7 +46,7 @@ VERSION HISTORY
          game close with a click on them; new Discord invite; the repo moved to StashOfExile/StashOfExile2.
        - What's new leads with "Why 3.0" and "How helpers work now" (whatsnew NOTES["3.0.0"]["lead"]), shown to
          everyone once - after updating, and on a first start after the quick start (settings "whatsnew_lead").
-       - NEW chip (newchip.py): on the Look key, the Drawer and Trial of the Sekhemas rows, and their page's icon in
+       - NEW chip (newchip.py): on the Read Key, the Drawer and Trial of the Sekhemas rows, and their page's icon in
          the sidebar and the Drawer's rail, until opened or used (settings "new_seen").
        - No TEST BUILD title; UI_OVERHAUL off (opt-in error reports work again).
   2.143.0
@@ -3888,7 +3903,7 @@ THE "LEARNING" PART
 import os
 import sys
 
-APP_VERSION = "3.0.0"  # bump this and __version__ in soe2/__init__.py together (see VERSION above)
+APP_VERSION = "3.0.1"  # bump this and __version__ in soe2/__init__.py together (see VERSION above)
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 

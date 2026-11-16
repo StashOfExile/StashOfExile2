@@ -71,7 +71,7 @@ class WellSoulsPage:
             self.ws_problem = None                        # (checked again at each visit)
             st = self.ws_status()
             msg = f"at The Well of Souls ({why or 'area ' + str(area_id)}) - " + \
-                ("reads on the Look key" if st == "on" else f"can't read the screen: {self.ws_problem}")
+                ("reads on the Read Key" if st == "on" else f"can't read the screen: {self.ws_problem}")
             if st == "on":
                 buglog.debug("Desecration Helper", msg)
             else:                                         # (in the log for a bug report: why it showed nothing)
@@ -159,9 +159,9 @@ class WellSoulsPage:
         except Exception:
             self.log_error("the Desecration Helper notice")
 
-    # ---------------------------------------------------------------- a Look key press (only at the Well)
+    # ---------------------------------------------------------------- a Read Key press (only at the Well)
     def ws_look_job(self, ctx):
-        """A Look key press at The Well of Souls: the window's options are read once and tagged. The tags stay until
+        """A Read Key press at The Well of Souls: the window's options are read once and tagged. The tags stay until
         your next press or a new area."""
         if not getattr(self, "ws_here", False) or self.ws_status() != "on":
             return None

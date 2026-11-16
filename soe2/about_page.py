@@ -39,7 +39,7 @@ QUICKSTART = [
         "A free toolkit that runs next to Path of Exile 2: it prices your items, keeps track of your maps and warns "
         "you about things that are easy to miss in game.",
         "It only reads what's yours: the game's own log file, and your clipboard or screen once per key press (a "
-        "copy key, or your Look key - a key you set just for the helpers). Each read shows for a second. It never "
+        "copy key, or your Read Key - a key you set just for the helpers). Each read shows for a second. It never "
         "touches the game itself, and every key does one thing.",
     ]),
     ("Price an item", [
@@ -181,8 +181,7 @@ class AboutPage:
                 "Written with AI (Claude), and open about it. Anyone may use it, change it and share it under the "
                 "AGPL-3.0 license - and anything made from it stays open source too.",
                 "It reads the game's log file (Client.txt), and your clipboard or screen only once per key press - "
-                "a copy key in the game, or your Look key (Ctrl+Shift+R as the app comes, or a key you pick that the game doesn't use; "
-                "the game still gets it). "
+                "a copy key in the game, or your Read Key (Ctrl+Shift+R as the app comes, or a key you pick that the game doesn't use). "
                 "Never on a timer or a click; each read shows for a second. Never the game's memory, and it "
                 "respects the trade site's limits. One key press = one action.",
                 "Prices come from the official trade site and poe.ninja.",

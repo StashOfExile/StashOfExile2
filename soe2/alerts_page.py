@@ -11,7 +11,7 @@ no box; clicks go through it. It goes after a few seconds, or as soon as you ope
 Remnant (2.37.0): the Expedition Remnant Price Checker (remnant.py / remnant_page.py).
 
 GGG policy (Nov 2026): Ritual, Temple, Expedition, Favours prices and every other helper that reads the screen
-reads it once per press of the Look key (look_page.py, screenread.py) - none of them watches by itself any more.
+reads it once per press of the Read Key (look_page.py, screenread.py) - none of them watches by itself any more.
 (The Delirium helper is gone: its End Delirium check was a screen read of its own.)"""
 import os
 import sys
@@ -124,7 +124,7 @@ def breach_level(text):
 # 2.119.0 (UX pass): what each helper does, in one line - under its name on Helpers, and (2.124.0) the tip on its
 # Quick settings chip
 HELPERS_LABEL = "HELPERS"           # 2.132.6 (feedback: "Instead of saying Ritual: or Temple: it should say Helpers:")
-LOOK = "{look}"                     # GGG policy (Nov 2026): the Look key's name goes here (look_page.LookPage)
+LOOK = "{look}"                     # GGG policy (Nov 2026): the Read Key's name goes here (look_page.LookPage)
 HELPER_BLURBS = {"breach": "An alert card when your Hiveblood is almost full, and when it's full.",
                  "ritual": f"Press {LOOK} in a map: reads the Ritual counter once. Reminds you if you leave with rituals "
                            f"left.",
@@ -142,12 +142,12 @@ HELPER_BLURBS = {"breach": "An alert card when your Hiveblood is almost full, an
                  "sekhemas": f"Press {LOOK} on the trial map: shows what to avoid and what to take."}
 
 
-from .look_page import UNSET_STATUS  # noqa: E402  (the helpers' status line while no Look key is set)
-LOOK_HELPERS = tuple(k for k, v in HELPER_BLURBS.items() if LOOK in v)   # the helpers that need the Look key
+from .look_page import UNSET_STATUS  # noqa: E402  (the helpers' status line while no Read Key is set)
+LOOK_HELPERS = tuple(k for k, v in HELPER_BLURBS.items() if LOOK in v)   # the helpers that need the Read Key
 
 
-def helper_blurb(key, look="your Look key"):
-    """A helper's one line, with the Look key's name in it."""
+def helper_blurb(key, look="your Read Key"):
+    """A helper's one line, with the Read Key's name in it."""
     return HELPER_BLURBS[key].replace(LOOK, look)
 
 
@@ -164,7 +164,7 @@ class AlertsPage:
         return c
 
     def ritual_cfg(self):
-        """2.14.0: the Ritual helper (ritual_alert.py reads the counter on a Look key press)."""
+        """2.14.0: the Ritual helper (ritual_alert.py reads the counter on a Read Key press)."""
         c = SETTINGS.setdefault("ritual_alert", {})
         c.setdefault("on", True)     # 2.118.0: on by default (a new install; yours is kept)
         c.setdefault("sound", True)
@@ -253,7 +253,7 @@ class AlertsPage:
         self.rt_base = (0, 0)                      # ... and disrupted this map; (starts, disrupted) at the last read
         if self.log_wanted():
             self.root.after(1500, self.breach_start)
-        # (GGG policy, Nov 2026: Ritual, Expedition, Top Up, Temple ... read on a Look key press - nothing starts here)
+        # (GGG policy, Nov 2026: Ritual, Expedition, Top Up, Temple ... read on a Read Key press - nothing starts here)
         self.root.after(3000, self.topup_take_supplies)  # 2.131.2: League Plan's Map supplies move here (once)
 
     # ================================================================ the panel (Overlay › Helpers)
@@ -397,7 +397,7 @@ class AlertsPage:
             b.paint = paint
             b.var = var
             paint()
-            if tip:                                 # (a tip naming the Look key follows the setting: alerts_refresh)
+            if tip:                                 # (a tip naming the Read Key follows the setting: alerts_refresh)
                 b.tip_tpl = tip
                 Tooltip(b, tip.replace(LOOK, self.look_key_text()))
             return b
@@ -1042,7 +1042,7 @@ class AlertsPage:
     def alerts_test_ritual(self):
         self.breach_alert(test=True, level="ritual", sub="1 of 3 done (a test)")
 
-    # ---- Ritual helper (GGG policy: reads on a Look key press - ritual_look_job; the game's log says the rest)
+    # ---- Ritual helper (GGG policy: reads on a Read Key press - ritual_look_job; the game's log says the rest)
     def ritual_start(self):
         if self.br_reader is None:
             self.breach_start()                         # to see you leave a map, and rituals start
@@ -1066,7 +1066,7 @@ class AlertsPage:
         return "warn" if getattr(self, "rt_problem", None) else "on"
 
     def ritual_look_job(self, ctx):
-        """A Look key press in a map or the campaign: the Ritual counter and the tribute, from the press's one
+        """A Read Key press in a map or the campaign: the Ritual counter and the tribute, from the press's one
         picture (never Map Content - owner decision)."""
         from . import features as FEAT
         if not (self.ritual_cfg().get("on") and FEAT.on("overlay")) or ctx["area"] not in ("map", "other", None):
@@ -1166,7 +1166,7 @@ class AlertsPage:
         if not rows:
             return
         states = self.alert_states()
-        for k, (bl, pre) in getattr(self, "al_blurbs", {}).items():     # (the Look key's name follows the setting)
+        for k, (bl, pre) in getattr(self, "al_blurbs", {}).items():     # (the Read Key's name follows the setting)
             rows[k]["what"] = helper_blurb(k, self.look_key_text())
             try:
                 bl.config(text=pre + rows[k]["what"])
@@ -1236,7 +1236,7 @@ class AlertsPage:
                        ("focus", ftxt), ("campaign", ctxt), ("whispers", vtxt), ("temple", ttxt),
                        ("music", utxt), ("sekhemas", stxt)] + more:
             st = states[k]
-            if st == "on" and txt == UNSET_STATUS:  # GGG policy: on, but nothing reads without a Look key
+            if st == "on" and txt == UNSET_STATUS:  # GGG policy: on, but nothing reads without a Read Key
                 st = "warn"
             lbl = rows[k]["status"]
             if rows[k].get("grid"):                 # 2.112.0: one short line under the name
@@ -1303,7 +1303,7 @@ class AlertsPage:
         return self.look_status(f"On - press {self.look_key_text()} in a map to read the Ritual counter.")
 
     def ritual_seen(self):
-        """After a Look key press: remember the counter while you're in a map."""
+        """After a Read Key press: remember the counter while you're in a map."""
         from .ritual_alert import STATE as RITUAL
         if RITUAL.seen == "ok" and RITUAL.count and self.br_area in ("map", None):
             self.rt_map = RITUAL.count
@@ -1342,7 +1342,7 @@ class AlertsPage:
             if last is not None:                      # 2.104.1 (feedback: Island Rumors never showed): started in
                 try:                                  # your hideout, the helpers knew only after the next area
                     kind0 = gl_area_kind(last.get("area"), last.get("seed"), last.get("level", 0))
-                    self.br_area_start = kind0        # (the Look key: where you are until the next area change -
+                    self.br_area_start = kind0        # (the Read Key: where you are until the next area change -
                     at = next((n for n, (_k, _t, _d) in enumerate(tail) if _d is last), len(tail))   # not "anywhere";
                     self.look_at_login = any(k_ == "login" for k_, _t, _d in tail[at + 1:])         # look_area)
                     self.expedition_area(last.get("area"), kind0)
@@ -1390,7 +1390,7 @@ class AlertsPage:
                             self.breach_dismiss()
                         elif kind == "login":
                             self.br_relog = True             # 2.130.2: the character screen (any character)
-                            self.look_at_login = True        # (the Look key: nothing of the game's to read there)
+                            self.look_at_login = True        # (the Read Key: nothing of the game's to read there)
                             try:                             # 2.142.2 (feedback: Vaal Lens on the login screen):
                                 self.temple_area(None)       # out of the temple until an area says otherwise
                                 self.sek_area(None)          # (and out of the trial: its legend goes)
@@ -1447,7 +1447,7 @@ class AlertsPage:
         if left and cfg.get("on") and cfg.get("pending") and cfg.get("leave_reminder", True):
             self.breach_alert(level="leave")
         rc, got = self.ritual_cfg(), self.ritual_estimate(self.rt_map)   # 2.14.0: rituals left undone in the map you
-        #                                                     just left (the last Look key read, and the log since)
+        #                                                     just left (the last Read Key read, and the log since)
         if left and rc.get("on"):                           # 2.129.3 (feedback: 2 of 3 and no reminder): the log says
             buglog.debug("Ritual leave check", f"count {got}, "                                          # why
                                                f"reminder {'on' if rc.get('leave_reminder', True) else 'off'}")
@@ -1461,7 +1461,7 @@ class AlertsPage:
         except Exception:
             self.log_error("Map profit")
         if left:                                             # Owner decision: back from a map - one card for Top Up
-            try:                                             # and Map profit (one Look key press counts the map's
+            try:                                             # and Map profit (one Read Key press counts the map's
                 self.back_card(self.mp_map_name(getattr(self, "rt_where", None)))    # loot and checks your top ups)
             except Exception:
                 self.log_error("the Back from a map card")

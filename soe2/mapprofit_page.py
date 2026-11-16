@@ -28,7 +28,7 @@ class MapProfitPage:
     def mp_set(self, on):
         MP.cfg()["on"] = bool(on)
         save_json("settings.json", SETTINGS)
-        if on:                                              # (Top Up's Look key reads of the inventory count)
+        if on:                                              # (Top Up's Read Key reads of the inventory count)
             if getattr(self, "br_reader", None) is None:    # (the game's log says when you're in a map)
                 try:
                     self.breach_start()
@@ -362,7 +362,7 @@ class MapProfitPage:
         self.undo_button(bar, "mapprofit", side="right", padx=(0, 8))
         self.mp_sum = tk.Label(body, text="", bg=P1, fg=C["text"], font=("Segoe UI", 10, "bold"), anchor="w", padx=12)
         self.mp_sum.pack(fill="x")
-        self.look_needed(body, P1, "Map profit counts a map only when you press your Look key - a key just for "
+        self.look_needed(body, P1, "Map profit counts a map only when you press your Read Key - a key just for "
                                    "that. None is set yet.").pack(fill="x", padx=12)
         # 2.138.0: maps hidden by Clear all › Hide from the list - still kept; one click shows them again
         self.mp_hidden_lbl = tk.Label(body, text="", bg=P1, fg=C["accent"], cursor="hand2", anchor="w", padx=12,

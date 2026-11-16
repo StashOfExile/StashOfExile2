@@ -75,7 +75,7 @@ class ClickToClose(unittest.TestCase):
 
         class App(WellSoulsPage):
             def look_key_text(self):
-                return "your Look key (Ctrl+Shift+R)"
+                return "your Read Key (Ctrl+Shift+R)"
 
             def log_error(self, where):
                 raise AssertionError(where)

@@ -11,7 +11,7 @@ from . import board as B
 from . import moneymakers as MM
 from .config import SETTINGS, save_json
 from .style import over_app
-from .style import C, MONO, SegBar, Tooltip, place_near, autowrap
+from .style import C, MONO, SegBar, Tooltip, place_near, autowrap, wheel_scrolls
 from .chrome import SectionBar, Viewport, section as chrome_section
 
 ORIGIN = {"community": "Official", "mine": "Mine", "example": "Example", "board": "Community"}
@@ -797,6 +797,7 @@ class MoneyMakersPage:
                      ("no recent listings" if now or c else ""), bg=P1, fg=C["good"] if price is not None else C["muted"],
                      font=("Segoe UI", 9)).pack(side="left", padx=8)
             t.window_create("end", window=card, stretch=1)
+            wheel_scrolls(t, card)                         # 3.0.1: the wheel over a card scrolls the guide too
             t.insert("end", "\n")
         tabs = [it for it in items if it.get("kind") != "waystone" and it.get("key_mods")]
         if len(tabs) > 1:
@@ -805,6 +806,7 @@ class MoneyMakersPage:
                            command=lambda: self.mm_item_copy(rx, "all the tablets"))
             self.mm_all_tabs_btn = b
             t.window_create("end", window=b)
+            wheel_scrolls(t, b)
             t.insert("end", "  stash or vendor: Ctrl+V in the search · Trade: the ★ mods, cheapest first\n", "meta")
 
     def mm_item_copy(self, rx, what):
@@ -839,6 +841,7 @@ class MoneyMakersPage:
                                highlightbackground=C["line"])
                 lbl.bind("<Button-1>", lambda e, p=path: self.mm_atlas_big(p))
                 t.window_create("end", window=lbl)
+                wheel_scrolls(t, lbl)
                 t.insert("end", "\n")
                 t.insert("end", "Click the picture to see it big.\n", "meta")
             else:
