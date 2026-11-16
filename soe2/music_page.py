@@ -12,9 +12,9 @@ class MusicPage:
     """Mixed into App."""
 
     def music_wanted(self):
-        """Its switch (and its BETA feature) is on."""
+        """Its switch (Overlay › Helpers) is on, and the Overlay feature."""
         from . import features as FEAT
-        return bool(MU.cfg().get("on")) and FEAT.on("overlay") and FEAT.on("music")
+        return bool(MU.cfg().get("on")) and FEAT.on("overlay")
 
     def music_on(self):
         """Wanted, and the overlay is on: the window shows."""
@@ -22,8 +22,6 @@ class MusicPage:
 
     def music_set(self, on):
         MU.cfg()["on"] = bool(on)
-        from . import features as FEAT
-        FEAT.beta_on("music", bool(on))
         save_json("settings.json", SETTINGS)
         self.music_sync()
         v = getattr(self, "al_music", None)

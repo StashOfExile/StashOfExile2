@@ -10,7 +10,9 @@ Everything that goes wrong lands in app_log.txt in the data folder, one entry ea
   * caught  - (2.117.0) a problem the app stepped over on purpose (`except Exception` that carries on): where in
               the code and the error's type only - never its message. Once per place per run, at most CAUGHT_MAX a
               run, not in the "this week" counts, and Report a bug sends them only after everything else fits.
-  * debug   - (2.116.0) Developer options › Debug mode only
+  * debug   - (2.116.0) Settings › Advanced › Problems › Debug mode only
+  * read    - (GGG policy, Nov 2026) each screen read, in plain words: "Tab pressed: read the screen once for Ritual,
+              Temple" (screenread.py) - always written, every time, so you can see what was read and when
 Uncaught errors anywhere - the main thread, a background thread, a Tk callback - come here too (install()).
 
 Privacy, the same for every entry: scrubbed (privacy.scrub_names - your Windows user name, account and character
@@ -27,8 +29,8 @@ import traceback
 LIMIT = 512 * 1024              # app_log.txt over this: it moves to app_log.old.txt and a new one starts
 REPEAT = 30.0                   # the same error again within this many seconds: written once
 SEND_MAX = 12000                # the most Report a bug adds (the board takes 20,000 characters in all)
-KINDS = ("error", "crash", "freeze", "slow", "net", "caught", "debug")
-QUIET = ("caught", "debug")     # not in counts() - background detail, not things that went wrong for you
+KINDS = ("error", "crash", "freeze", "slow", "net", "caught", "debug", "read")
+QUIET = ("caught", "debug", "read")     # not in counts() - background detail, not things that went wrong for you
 CAUGHT_MAX = 100                # caught entries a run (after this: one "and more" line)
 _CAUGHT = set()
 STATS = {"requests": 0, "slow_requests": 0}     # 2.116.0: Debug mode's status-bar line (this run only)
@@ -68,7 +70,7 @@ def record(kind, where, detail="", exc=None):
         sig = (kind, where, (body.splitlines() or [""])[-1])
         with _LOCK:
             now = time.time()
-            if now - _SEEN.get(sig, 0) < REPEAT:
+            if kind != "read" and now - _SEEN.get(sig, 0) < REPEAT:
                 return False
             _SEEN[sig] = now
             path = _p("app_log.txt")
@@ -115,10 +117,10 @@ def caught():
 
 
 def debug_on():
-    """2.116.0: Settings › Advanced › Developer options › Debug mode."""
+    """2.116.0: Settings › Advanced › Problems › Debug mode (owner: Developer options and its switch are gone)."""
     try:
         from .config import SETTINGS
-        return bool(SETTINGS.get("dev_options") and SETTINGS.get("debug_mode"))
+        return bool(SETTINGS.get("debug_mode"))
     except Exception:
         return False
 

@@ -111,8 +111,12 @@ def listing_rules():
     """-> (API status value, API 'listed within' value, max age in hours or None) from the two dropdowns."""
     status = dict(STATUS_OPTIONS).get(SETTINGS.get("status"), "securable")      # unknown -> Instant Buyout
     api_age, hours = next(((a, h) for lab, a, h in AGE_OPTIONS if lab == SETTINGS.get("age")), ("3days", 48))
-    if (current_opts() or {}).get("age_any"):        # 2.99.0: nothing listed lately - this search looks at any age
+    o = current_opts() or {}
+    if o.get("age_any"):                             # 2.99.0: nothing listed lately - this search looks at any age
         return status, None, None
+    wide = next(((a, h) for lab, a, h in AGE_OPTIONS if lab == o.get("age")), None)
+    if wide and hours is not None and wide[1] > hours:   # owner (base widening): this item's listed-within window
+        return status, wide[0], wide[1]                  # ("1 week") - only ever wider than the setting's
     return status, api_age, hours
 
 
@@ -141,9 +145,56 @@ CURRENCY_CHOICES = [("Exalted Orb Equivalent", None), ("Divine Orbs", "divine"),
 NUM_OPTS = (("tier", "map_filters", "map_tier"),        # 2.103.2: a waystone's tier (feedback)
             ("ilvl", "type_filters", "ilvl"), ("quality", "type_filters", "quality"),
             ("sockets", "equipment_filters", "rune_sockets"), ("req_lvl", "req_filters", "lvl"),
-            ("req_str", "req_filters", "str"), ("req_dex", "req_filters", "dex"), ("req_int", "req_filters", "int"))
+            ("req_str", "req_filters", "str"), ("req_dex", "req_filters", "dex"), ("req_int", "req_filters", "int"),
+            # owner decision C: the trade site's other filters that a copied item can have (off until ticked)
+            ("aps", "equipment_filters", "aps"), ("crit", "equipment_filters", "crit"),
+            ("dps", "equipment_filters", "dps"), ("reload", "equipment_filters", "reload_time"),
+            ("block", "equipment_filters", "block"), ("spirit", "equipment_filters", "spirit"),
+            ("ward", "equipment_filters", "ward"), ("gem_level", "misc_filters", "gem_level"),
+            ("area_level", "misc_filters", "area_level"), ("stack", "misc_filters", "stack_size"))
 MISC_OPTS = (("fractured", "fractured_item", False), ("desecrated", "desecrated", False),
-             ("sanctified", "sanctified", False), ("mirrored", "mirrored", False), ("unidentified", "identified", True))
+             ("sanctified", "sanctified", False), ("mirrored", "mirrored", False), ("unidentified", "identified", True),
+             ("twice_corrupted", "twice_corrupted", False), ("unrevealed", "veiled", False),
+             ("crafted", "crafted", False), ("cultivated", "mutated", False), ("foreseeing", "foreseeing", False))
+
+# Owner decision A: a copied item's flag (gamedata.copy_flags) -> the trade site's Miscellaneous filter. The item is
+# compared with listings that have the same flag (Unidentified: the site's Identified = No); the card's toggle for
+# it can switch that off (rec["opts"][flag] = "any").
+FLAG_FILTERS = {"corrupted": "corrupted", "twice_corrupted": "twice_corrupted", "mirrored": "mirrored",
+                "fractured": "fractured_item", "sanctified": "sanctified", "desecrated": "desecrated",
+                "unrevealed": "veiled", "crafted": "crafted", "cultivated": "mutated", "unidentified": "identified"}
+
+
+def flag_filters(flags):
+    """The item's flags -> {trade-site misc filter: {"option": ...}}: only listings with the same flags."""
+    return {FLAG_FILTERS[f]: {"option": "false" if f == "unidentified" else "true"}
+            for f in sorted(flags or ()) if f in FLAG_FILTERS}
+
+
+# Owner decision C: the trade site's own filter list (/data/filters, downloaded once a day with the other lists,
+# engine._load_filters) -> {(group id, filter id): its text}. Empty until loaded: every filter the app knows is
+# offered then.
+FILTERS = {}
+
+
+def set_trade_filters(data):
+    """The /data/filters answer -> FILTERS (changed in place). Never raises."""
+    try:
+        out = {}
+        for grp in (data or {}).get("result") or []:
+            for f in grp.get("filters") or []:
+                if f.get("id"):
+                    out[(grp.get("id"), f["id"])] = f.get("text") or ""
+        if out:
+            FILTERS.clear()
+            FILTERS.update(out)
+    except Exception:
+        buglog.caught()
+
+
+def site_has(group, fid):
+    """Does the trade site (still) offer this filter? True while its list isn't loaded."""
+    return not FILTERS or (group, fid) in FILTERS
 
 
 def use_opts(opts):
@@ -224,7 +275,9 @@ def apply_opts(query, item=None, opts=None):
 
 
 def search_ids(league, base, filters, count_min, corrupted=None):
-    """One trade search. Returns (total matches, first listing ids, query id). Same search twice = free."""
+    """One trade search. Returns (total matches, first listing ids, query id). Same search twice = free.
+    corrupted: True / False (corrupted only / uncorrupted only), None (either), or the item's flags (a set: only
+    listings with the same flags - owner decision A)."""
     plain, extra = [], []
     for f in filters:
         if f.get("own"):                              # 1.43: a count mod the trade site words in the singular
@@ -246,7 +299,10 @@ def search_ids(league, base, filters, count_min, corrupted=None):
     status, api_age, _hours = listing_rules()
     query = {"status": {"option": status}, "type": base, "stats": groups}
     flt = {}
-    if corrupted is not None:
+    if isinstance(corrupted, (set, frozenset, list, tuple)):
+        if flag_filters(corrupted):
+            flt["misc_filters"] = {"filters": flag_filters(corrupted)}
+    elif corrupted is not None:
         flt["misc_filters"] = {"filters": {"corrupted": {"option": "true" if corrupted else "false"}}}
     if api_age:
         flt["trade_filters"] = {"filters": {"indexed": {"option": api_age}}}

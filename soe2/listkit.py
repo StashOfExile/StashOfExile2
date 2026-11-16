@@ -9,7 +9,7 @@ Every list (Treeview), in every window:
   - the Menu key / Shift+F10 opens the same menu from the keyboard (2.36.0).
 Every box you type in (Entry, Spinbox, Combobox, Text):
   - Ctrl+A selects everything, Ctrl+Z undoes your last change (Ctrl+C / X / V as always);
-  - right-click: Undo, Cut, Copy, Paste, Delete, Select all.
+  - right-click: Undo, Cut, Copy, Delete, Select all (pasting is Ctrl+V - a click never reads the clipboard).
 A widget that already has its own right-click menu keeps it. Plain Tk class bindings - Windows and Linux alike.
 
 Also the poe2db key (Ctrl+Shift+D by default, Settings > Keybinds): opens poe2db's modifier list in your browser. It's a
@@ -235,10 +235,6 @@ def edit_menu(e):
         has_sel = bool(w.tag_ranges("sel")) if isinstance(w, tk.Text) else w.selection_present()
     except (tk.TclError, AttributeError):
         has_sel = False
-    try:
-        clip = bool(w.clipboard_get())
-    except tk.TclError:
-        clip = False
     st = lambda on: "normal" if on else "disabled"                       # noqa: E731
     h = HISTORY.data.get(str(w))
     can_undo = ed and (bool(h and h["stack"]) if not isinstance(w, tk.Text) else True)
@@ -248,7 +244,7 @@ def edit_menu(e):
     m.add_separator()
     m.add_command(label="Cut", accelerator="Ctrl+X", state=st(ed and has_sel), command=lambda: _edit(w, "<<Cut>>"))
     m.add_command(label="Copy", accelerator="Ctrl+C", state=st(has_sel), command=lambda: w.event_generate("<<Copy>>"))
-    m.add_command(label="Paste", accelerator="Ctrl+V", state=st(ed and clip), command=lambda: _edit(w, "<<Paste>>"))
+    # (GGG policy: no Paste here - a click never reads the clipboard; Ctrl+V in the box is a key press)
     m.add_command(label="Delete", accelerator="Del", state=st(ed and has_sel), command=lambda: _edit(w, "<<Clear>>"))
     m.add_separator()
     m.add_command(label="Select all", accelerator="Ctrl+A", command=lambda: select_all(w))
@@ -337,6 +333,10 @@ def install(app):
     root = app.root
     C.setdefault("stripe", "#16213a")
     _patch_treeview()
+    try:                                               # GGG policy: a click never reads the clipboard - Tk's
+        root.event_delete("<<PasteSelection>>")        # middle-click paste is off (Ctrl+V, a key press, stays)
+    except tk.TclError:
+        pass
     try:
         root.option_add("*Text.undo", True)            # Text boxes made from now on keep an undo history
         root.option_add("*Text.autoSeparators", True)

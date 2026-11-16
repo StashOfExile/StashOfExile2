@@ -52,6 +52,8 @@ class ExchangePage:
         ttk.Entry(row, textvariable=self.flip_sell, width=7).pack(side="left", padx=4)
         ttk.Combobox(row, textvariable=self.flip_cur, values=["Exalted Orb", "Divine Orb", "Chaos Orb"],
                      width=12).pack(side="left", padx=4)
+        from .style import flowify
+        flowify(row)                     # drawer-look: wraps in the Drawer (its wider rail leaves less room)
         row2 = tk.Frame(fl, bg=P2)
         row2.pack(fill="x", pady=(4, 0))
         tk.Label(row2, text="How many I'd flip", bg=P2, fg=C["text"]).pack(side="left")

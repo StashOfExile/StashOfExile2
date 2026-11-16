@@ -109,9 +109,89 @@ class Plate(tk.Canvas):
 
 
 _SWITCH = {}
+SWITCH_LOOK = ["onoff"]           # drawer build: "seg" = the Drawer's switch (mockups.html .sw: ✓ On | Off, no orange)
 
 
 _MONO = {}
+_SANS = {}
+
+
+def _sans_font(size):
+    """The UI font for the Drawer's switch words (Segoe UI on Windows, DejaVu Sans on Linux), else Pillow's own."""
+    if size in _SANS:
+        return _SANS[size]
+    from PIL import ImageFont
+    f = None
+    for name in ("segoeui.ttf", "DejaVuSans.ttf", "LiberationSans-Regular.ttf",
+                 "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"):
+        try:
+            f = ImageFont.truetype(name, size)
+            break
+        except Exception:
+            continue
+    _SANS[size] = f or _mono_font(size)
+    return _SANS[size]
+
+
+def _lum(c):
+    c = c.lstrip("#")
+    r, g, b = (int(c[i:i + 2], 16) / 255 for i in (0, 2, 4))
+    f = lambda v: v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4    # noqa: E731
+    return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b)
+
+
+def _ink_on(fill):
+    """The darker or lighter of the theme's own background / text that reads best on this fill."""
+    try:
+        a, b = C["bg"], C["text"]
+        la, lb, lf = _lum(a), _lum(b), _lum(fill)
+        ca = (max(la, lf) + .05) / (min(la, lf) + .05)
+        cb = (max(lb, lf) + .05) / (min(lb, lf) + .05)
+        return a if ca >= cb else b
+    except Exception:
+        return "#000000"
+
+
+def _seg_switch_img(root, on, hover=False, disabled=False, w=68, h=24, gap=8):
+    """drawer build (mockups.html .sw): the switch in the Drawer - a box split in two, "✓ On | Off"; the chosen half
+    is lifted and says it with a mark (✓ / ○) and a word, the other half is dim. Round 18 (feedback: the themes lost
+    their flair): a lit On is the theme's accent, as the Full window's switch - the mark and the word say it too."""
+    from PIL import Image, ImageDraw, ImageTk
+    from . import lineicons
+    lift = C.get("key") or C["panel2"]
+    face = C.get("odd") or C["panel2"]
+    edge = C["line"] if not hover or disabled else C["muted"]
+    dim = mix(C["muted"], face, 0.35)
+    alpha = 110 if disabled else 255
+
+    def rgba(c):
+        c = c.lstrip("#")
+        return tuple(int(c[i:i + 2], 16) for i in (0, 2, 4)) + (alpha,)
+    k = 2                                                   # drawn twice the size, then scaled down (smooth text)
+    im = Image.new("RGBA", ((w + gap) * k, h * k), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    half = w * k // 2
+    f = _sans_font(10 * k)
+    for i, (word, lit) in enumerate((("On", on), ("Off", not on))):
+        x0 = i * half
+        hot = lit and i == 0
+        d.rectangle((x0, 0, x0 + half - 1, h * k - 1), fill=rgba(C["accent"] if hot else lift if lit else face))
+        fg = _ink_on(C["accent"]) if hot else C["text"] if lit else dim
+        mark = ("check" if i == 0 else "circle") if lit else None
+        l, t_, r, b = d.textbbox((0, 0), word, font=f)
+        tw, th = r - l, b - t_
+        mw = 9 * k if mark else 0
+        x = x0 + (half - tw - mw - (3 * k if mark else 0)) // 2
+        if mark:
+            ic = lineicons.image(mark, mw, fg, stroke=2.4)
+            if alpha != 255:
+                ic.putalpha(ic.getchannel("A").point(lambda a: a * alpha // 255))
+            im.alpha_composite(ic, (int(x), (h * k - mw) // 2))
+            x += mw + 3 * k
+        d.text((x - l, (h * k - th) // 2 - t_), word, font=f, fill=rgba(fg))
+    d.line((half, 0, half, h * k), fill=rgba(C["line"]), width=k)
+    d.rectangle((0, 0, w * k - 1, h * k - 1), outline=rgba(edge), width=k)
+    return ImageTk.PhotoImage(im.resize((w + gap, h), Image.LANCZOS), master=root)
 
 
 def _mono_font(size):
@@ -140,6 +220,11 @@ def _switch_img(root, on, hover=False, disabled=False, w=68, h=24, gap=8):
     """P2.5 (2.107.0, picked: B - segmented): one picture of the switch - a 68 x 24 box split in two, ON | OFF; the
     chosen half is lit (ON: the accent; OFF: a raised face). Straight edges, drawn 1:1 so they stay crisp; the
     words in a monospace font. Pillow; without it a plain Tk drawing."""
+    if SWITCH_LOOK[0] == "seg":
+        try:
+            return _seg_switch_img(root, on, hover, disabled)
+        except Exception:
+            buglog.caught()
     acc, sunk = C["accent"], C.get("odd") or C["panel2"]
     edge = mix(C["line"], C["text"], 0.18) if not hover or disabled else acc
     off_face = mix(sunk, C["text"], 0.28)
@@ -175,10 +260,24 @@ def _switch_img(root, on, hover=False, disabled=False, w=68, h=24, gap=8):
         return img
 
 
+def switch_look(root, look):
+    """drawer build: the switches' look - "onoff" (ON | OFF, the accent) or "seg" (the Drawer's ✓ On | Off). Every
+    switch in the app follows at once (the same ttk element, laid out again)."""
+    if SWITCH_LOOK[0] == look:
+        return
+    SWITCH_LOOK[0] = look
+    try:
+        from tkinter import ttk as _ttk
+        switches(root, _ttk.Style(root))
+    except Exception:
+        buglog.caught()
+
+
 def switches(root, s):
     """2.49.0 (feedback: "anywhere there's a checkbox... a modern slider in its place"): every ttk.Checkbutton
     (TCheckbutton and its Bar. / Mod. styles) shows a switch instead of a tick box. Same widgets, same variables."""
-    name = "Switch2.indicator.%s" % (C["accent"] + C["line"] + C["text"] + C["panel2"]).replace("#", "")
+    name = "Switch2.indicator.%s%s" % ((C["accent"] + C["line"] + C["text"] + C["panel2"]).replace("#", ""),
+                                       "" if SWITCH_LOOK[0] == "onoff" else SWITCH_LOOK[0])
     if (id(root), name) in _SWITCH:           # 2.62.0: this look's switch exists - keep ITS pictures (making new
         imgs = None                           # ones here freed the old ones: switches went blank after a swap back)
     else:
@@ -372,6 +471,20 @@ def _pads(v):
     else:
         parts = [int(float(x)) for x in re.findall(r"-?\d+(?:\.\d+)?", str(v))]
     return (parts[0], parts[-1]) if parts else (0, 0)
+
+
+def autowrap(label, pad=0, minw=160):
+    """D3: a label that wraps to the width it is given (fill="x", or a grid cell that stretches) instead of being cut
+    off at Drawer width. Returns the label."""
+    def cfg(e):
+        w = max(minw, e.width - pad)
+        try:
+            if abs(int(str(label.cget("wraplength")) or 0) - w) >= 8:
+                label.config(wraplength=w, justify="left")
+        except tk.TclError:
+            pass
+    label.bind("<Configure>", cfg, add="+")
+    return label
 
 
 def flowify(row, vgap=6):
@@ -583,6 +696,8 @@ def _setup_style(root, TH):
                                        ("Treeheading.text", {"sticky": "we"})]})]})])
     s.configure("Treeview", background=C["panel"], fieldbackground=C["panel"], foreground=C["text"],
                 rowheight=30, borderwidth=0, font=("Segoe UI", 10))
+    s.configure("Items.Treeview", rowheight=38)           # UI overhaul: a list with a picture per row (Wealth)
+    s.map("Items.Treeview", background=[("selected", C["sel"])], foreground=[("selected", t.c("selection_text", "#ffffff"))])
     s.configure("Treeview.Heading", foreground=TH.text_of(t, "heading", "text", C["text"]),
                 font=("Segoe UI", 9, "bold"), padding=(8, 8))
     sel_fg = t.c("selection_text", "#ffffff")
@@ -781,6 +896,7 @@ class Tooltip:
 
     def __init__(self, widget, text, delay=450):
         self.w, self.text, self.delay, self.win, self.job = widget, text, delay, None, None
+        self.at = None                                      # D3: (x, y) on screen, for one widget that has many spots
         widget._tip = self                                  # (tools/check_ux.py: this button has a tip)
         widget.bind("<Enter>", self._enter, add="+")
         widget.bind("<Leave>", self._leave, add="+")
@@ -804,15 +920,19 @@ class Tooltip:
         self._cancel()
         self.hide()
 
+    def _where(self):
+        return self.w.winfo_rootx() + 8, self.w.winfo_rooty() + self.w.winfo_height() + 4
+
     def show(self):
         self.job = None
         if not self.text or self.win is not None:
             return
         try:
-            x, y = self.w.winfo_rootx() + 8, self.w.winfo_rooty() + self.w.winfo_height() + 4
+            x, y = self.at or self._where()         # (D3: a spot given for one of many - else as master)
         except tk.TclError:
             return
         self.win = tk.Toplevel(self.w)
+        self.win._app_popup = True                          # (drawer-look: over the Drawer while it's topmost)
         self.win.overrideredirect(True)
         try:
             self.win.attributes("-topmost", True)
@@ -857,6 +977,19 @@ class Tooltip:
             except tk.TclError:
                 pass
             self.win = None
+
+
+class TagTip(Tooltip):
+    """The same tip for a part of a canvas (its tag) - the item card's filter rows. TagTip(canvas, tag, text)."""
+
+    def __init__(self, canvas, tag, text, delay=450):
+        self.w, self.text, self.delay, self.win, self.job = canvas, text, delay, None, None
+        canvas.tag_bind(tag, "<Enter>", self._enter, add="+")
+        canvas.tag_bind(tag, "<Leave>", self._leave, add="+")
+        canvas.tag_bind(tag, "<ButtonPress>", self._leave, add="+")
+
+    def _where(self):
+        return self.w.winfo_pointerx() + 12, self.w.winfo_pointery() + 18
 
 
 class Splitter(tk.Frame):
@@ -904,8 +1037,9 @@ class Splitter(tk.Frame):
 
     def clamp(self, x):
         pw = self.winfo_width()
-        hi = pw - self.keep - self.GRIP if pw > self.lo + self.keep + self.GRIP else max(self.lo, x)
-        return int(max(self.lo, min(x, hi)))
+        lo = min(self.lo, 300) if 1 < pw < 900 else self.lo           # D3: a little less room at Drawer width
+        hi = pw - self.keep - self.GRIP if pw > lo + self.keep + self.GRIP else max(lo, x)
+        return int(max(lo, min(x, hi)))
 
     def _clamp_now(self):
         x = self.clamp(self._want)
@@ -941,6 +1075,60 @@ class Splitter(tk.Frame):
         self._want = self.clamp(int(x))
         self.left.config(width=self._want)
         return self._want
+
+    def set_stacked(self, on, top_share=0.56):
+        """The Drawer's look (mockups.html): .left over .right, each the page's whole width, no grip. Off: side by
+        side again (the divider's own place is kept)."""
+        on = bool(on)
+        if on == getattr(self, "_stacked", False):
+            return
+        self._stacked = on
+        self._top_share = top_share
+        for w in (self.left, self.grip, self.right):
+            w.pack_forget()
+            w.place_forget()
+        if on:
+            if not getattr(self, "_stack_bound", False):
+                self._stack_bound = True
+                self.bind("<Configure>", lambda e: self._stack_place(), add="+")
+            self._stack_place()
+        else:
+            self.left.pack(side="left", fill="y")
+            self.grip.pack(side="left", fill="y")
+            self.right.pack(side="left", fill="both", expand=True)
+            self.left.config(width=self.clamp(self._want))
+
+
+    STACK_KEEP = 200                     # px the part under the top keeps, at least (the listings' head and a row)
+
+    def stack_need(self, px):
+        """Round 18 (feedback: the item card scrolled with room to spare): stacked, the top part is as tall as it
+        needs (px) - all of it when the page has the room, else all but STACK_KEEP; it scrolls only then."""
+        px = int(px or 0)
+        if px and abs(px - (getattr(self, "_need", 0) or 0)) < 2:
+            return
+        self._need = px
+        if getattr(self, "_stacked", False):
+            self._stack_place()
+
+    def _stack_place(self):
+        if not getattr(self, "_stacked", False):
+            return
+        try:
+            ph = self.winfo_height()
+            need = getattr(self, "_need", 0) or 0
+            if ph <= 1 or not need:
+                share = getattr(self, "_top_share", 0.56)
+                self.left.place(relx=0, rely=0, relwidth=1, relheight=share, height=0, y=0)
+                self.right.place(relx=0, rely=share, relwidth=1, relheight=1 - share, height=0, y=0)
+                return
+            h = max(160, min(need, ph - self.STACK_KEEP))
+            if self.left.place_info().get("height") == str(h) and self.left.place_info().get("relheight") in ("", "0"):
+                return
+            self.left.place(relx=0, rely=0, relwidth=1, relheight=0, height=h, y=0)
+            self.right.place(relx=0, rely=0, relwidth=1, relheight=1, height=-h, y=h)
+        except tk.TclError:
+            pass
 
 
 class VSplitter(tk.Frame):
@@ -1037,6 +1225,8 @@ class SegBar(tk.Frame):
         for i, opt in enumerate(options):
             self._add(opt, i)
         self.paint()
+        from . import themes as _th
+        _th.subscribe(lambda t: self.paint(), owner=self)    # (its colors are the theme's own: painted again)
 
     def _add(self, opt, i):
         f = tk.Frame(self, bg=C["line"])
@@ -1064,12 +1254,18 @@ class SegBar(tk.Frame):
         self.btns[opt] = (lab, line)
 
     def paint(self, hover=None):
-        for opt, (lab, line) in self.btns.items():
-            on = opt == self.value
-            bg = "#2c4a84" if on else ("#1b2a48" if opt == hover else "#111a2c")
-            lab.config(bg=bg, fg="#ffffff" if on else "#9fb0cc")
-            lab.master.config(bg=bg)                # (the row that also holds a badge)
-            line.config(bg=C["accent"] if on else bg)
+        from . import themes as _th
+        t = _th.ST.theme
+        if t is None:
+            return
+        with _th.raw():                             # Round 18: the theme's own tokens (a light theme's picked one
+            for opt, (lab, line) in self.btns.items():     # read white on light blue), in the Drawer and the Full
+                on = opt == self.value                     # window alike: picked = its selection, bold, the accent
+                bg = t.c("selection") if on else (t.c("surface_high") if opt == hover else t.c("surface_sunken"))
+                lab.config(bg=bg, fg=t.c("selection_text") if on else t.c("text") if opt == hover else
+                           t.c("text_muted"))
+                lab.master.config(bg=bg)            # (the row that also holds a badge)
+                line.config(bg=t.c("accent") if on else bg)
 
     def pick(self, opt, notify=True):
         if opt not in self.btns:

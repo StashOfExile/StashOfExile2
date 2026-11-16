@@ -2,7 +2,7 @@
 that's gonna piss some people off"): a small card over the game in the overlay's Style - a colored edge, a mark (! or
 ✓) and a word, a line of detail, a click anywhere to close it early (2.138.2: was ×) and a thin line counting down its time. No flashing: it fades in
 once. Where it shows (Top center - the default since 2.137.1 -, Center, Above the bar, Top right) and its size (Small, Medium, Large) are settings
-(Game Overlay › Overlay Settings › Helpers › Alerts). Every helper's alert and the break reminders use it.
+(Overlay › Helpers › Alerts). Every helper's alert and the break reminders use it.
 2.131.4: alerts that come together share one card - a row each, most urgent on top, one countdown."""
 import tkinter as tk
 
@@ -29,7 +29,7 @@ def cfg():
 
 
 def no_focus(win):
-    """Windows: the card never takes the keyboard from the game (its × still takes a click)."""
+    """Windows: the card never takes the keyboard from the game (a click on it is still its own)."""
     import sys
     if sys.platform != "win32":
         return
@@ -43,6 +43,40 @@ def no_focus(win):
         u.SetWindowLongW(h, -20, u.GetWindowLongW(h, -20) | 0x80 | 0x08000000)    # tool window, no activate
     except Exception:
         buglog.caught()
+
+
+CLICK_TIP = "Click to close"           # (the words a card that closes on a click may show)
+
+
+def click_to_close(win, act):
+    """Owner: "make this universal for anything we draw on screen like that" - a card or panel over the game that only
+    shows something closes on a click anywhere on it, as the alert card does (2.138.2). The click is the card's (it
+    doesn't reach the game); clicks beside it go to the game as before; it never takes the keyboard (no_focus); Esc
+    in the game still clears it (readmark.ev_look_clear). Not for overlays with their own controls. -> win."""
+    done = []
+
+    def close(_e=None):
+        if done:
+            return None
+        done.append(1)
+        try:
+            act()
+        except Exception:
+            buglog.caught()
+        return "break"
+
+    def hand(w):
+        try:
+            w.configure(cursor="hand2")
+        except tk.TclError:
+            pass
+        for ch in w.winfo_children():
+            hand(ch)
+    hand(win)
+    win.bind("<Button-1>", close)                # (a Toplevel's binding: every part of it, once)
+    win.click_closes = True                      # (tests, tools/smoke_pages)
+    no_focus(win)
+    return win
 
 
 def place(where, game, w, h):

@@ -23,6 +23,47 @@ FLAG_LINES = {"Corrupted": "corrupted", "Twice Corrupted": "corrupted",       # 
               "Fractured Item": "fractured", "Synthesised Item": "synthesised", "Sanctified": "sanctified",
               "Unmodifiable": "unmodifiable"}
 SOURCES = ("fractured", "desecrated", "crafted")
+# Owner decision A: the copied item's own flags, each searched as the trade site's Miscellaneous filter of the same
+# name (trade.FLAG_FILTERS) - in the game's order
+COPY_FLAGS = ("corrupted", "twice_corrupted", "mirrored", "fractured", "sanctified", "desecrated", "unrevealed",
+              "crafted", "cultivated", "unidentified")
+_SOURCE_TAG = re.compile(r"\((fractured|desecrated|crafted)\)\s*$", re.I)
+
+
+def copy_flags(text):
+    """A copied item's text -> the set of its flags (COPY_FLAGS): its flag lines (Corrupted, Twice Corrupted,
+    Mirrored, Fractured Item, Sanctified, Unidentified), its mods' sources (a fractured / desecrated / crafted mod),
+    an Unrevealed mod header, and a unique's Mutated mod (a Cultivated Vaal Unique)."""
+    lines = [l.strip() for l in (text or "").replace("\r", "").split("\n")]
+    rarity = next((l.split(":", 1)[1].strip() for l in lines if l.startswith("Rarity:")), "")
+    out = set()
+    for l in lines:
+        f = FLAG_LINES.get(l)
+        if f in COPY_FLAGS:
+            out.add(f)
+        if l == "Twice Corrupted":
+            out.add("twice_corrupted")
+        if l[:1] in ("{", "｛"):
+            words = set(re.findall(r"[a-z]+", re.split(r'\s[—–-]\s|"', l.lower())[0]))
+            out.update(w for w in SOURCES if w in words)
+            if "unrevealed" in words:
+                out.add("unrevealed")
+            if "mutated" in words and rarity == "Unique":
+                out.add("cultivated")
+            continue
+        t = _SOURCE_TAG.search(l)
+        if t:
+            out.add(t.group(1).lower())
+    return out
+
+
+FLAG_WORDS = {"twice_corrupted": "twice corrupted", "cultivated": "Cultivated Vaal Unique"}
+
+
+def flag_words(item):
+    """How a flagged item is searched, for the line under its price: ["mirrored only", ...] (Corrupted is said
+    already: "corrupted only" / "uncorrupted only")."""
+    return [FLAG_WORDS.get(f, f) + " only" for f in COPY_FLAGS if f in (item.get("flags") or ()) and f != "corrupted"]
 
 
 def _find_file():
@@ -246,6 +287,33 @@ def _clean_line(l):
 
 
 MOD_HEADER = re.compile(r'^\{\s*(?P<kind>[A-Za-z ]+?)\s+Modifier(?:\s+"(?P<name>[^"]*)")?(?:\s*\(Tier:\s*(?P<tier>\d+)\))?')
+# The words of a mod header that say what kind of mod it is ("{ Fractured Suffix Modifier ... }": suffix). Any other
+# word ("Mutated", "Bonded", "Unrevealed" - the game adds new ones) is kept as a tag on the mod, never its kind: a mod
+# whose kind was an unknown word was left out of the search.
+MOD_KINDS = ("prefix", "suffix", "implicit", "unique", "enchant", "rune", "explicit")
+KNOWN_HEADER_WORDS = set(MOD_KINDS) | set(SOURCES) | {"essence", "corruption", "enhancement", "modifier", "tier"}
+_HEADERS_LOGGED = set()
+
+
+def header_words(words):
+    """A mod header's words (lower-case) -> (kind or None, source or None, the other words: tags)."""
+    kind = next((w for w in words if w in MOD_KINDS), None)
+    source = next((w for w in words if w in SOURCES), None)
+    return kind, source, [w for w in words if w != kind and w != source]
+
+
+def log_header(line, words):
+    """A header word the app doesn't know: once per session, a line in unmatched_mods.txt (the data folder)."""
+    new = [w for w in words if w not in KNOWN_HEADER_WORDS and w not in _HEADERS_LOGGED]
+    if not new:
+        return
+    _HEADERS_LOGGED.update(new)
+    try:
+        with open(P("unmatched_mods.txt"), "a", encoding="utf-8") as f:
+            f.write(f"{line}\t| mod header word not known yet: {', '.join(new)} (the mod is read as usual)\n")
+    except Exception:
+        from . import buglog
+        buglog.caught()
 
 
 def _lore(sec):
@@ -282,10 +350,57 @@ def flavour_section(sections, mods_from):
     return min(got) if got else None
 
 
+# 2.15x: why a copy key press didn't give the price checker an item - worked out from the one read's text only
+COPY_MISSED = "The copy didn't land - press the key again."
+COPY_NOT_ITEM = "That copy isn't an item - point at an item in the game and press the key again."
+COPY_NOT_ENGLISH = "That copy is from a game that isn't in English - the price checker reads English copies only."
+_LABEL_LINE = re.compile(r"^[^\W\d_][^:\n]{1,40}:\s*\S")
+
+
+def plain_minus(text):
+    """A minus sign written as the Unicode one ("−10%") -> "-10%": numbers and stat wordings read the same."""
+    return (text or "").replace("\u2212", "-")
+
+
+def copy_problem(text):
+    """A copy that isn't an English item -> the one line that says why (empty, another language, not an item);
+    None for an English item copy."""
+    t = (text or "").replace("\r", "").strip()
+    if not t:
+        return COPY_MISSED
+    if t.startswith("Item Class:"):
+        return None
+    lines = [l.strip() for l in t.split("\n") if l.strip()]
+    if any(l.startswith("--------") for l in lines) and _LABEL_LINE.match(lines[0]) and len(lines) >= 3:
+        return COPY_NOT_ENGLISH                     # an item's shape (a "Label: value" line, then ------ lines)
+    return COPY_NOT_ITEM
+
+
+def unpriced_why(g):
+    """A read_item() result the price checker doesn't price -> why, in a few words."""
+    if g.get("stack") is not None:
+        return "stackable items are counted on the Wealth window, not price-checked here"
+    if g.get("rarity") == "Normal" and g.get("class") in ("tablet", "jewel", "waystone"):
+        return "a normal (white) one has no mods to price"
+    if g.get("class") in ("tablet", "jewel") and g.get("rarity") in ("Magic", "Rare"):
+        return "its name line wasn't recognized (the copied text is saved in unpriced_items.txt in the data folder)"
+    if not g.get("class"):
+        return "the price checker doesn't price this kind of item yet"
+    if not g.get("base"):
+        return "its base type isn't in the library"
+    return "the price checker doesn't price this kind of item yet"
+
+
+def unpriced_line(g):
+    """-> "Rings: not priced - <why>." (the one line the status bar and the card show)."""
+    cls = classes().get(g.get("class") or "", {}).get("name") or g.get("class_text") or "This item"
+    return f"{cls}: not priced - {unpriced_why(g)}."
+
+
 def read_item(text):
     """Everything the price checker needs from a copied item (Ctrl+C or Ctrl+Alt+C), whatever its class.
     -> dict, or None if the text isn't an item."""
-    lines = [l.rstrip() for l in (text or "").replace("\r", "").split("\n")]
+    lines = [l.rstrip() for l in plain_minus(text).replace("\r", "").split("\n")]
     if not lines or not lines[0].startswith("Item Class:"):
         return None
     sections, cur = [], []
@@ -347,22 +462,28 @@ def read_item(text):
     for si, sec in enumerate(sections[mods_from:], mods_from):
         if si in flavour:
             continue
-        kind, tier, mname, source = None, None, None, None
+        kind, tier, mname, source, tags = None, None, None, None, []
         for l in sec:
             if CORRUPTION_HEADER.match(l):                    # 2.98.2: "{ Corruption Enhancement — Mana }" - what a
-                kind, tier, mname, source = "enchant", None, None, None      # Vaal Orb added (an enchantment)
+                kind, tier, mname, source, tags = "enchant", None, None, None, []    # Vaal Orb added (an enchantment)
                 continue
             h = MOD_HEADER.match(l)
             if h:                                             # advanced copy: "{ Fractured Suffix Modifier "of X" (Tier: 1) }"
                 words = h.group("kind").strip().lower().split()
-                source = next((w for w in words if w in SOURCES), None)
-                kind = next((w for w in words if w not in SOURCES), None) or "explicit"
+                kind, source, tags = header_words(words)      # (no kind word: the line's own tag decides, else explicit)
+                log_header(l, tags)
                 tier = int(h.group("tier")) if h.group("tier") else None
                 mname = h.group("name")
                 continue
             if re.match(r"^[\{｛].*[\}｝]\s*$", l.strip()):         # 2.121.0 (unmatched_mods.txt: "{ Enhancement }"
                 if "enhancement" in l.lower():               # read as a mod): any { ... } line is a header, never a mod
-                    kind, tier, mname, source = "enchant", None, None, None
+                    kind, tier, mname, source, tags = "enchant", None, None, None, []
+                else:                                        # a header we don't know: the lines under it are read on
+                    words = [w for w in re.findall(r"[a-z]+", re.split(r"\s[—–-]\s", l)[0].lower())   # their own (not
+                             if w not in ("modifier", "tier")]                            # as part of the mod above it)
+                    kind, source, tags = header_words(words)
+                    tier, mname = None, None
+                    log_header(l, tags)
                 continue
             if l in FLAG_LINES or l.startswith(("Note:", "Place into", "Right click")):
                 continue
@@ -384,6 +505,8 @@ def read_item(text):
                  "learned": bool(stat and stat.get("learned")),
                  "trade": list(stat["trade"].get(group_key) or stat["trade"].get("explicit")
                                or next(iter(stat["trade"].values()), [])) if stat else []}
+            if tags:                                          # a header word that isn't the mod's kind ("Mutated")
+                m["header"] = list(tags)
             item["mods"].append(m)
             if not stat:
                 item["unknown"].append(l)

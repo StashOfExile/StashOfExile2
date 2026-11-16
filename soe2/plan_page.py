@@ -9,7 +9,7 @@ from . import buglog
 from . import focus as F
 from .chrome import section as chrome_section
 from .config import SETTINGS
-from .style import C, ScrollArea, SegBar, Tooltip
+from .style import C, ScrollArea, SegBar, Tooltip, autowrap
 
 
 def _num(text):
@@ -39,6 +39,7 @@ class GamePlanPage:
     def _gp_empty(parent, text):
         tk.Label(parent, text=text, bg=parent["bg"], fg=C["muted"], font=("Segoe UI", 9, "italic"), anchor="w",
                  justify="left").pack(fill="x", pady=(0, 2))
+        autowrap(parent.pack_slaves()[-1])                  # D3: wraps at Drawer width
 
     def _gp_add_area(self, box, title):
         """A hairline, a small heading, and the form under it (a grid: labels in column 0)."""
@@ -477,14 +478,14 @@ class GamePlanPage:
     # ---------------- C: farm plan
     def _gp_farms(self, parent):
         P2 = C["panel2"]
-        o, box = chrome_section(parent, "Farm plan", "The strats you mean to run, in order - from Money Makers or "
+        o, box = chrome_section(parent, "Farm plan", "The strats you mean to run, in order - from Farming Strategies or "
                                                       "your own.", wrap=True)
         o.pack(fill="x", pady=(0, 12))
         self.gp_farm_box = tk.Frame(box, bg=P2)
         self.gp_farm_box.pack(fill="x")
         form = self._gp_add_area(box, "ADD A FARM")
         self.gp_f_pick, self.gp_f_until, self.gp_f_own = tk.StringVar(), tk.StringVar(), tk.StringVar()
-        self._gp_label(form, 0, "From Money Makers")
+        self._gp_label(form, 0, "From Farming Strategies")
         self.gp_f_box = ttk.Combobox(form, textvariable=self.gp_f_pick, state="readonly",
                                      postcommand=self.gp_farm_choices)
         self.gp_f_box.grid(row=0, column=1, sticky="ew", pady=2)

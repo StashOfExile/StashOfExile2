@@ -12,7 +12,7 @@ import sys
 
 from .config import SETTINGS
 
-DEFAULTS = {"on": False, "x": None, "y": None}
+DEFAULTS = {"on": True, "x": None, "y": None}
 WM_APPCOMMAND = 0x0319
 COMMANDS = {"prev": 12, "play": 14, "next": 11}          # APPCOMMAND_MEDIA_PREVIOUSTRACK / PLAY_PAUSE / NEXTTRACK
 PLAYERCTL = {"prev": "previous", "play": "play-pause", "next": "next"}

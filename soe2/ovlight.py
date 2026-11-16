@@ -6,7 +6,7 @@ changes size - each as a Bar (resting on the XP bar) and a Panel (a card you pla
   slate     a flat box with thin dividers; a switch that's on is underlined (a bar on its left in the Panel)
   flanks    (shown as Split) no box: the numbers beside the life orb, the switches beside the mana orb - the middle stays clear
   micro     the smallest: the times, the rank and the switches as lettered squares (Ritual shows its count, 2/3)
-"Classic" is the stone-and-bronze look of before (hudart.py). Settings › Appearance › Overlay: Style, then
+"Classic" is the stone-and-bronze look of before (hudart.py). Overlay › Look: Style, then
 Colors ("Exile Gold" is the Bar's own colors; the others are the theme packs'; "Follow the app theme").
 The same parts as Classic: the timer and its ⏸ / ▶, the map's time, where you are, its rank (click to rank), Maps,
 Avg, the clock, the switches, Notes ▾ / Calc ▾ / Regex ▾ / Vendor ▾, the lock and ⚙ - each with its switch in
@@ -250,7 +250,7 @@ class LightOverlay:
         return P
 
     def ov_look_set(self, style=None, colors=None):
-        """Settings › Appearance › Overlay: Style / Colors picked - the overlay is built again."""
+        """Overlay › Look: Style picked - the overlay is built again."""
         cfg = self.tracker_cfg()
         if style in STYLES and style != cfg.get("look"):
             cfg["look"] = style
@@ -306,27 +306,33 @@ class LightOverlay:
                            tags=("mg",))
 
     def _lt_glyphs(self, w, cv, P, x, y):
-        """The lock and ⚙ (Quick settings), right to left from x. -> x left of them."""
+        """The lock and the gear (Quick settings), right to left from x. -> x left of them."""
+        from . import gearicon
         locked = bool(self.tracker_cfg().get("mlocked"))
-        for txt, cmd, tag in (("⚙", None, "mg_cog"),
+        for txt, cmd, tag in ((gearicon.GEAR, None, "mg_cog"),
                               ("🔒" if locked else "🔓", lambda: w._toggle_lock(), "mg_lock")):
-            it = cv.create_text(x, y, text=txt, anchor="e", fill=P["muted"],
-                                font=("Segoe UI Symbol", self._hf(9)), tags=("mg", tag))
-            CanvasText(cv, it, P["bg"], halo=P.get("halo"))
-            if tag == "mg_cog":                          # 2.119.0: either click = Quick settings over the game
-                for b in ("<Button-1>", "<Button-3>"):   # (its All settings… opens Overlay ↳ Overlay Settings in the app)
-                    cv.tag_bind(tag, b, lambda e: self.ov_quick_toggle(e))
+            if txt == gearicon.GEAR:                     # (UI overhaul: drawn - the ⚙ glyph looked like a flower)
+                it = gearicon.draw(cv, x, y, self._lt_gear(), P["muted"], anchor="e", tags=("mg", tag))
             else:
-                cv.tag_bind(tag, "<Button-1>", lambda e, c=cmd: c())
-            cv.tag_bind(tag, "<Enter>", lambda e: cv.configure(cursor="hand2"))
-            cv.tag_bind(tag, "<Leave>", lambda e: cv.configure(cursor=""))
+                it = cv.create_text(x, y, text=txt, anchor="e", fill=P["muted"],
+                                    font=("Segoe UI Symbol", self._hf(9)), tags=("mg", tag))
+                CanvasText(cv, it, P["bg"], halo=P.get("halo"))
+            if tag == "mg_cog":                          # 2.119.0: either click = Quick settings over the game
+                for b in ("<Button-1>", "<Button-3>"):   # (its All settings… opens Overlay › Helpers in the app)
+                    cv.tag_bind(tag, b, lambda e=None: e is not None and self.ov_quick_toggle(e))
+            else:
+                cv.tag_bind(tag, "<Button-1>", lambda e=None, c=cmd: e is not None and c())
+            self.ov_tip(cv, tag, "Quick settings" if tag == "mg_cog" else "Lock / unlock the overlay")
             bb = cv.bbox(it)
             x = (bb[0] if bb else x - 16) - self._u(6)
         return x
 
+    def _lt_gear(self):
+        return max(10, self._u(13))
+
     def _lt_glyphs_w(self, cv, P):
         f = self._lt_fm(cv, P, 9, family="Segoe UI Symbol")
-        return f.measure("⚙") + f.measure("🔓") + 2 * self._u(6)
+        return self._lt_gear() + f.measure("🔓") + 2 * self._u(6)
 
     def _lt_clock(self, cv, P, x, y, anchor="e"):
         t = self._lt_text(cv, P, x, y, "", 9, P["muted"], anchor=anchor)

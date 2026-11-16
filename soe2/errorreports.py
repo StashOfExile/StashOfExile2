@@ -152,7 +152,8 @@ def _os():
 
 def send(post=None):
     """One send (on a background thread). -> how many kinds were sent, or None when nothing went."""
-    if not on():
+    from .config import UI_OVERHAUL
+    if UI_OVERHAUL or not on():
         return None
     from . import board as B
     from . import buglog

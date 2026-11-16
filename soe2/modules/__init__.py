@@ -62,6 +62,7 @@ class Module:
 
 
 def load(app):
+    from .dashboard import Dashboard
     from .checks import PriceChecks
     from .pricecheck import PriceCheck
     from .wealth import Wealth
@@ -75,13 +76,13 @@ def load(app):
     from .settings import Settings
     from .insights import Insights
     from .money import MoneyMakers
+    from .crafthelper import CraftHelper
     from .maps import MapLibrary
     from .plan import GamePlan
-    from .ovsettings import OverlaySettings
     from .favorites import Favorites
     from .leaderboards import Leaderboards
     from .mapprofit import MapProfit
     from .ratemods import RateMods
-    return [cls(app) for cls in (PriceCheck, PriceChecks, Wealth, ModBook, Library, Regex, Search, Tracker, Notes,
-                                 Rates, Insights, Favorites, RateMods, MoneyMakers, OverlaySettings, MapLibrary, MapProfit, Leaderboards, GamePlan,
+    return [cls(app) for cls in (Dashboard, PriceCheck, PriceChecks, Wealth, ModBook, Library, Regex, Search, Tracker, Notes,
+                                 Rates, Insights, Favorites, RateMods, MoneyMakers, CraftHelper, MapLibrary, MapProfit, Leaderboards, GamePlan,
                                  Settings)]

@@ -1,8 +1,8 @@
-"""
+r"""
 StashOfExile2 - a Path of Exile 2 price checker for tablets and jewels, with a window instead of a text dump.
 Free software under the GNU AGPL v3.0 (see LICENSE; up to 2.129.4: GNU GPL v3.0). Written by an AI (Claude, by Anthropic) under a human's direction.
 
-VERSION 2.142.2
+VERSION 3.0.0
   How versions are numbered (from 2.0.0 on):
     MAJOR.MINOR.PATCH.  The 22 betas ended here: this build is 2.0.0. From now on every build gets a plain number:
       2.0.1, 2.0.2 ...  fixes (nothing new to learn)
@@ -19,6 +19,34 @@ VERSION 2.142.2
   version (settings.json, session.json, modbook.json, mod_rules.json, wealth.json, tabs.txt ...).
 
 VERSION HISTORY
+  3.0.0
+       - GGG third-party policy (Nov 2026), at its strictest: the screen or the clipboard is read only once per manual
+         key press - the Look key (Ctrl+Shift+R as the app comes, passed through to the game) for every screen read,
+         the copy keys for the clipboard (price checks: Ctrl+D). No timed or automatic screen watching; each read
+         shows the read mark (👁) and writes a log line. Client.txt is still followed. Removed: the Delirium helper,
+         the Temple Helper's Vaal Beacon read (crystals from the Temple Console only), Map Content reads, the clipboard
+         watcher, Paste buttons, the Toolkit row. Map profit + Top Up Reminders: one Back from a map card.
+       - The Drawer (one monitor) or the Full window (two or more): Settings › General › Window; the Drawer key.
+       - Campaign Bar rework; Trial of the Sekhemas helper (BETA); Broaden Search on base price checks; cards over the
+         game close with a click on them; new Discord invite; the repo moved to StashOfExile/StashOfExile2.
+       - What's new leads with "Why 3.0" and "How helpers work now" (whatsnew NOTES["3.0.0"]["lead"]), shown to
+         everyone once - after updating, and on a first start after the quick start (settings "whatsnew_lead").
+       - NEW chip (newchip.py): on the Look key, the Drawer and Trial of the Sekhemas rows, and their page's icon in
+         the sidebar and the Drawer's rail, until opened or used (settings "new_seen").
+       - No TEST BUILD title; UI_OVERHAUL off (opt-in error reports work again).
+  2.143.0
+       - Full releases only (feedback: "I want to stop pushing pre-releases out and remove pre-release toggle from
+         settings, I want to go back to the old method of building locally, testing, then pushing an update to full
+         release"): Settings › Updates' Preview builds switch is gone (its setting cleared), the app looks at full
+         releases only, the release workflow publishes a full release, Promote release is gone.
+       - Wealth, Market Insights and Game Search are out of BETA (feedback: fully working).
+       - UI overhaul merged in (from the local overhaul build): Dashboard home page, cards, Go to, the price check
+         list, the rates view; app, shell, sidebar, style, wealth, search, price check and rates pages.
+       - Vaal Lens: a path to the Architect first (feedback: "the most important step for this run is to connect to
+         the architect and kill him so that I gain access to his special room cards to place the key room") - the
+         fewest tiles from your paths, none touching a reward room, drawn as a gold lane; "1 Path to the Architect,
+         then kill him". Card pictures cut out of their backing (feedback: "the crudely cropped images of the cards
+         looks awful").
   2.142.2
        - Map profit names exchange items by the Currency Exchange's own icons (feedback: "I shouldn't have to ctrl+c
          to teach it"): 661 items cut from the user's screenshots of its "I Want" lists (templates/exchange_icons.png
@@ -163,7 +191,7 @@ VERSION HISTORY
          The admin is told ("N new kinds ... ask Claude") - nothing is fixed by itself (feedback: "prompt me for it").
        - Downloads are only ever data (feedback: "protection against malware/viruses going to the cloudflare
          database"): every pooled row is checked again in the app (communitymods.safe_rows, errorreports.safe_row -
-         plain numbers and short plain text, no control characters or < > { } ` $ \, capped) before it's saved; JSON
+         plain numbers and short plain text, no control characters or < > { } ` $ backslash, capped) before it's saved; JSON
          is parsed, never run. Board: base names must be plain words (okBase), answers carry nosniff, error kinds
          capped at 5,000.
   2.136.2
@@ -1125,7 +1153,7 @@ VERSION HISTORY
        off and hidden until switched on (roadmap): Debug mode - every trade-site request with its answer and time in
        the app's log (kind debug, cleaned the same way) and a debug line in the status bar; Unmatched mods - every mod
        in unmatched_mods.txt beside the closest trade wording, newest first, no repeats (Copy all, Clear the list).
-       Your data shows the folder as %APPDATA%\StashOfExile2 (no Windows user name on screen).
+       Your data shows the folder as %APPDATA%\\StashOfExile2 (no Windows user name on screen).
        Privacy & community: shorter notes, a line when nothing of yours is on the board, links to TOS.md / README.
        About: header colors from the theme; credits name each project's author.
   2.115.0
@@ -1774,7 +1802,7 @@ VERSION HISTORY
        cx_history.json are simply not read). The Check a flip calculator stays - arithmetic on two prices you type,
        no requests - at the bottom of Exchange rates › Exchange Helper (exchange_page.build_flip); item names and the
        flip math live in cxnames.py.
-       Every request says honestly which app is asking: "StashOfExile2/<version> (+https://github.com/tiwomm/
+       Every request says honestly which app is asking: "StashOfExile2/<version> (+https://github.com/StashOfExile/
        StashOfExile2)" (config.APP_UA) - the trade site saw "personal-stash-pricer/1.0" before; poe.ninja, GitHub and
        the community board get the same name. No name, account or email of the user is in it.
   2.91.0
@@ -3683,7 +3711,7 @@ VERSION HISTORY
        over unchanged. The Mod book page now says WHY it is empty (database problem, nothing recorded yet, or the last
        recording error) instead of a generic message.
   1.30 A little empty space under the bottom key bar.
-  1.29 "Check for updates" button (bottom bar, right). Click it: the app asks GitHub (github.com/tiwomm/StashOfExile2,
+  1.29 "Check for updates" button (bottom bar, right). Click it: the app asks GitHub (github.com/StashOfExile/StashOfExile2,
        Releases) for the newest version, tells you if there is one, shows what is new, and asks whether to download it.
        Yes = it downloads the new exe, checks it against GitHub's checksum, closes, swaps itself and starts again.
        Your settings, rules and market data stay (they live in a separate folder). Nothing is checked or downloaded
@@ -3860,7 +3888,7 @@ THE "LEARNING" PART
 import os
 import sys
 
-APP_VERSION = "2.142.2"  # bump this and __version__ in soe2/__init__.py together (see VERSION above)
+APP_VERSION = "3.0.0"  # bump this and __version__ in soe2/__init__.py together (see VERSION above)
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -3873,12 +3901,8 @@ def main():
     if len(sys.argv) > 2 and sys.argv[1] == "--finish-update":  # 2.29.1: the new exe swaps itself in (no .bat)
         from soe2.updates import finish_update
         sys.exit(finish_update(sys.argv[2]))
-    if len(sys.argv) > 1 and sys.argv[1] == "--ritual":         # 2.14.0: the Ritual watcher helper (started by the app)
-        from soe2.ritual_alert import main as ritual
-        sys.exit(ritual(sys.argv[2:]))
-    if len(sys.argv) > 1 and sys.argv[1] == "--delirium":       # 2.0 beta 7: the Delirium alert helper (started by the app)
-        from soe2.delirium_runner import main as delirium
-        sys.exit(delirium(sys.argv[2:]))
+    if len(sys.argv) > 1 and sys.argv[1] in ("--ritual", "--delirium"):
+        sys.exit(0)        # GGG policy (Nov 2026): the screen-watching helper processes are gone (an old app's call)
     try:
         import soe2
         from soe2 import config

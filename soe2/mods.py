@@ -242,6 +242,7 @@ def read_numbers(text):
 
 
 def parse_item(text):
+    text = (text or "").replace("\u2212", "-")         # a Unicode minus reads as "-"
     lines = [l.strip() for l in text.splitlines() if l.strip()]
     if not lines or not lines[0].startswith("Item Class:"):
         return None
@@ -271,21 +272,29 @@ def parse_item(text):
         return None
     name = name_block[0] if rarity == "Rare" and len(name_block) > 1 else " ".join(name_block)
 
+    from .gamedata import KNOWN_HEADER_WORDS, copy_flags, log_header
     mods, cur, mid = [], None, -1
     for l in lines:
-        if l.startswith("{") and "Modifier" in l:
+        braced = l.startswith("{") and l.rstrip().endswith("}")
+        if l.startswith("{") and ("Modifier" in l or braced):
             mid += 1
             low = l.lower()
             mkind = ("Implicit" if "implicit" in low else "Prefix" if "prefix" in low
                      else "Suffix" if "suffix" in low else "Other")
+            words = re.findall(r"[a-z]+", re.split(r'\s[—–-]\s|"', low)[0])
+            tags = [w for w in words if w not in KNOWN_HEADER_WORDS]
+            if mkind == "Other" and "Modifier" in l and not set(words) & {"unique", "enchant", "rune", "corruption",
+                                                                       "enhancement"}:
+                mkind = "Explicit"          # "{ Shimmering Modifier }": a header word we don't know - the mod still counts
+            log_header(l, tags)
             tier = re.search(r"Tier:\s*(\d+)", l)
             cur = {"kind": mkind, "flags": {w for w in FLAG_WORDS if w in low},
-                   "tier": tier.group(1) if tier else None, "mid": mid}
+                   "tier": tier.group(1) if tier else None, "mid": mid, "header": tags}
             continue
         if l.startswith("--"):
             cur = None
             continue
-        if cur and cur["kind"] in ("Prefix", "Suffix"):
+        if cur and cur["kind"] in ("Prefix", "Suffix", "Explicit"):
             flags = set(cur["flags"])
             for t in re.findall(r"\((desecrated|fractured|crafted)\)", l, flags=re.I):
                 flags.add(t.lower())
@@ -295,12 +304,15 @@ def parse_item(text):
             mod = {"text": clean, "kind": cur["kind"], "tier": cur["tier"], "mid": cur["mid"],
                    "flags": flags, "value": v, "lo": lo, "hi": hi,
                    "shown": re.sub(r"\(-?\d+(?:\.\d+)?-+\d+(?:\.\d+)?\)", "", strip_markup(clean))}
+            if cur.get("header"):
+                mod["header"] = list(cur["header"])
             mod["roll"] = roll_pct(mod)       # quality as the game shows it, before any sign flip
             mods.append(mod)
     uses = next((int(m.group(1)) for l in lines for m in [re.search(r"(\d+)\s+uses?\s+remaining", l, re.I)] if m), None)
     ilvl = next((int(m.group(1)) for l in lines for m in [re.match(r"Item Level:\s*(\d+)", l)] if m), None)   # 2.73.2
     return {"class": kind, "rarity": rarity, "name": name, "base": base, "mods": mods, "uses": uses,
-            "corrupted": any(l == "Corrupted" for l in lines), "ilvl": ilvl}
+            "corrupted": any(l == "Corrupted" for l in lines), "ilvl": ilvl,
+            "flags": sorted(copy_flags(text))}                # owner decision A: searched with the same flags
 
 
 def min_for(mod):

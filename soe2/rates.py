@@ -38,6 +38,8 @@ class Rates:
         self.manual = load_json("rates.json", {})
         cached = load_json("rates_cache.json", {})
         self.table = cached.get("table", {})
+        self.images = cached.get("images", {})        # UI overhaul: currency id -> its picture (poe.ninja's path)
+        self.names = cached.get("names", {})          # ... and its name
         self.vol = cached.get("vol", {})              # how much of each currency traded (in divines): thin markets are shaky
         self.league = cached.get("league")
         self.fetched = cached.get("ts", 0)
@@ -68,7 +70,8 @@ class Rates:
         return (time.time() - self.fetched) if self.fetched else None
 
     def _save(self):
-        save_json("rates_cache.json", {"table": self.table, "vol": self.vol, "league": self.league, "ts": self.fetched,
+        save_json("rates_cache.json", {"table": self.table, "vol": self.vol, "images": self.images, "names": self.names,
+                                       "league": self.league, "ts": self.fetched,
                                        "etag": self.etag, "source": self.source})
 
     def ensure(self, league, force=False):
@@ -86,7 +89,7 @@ class Rates:
             for name in self.names_for(league):
                 try:
                     hdr = {"User-Agent": RATES_UA}
-                    if self.etag and self.league == league:
+                    if self.etag and self.league == league and self.images:   # (no pictures yet: ask in full)
                         hdr["If-None-Match"] = self.etag         # "nothing new" costs them almost nothing
                     r = requests.get(NINJA_URL, params={"league": name, "type": "Currency"}, headers=hdr, timeout=20)
                     if r.status_code == 304 and self.league == league:
@@ -115,6 +118,13 @@ class Rates:
                         tbl["divine"] = 1.0
                         self.table = tbl
                         self.vol = {ln["id"]: float(ln.get("volumePrimaryValue") or 0) * vol_f for ln in lines if ln.get("id")}
+                        for items in ((core.get("items") if isinstance(core.get("items"), list) else None),
+                                      body.get("items") if isinstance(body.get("items"), list) else None):
+                            for i in items or ():
+                                if isinstance(i, dict) and i.get("id") and i.get("image"):
+                                    self.images[i["id"]] = i["image"]
+                                if isinstance(i, dict) and i.get("id") and i.get("name"):
+                                    self.names[i["id"]] = i["name"]
                         self.league, self.fetched, self.error = league, time.time(), ""
                         self.etag, self.source = r.headers.get("ETag"), f"poe.ninja ({name})"
                         self._save()

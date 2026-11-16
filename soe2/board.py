@@ -48,7 +48,7 @@ def sign_out():
     save_json(SESSION, {})
 
 
-ANON = ("/mods/", "/maps/", "/campaign/", "/bugs")      # 2.89.3: these never carry your board key - anonymous by design
+ANON = ("/mods/", "/maps/", "/campaign/", "/bugs", "/usage/")  # 2.89.3: never your board key (UI overhaul: + usage)
 
 
 def call(method, path, params=None, body=None, get=None):

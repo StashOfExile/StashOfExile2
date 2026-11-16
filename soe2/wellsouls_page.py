@@ -1,9 +1,7 @@
 """2.81.0: the Desecration Helper in the app - its switch (Overlay › Mechanic Helper, Overlay › Options; 2.81.1: not
-on the bar - it turns itself on at the Well), the notice over the game when you arrive, the watcher (only while you're at The Well of
-Souls - Client.txt says when; feedback: "eliminate the need for an always-on watcher") and the tier tags.
+on the bar - it turns itself on at the Well), the notice over the game when you arrive, the read (GGG policy, Nov 2026: once per Look
+key press, only while you're at The Well of Souls - Client.txt says when) and the tier tags.
 The reading and rating are in wellsouls.py. GGG ToS: it looks at your screen and draws on top - nothing is sent."""
-import threading
-import time
 import tkinter as tk
 
 from . import buglog
@@ -11,9 +9,6 @@ from . import remnant as RM
 from . import wellsouls as W
 from .config import save_json, SETTINGS
 
-POLL = 0.3                  # seconds between looks while you're at the Well
-SETTLE = 4                  # reads right after the window appears (it fades in)
-GONE = 2                    # looks without the window = it closed: tags off
 NOTICE_SECS = 4
 
 
@@ -39,8 +34,9 @@ class WellSoulsPage:
         if self.ws_status() == "warn":
             return f"Can't read the screen: {self.ws_problem}."
         if getattr(self, "ws_here", False):
-            return "On - you're at The Well of Souls: each option shows its tier"
-        return "On - Well of Souls Desecration Tiers."
+            return self.look_status(f"On - you're at The Well of Souls: press {self.look_key_text()} to read each "
+                                    f"option's tier")
+        return "On - waiting for The Well of Souls."
 
     def ws_toggle(self, want):
         c = self.ws_cfg()
@@ -50,10 +46,8 @@ class WellSoulsPage:
         if want:
             if not getattr(self, "_br_ticking", False):
                 self.breach_start()                   # the game's log is followed while a helper needs it
-            if getattr(self, "ws_here", False):
-                self.ws_start()
         else:
-            self.ws_stop()
+            self.ws_hide()
         return f"Can't read the screen: {self.ws_problem}." if want and self.ws_status() == "warn" else None
 
     # ---------------------------------------------------------------- the area (Client.txt)
@@ -77,16 +71,15 @@ class WellSoulsPage:
             self.ws_problem = None                        # (checked again at each visit)
             st = self.ws_status()
             msg = f"at The Well of Souls ({why or 'area ' + str(area_id)}) - " + \
-                ("watching" if st == "on" else f"can't read the screen: {self.ws_problem}")
+                ("reads on the Look key" if st == "on" else f"can't read the screen: {self.ws_problem}")
             if st == "on":
                 buglog.debug("Desecration Helper", msg)
             else:                                         # (in the log for a bug report: why it showed nothing)
                 buglog.record("error", "Desecration Helper", msg)
             if self.ws_cfg().get("notice", True) or st != "on":
                 self.ws_notice(None if st == "on" else f"Desecration Helper can't read the screen: {self.ws_problem}")
-            self.ws_start()
         elif not here and before:
-            self.ws_stop()
+            self.ws_hide()
 
     # ---------------------------------------------------------------- 2.90.0: asked at the Well, once
     def ws_ask(self):
@@ -103,8 +96,8 @@ class WellSoulsPage:
         tk.Label(body, text="You're at The Well of Souls. Want each revealed option to show its tier (T1 = the best "
                             "for that item type)?", bg=bg, fg=P["text"], font=(P["font"], self.ov_font(10)),
                  justify="left", anchor="w", wraplength=self.ov_px(420)).pack(fill="x")
-        tk.Label(body, text="Beta: it reads your screen while you're here, and it's still being tuned. Change it any "
-                            "time: Overlay ↳ Overlay Settings › Helpers.", bg=bg, fg=P["muted"], font=(P["font"], self.ov_font(9)),
+        tk.Label(body, text=f"It reads your screen once each time you press {self.look_key_text()}, only while you're "
+                            f"here. Change it any time: Overlay › Helpers.", bg=bg, fg=P["muted"], font=(P["font"], self.ov_font(9)),
                  justify="left", anchor="w", wraplength=self.ov_px(420)).pack(fill="x", pady=(4, 0))
         row = tk.Frame(body, bg=bg)
         row.pack(fill="x", pady=(8, 0))
@@ -126,8 +119,6 @@ class WellSoulsPage:
         c["asked"] = True
         save_json("settings.json", SETTINGS)
         self.alerts_toggle("desecrate", bool(on))
-        if on and getattr(self, "ws_here", False):
-            self.ws_start()
 
     def ws_ask_close(self):
         w, self.ws_ask_win = getattr(self, "ws_ask_win", None), None
@@ -138,10 +129,12 @@ class WellSoulsPage:
                 pass
 
     def ws_notice(self, problem=None):
-        """A small notice over the game: the helper is on while you're here (2.125.7: or why it can't read)."""
+        """A small notice over the game: the helper is on while you're here (2.125.7: or why it can't read). A click on
+        it closes it (alertcard.click_to_close)."""
         try:
             from .overlaywin import pal
-            from .alerts_page import game_rect, click_through, force_topmost
+            from .alerts_page import game_rect, force_topmost
+            from .alertcard import click_to_close
             from .remnant_page import no_capture
             P = pal()
             g = game_rect() or (0, 0, self.root.winfo_screenwidth(), self.root.winfo_screenheight())
@@ -151,13 +144,14 @@ class WellSoulsPage:
             w.overrideredirect(True)
             w.attributes("-topmost", True)
             tk.Label(w, text=("◆  " + problem) if problem else
-                     "◆  Desecration Helper on  -  each option at the Well shows its tier", fg=P["text"],
+                     f"◆  Desecration Helper on  -  press {self.look_key_text()}: each option at the Well shows its "
+                     f"tier", fg=P["text"],
                      bg=P["bg"], font=("Segoe UI", -max(11, int(14 * ui))), padx=8, pady=4,
                      highlightthickness=1, highlightbackground=P["line"]).pack()
             w.update_idletasks()
             w.geometry(f"+{int(g[0] + (g[2] - w.winfo_reqwidth()) / 2)}+{int(g[1] + g[3] * 0.12)}")
             w.deiconify()
-            click_through(w)
+            click_to_close(w, lambda: w.winfo_exists() and w.destroy())
             force_topmost(w)
             no_capture(w)
             self.ws_note_win = w
@@ -165,24 +159,41 @@ class WellSoulsPage:
         except Exception:
             self.log_error("the Desecration Helper notice")
 
-    # ---------------------------------------------------------------- the watcher (only at the Well)
-    def ws_start(self):
-        if self.ws_status() != "on" or getattr(self, "ws_alive", False):
-            return
-        self.ws_gen = getattr(self, "ws_gen", 0) + 1
-        self.ws_alive = True
-        threading.Thread(target=self._ws_watch, args=(self.ws_gen,), daemon=True).start()
+    # ---------------------------------------------------------------- a Look key press (only at the Well)
+    def ws_look_job(self, ctx):
+        """A Look key press at The Well of Souls: the window's options are read once and tagged. The tags stay until
+        your next press or a new area."""
+        if not getattr(self, "ws_here", False) or self.ws_status() != "on":
+            return None
+        from . import screenread as SR
+        rect = ctx["rect"]
 
-    def ws_stop(self):
-        self.ws_gen = getattr(self, "ws_gen", 0) + 1
-        self.ws_alive = False
-        self.ws_hide()
+        def work():
+            cx = None
+            for x in W.centre_xs(rect):
+                pic = SR.capture(W.part(rect, x, W.TITLE), "Desecration")
+                if pic is not None and W.plate_share(pic) >= W.PARCH:
+                    cx = x
+                    break
+            if cx is None:
+                return []
+            img = SR.capture(W.part(rect, cx, W.BOX), "Desecration")
+            return self.ws_read(rect, cx, img_box=img) if img is not None else []
+        work.found = bool                                 # (the read mark: the window's options read)
+
+        def done(rows):
+            if rows is not None:                           # (read in real pixels; the tags go in the app's)
+                self.ev_ws_tags([(t, r, SR.to_ui(b)) for t, r, b in rows])
+        return "Desecration", work, done
 
     def ws_read(self, rect, cx, img_box=None, img_slot=None):
         """The window at center x cx -> [(row text, rating, (x0, y0, x1, y1) on screen)] (blocking: OCR)."""
         bl, bt, br, bb = W.part(rect, cx, W.BOX)
         if img_box is None:
-            img_box = RM.grab((bl, bt, br, bb))
+            from . import screenread as SR
+            img_box = SR.capture((bl, bt, br, bb), "Desecration")
+            if img_box is None:
+                return []
         texts = W.rows_from_lines(RM.ocr(img_box), bb - bt)
         if not any(texts):
             return []
@@ -191,8 +202,10 @@ class WellSoulsPage:
         bases = [b for bs in cls.values() for b in bs]
         if len(cls) > 1:                                   # the options fit several item types: the picture decides
             if img_slot is None:
-                img_slot = RM.grab(W.part(rect, cx, W.SLOT))
-            bases = W.match_art(img_slot, bases)
+                from . import screenread as SR
+                img_slot = SR.capture(W.part(rect, cx, W.SLOT), "Desecration")
+            if img_slot is not None:
+                bases = W.match_art(img_slot, bases)
         if W.heart_fits(texts) and (not bases or any(W.rate(t, bases) is None or W.rate(t, bases).get("tier") is None
                                                      for t in texts if t)):
             bases = [W.heart_base()]                       # 2.130.3: a Heart of the Well's options
@@ -203,48 +216,6 @@ class WellSoulsPage:
             if r is not None:                                  # (the "Place an item ..." text before Reveal: no tags)
                 out.append((t, r, (bl, int(bt + i * rh), br, int(bt + (i + 1) * rh))))
         return out
-
-    def _ws_watch(self, gen):
-        from .alerts_page import game_rect
-        from .overlay import game_active
-        last, misses, settle = None, 0, 0
-        try:
-            while gen == getattr(self, "ws_gen", 0):
-                time.sleep(POLL)
-                if not game_active():
-                    continue
-                g = game_rect()
-                if not g:
-                    continue
-                rect = (g[0], g[1], g[0] + g[2], g[1] + g[3])
-                try:
-                    cx = next((x for x in W.centre_xs(rect)
-                               if W.plate_share(RM.grab(W.part(rect, x, W.TITLE))) >= W.PARCH), None)
-                    if cx is None:
-                        last, settle = None, 0
-                        misses += 1
-                        if misses == GONE:
-                            self.ui_q.put(("ws_tags", []))
-                        continue
-                    misses = 0
-                    img = RM.grab(W.part(rect, cx, W.BOX))
-                    th = RM.thumb(img)
-                    if last is None:
-                        settle = SETTLE
-                    if not RM.changed(last, th) and settle <= 0:
-                        continue
-                    settle -= 1
-                    last = th
-                    rows = self.ws_read(rect, cx, img_box=img)
-                except RM.OcrUnavailable:
-                    break
-                except Exception:
-                    continue
-                if rows:
-                    self.ui_q.put(("ws_tags", rows))
-        finally:
-            if gen == getattr(self, "ws_gen", 0):
-                self.ws_alive = False
 
     # ---------------------------------------------------------------- the tags
     def ev_ws_tags(self, rows):

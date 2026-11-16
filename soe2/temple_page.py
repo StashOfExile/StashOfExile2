@@ -1,5 +1,7 @@
-"""2.132.1 Temple Helper - the watcher (a look round the mouse in maps, for the Vaal Beacon's tooltip), the crystals
-on the line above the bar (2.132.2, with Ritual's - the bar had no room) and the alert card when they're full; its row in Overlay ↳ Overlay Settings › Helpers (temple.py reads)."""
+"""2.132.1 Temple Helper - its read (GGG policy, Nov 2026: once per Look key press - the Temple Console in a temple
+area, temple_console_job), Vaal Lens (the card in Vaal Ruins and the temple: the crystals, the plan) and its row in
+Overlay › Helpers (temple.py parses). Owner decision: the Vaal Beacon tooltip read in maps, the crystals on the
+overlay's line and the "crystals full" alert are gone."""
 import time
 import tkinter as tk
 
@@ -13,7 +15,7 @@ class TemplePage:
 
     def temple_on(self):
         from . import features as FEAT
-        return bool(TM.cfg().get("on")) and FEAT.on("overlay") and FEAT.on("temple")     # (2.132.2: BETA)
+        return bool(TM.cfg().get("on")) and FEAT.on("overlay")     # (its one switch: Overlay › Helpers)
 
     def temple_set(self, on):
         TM.cfg()["on"] = bool(on)
@@ -21,58 +23,28 @@ class TemplePage:
             self.temple_pad_close()                         # 2.136.0
         elif getattr(self, "tm_in_temple", False) and TM.cfg().get("notepad", True):
             self.root.after_idle(self.temple_pad_show)
-        from . import features as FEAT
-        FEAT.beta_on("temple", bool(on))
         save_json("settings.json", SETTINGS)
         if on:
-            self.temple_start()
-            if getattr(self, "br_reader", None) is None:    # (the game's log says when you're in a map)
+            if getattr(self, "br_reader", None) is None:    # (the game's log says when you're in the temple)
                 try:
                     self.breach_start()
                 except Exception:
                     buglog.caught()
         try:
-            self.merged_build()                             # (the bar's crystals part comes / goes)
-        except Exception:
+            self.overlay_capture_sync()                     # (in the temple: the bar out of captures - the count
+        except Exception:                                   # under it is read)
             buglog.caught()
 
-    def temple_start(self):
-        self.hover_start()                                  # 2.132.3: one look round the mouse feeds every reader
-        if self.temple_fast_on():
-            self.temple_fast_start()
-
-    def temple_look(self, force=False):
-        return self.hover_look(force)
-
     def temple_seen(self, got):
-        """A read (have, most) or None (no tooltip there)."""
+        """A Temple Console read (have, most) or None (no console count there)."""
         if not got:
             return None
         old = TM.state()
         st = TM.state_set(*got)
-        if not old or (old["have"], old["most"]) != got:
+        if not old or (old["have"], old["most"]) != got or old.get("old"):
             buglog.debug("Temple", f"crystals {got[0]}/{got[1]}")
             self.temple_pad_refresh()
-            try:
-                self.ritual_readout_sync()
-            except Exception:
-                buglog.caught()
-        if TM.full(st) and not (old and TM.full(old) and getattr(self, "tm_told", False)):
-            self.temple_alert(st)
-        elif not TM.full(st):
-            self.tm_told = False
         return st
-
-    def temple_alert(self, st=None, test=False):
-        """Crystals full: a vital alert card (red words)."""
-        st = st or TM.state() or {"have": 60, "most": 60}
-        self.tm_told = True
-        from . import alertcard
-        from .alerts_page import game_rect
-        self.tm_win = alertcard.show(self.root, "Crystals full", f"Energised Beacons {st['have']}/{st['most']} "
-                                     f"({TM.runs(st)} runs). Placed rooms stay until destabilized.", color="#d9a441", mark="◆", secs=5 if test else 10,
-                                     game=game_rect(), tag="Temple", rank=1, vital=True)
-        return self.tm_win
 
     # ---------------------------------------------------------------- 2.136.0 (2.140.0: Vaal Lens)
     # A card over the game in Vaal Ruins and the temple: your crystals, what's on the Temple Console's board (read
@@ -91,160 +63,56 @@ class TemplePage:
         except Exception:
             buglog.caught()
         if here and self.temple_on() and not getattr(self, "_tm_con_job", None):
-            self._tm_con_job = self.root.after(500, self.temple_console_tick)
+            self._tm_con_job = self.root.after(500, self.temple_marks_tick)
         if here and self.temple_pad_on():
             self.temple_pad_show()
         elif not here:
             self.temple_pad_close()
 
-    # ---------------------------------------------------------------- 2.138.1 Fast Beacon Read (opt-in)
-    def temple_fast_on(self):
-        return self.temple_on() and bool(TM.cfg().get("fast_read"))
-
-    def temple_fast_set(self, on):
-        TM.cfg()["fast_read"] = bool(on)
-        save_json("settings.json", SETTINGS)
-        if on:
-            self.temple_fast_start()
-
-    def temple_fast_wanted(self):
-        """Only while it's on, in a map with a Temple (Map Content's icon seen), the game in front."""
-        if not self.temple_fast_on() or getattr(self, "br_area", None) != "map" or not getattr(self, "tm_in_map", False):
-            return False
-        try:
-            from .overlaywin import foreground_ok
-            return bool(foreground_ok())
-        except Exception:
-            buglog.caught()
-            return False
-
-    def temple_fast_start(self):
-        """One background reader; it sleeps while it isn't wanted and stops when the switch goes off."""
-        t = getattr(self, "_tm_fast_thread", None)
-        if t is not None and t.is_alive():
-            return t
-        import threading
-        stop = self._tm_fast_stop = threading.Event()
-
-        def loop():
-            from . import remnant as RM
-            from .alerts_page import game_rect
-            import numpy as np
-            hb = {"t": time.time(), "looks": 0, "tips": 0, "got": 0}
-            sct = None
-            try:
-                import mss
-                sct = mss.mss()                     # (one screen grabber for the thread: made once, not per look)
-            except Exception:
-                buglog.caught()
-            while not stop.is_set():
-                t0 = time.time()
-                if not self.temple_fast_on():
-                    break
-                wanted = getattr(self, "_tm_fast_wanted", False)      # (set on the window's thread, below)
-                if not wanted:
-                    stop.wait(0.5)
-                    continue
-                try:
-                    g = game_rect()
-                    if g:
-                        x0, y0, x1, y1 = TM.fast_box(g)
-                        img = RM.grab((x0, y0, x1, y1), sct=sct)
-                        hb["looks"] += 1
-                        box = TM.find_tooltip(np.asarray(img), g[3])
-                        if box:
-                            hb["tips"] += 1
-                            tip = img.crop(box)
-                            if tip.height < g[3] * 0.25:                # small capitals read better bigger
-                                tip = tip.resize((tip.width * 2, tip.height * 2))
-                            st = TM.state()
-                            got = TM.fast_parse(RM.ocr(tip, fast=True), st["most"] if st else None)
-                            if got:
-                                hb["got"] += 1
-                                self.ui_q.put(("tm_fast", got))
-                except Exception:
-                    buglog.caught()
-                    stop.wait(1.0)
-                if time.time() - hb["t"] >= 60 and hb["tips"]:
-                    # Debug mode: counts only - how often it looked, saw a tooltip, read a count
-                    buglog.debug("Temple", f"Fast Beacon Read: {hb['looks']} looks, {hb['tips']} tooltips seen, "
-                                           f"{hb['got']} counts read in the last minute")
-                    hb = {"t": time.time(), "looks": 0, "tips": 0, "got": 0}
-                elif time.time() - hb["t"] >= 60:
-                    hb = {"t": time.time(), "looks": 0, "tips": 0, "got": 0}
-                stop.wait(max(0.0, TM.FAST_EVERY - (time.time() - t0)))
-            try:
-                if sct is not None:
-                    sct.close()
-            except Exception:
-                buglog.caught()
-        self._tm_fast_thread = threading.Thread(target=loop, daemon=True, name="Fast Beacon Read")
-        self._tm_fast_thread.start()
-        self._tm_fast_poll()
-        return self._tm_fast_thread
-
-    def _tm_fast_poll(self):
-        """Twice a second on the window's thread: is the fast reader wanted now? (Tk is read only from here.)"""
-        try:
-            self._tm_fast_wanted = self.temple_fast_wanted()
-        except Exception:
-            buglog.caught()
-            self._tm_fast_wanted = False
-        if self.temple_fast_on():
-            self.root.after(500, self._tm_fast_poll)
-        else:
-            self._tm_fast_wanted = False
-
-    def ev_tm_fast(self, got):
-        self.temple_seen(got)
-
-    def temple_console_tick(self):
-        """2.136.1: every 2 s in a temple area, the Temple Console's "18/60" under its Run Temple button is read (the
-        bar is out of captures there, so it sees under it). No console open = nothing read, nothing changed."""
+    def temple_marks_tick(self):
+        """Every 2 s in a temple area (nothing is read): Vaal Lens' marks show only while the game is in front."""
         self._tm_con_job = None
         if not getattr(self, "tm_in_temple", False) or not self.temple_on():
             return
-        self._tm_con_job = self.root.after(TM.CONSOLE_EVERY, self.temple_console_tick)
-        if getattr(self, "_tm_con_busy", False):
-            return
+        self._tm_con_job = self.root.after(2000, self.temple_marks_tick)
         try:
             from .overlaywin import foreground_ok
             if not foreground_ok():
                 mk = getattr(self, "tm_marks_win", None)
                 if mk is not None:
                     mk.hide()                                # 2.141.0: the marks only over the game
-                return
-            from .alerts_page import game_rect
-            g = game_rect()
         except Exception:
             buglog.caught()
-            return
-        if not g:
-            return
+
+    def temple_console_job(self, ctx):
+        """2.136.1 (GGG policy: on a Look key press in a temple area): the Temple Console's "18/60" under its Run Temple
+        button (the bar is out of captures there, so it sees under it); with Vaal Lens on, the board and the Medallions
+        panel too - all from the press's one picture. No console open = nothing read, nothing changed."""
+        if not getattr(self, "tm_in_temple", False) or not self.temple_on():
+            return None
+        from . import screenread as SR
+        g = ctx["g"]
         box = TM.console_box(g)
         st = TM.state()
         most = st["most"] if st else None
-        self._tm_con_busy = True
-        # 2.140.0 Vaal Lens: the board is read while the card shows - when the console's count was read or the last
-        # look saw the board (the console is open), and every 5th look in case the count wasn't read.
+        # 2.140.0 Vaal Lens: the board is read while the card shows (GGG policy: each Look key press).
         # 2.142.0: in the temple too (the console opens there), from one picture of the game; the Medallions panel
         # (V) is read each look while the card shows - its count, and a hovered slot's name with the slot under the mouse
-        self._tm_looks = getattr(self, "_tm_looks", 0) + 1
         lens = self.temple_pad_shown()
-        lens_any = lens and (getattr(self, "tm_board_open", False) or self._tm_looks % 5 == 0)
+        lens_any = lens
         gx, gy, gw, gh = g
-        try:
-            ptr = self.root.winfo_pointerxy()
-        except tk.TclError:
-            ptr = None
+        ptr = ctx.get("ptr")
         covered = self._temple_covered(g)
 
         def work():
             from . import remnant as RM
             board, medal = None, None
             try:
-                full = RM.grab((gx, gy, gx + gw, gy + gh)) if lens else None
-                img = full.crop((box[0] - gx, box[1] - gy, box[2] - gx, box[3] - gy)) if full else RM.grab(box)
+                full = SR.capture((gx, gy, gx + gw, gy + gh), "Vaal Lens") if lens else None
+                img = full.crop((box[0] - gx, box[1] - gy, box[2] - gx, box[3] - gy)) if full else \
+                    SR.capture(box, "Temple")
+                if img is None:
+                    return None, None, None, None
                 img = img.resize((img.width * 3, img.height * 3))      # small digits read better bigger
                 lines = RM.ocr(img)
                 got = TM.parse_console(lines, most)
@@ -278,7 +146,6 @@ class TemplePage:
             return got, lines, board, medal
 
         def done(res):
-            self._tm_con_busy = False
             got, seen, board, medal = res or (None, None, None, None)
             if medal is not None:
                 self.temple_medal_seen(medal)
@@ -292,11 +159,7 @@ class TemplePage:
                 self._tm_con_said = time.time()
                 txt = seen if isinstance(seen, str) else " | ".join(str(t) for t, _b in seen)[:60]
                 buglog.debug("Temple", f"console count not read: {txt}")
-        try:
-            self.run_bg(work, done)
-        except Exception:
-            self._tm_con_busy = False
-            buglog.caught()
+        return "Temple", work, done
 
     def temple_pad_on(self):
         return self.temple_on() and bool(TM.cfg().get("notepad", True))
@@ -339,7 +202,7 @@ class TemplePage:
 
     def temple_pad_line(self):
         """2.136.2 (feedback: "it shouldn't say that, it should just be reading my crystals"): the count only."""
-        return TM.bar_text(TM.state())
+        return TM.count_text(TM.state())
 
     def _temple_covered(self, g):
         """2.142.2 (feedback: the marks and the card should show in screen shares - so the screen reader sees them
@@ -381,6 +244,10 @@ class TemplePage:
         was = getattr(self, "tm_board_open", False)
         self.tm_board_open = V.seen(board)
         if self.tm_board_open:
+            self._temple_steady(board, V)
+        else:
+            self._tm_hist = {}
+        if self.tm_board_open:
             self.tm_board = board
             n = V.summary(board)
             if n != getattr(self, "_tm_board_said", None):
@@ -390,6 +257,26 @@ class TemplePage:
         if self.tm_board_open or was:
             self.temple_pad_refresh()
 
+    def _temple_steady(self, board, V, keep=3):
+        """UI overhaul (feedback: "the suggestions alternate between options in a very confusing way"): one read of a
+        tile can be off (a hover, an animation) - each tile shows what most of its last 3 reads said, and a tile read
+        as "unknown" keeps what it was. So the plan only changes when the board really does (a card placed)."""
+        hist = self.__dict__.setdefault("_tm_hist", {})
+        for c in V.CELLS:
+            cell = board.get(c)
+            if not isinstance(cell, dict):
+                continue
+            h = hist.setdefault(c, [])
+            if cell.get("kind", "unknown") != "unknown":
+                h.append(dict(cell))
+                del h[:-keep]
+            if not h:
+                continue
+            kinds = [x.get("kind") for x in h]
+            best = max(set(kinds), key=lambda k: (kinds.count(k), kinds[::-1].index(k) * -1))
+            if cell.get("kind") != best or cell.get("kind", "unknown") == "unknown":
+                board[c] = dict(next(x for x in reversed(h) if x.get("kind") == best))
+
     def temple_marks_sync(self, board=None):
         """2.141.0: a picked card's lit tiles -> 1 / 2 and ✕ over the game (vaallens_marks); none = none drawn."""
         from . import vaallens as V, vaallens_plan as VP
@@ -398,6 +285,7 @@ class TemplePage:
         seen = bool(board and V.seen(board) and self.temple_pad_shown())
         # 2.142.0: the hand's plan - the room cards in the list and the rooms your medallions add
         plan = VP.hand_plan(board, self.temple_hand_rooms(board)) if seen else []
+        plan = self._temple_plan_steady(plan, board)
         self.tm_plan = plan
         if seen and board.get("lit"):
             what = VP.card(board.get("card"))
@@ -416,11 +304,29 @@ class TemplePage:
                     from .vaallens_marks import Marks
                     mk = self.tm_marks_win = Marks(self.root)
                 from .overlaywin import pal
-                mk.show(g, marks, pal(), getattr(self, "tm_icons", None))
+                chain = VP.architect_chain(board) if board and V.seen(board) else None
+                mk.show(g, marks, pal(), getattr(self, "tm_icons", None), chain)
             elif mk is not None:
                 mk.hide()
         except Exception:
             buglog.caught()
+
+    def _temple_plan_steady(self, plan, board):
+        """UI overhaul: a new plan shows once two reads in a row agree on it (a card picked shows at once)."""
+        key = repr(plan)
+        if not plan or (board or {}).get("lit"):
+            self._tm_plan_shown, self._tm_plan_next = (key, plan), None
+            return plan
+        shown = getattr(self, "_tm_plan_shown", None)
+        if shown is None or shown[0] == key:
+            self._tm_plan_shown, self._tm_plan_next = (key, plan), None
+            return plan
+        nxt = getattr(self, "_tm_plan_next", None)
+        if nxt == key:
+            self._tm_plan_shown, self._tm_plan_next = (key, plan), None
+            return plan
+        self._tm_plan_next = key
+        return shown[1]
 
     def _temple_medal_look(self, full, g, ptr):
         """(a background thread) The game's picture -> what the Medallions panel shows: {"count", "hand" (names by
@@ -541,9 +447,15 @@ class TemplePage:
                 cards.setdefault(what[1], VP.card_title(n))
         hand = self.temple_medal_hand()[2]
         out = []
-        for k, (_t, fam, _why) in enumerate(plan):
+        n_path = sum(1 for _t, f, _w in plan if f == "Path")
+        for step, (_t, fam, _why) in zip(VP.steps(plan), plan):
+            if fam == "Path":                               # 2.143.0: the Architect first - one step
+                if not out or out[-1][0] != str(step):
+                    out.append((str(step), f"Path to the Architect ({n_path} tile{'s' if n_path != 1 else ''}), "
+                                                           "then kill him"))
+                continue
             src = cards.get(fam) or (fam + (" (medallion)" if any(M.base(h)[1] == fam for h in hand) else ""))
-            out.append((str(k + 1), src))
+            out.append((str(step), src))
         pays = [fam for _t, fam, _w in plan if fam in ("Corruption Chamber", "Sacrificial Chamber", "Alchemy Lab")]
         if pays:
             out += [st for st in VP.combo(pays[0], hand) if st[0] != "+"]
@@ -602,7 +514,8 @@ class TemplePage:
                         cursor="hand2")
         fold.pack(fill="x", pady=(8, 0))
         t = tk.Text(body, bg=P.get("field") or P["cell_bg"], fg=P["text"], insertbackground=P["text"], relief="flat",
-                    highlightthickness=1, highlightbackground=P["line"], wrap="word", height=4, font=f10, padx=8, pady=4)
+                    highlightthickness=1, highlightbackground=P["line"], wrap="word", height=4, width=1, font=f10, padx=8,
+                    pady=4)                         # (width=1: it fills the card - 80 characters stretched it off screen)
         t.insert("1.0", c.get("notes") or "")
         t.bind("<FocusOut>", lambda _e: self._temple_pad_keep(), add="+")
         t.bind("<KeyRelease>", lambda _e: self._temple_pad_soon(), add="+")
@@ -699,3 +612,7 @@ class TemplePage:
         for mark, text in plan:
             tk.Label(box, text=f"{mark}  {text}", bg=P["bg"], fg=P["text"], font=f10, anchor="w", justify="left",
                      wraplength=wrap).pack(fill="x")
+
+    def temple_pad_test(self):
+        """Overlay › Helpers › Temple › Test: the Vaal Lens card now, wherever you are (its × closes it)."""
+        return self.temple_pad_show()

@@ -35,10 +35,11 @@ def click_not_drag(cv, item, fn):
     """2.112.5: fn() on a click of a canvas item - not when the press became a drag (the Campaign line opened its
     route card when you dragged the line by its text)."""
     st = {}
-    cv.tag_bind(item, "<ButtonPress-1>", lambda e: st.update(x=e.x_root, y=e.y_root), add="+")
+    # (Tk can call a tag binding without its event while the overlay is rebuilt under the mouse: nothing then)
+    cv.tag_bind(item, "<ButtonPress-1>", lambda e=None: e is not None and st.update(x=e.x_root, y=e.y_root), add="+")
 
-    def release(e):
-        if st and abs(e.x_root - st.get("x", e.x_root)) <= 4 and abs(e.y_root - st.get("y", e.y_root)) <= 4:
+    def release(e=None):
+        if e is not None and st and abs(e.x_root - st.get("x", e.x_root)) <= 4 and abs(e.y_root - st.get("y", e.y_root)) <= 4:
             fn()
         st.clear()
     cv.tag_bind(item, "<ButtonRelease-1>", release, add="+")
@@ -56,21 +57,17 @@ def set_click_through(w, on, _tries=0):
     GGG ToS: a window style of the app's own window - nothing is sent to the game.
     2.133.1 (feedback: "Hollow deep is still causing crashes"): no update_idletasks - it runs layout jobs until none
     are left, and a theme change that keeps a page laying itself out never let it return (12 s+, "not responding").
-    A window not on screen yet has no frame: tried again in 50 ms, up to 1 s."""
+    A window not on screen yet has no frame: tried again in 50 ms, up to 1 s.
+    The style change and the window's see-through color (a boxless Style) + opacity are set together (layered.apply) -
+    changing the style alone could drop the color key."""
     import sys
     if sys.platform != "win32":
         return False
+    from . import layered
     try:
-        import ctypes
-        u = ctypes.windll.user32
-        hwnd = u.GetParent(w.winfo_id())
-        if not hwnd and _tries < 20:
+        got = layered.apply(w, click_through=on)
+        if got is None and _tries < 20:
             w.after(50, lambda: w.winfo_exists() and set_click_through(w, on, _tries + 1))
-            return True
-        hwnd = hwnd or w.winfo_id()
-        ex = u.GetWindowLongW(hwnd, -20)
-        ex = (ex | 0x20 | 0x80000) if on else (ex & ~0x20)
-        u.SetWindowLongW(hwnd, -20, ex)
         return True
     except Exception:
         return False
@@ -279,7 +276,7 @@ class MergedOverlay:
         return {"bar": True, "timer": bool(getattr(self, "mg_timer", False)), "helpers": False,
                 "notes": self.merged_embeds_notes() and bool(oc.get("notes_enabled")) and bool(oc.get("notes_visible"))}
 
-    # 2.73.0: what sits on the overlay's bar - each menu has an "on the bar" switch (Overlay ↳ Overlay Settings › On the bar).
+    # 2.73.0: what sits on the overlay's bar - each menu has an "on the bar" switch (Overlay › On the Overlay).
     # 2.118.0: menus only - the helpers' switches are gone (their old keys are left as they were, unread).
     def bar_cfg(self):
         b = self.tracker_cfg().setdefault("bar", {})
@@ -287,6 +284,7 @@ class MergedOverlay:
         b.setdefault("calc", True)                       # 2.74.0: Calc ▾ (the calculator over the game)
         b.setdefault("vendor", True)                     # 2.77.0: Vendor ▾ in town (campaign)
         b.setdefault("regex", True)                      # 2.92.2: Regex ▾ (your favorites)
+        b.setdefault("app", True)                        # drawer build: App ▸ (opens the Drawer)
         return b
 
 
@@ -296,9 +294,9 @@ class MergedOverlay:
     def _rank_click(self, cv, rt):
         """2.76.0: a click on the map's rank ranks the map you're in."""
         try:
-            cv.tag_bind(rt.item, "<Button-1>", lambda e: self.maprank_click())
-            cv.tag_bind(rt.item, "<Enter>", lambda e: cv.configure(cursor="hand2"))
-            cv.tag_bind(rt.item, "<Leave>", lambda e: cv.configure(cursor=""))
+            cv.tag_bind(rt.item, "<Button-1>", lambda e=None: e is not None and self.maprank_click())
+            cv.tag_bind(rt.item, "<Enter>", lambda e=None: cv.configure(cursor="hand2"))
+            cv.tag_bind(rt.item, "<Leave>", lambda e=None: cv.configure(cursor=""))
         except (AttributeError, tk.TclError):
             pass
 
@@ -306,8 +304,8 @@ class MergedOverlay:
         """2.73.4: a click on the focus line opens Game Plan (where its goal is set)."""
         try:
             click_not_drag(cv, ft.item, lambda: self.ov_intro_setup("focus"))
-            cv.tag_bind(ft.item, "<Enter>", lambda e: cv.configure(cursor="hand2"))
-            cv.tag_bind(ft.item, "<Leave>", lambda e: cv.configure(cursor=""))
+            cv.tag_bind(ft.item, "<Enter>", lambda e=None: cv.configure(cursor="hand2"))
+            cv.tag_bind(ft.item, "<Leave>", lambda e=None: cv.configure(cursor=""))
         except (AttributeError, tk.TclError):
             pass
 
@@ -327,7 +325,7 @@ class MergedOverlay:
             return False
         try:
             from . import campaign as CP
-            return bool(CP.active())
+            return bool(CP.shown())                         # (Round 18: never in a hideout)
         except Exception:
             return False
 
@@ -474,13 +472,14 @@ class MergedOverlay:
     def overlay_hide_capture(self):
         """2.85.2 (feedback: "Ritual alerts aren't working, maybe because the overlay is in the position of where the
         ritual (x/3) counter is"): the bar is left out of screen captures, so the Ritual / Delirium watchers see the
-        game's counters under it. Its own switch (Overlay ↳ Overlay Settings › Behavior), on by default; off = screenshots
+        game's counters under it. Its own switch (Overlay › Options), on by default; off = screenshots
         and streams show the bar."""
         cfg = self.tracker_cfg()
         # 2.129.4 (feedback: the line said 0 of 3 after 2 were done - the overlay's Ritual line covers the game's
-        # counter, so the watcher never saw it change): while you're in a map whose Map Content shows Ritual still to
-        # do, the bar is left out of captures by itself - the watcher sees the counter under it. Everywhere else (and
-        # once every ritual there is done) screenshots and streams show it.
+        # counter, so a read never saw it change): in a Ritual map the bar is left out of captures by itself, so a
+        # Look key press sees the counter (and the tribute) under it. A Ritual map is known from the game's log (a
+        # ritual started) or a counter read - never from Map Content (owner decision). Elsewhere screenshots and
+        # streams show it.
         # 2.136.1 (feedback: "see through the overlay (the same way ritual does) and read the crystal count"): in a temple
         # area with the Temple Helper on, the Temple Console's count under the bar is read.
         try:
@@ -489,9 +488,8 @@ class MergedOverlay:
         except Exception:
             buglog.caught()
         try:
-            from .utilities import RITUAL
-            # 2.131.5: the whole Ritual map (done too) - the game's tribute counter under the bar is read as well
-            if self.ritual_cfg().get("on") and getattr(RITUAL, "content", None) in ("open", "done") and RITUAL.running():
+            if self.ritual_cfg().get("on") and getattr(self, "br_area", None) in ("map", None) and \
+                    (getattr(self, "rt_map", None) or self.ritual_log_counts()[0]):
                 return True
         except Exception:
             buglog.caught()
@@ -507,7 +505,7 @@ class MergedOverlay:
         """The overlay's bar windows (not Notes or the calculator - you type in those)."""
         from .remnant_page import capture_affinity
         on, hide = self.click_through_on(), self.overlay_hide_capture()
-        for w in (getattr(self, "mg_win", None), getattr(self, "mg_win2", None)):
+        for w in (getattr(self, "mg_win", None), getattr(self, "mg_win2", None), getattr(self, "gb_win", None)):
             if w is None:
                 continue
             w.click_through = on
@@ -680,17 +678,20 @@ class MergedOverlay:
         """The lock drawn on the canvas (Minimal and Strip have no title bar). -> x left of it. (2.59.0: no
         × - it was easy to hit by mistake and the overlay vanished; F6 shows / hides it.)"""
         locked = bool(self.tracker_cfg().get("mlocked"))
+        from . import gearicon
         for txt, cmd, tag in (("🔒" if locked else "🔓", lambda: w._toggle_lock(), "mg_lock"),
-                              ("⚙", None, "mg_cog")):         # 2.119.0: ⚙ = Quick settings (either click)
-            cv.create_text(x, y, text=txt, anchor="e", fill=P["muted"], font=("Segoe UI Symbol", 10, "bold"),
-                           tags=("mg", tag))
-            if tag == "mg_cog":                          # (its All settings… opens Overlay ↳ Overlay Settings in the app)
-                for b in ("<Button-1>", "<Button-3>"):
-                    cv.tag_bind(tag, b, lambda e: self.ov_quick_toggle(e))
+                              (gearicon.GEAR, None, "mg_cog")):     # 2.119.0: the gear = Quick settings (either click)
+            if txt == gearicon.GEAR:                     # (UI overhaul: drawn - the ⚙ glyph looked like a flower)
+                gearicon.draw(cv, x, y, 14, P["muted"], anchor="e", tags=("mg", tag))
             else:
-                cv.tag_bind(tag, "<Button-1>", lambda e, c=cmd: c())
-            cv.tag_bind(tag, "<Enter>", lambda e: cv.configure(cursor="hand2"))
-            cv.tag_bind(tag, "<Leave>", lambda e: cv.configure(cursor=""))
+                cv.create_text(x, y, text=txt, anchor="e", fill=P["muted"], font=("Segoe UI Symbol", 10, "bold"),
+                               tags=("mg", tag))
+            if tag == "mg_cog":                          # (its All settings… opens Overlay › Helpers in the app)
+                for b in ("<Button-1>", "<Button-3>"):
+                    cv.tag_bind(tag, b, lambda e=None: e is not None and self.ov_quick_toggle(e))
+            else:
+                cv.tag_bind(tag, "<Button-1>", lambda e=None, c=cmd: e is not None and c())
+            self.ov_tip(cv, tag, "Quick settings" if tag == "mg_cog" else "Lock / unlock the overlay")
             x -= 20
         return x
 
@@ -736,12 +737,10 @@ class MergedOverlay:
 
 
     def overlay_settings_go(self):
-        """2.89.1 (feedback): the app comes forward on Overlay ↳ Overlay Settings."""
+        """2.89.1 (feedback): the app comes forward on the Overlay page (Helpers)."""
         try:
+            self.app_show(focus=True, why="overlay")
             self.ovh_open("Settings")
-            self.root.deiconify()
-            self.root.lift()
-            self.root.focus_force()
         except Exception:
             self.log_error("opening the overlay's settings")
 
@@ -758,18 +757,20 @@ class MergedOverlay:
         txt = ("NOTES  " if P.get("caps") else "Notes  ") + (first or "-")
         txt += "  ▾" if not self.overlay.notes_shown() else "  ▴"
         cv.create_text(x, y, text=txt, anchor=anchor, fill=P["muted"], font=(P["font"], self._hf(9)), tags=("mg", "mg_notes"))
-        cv.tag_bind("mg_notes", "<Button-1>", lambda e: self.merged_notes_drop())
-        cv.tag_bind("mg_notes", "<Enter>", lambda e: cv.configure(cursor="hand2"))
-        cv.tag_bind("mg_notes", "<Leave>", lambda e: cv.configure(cursor=""))
+        cv.tag_bind("mg_notes", "<Button-1>", lambda e=None: e is not None and self.merged_notes_drop())
+        cv.tag_bind("mg_notes", "<Enter>", lambda e=None: cv.configure(cursor="hand2"))
+        cv.tag_bind("mg_notes", "<Leave>", lambda e=None: cv.configure(cursor=""))
         bb = cv.bbox("mg_notes")
         return (bb[0] if bb else x) - 12
 
     # ---------------------------------------------------------------- 2.139.0 Grouped (the mockup the user picked:
     # "A. grouped looks sick"): the tools are icons - their name on hover - and an open one carries ▴
-    TOOL_ICONS = {"notes": "\uE70B", "calc": "\uE8EF", "regex": None, "rates": "\uE9D2", "vendor": "\uE7BF"}
+    TOOL_ICONS = {"notes": "\uE70B", "calc": "\uE8EF", "regex": None, "rates": "\uE9D2", "vendor": "\uE7BF",
+                  "app": None}
     TOOL_TIPS = {"notes": "Notes", "calc": "Calc", "regex": "Regex favorites", "rates": "Exchange Rates",
-                 "vendor": "Vendor"}
-    TOOL_NAMES = {"notes": "Notes", "calc": "Calc", "regex": "Regex", "rates": "Rates", "vendor": "Vendor"}
+                 "vendor": "Vendor", "app": "Open the Drawer"}
+    TOOL_NAMES = {"notes": "Notes", "calc": "Calc", "regex": "Regex", "rates": "Rates", "vendor": "Vendor",
+                  "app": "App ▸"}                              # (drawer build: words, not an icon font)
 
     def _mg_icon_family(self):
         """Windows' own icon font (Segoe MDL2 Assets), or None - then the tools keep their names."""
@@ -819,20 +820,29 @@ class MergedOverlay:
                 bb = cv.bbox(it)
                 cv.create_text(bb[2] if bb else x, y, text=mark, anchor="w", fill=fill, font=(P["font"], self._hf(8)),
                                tags=("mg", tag))
-        cv.tag_bind(tag, "<Button-1>", lambda e: (self.ov_tip_hide(), click()))
-        self.ov_tip(cv, tag, self.TOOL_TIPS[what])
+        cv.tag_bind(tag, "<Button-1>", lambda e=None: e is not None and (self.ov_tip_hide(), click()))
+        self.ov_tip(cv, tag, lambda: self.mg_tool_tip(what))
         bb = cv.bbox(tag)
         return (bb[0] if bb else x) - 12
+
+    def mg_tool_tip(self, what):
+        """A tool's name on hover. App ▸ says where it opens the app (the Drawer or the full window)."""
+        tip = self.TOOL_TIPS[what]
+        if what == "app" and getattr(self, "drawer_eff", lambda: "drawer")() == "full":
+            tip = "Open the app (full window)"
+        return tip
 
     def ov_tip(self, cv, tag, text, hand=True):
         """A name / line on hover over the game (an icon-only control's tooltip), in the overlay's colors. text: a
         string, or a function giving it (worked out when the mouse comes)."""
-        def show(e):
+        def show(e=None):                       # (Tk can call a tag binding without its event while the
+            if e is None:                       # overlay is rebuilt under the mouse)
+                return
             if hand:
                 cv.configure(cursor="hand2")
             self.ov_tip_show(text() if callable(text) else text, e.x_root, e.y_root)
         cv.tag_bind(tag, "<Enter>", show)
-        cv.tag_bind(tag, "<Leave>", lambda e: (cv.configure(cursor=""), self.ov_tip_hide()))
+        cv.tag_bind(tag, "<Leave>", lambda _e=None: (cv.configure(cursor=""), self.ov_tip_hide()))
 
     def ov_tip_show(self, text, x, y):
         self.ov_tip_hide()
@@ -844,7 +854,7 @@ class MergedOverlay:
             w.attributes("-topmost", True)
         except tk.TclError:
             pass
-        tk.Label(w, text=text, bg=P.get("bg", "#151311"), fg=P.get("text", "#efe6d2"), padx=8, pady=4,
+        tk.Label(w, text=text, bg=P.get("bg", "#151311"), fg=P.get("text", "#efe6d2"), padx=8, pady=4, justify="left",
                  highlightthickness=1, highlightbackground=P.get("rim") or P.get("line", "#3a3226"),
                  font=(P.get("font") or "Segoe UI", 10)).pack()
         w.update_idletasks()
@@ -861,9 +871,10 @@ class MergedOverlay:
     def bar_buttons(self):
         """2.92.2: the menus on the bar, left to right: Notes ▾, Calc ▾, Regex ▾, Rates ▾, Vendor ▾ (each only when
         it's on). 2.104.1: Rates ▾ (the exchange rates window)."""
+        app = bool(self.bar_cfg().get("app", True))      # drawer build: App ▸ - one switch
         return [k for k, on in (("notes", self.notes_on_bar()), ("calc", self.calc_on_bar()),
                                 ("regex", self.regex_on_bar()), ("rates", bool(self.ovr_cfg()["on"])),
-                                ("vendor", self.vendor_on_bar())) if on]
+                                ("vendor", self.vendor_on_bar()), ("app", app)) if on]
 
     def regex_on_bar(self):
         return bool(self.bar_cfg().get("regex", True))
@@ -873,7 +884,7 @@ class MergedOverlay:
         line. 2.96.1 (feedback): on the bar the whole campaign, in town or not, until the campaign is done."""
         from . import campaign as CP
         try:
-            return bool(CP.cfg()["vendor"]) and bool(self.bar_cfg().get("vendor", True)) and CP.active()
+            return bool(CP.cfg()["vendor"]) and bool(self.bar_cfg().get("vendor", True)) and CP.shown()
         except Exception:
             return False
 
@@ -925,9 +936,9 @@ class MergedOverlay:
             it = cv.create_text(x + d + 6, y, text=self.START_TEXT, anchor="w", fill=P.get("accent", P["text"]),
                                 font=f, tags=("mg", "mg_start"))
         cv.addtag_withtag("mg_start", "mg_play")
-        cv.tag_bind("mg_start", "<Button-1>", lambda e: self.tracker_play_click())
-        cv.tag_bind("mg_start", "<Enter>", lambda e: cv.configure(cursor="hand2"))
-        cv.tag_bind("mg_start", "<Leave>", lambda e: cv.configure(cursor=""))
+        cv.tag_bind("mg_start", "<Button-1>", lambda e=None: e is not None and self.tracker_play_click())
+        cv.tag_bind("mg_start", "<Enter>", lambda e=None: cv.configure(cursor="hand2"))
+        cv.tag_bind("mg_start", "<Leave>", lambda e=None: cv.configure(cursor=""))
         bb = cv.bbox("mg_start")
         return (bb[0] if bb else x) - 12
 
@@ -938,6 +949,8 @@ class MergedOverlay:
             "regex": ("Regex", self.rx_ov_shown, self.rx_ov_toggle),
             "rates": ("Rates", self.ovr_shown, self.ovr_toggle),
             "vendor": ("Vendor", lambda: getattr(self, "camp_vendor_win", None) is not None, self.camp_vendor_toggle),
+            # drawer build: our process got the click, so the app may take the keyboard (focus=True)
+            "app": ("App", lambda: False, lambda: self.app_show(focus=True, why="app")),
         }[what]
         return self._mg_tool(cv, P, x, y, what, shown(), click, anchor)
 
@@ -1044,9 +1057,9 @@ class MergedOverlay:
         self._play_spots = [sp for sp in getattr(self, "_play_spots", []) if sp[0] is not cv or sp[1:3] != (x0, y0)]
         self._play_spots.append((cv, x0, y0, d, P.get("head", P["text"])))
         self._play_draw(cv, x0, y0, d, P.get("head", P["text"]))
-        cv.tag_bind("mg_play", "<Button-1>", lambda e: self.tracker_play_click())
-        cv.tag_bind("mg_play", "<Enter>", lambda e: cv.configure(cursor="hand2"))
-        cv.tag_bind("mg_play", "<Leave>", lambda e: cv.configure(cursor=""))
+        cv.tag_bind("mg_play", "<Button-1>", lambda e=None: e is not None and self.tracker_play_click())
+        cv.tag_bind("mg_play", "<Enter>", lambda e=None: cv.configure(cursor="hand2"))
+        cv.tag_bind("mg_play", "<Leave>", lambda e=None: cv.configure(cursor=""))
         return d
 
     def _play_draw(self, cv, x0, y0, d, col):

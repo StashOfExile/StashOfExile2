@@ -40,7 +40,7 @@ class FeedPage:
         tk.Label(top, text="Teach the Mod Book a price", bg=P1, fg=C["accent"], font=("Segoe UI", 12, "bold"),
                  anchor="w").pack(fill="x")
         tk.Label(top, text="Know what an item is worth - an expensive tablet you saw sell, one the trade site hardly "
-                           "shows? Ctrl+Alt+C it in game (or paste it), type its price if you know it, and Feed it. "
+                           "shows? Ctrl+Alt+C it in game (or paste it in the box with Ctrl+V), type its price if you know it, and Feed it. "
                            "With a price it joins the listings the Mod Book learns from, like a sale; the numbers "
                            "below show what changed. No price? Tick the mods that matter and they're rated High.",
                  bg=P1, fg=C["muted"], font=("Segoe UI", 9), wraplength=720, justify="left", anchor="w").pack(fill="x")
@@ -54,7 +54,6 @@ class FeedPage:
         self.fd_text.pack(fill="both", expand=True, pady=(2, 4))
         self.fd_text.bind("<<Modified>>", self._fd_typed)
         self.fd_text.bind("<Tab>", lambda e: (e.widget.tk_focusNext().focus_set(), "break")[1])
-        ttk.Button(left, text="Paste from clipboard", command=self.fd_paste, style="Quiet.TButton").pack(anchor="w")
         g = tk.Frame(left, bg=P2)
         g.pack(fill="x", pady=(8, 0))
         tk.Label(g, text="Price (optional)", bg=P2, fg=C["text"]).grid(row=0, column=0, sticky="w", pady=2)
@@ -126,13 +125,6 @@ class FeedPage:
         self.fd_text.insert("1.0", text.strip())
         self.fd_read()
         self._say("Manual feed: item read - type its price (optional) and press Feed it.", 5)
-
-    def fd_paste(self):
-        try:
-            text = self.root.clipboard_get()
-        except tk.TclError:
-            text = ""
-        self.fd_take_clip(text)
 
     def _fd_typed(self, _e=None):
         if not self.fd_text.edit_modified():

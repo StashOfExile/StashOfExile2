@@ -1,6 +1,6 @@
 """2.131.0 Break reminders (feedback: "reminders after x amount of playtime to eat, drink water, go to the bathroom,
 take breaks ... sometimes people will play 20+ hours ... forget to sleep ... shower ... go outside for fresh air"):
-off until you turn it on. Every 45 / 60 / 90 / 120 minutes of play, the next time you reach your hideout or a town
+off until you turn it on. Every N minutes of play (a choice from EVERY, or your own), the next time you reach your hideout or a town
 (never mid-map), one alert card with the next line of a rotation - kind, short, never nagging. More lines join the
 rotation the longer you've played. Play time is the Session timer's (or this app run's); nothing about you is saved or
 sent anywhere."""
@@ -8,8 +8,9 @@ import time
 
 from .config import SETTINGS
 
-EVERY = (45, 60, 90, 120)
-DEFAULTS = {"on": False, "every": 60}
+EVERY = (15, 30, 45, 60, 75, 90, 120, 150, 180)     # the list's choices (owner: more of them, and your own)
+LOWEST, HIGHEST = 5, 600                           # minutes a typed value may be
+DEFAULTS = {"on": True, "every": 60}
 # (hours played from, lines) - every line whose hours have come is in the rotation
 LINES = [
     (0, ("Drink some water", "Stretch your back, neck and wrists", "Rest your eyes: look far away for 20 seconds",
@@ -27,9 +28,17 @@ def cfg():
     c = SETTINGS.setdefault("breaks", {})
     for k, v in DEFAULTS.items():
         c.setdefault(k, v)
-    if c["every"] not in EVERY:
-        c["every"] = DEFAULTS["every"]
+    c["every"] = minutes(c["every"]) or DEFAULTS["every"]
     return c
+
+
+def minutes(value):
+    """A choice or a typed value ("40", "40 min") -> whole minutes within LOWEST-HIGHEST, or None if it isn't one."""
+    try:
+        m = int(round(float(str(value).lower().replace("min", "").strip())))
+    except (TypeError, ValueError):
+        return None
+    return max(LOWEST, min(HIGHEST, m))
 
 
 def pool(hours, hour_of_day=None):

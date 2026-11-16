@@ -9,6 +9,7 @@ search flow all work as for gear: each endgame number is a "mod" with sid "map:<
 "at least your value". Every line can be ticked, unticked or starred on the item like any other mod."""
 import re
 
+from .gamedata import copy_flags, flag_words
 from .mods import roll_pct, strip_markup
 
 # the property line on the copied item -> (trade-site Endgame filter, short name, searched by default?)
@@ -23,6 +24,7 @@ PROPS = {
     "revives available": ("map_revives", "Revives Available", "normal"),
 }
 _PROP = re.compile(r"^([A-Za-z ]+):\s*([+-]?\d+(?:\.\d+)?)%?")
+SHOWN_ONLY = ("waystone tier", "quality")       # numbers at the top the card already shows another way
 _TIER = re.compile(r"Waystone \(Tier (\d+)\)")
 _NUM = re.compile(r"([+-]?\d+(?:\.\d+)?)")
 
@@ -36,7 +38,7 @@ def parse_waystone(text):
     """A copied waystone -> a price-check item, or None."""
     if not is_waystone_text(text):
         return None
-    lines = [l.strip() for l in text.splitlines() if l.strip()]
+    lines = [l.strip() for l in text.replace("\u2212", "-").splitlines() if l.strip()]   # (a Unicode minus: "-")
     rarity = next((l.split(":", 1)[1].strip() for l in lines if l.startswith("Rarity:")), "")
     if rarity not in ("Normal", "Magic", "Rare", "Unique"):
         return None
@@ -53,11 +55,20 @@ def parse_waystone(text):
     name = names[0] if rarity in ("Rare", "Unique") and len(names) > 1 else " ".join(names)
     mods, mid = [], 0
     seen = set()
+    area, other, top = None, [], True
     for l in lines:                                    # the endgame numbers: "Pack Size: +15% (augmented)"
+        if l.startswith("Item Level:"):
+            top = False                                # (the numbers at the top end here)
         m = _PROP.match(l)
         if not m:
             continue
         key = m.group(1).strip().lower()
+        if top and key == "area level":
+            area = int(float(m.group(2)))              # shown; the search goes by the tier, as before
+            continue
+        if top and key not in PROPS and key not in SHOWN_ONLY and l not in other:
+            other.append(re.sub(r"\s*\((?:augmented|unscalable value)\)\s*$", "", l, flags=re.I))
+            continue                                   # a number the app doesn't search on (yet): said, not hidden
         if key not in PROPS or key in seen:
             continue
         seen.add(key)
@@ -106,16 +117,27 @@ def parse_waystone(text):
               "corrupted": corrupted, "sockets_min": None}
     if rarity == "Unique":
         search["name"] = name
-    return {"class": "Waystone", "gear": True, "waystone": True, "gclass": "waystone", "rarity": rarity, "name": name,
-            "base": base, "tier": tier, "mods": mods, "uses": None, "corrupted": corrupted, "quality": 0, "sockets": 0,
-            "ilvl": next((int(x.group(1)) for l in lines for x in [re.match(r"Item Level:\s*(\d+)", l)] if x), None),
-            "group_id": None, "search": search, "notes": []}
+    notes = []
+    if area is not None:
+        notes.append(f"area level {area} (shown only: waystones are searched by their tier)")
+    if other:
+        notes.append("not searched (the app has no trade filter for it): " + ", ".join(other))
+    out = {"class": "Waystone", "gear": True, "waystone": True, "gclass": "waystone", "rarity": rarity, "name": name,
+           "base": base, "tier": tier, "mods": mods, "uses": None, "corrupted": corrupted, "quality": 0, "sockets": 0,
+           "ilvl": next((int(x.group(1)) for l in lines for x in [re.match(r"Item Level:\s*(\d+)", l)] if x), None),
+           "group_id": None, "search": search, "notes": notes,
+           "flags": sorted(copy_flags(text))}                # owner decision A: searched with the same flags
+    if area is not None:
+        out["area_level"] = area
+    if other:
+        out["top_other"] = other
+    return out
 
 
 def summary(item):
     s = item["search"]
     bits = [f"by base type ({s['type']})", f"{item['rarity'].lower()} only",
-            "corrupted only" if s.get("corrupted") else "uncorrupted only"]
+            "corrupted only" if s.get("corrupted") else "uncorrupted only"] + flag_words(item)
     return "Searched on its endgame numbers " + ", ".join(bits)
 
 

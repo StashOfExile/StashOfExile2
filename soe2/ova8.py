@@ -4,9 +4,17 @@ themes"), in every style, Bar and Panel:
   [● IN MAP]  📍 THIS MAP · ★ A          | SESSION ⓘ | LAST MAP'S PROFIT ⓘ    ...  tools  clock  🔒 ⚙
               Penitentiary   3:41        | 17:04:33  | +5.5 chaos
 
-The chip says where you are with a mark and a word (In map, Paused, Hideout, Town, Start) and pauses / resumes the
-session; the map you're in leads; maps run and the average are one hover away on SESSION; the profit's hover shows
+The chip says where you are with a mark and a word (In map, Paused, Hideout, Town, Campaign, Start) and pauses /
+resumes the session; the map you're in leads; maps run and the average are one hover away on SESSION; the profit's hover shows
 how it was worked out. Each style keeps its own frame, colors, fonts and dividers - this draws the parts.
+
+In the campaign (the Campaign Bar, pack 4) the parts after the chip are the campaign's:
+
+  [● CAMPAIGN]  ZONE ⓘ          | YOU ⓘ         | GOT SO FAR ⓘ                          | ACT TIME ⓘ   ...  tools  clock
+                Clearfell · lvl 2 | ✓ Lvl 4 · OK | Points 0/24 · Spirit 0/100 · Res 0/30% | 0:05:45
+
+each worked out on hover; the Panel shows them in its card under the campaign's line (act · zone, step, what to do
+now, then → where next) - the step is never shown twice.
 
 GGG ToS: the app's own windows only; nothing here touches the game."""
 import tkinter as tk
@@ -97,6 +105,26 @@ class _Fit(CanvasText):
     configure = config
 
 
+class _Mark(CanvasText):
+    """You: a text starting with '!' takes the warning color too (its mark and its words say it; color only adds)."""
+    ok, warn = None, None
+
+    def config(self, **kw):
+        if "text" in kw and self.ok:
+            kw["fg"] = self.warn if str(kw["text"]).startswith("!") else self.ok
+        super().config(**kw)
+    configure = config
+
+
+# the Campaign Bar's parts after the chip: (key, label, widest value)
+CAMP_PARTS = (("c_zone", "ZONE ⓘ", "Cemetery of the Eternals · lvl 99"), ("c_you", "YOU ⓘ", "! Lvl 99 · 9 under"),
+              ("c_got", "GOT SO FAR ⓘ", "Points 24/24 · Spirit 100/100 · Res 30/30%"),
+              ("c_act", "ACT TIME ⓘ", "0:00:00"))
+CAMP_GAP = 12                      # a divider's slot between the Campaign Bar's parts (the map parts' is 20)
+GOT_WIDE = {"full": "Points 24/24 · Spirit 100/100 · Res 30/30%", "mid": "Points 24/24 · Spirit 100/100",
+            "short": "Points 24/24"}
+
+
 class OverlayA8:
     """Mixed into App."""
 
@@ -116,7 +144,9 @@ class OverlayA8:
         if camp:
             try:
                 from . import campaign as CP
-                place = CP.line_text() or "Campaign"
+                # UI overhaul (feedback: "tells me the campaign shit twice"): the step is on the campaign line above
+                # the bar - this part says where you are
+                place = CP.char().get("zone") or "Campaign"
             except Exception:
                 place = "Campaign"
         rank = ""
@@ -126,7 +156,14 @@ class OverlayA8:
             buglog.caught()
         if rank and label == "THIS MAP":
             label = f"THIS MAP · {rank}"
-        return {"a8_chip": chip_text(chip_key(s, camp)), "a8_label": label, "a8_place": place, "a8_timer": timer}
+        out = {"a8_chip": chip_text(chip_key(s, camp)), "a8_label": label, "a8_place": place, "a8_timer": timer}
+        if camp:                                            # the Campaign Bar's parts
+            try:
+                out.update(c_zone=self.camp_zone_text(), c_you=self.camp_you_text(), c_got=self.camp_got_text(),
+                           c_act=self.camp_act_text(), c_lvl=self.camp_zone_text().rpartition(" · ")[2].capitalize())
+            except Exception:
+                buglog.caught()
+        return out
 
     def a8_session_tip(self):
         """SESSION's hover: maps run and the average - each as its switch (Overlay options' Maps / Average) says."""
@@ -193,6 +230,8 @@ class OverlayA8:
             self.tk_ov_lbls.pop("a8_chip").config(text=chip_text("idle"))
             return x0 + cw + u(12)
         ly, vy = (mid - spread[0], mid + spread[1]) if spread else (mid - u(7), mid + u(6))     # label / value lines
+        if self.ov_camp_mode():                             # the Campaign Bar
+            return self.a8_camp_bar(cv, P, x0, right, mid, ly, vy, sep)
         x = x0 + self._a8_chip(cv, P, x0, mid, u(18)) + u(10)
         fl, fv = self._lt_fm(cv, P, 8, True), self._lt_fm(cv, P, 10, True)
         ses_w = max(fl.measure("SESSION ⓘ"), fv.measure("00:00:00")) if ln.get("session", True) else 0
@@ -250,6 +289,117 @@ class OverlayA8:
             self.tk_ov_cv = cv
         return x
 
+    # ---------------------------------------------------------------- the Campaign Bar
+    def _a8_camp_part(self, cv, P, x, ly, vy, key, label, width, tip, size=10):
+        """One of the Campaign Bar's parts: its label (ⓘ: hover for how it was worked out) over its value."""
+        tag = "mg_" + key
+        lab = self._a8_label(cv, P, x, ly, label)
+        cls = _Mark if key == "c_you" else _Fit
+        t = self._lt_text(cv, P, x, vy, "", size, P["big"], bold=True, key=key, cls=cls)
+        if cls is _Fit:
+            t.width, t.font = width, (P["font"], self._hf(size), "bold")
+        else:
+            t.ok, t.warn = P["big"], P.get("accent") or P["head"]
+        for it in (lab.item, t.item):
+            cv.addtag_withtag(tag, it)
+        self.ov_tip(cv, tag, tip, hand=False)
+        return t
+
+    def a8_camp_plan(self, cv, P, room):
+        """Which of the Campaign Bar's parts fit in room px. A narrow bar leaves out, in turn: Res, Act time,
+        Spirit, then shortens the zone and You to their words - what's left out stays one hover away (Got so far's
+        and You's hovers have it all). -> ({key: width}, Got so far's mode, You's mode)."""
+        u = self._u
+        fl, fv = self._lt_fm(cv, P, 8, True), self._lt_fm(cv, P, 10, True)
+        gap = u(CAMP_GAP)
+
+        def w(label, value):
+            return max(fl.measure(label), fv.measure(value))
+        act = w("ACT TIME ⓘ", "0:00:00")
+        zone_need = self._camp_zone_need = w("ZONE ⓘ", self.camp_zone_text()) + u(4)
+        for cap, mode, show_act, you_mode in ((u(220), "full", True, "full"), (u(220), "mid", True, "full"),
+                                              (u(220), "mid", False, "full"), (u(220), "short", False, "full"),
+                                              (u(220), "short", False, "short"), (u(120), "short", False, "short"),
+                                              (u(80), "short", False, "short")):
+            zone = min(zone_need, cap)
+            you = w("YOU ⓘ", "! Lvl 99 · 9 under" if you_mode == "full" else "! 9 under")
+            got = w("GOT SO FAR ⓘ", GOT_WIDE[mode])
+            need = zone + gap + you + gap + got + ((gap + act) if show_act else 0)
+            if room is None or need <= room:
+                break
+        plan = {"c_zone": zone, "c_you": you, "c_got": got}
+        if show_act:
+            plan["c_act"] = act
+        return plan, mode, you_mode
+
+    def a8_camp_bar(self, cv, P, x0, right, mid, ly, vy, sep):
+        """The Campaign Bar after the chip: ZONE | YOU | GOT SO FAR | ACT TIME, up to `right` (or as wide as they
+        need when right is None). -> the x it ended at."""
+        u = self._u
+        x = x0 + self._a8_chip(cv, P, x0, mid, u(18)) + u(10)
+        plan, mode, you_mode = self.a8_camp_plan(cv, P, None if right is None else right - x - u(6))
+        self._camp_got_mode, self._camp_you_mode = mode, you_mode
+        gap = u(CAMP_GAP)
+        tips = {"c_zone": self.camp_zone_tip, "c_you": self.camp_you_tip, "c_got": self.camp_got_tip,
+                "c_act": self.camp_act_tip}
+        first = True
+        for key, label, _wide in CAMP_PARTS:
+            if key not in plan:
+                continue
+            if not first:
+                sep(x + gap // 2)
+                x += gap
+            first = False
+            self._a8_camp_part(cv, P, x, ly, vy, key, label, plan[key], tips[key])
+            x += plan[key]
+        if self.tk_ov_cv is None:
+            self.tk_ov_cv = cv
+        return x
+
+    def a8_camp_card(self, cv, P, pad, R, y):
+        """The Panel's campaign card under its chip: the line (act · zone, step, what to do now, then → next), a
+        rule, ZONE | YOU | ACT TIME, then GOT SO FAR. -> the y under it."""
+        u = self._u
+        fh, fd, _fi, _fb = self._camp_fonts(P, cv)
+        lh = fd.metrics("linespace") + u(2)
+        rows = self.camp_rows(P, R - pad)
+        top = y + u(8) + lh // 2
+        self.camp_draw_lines(cv, P, rows, pad, R, top, lh, ("mg", "camp"))
+        self._camp_card_was = self.camp_line_text_now()
+        y = top + (len(rows) - 1) * lh + lh // 2 + u(6)
+        cv.create_line(pad, y, R, y, fill=P["line"], tags=("mg",))
+        ly, vy = y + u(12), y + u(28)
+        colw = (R - pad) // 3
+        tips = {"c_lvl": self.camp_zone_tip, "c_you": self.camp_you_tip, "c_act": self.camp_act_tip,
+                "c_got": self.camp_got_tip}
+        for i, (key, label) in enumerate((("c_lvl", "ZONE ⓘ"), ("c_you", "YOU ⓘ"), ("c_act", "ACT TIME ⓘ"))):
+            self._a8_camp_part(cv, P, pad + i * colw, ly, vy, key, label, colw - u(8), tips[key], size=10)
+        y += u(40)
+        self._camp_got_mode, self._camp_you_mode = "full", "full"
+        self._a8_camp_part(cv, P, pad, y + u(12), y + u(28), "c_got", "GOT SO FAR ⓘ", R - pad, tips["c_got"], size=10)
+        return y + u(40)
+
+    def camp_bar_replan(self):
+        """A new zone on the Bar: True when its name needs another plan of the parts (longer than the room it has,
+        or much shorter - the parts left out can come back)."""
+        was = getattr(self, "_camp_zone_need", None)
+        if was is None:
+            return False
+        cv = getattr(self, "tk_ov_cv", None)
+        if cv is None:
+            return False
+        P = getattr(self, "mg_P", None) or {}
+        if "font" not in P:
+            return False
+        fl, fv = self._lt_fm(cv, P, 8, True), self._lt_fm(cv, P, 10, True)
+        now = max(fl.measure("ZONE ⓘ"), fv.measure(self.camp_zone_text())) + self._u(4)
+        return abs(now - was) > self._u(6)
+
+    @staticmethod
+    def camp_line_text_now():
+        from . import campaign as CP
+        return CP.line_text()
+
     def a8_panel(self, w, cv, P, want, PW):
         """The Panel: the chip and the clock, the map part, SESSION | LAST MAP'S PROFIT, the tools. -> its height."""
         u = self._u
@@ -265,7 +415,10 @@ class OverlayA8:
             self._lt_clock(cv, P, x, hh // 2)
         cv.create_line(0, hh, PW, hh, fill=P["line"], tags=("mg",))
         y = hh
-        if want["timer"]:
+        if want["timer"] and self.ov_camp_mode():           # the Campaign Bar as one card (the step once)
+            y = self.a8_camp_card(cv, P, pad, R, y)
+            self.tk_ov_cv = cv
+        elif want["timer"]:
             if ln.get("map", True) or ln.get("where", True):
                 ly, vy = y + u(12), y + u(30)
                 px = pad + self._a8_pin(cv, P, pad, (ly + vy) // 2) + u(8)

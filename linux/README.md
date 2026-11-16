@@ -1,6 +1,6 @@
 # Linux / Hyprland (groundwork, untested)
 
-> **GGG ToS safety check - read first.** One key press = one action, only when you press it · nothing acts in the game by itself (watchers only look and show) · never touch the game's memory, code or traffic · the mouse is never moved or clicked for you · it reads only your clipboard, Client.txt, screen pixels, the trade site (within its limits) and poe.ninja. Every change must pass all of [TOS.md](../TOS.md) (`tools/check_tos.py` checks the code on every PR).
+> **GGG ToS safety check - read first.** One key press = one action, only when you press it · nothing acts in the game by itself (helpers only read and show) · never touch the game's memory, code or traffic · the mouse is never moved or clicked for you · it reads Client.txt, the trade site (within its limits) and poe.ninja, and your clipboard or screen only once per key press (the Look key, a copy key). Every change must pass all of [TOS.md](../TOS.md) (`tools/check_tos.py` checks the code on every PR).
 
 StashOfExile2's releases are Windows-only. Since 2.10.0 the code has a start on Linux support so anyone can package it themselves. Nothing here is built or tested by the project yet.
 
@@ -19,9 +19,9 @@ StashOfExile2's releases are Windows-only. Since 2.10.0 the code has a start on 
 
 ## Still Windows-only
 
-- Global hotkeys and Ctrl+Alt+C detection (`winsys.KeyWatch`, a Windows keyboard hook). Plan: a Hyprland `bindn` pass-through bind that writes to a local socket the app listens on, plus `wl-paste --watch` for the clipboard.
+- Global hotkeys and Ctrl+Alt+C detection (`winsys.KeyWatch`, a Windows keyboard hook). Plan: a Hyprland `bindn` pass-through bind that writes to a local socket the app listens on. GGG allows one clipboard or screen read per key press, so until that bind exists nothing is read here: the clipboard (`clipread.py`) and the screen (`screenread.py`, the Look key) need a key press the app can see. (`wl-paste --watch` would read every copy - not allowed; neither is any clipboard call on a timer.)
 - Chat command keys (`SendInput`). Plan: `wtype`.
-- Delirium alert screen reads (`mss`). Plan: `grim -g "x,y wxh"` with the rect from `linsys.game_rect()`.
+- Screen reads (`mss`, only in `soe2/screenread.py`, one picture per Look key press). Plan: `grim -g "x,y wxh"` with the rect from `linsys.game_rect()`, in screenread.py only.
 - Window owner tricks in `shell.py` (no-ops elsewhere) and `winsound` beeps (fall back to the Tk bell).
 
 ## Fonts

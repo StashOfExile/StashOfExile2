@@ -39,7 +39,7 @@ from .config import APP_UA, APP_DIR, RESOURCE_DIR, P, SETTINGS, save_json
 
 FILE = "crafthelper.json"
 SCHEMA = 1
-REPO = "tiwomm/StashOfExile2"
+REPO = "StashOfExile/StashOfExile2"
 LIVE_URL = f"https://raw.githubusercontent.com/{REPO}/main/{FILE}"
 LIVE_EVERY = 12 * 3600
 

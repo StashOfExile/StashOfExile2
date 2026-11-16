@@ -12,6 +12,7 @@ import tkinter as tk
 from .pickers import ListPreview
 
 W, H = 560, 300
+DRAWER_W = 470                 # Round 18: the preview's width in the Drawer
 
 
 def _accent(t):
@@ -19,8 +20,9 @@ def _accent(t):
     return t.c("accent")
 
 
-def draw(cv, t, w=W, h=H):
-    """The app in pack `t`, at w x h: title bar, nav, a section with an item, a list and buttons."""
+def draw(cv, t, w=W, h=H, shape="full"):
+    """The app in pack `t`, at w x h: title bar, nav, a section with an item, a list and buttons. Round 18: shape
+    "drawer" draws it as the Drawer shows it - the icon rail with its group names and the open page lit."""
     from . import themes as TH
     from .sidebar import draw_marker
     with TH.raw():
@@ -32,10 +34,11 @@ def draw(cv, t, w=W, h=H):
         # the window's title bar
         tb = 26
         fg = TH.bar_into(cv, t, "title", 1, 1, w - 1, tb)
-        cv.create_text(10, tb // 2 + 1, text="StashOfExile2", anchor="w", fill=fg, font=(head, 10, "bold"))
+        cv.create_text(10, tb // 2 + 1, text="Stash of Exile 2" + ("  ·  Drawer" if shape == "drawer" else ""),
+                       anchor="w", fill=fg, font=(head, 10, "bold"))
         # the nav, with the selected page's marker
         nav = t.part("nav") or {}
-        nw = 132
+        nw = 64 if shape == "drawer" else 132
         nbg = c(nav.get("bg", "surface_raised"))
         cv.create_rectangle(1, tb, nw, h - 1, fill=nbg, outline="")
         if nav.get("texture", "none") not in ("none", None):
@@ -46,15 +49,18 @@ def draw(cv, t, w=W, h=H):
         sel_bg = c(nav.get("sel_bg", "selection"))
         txt, sel_txt = c(nav.get("text", "text")), c(nav.get("sel_text", "text_strong"))
         y = tb + 10
-        cv.create_text(12, y + 4, text="TOOLS", anchor="w", fill=c(nav.get("group", "text_muted")),
-                       font=(body, 8, "bold"))
-        y += 14
-        for i, name in enumerate(("Price Checks", "Bulk Pricing", "Wealth", "Money Makers")):
-            y0, y1 = y + i * 28, y + i * 28 + 26
-            if i == 0:
-                draw_marker(cv, nav.get("marker", "bar"), 6, y0, nw - 6, y1, mk_col, sel_bg, nbg)
-            cv.create_text(22, (y0 + y1) // 2, text=name, anchor="w", fill=sel_txt if i == 0 else txt,
-                           font=(body, 9, "bold" if i == 0 else "normal"))
+        if shape == "drawer":
+            _rail(cv, t, nw, y, mk_col, sel_bg, nav)
+        else:
+            cv.create_text(12, y + 4, text="TOOLS", anchor="w", fill=c(nav.get("group", "text_muted")),
+                           font=(body, 8, "bold"))
+            y += 14
+            for i, name in enumerate(("Price Checks", "Bulk Pricing", "Wealth", "Farming Strategies")):
+                y0, y1 = y + i * 28, y + i * 28 + 26
+                if i == 0:
+                    draw_marker(cv, nav.get("marker", "bar"), 6, y0, nw - 6, y1, mk_col, sel_bg, nbg)
+                cv.create_text(22, (y0 + y1) // 2, text=name, anchor="w", fill=sel_txt if i == 0 else txt,
+                               font=(body, 9, "bold" if i == 0 else "normal"))
         # the page: a section bar, the item's card, the meter, a list, buttons
         x0, x1 = nw + 12, w - 12
         sy = tb + 10
@@ -122,11 +128,37 @@ def draw(cv, t, w=W, h=H):
                        font=(body, 8))
 
 
+def _rail(cv, t, nw, y, acc, sel_bg, nav):
+    """The Drawer's rail in the preview (sidebar._redraw_rail, small): a group name, then line icons with their short
+    names - the first one open (its tile, the accent marker, its icon lit)."""
+    from . import lineicons
+    from . import themes as TH
+    c = t.c
+    txt, sel_txt, mut = c(nav.get("text", "text")), c(nav.get("sel_text", "text_strong")), c("text_muted")
+    cv.create_text(nw // 2, y + 4, text="TRADE", fill=c(nav.get("group", "text_muted")), font=("Segoe UI", 7, "bold"))
+    y += 14
+    imgs = cv._rail_imgs = []
+    for i, (key, name) in enumerate((("pricecheck", "Price Checks"), ("checks", "Bulk Pricing"),
+                                     ("favorites", "Favorites"), ("rates", "Rates"))):
+        y0, y1 = y + i * 52, y + i * 52 + 48
+        if i == 0:
+            TH.round_rect(cv, 4, y0, nw - 4, y1, 6, fill=sel_bg, outline="")
+            cv.create_rectangle(1, y0 + 6, 4, y1 - 6, fill=acc, outline="")
+        col = acc if i == 0 else mut
+        img = lineicons.icon(cv, lineicons.PAGE_ICON.get(key, "dot"), 18, col)
+        if img is not None:
+            imgs.append(img)
+            cv.create_image(nw // 2, y0 + 14, image=img)
+        cv.create_text(nw // 2, y0 + 36, text=name, fill=sel_txt if i == 0 else txt, width=nw - 6, justify="center",
+                       font=("Segoe UI", 9, "bold" if i == 0 else "normal"))
+
+
 class ThemePicker(ListPreview):
     """The theme names (Dark, Light) and the app drawn in the one under the mouse. on_pick(theme id) on a click."""
 
-    def __init__(self, parent, current, on_pick):
+    def __init__(self, parent, current, on_pick, shape=None):
         from . import themes as TH
+        self.shape = shape or (lambda: "full")          # Round 18: "drawer" / "full" - the window's shape now
         packs = TH.ordered()
         self.packs = {t.id: t for t in packs}
         groups = [(title, [(t.id, t.name) for t in packs if bool(t.light) == light])
@@ -144,4 +176,17 @@ class ThemePicker(ListPreview):
             cv = self.cv = TH.self_painted(tk.Canvas(host, width=W, height=H, highlightthickness=0, bd=0))
             cv.pack()
         if t is not None:
-            draw(cv, t)
+            try:
+                shape = self.shape()
+            except Exception:
+                shape = "full"
+            pw = DRAWER_W if shape == "drawer" else W        # (the Drawer's page is narrower)
+            if int(float(str(cv.cget("width")))) != pw:
+                cv.configure(width=pw)
+            draw(cv, t, w=pw, shape=shape)
+
+    def reshape(self):
+        """The window changed shape: the preview again, in it."""
+        k, self.shown = self.shown, None
+        if k is not None:
+            self.show(k)

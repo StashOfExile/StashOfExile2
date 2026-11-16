@@ -1,6 +1,7 @@
-"""2.132.3 Ritual Identifier - the alert card when you hover a Ritual Altar (ritualid.py reads; hover_page.py looks).
+"""2.132.3 Ritual Identifier - the alert card when you hover a Ritual Altar and press the Look key (ritualid.py reads;
+hover_page.py looks, once per press).
 2.132.4 (feedback: "should be part of the Ritual Helper that can be toggled on/off"): an option of the Ritual helper
-(Overlay ↳ Overlay Settings › Helpers › Ritual), on with it - not a helper of its own."""
+(Overlay › Helpers › Ritual), on with it - not a helper of its own."""
 import time
 
 from . import buglog
@@ -21,8 +22,6 @@ class RitualIdPage:
     def ritid_changed(self, on):
         self.ritual_cfg()["identify"] = bool(on)
         save_json("settings.json", SETTINGS)
-        if on:
-            self.hover_start()
 
     def ritid_seen(self, key, now=None):
         """A type read off an altar's tooltip (or None)."""

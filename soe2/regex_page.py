@@ -8,7 +8,6 @@ from tkinter import simpledialog, ttk
 
 from . import buglog
 from . import regex as R
-from .clipboard import read_clipboard_text
 from .config import load_json, save_json, SETTINGS
 from .style import C, MONO, SegBar, Tooltip, flowify
 from .chrome import section as chrome_section
@@ -82,7 +81,6 @@ class RegexPage:
         btns.pack(side="right", anchor="n", padx=(8, 0))
         ttk.Button(btns, text="Copy", style="Primary.TButton", command=self.rx_copy, width=10).pack(side="left")
         ttk.Button(btns, text="Reset", command=self.rx_reset, width=8).pack(side="left", padx=8)
-        ttk.Button(btns, text="Test on copied item", command=self.rx_paste_test).pack(side="left")
         self.rx_out = tk.Text(res, height=2, bg=C["odd"], fg=C["good"], relief="flat", highlightthickness=1,
                               highlightbackground=C["line"], font=(MONO, 10), wrap="char")
         self.rx_out.pack(fill="x")
@@ -90,9 +88,14 @@ class RegexPage:
         info.pack(fill="x", pady=(4, 0))
         self.rx_len = tk.Label(info, text="", bg=P2, fg=C["muted"], font=(MONO, 9), anchor="w")
         self.rx_len.pack(side="left")
-        self.rx_test_out = tk.Label(info, text="Copy (Ctrl+C) a tablet, waystone or relic in game, then Test on copied item "
-                                               "to see if this search would light it up.",
-                                    bg=P2, fg=C["muted"], anchor="w", justify="left", font=("Segoe UI", 9))
+        self.rx_test_out = tk.Label(info, text="Copy (Ctrl+C) a tablet, waystone or relic in game, click here and press "
+                                               "Ctrl+V: it says if this search would light it up.",
+                                    bg=P2, fg=C["muted"], anchor="w", justify="left", font=("Segoe UI", 9),
+                                    cursor="xterm", takefocus=1, highlightthickness=1,
+                                    highlightbackground=P2, highlightcolor=C["accent"])
+        self.rx_test_out.bind("<Button-1>", lambda e: e.widget.focus_set())     # (a click only picks it)
+        for seq in ("<Control-v>", "<Shift-Insert>"):                            # (GGG policy: a key press reads once)
+            self.rx_test_out.bind(seq, lambda e: (self.rx_paste_test(event=e), "break")[-1])
         self.rx_test_out.pack(side="left", fill="x", expand=True, padx=(16, 0))
         self.rx_test_out.bind("<Configure>", lambda e: self.rx_test_out.config(wraplength=max(200, e.width - 8)))
         self.rx_pick_btn = ttk.Button(info, text="Select its mods", command=self.rx_tick_item)
@@ -290,7 +293,7 @@ class RegexPage:
         if getattr(self, "_rx_last_kind", None) not in (None, self.rx_kind.get()):
             self.rx_test_text = ""                           # a copied tablet says nothing about waystones
             self.rx_pick_btn.pack_forget()
-            self.rx_test_out.config(text="Copy (Ctrl+C) an item in game, then Test on copied item.", fg=C["muted"])
+            self.rx_test_out.config(text="Copy (Ctrl+C) an item in game, click here and press Ctrl+V.", fg=C["muted"])
         self._rx_last_kind = self.rx_kind.get()
         self.rx_build_cards()
         self.rx_build_lists()
@@ -729,10 +732,10 @@ class RegexPage:
         if not s:
             self.toast.show("Nothing to copy", [f"\"{name}\" is empty."], C["red"], 4)
             return None
-        from .clipboard import write_clipboard_text
+        from .clipread import write_text
         self.ignore_clip(s)
         self.own_clip = s
-        write_clipboard_text(s)
+        write_text(s)
         self.toast.show("Copied", [f"{name} - Ctrl+V in the stash search"], C["accent"], 3)
         return name, s
 
@@ -1134,16 +1137,14 @@ class RegexPage:
             self.rx_preset.set(name)
 
     # ---------------- test on a copied item
-    def rx_paste_test(self, text=None):
+    def rx_paste_test(self, text=None, event=None):
+        """Ctrl+V on the test line: the copied item (read once for that key press) against this search."""
         if text is None:
-            text = read_clipboard_text()
-            if not text:
-                try:
-                    text = self.root.clipboard_get()
-                except tk.TclError:
-                    text = ""
+            from .clipread import app_paste
+            text = app_paste(self.root, event)
         if not text or not text.lstrip().startswith("Item Class:"):
-            self.rx_test_out.config(text="The clipboard has no item: hover one in game, press Ctrl+C, then try again.", fg=C["red"])
+            self.rx_test_out.config(text="✘ The clipboard has no item: hover one in game, press Ctrl+C, then Ctrl+V "
+                                         "here again.", fg=C["red"])
             return
         self.rx_test_text = text
         self.rx_pick_btn.pack(side="right")

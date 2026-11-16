@@ -121,7 +121,7 @@ class OverlayParts:
             buglog.caught()
 
     def maprank_skip(self, name, how):
-        if how == "optout":                                  # 2.98.5: no more rank cards (Overlay › Overlay Settings brings them back)
+        if how == "optout":                                  # 2.98.5: no more rank cards (Map Library brings them back)
             self.tracker_cfg()["rank_ask"] = False
             self.tracker_save()
             v = getattr(self, "ml_rank_ask", None)
@@ -152,7 +152,7 @@ class OverlayParts:
         in a map with Ritual), 'focus'."""
         rows = []
         try:
-            if self.camp_on_bar():
+            if self.camp_on_bar() and not self.camp_in_card():     # (the Panel: the line is in its card)
                 rows.append("campaign")
         except Exception:
             self.log_error("the campaign line")
@@ -173,9 +173,18 @@ class OverlayParts:
         itself never moves)."""
         cv, self.gb_cv = getattr(self, "gb_cv", None), None
         h, self._gb_h = getattr(self, "_gb_h", 0), 0
-        if cv is None:
-            return
         main = getattr(self, "mg_win", None)
+        lw, self.gb_win = getattr(self, "gb_win", None), None
+        if lw is not None:                                  # (the lines' own window: the bar never grew for it)
+            try:
+                lw.destroy()
+            except tk.TclError:
+                pass
+            return
+        if cv is None:
+            if main is not None:
+                self._gb_strays(main)
+            return
         geo = self._gb_geo(main, flush) if keep_place and main is not None else None
         try:
             cv.destroy()
@@ -183,6 +192,30 @@ class OverlayParts:
             pass
         if geo and h:
             self._gb_place(main, geo, -h, getattr(self, "_gb_below", False))
+            self._gb_fit_later(main)
+
+    ENDS_CLEAR = 0.18                  # the share of the bar's width kept clear at each end, over the game's XP bar
+
+    def _gb_inset(self, main, W):
+        """-> px kept clear at each end of the lines over the game's XP bar (0: full width, on the bar's window).
+        Round 18: the lines then go in their own window (overlaywin.LinesWindow) as wide as they are - nothing round
+        them is see-through, so there is never a color-key (black) box."""
+        if not hasattr(main, "companions"):
+            return 0
+        inset = int(W * self.ENDS_CLEAR)
+        if W - 2 * inset < 360:                             # (a narrow bar: the line keeps at least 360 px)
+            inset = max(0, (W - 360) // 2)
+        return max(0, inset)
+
+    @staticmethod
+    def _gb_strays(main):
+        """Any set of lines still on the window that isn't the one in use comes off (never two at once)."""
+        try:
+            for c in main.body.winfo_children():
+                if getattr(c, "_goalbar", False):
+                    c.destroy()
+        except (tk.TclError, AttributeError):
+            pass
 
     @staticmethod
     def _gb_geo(main, flush=True):
@@ -215,6 +248,27 @@ class OverlayParts:
             pass
 
     def goalbar_build(self, settled=False):
+        """One build at a time. UI overhaul (feedback: "campaign helper is giving me doubles"): a build flushes
+        layout (update_idletasks), which runs waiting idle jobs - one of them was another goal bar build, so two
+        sets of lines went on the window and only the last one was known (the other never came off). A build asked
+        for during a build now runs once, just after it."""
+        if getattr(self, "_gb_busy", False):
+            self._gb_again = True
+            return getattr(self, "gb_cv", None)
+        self._gb_busy, self._gb_again = True, False
+        try:
+            cv = self._goalbar_build_now(settled)
+        finally:
+            self._gb_busy = False
+        if self._gb_again:
+            self._gb_again = False
+            try:
+                self.root.after_idle(lambda: self.goalbar_build(settled=True))
+            except tk.TclError:
+                pass
+        return cv
+
+    def _goalbar_build_now(self, settled=False):
         """2.124.0 (feedback: "instead of an isolated separate bar, can we just have it combine"): the Campaign,
         Ritual and NOW lines are drawn at the top of the overlay's own window, as wide as it, and the window grows
         upward by their height - the bar itself never moves. (Was its own small window, docked or dragged.)
@@ -268,14 +322,36 @@ class OverlayParts:
             from .ovlight import KEY
             bg = KEY
         geo = self._gb_geo(main, not settled)
-        cv = tk.Canvas(main.body, bg=bg, highlightthickness=0, width=W, height=H)
+        self._gb_strays(main)
         # 2.130.1 (feedback: "overlay at top caused the ritual portion of the bar style to be beyond the edge of the
         # monitor"): with the Bar placed at the top, the lines go under it, and the window grows down
         self._gb_below = bool(hud and self.ov_spot() == "top")
-        if self._gb_below:
-            cv.pack(side="top", fill="x", after=mcv)
+        # UI overhaul (feedback: "the overlay blocking leveling up information"): over the game's XP bar, the lines
+        # leave both ends clear - the game's + passive points / weapon set buttons (left) and its counters (right)
+        # show there. Round 18: the lines go in their own window, as wide as they are (nothing see-through round
+        # them - no black box); elsewhere: full width, on the bar's own window.
+        inset = self._gb_inset(main, W) if hud and not self._gb_below else 0
+        if inset and W - 2 * inset != W:
+            W = W - 2 * inset
+            if "campaign" in rows:                            # (the narrower line can take another row)
+                n2 = self.camp_lines(P, W - 2 * side)
+                if n2 != camp_n:
+                    hs[rows.index("campaign")] += (n2 - camp_n) * lh
+                    H += (n2 - camp_n) * lh
+                    camp_n = n2
+        if inset:                                             # Round 18: their own window, centered over the bar
+            from .overlaywin import LinesWindow
+            lw = self.gb_win = LinesWindow(main, bg, inset, H)
+            cv = tk.Canvas(lw, bg=bg, highlightthickness=0, width=W, height=H)
+            cv.pack(fill="both", expand=True)
+            self._gb_window_setup(main, lw)
         else:
-            cv.pack(side="top", fill="x", before=mcv)
+            cv = tk.Canvas(main.body, bg=bg, highlightthickness=0, width=W, height=H)
+            if self._gb_below:
+                cv.pack(side="top", fill="x", after=mcv)
+            else:
+                cv.pack(side="top", fill="x", before=mcv)
+        cv._goalbar = True                                    # (so a stray set of lines can always be found)
         if not cfg.get("mlocked"):
             main.draggable(cv)
         lft, rgt = side, W - side
@@ -303,8 +379,6 @@ class OverlayParts:
             cv.create_line(lft, e, rgt, e, fill=P["line"], tags=("mg",))
         if "campaign" in rows:
             self.camp_draw_row(cv, P, lft, rgt, mids[rows.index("campaign")], f, n=camp_n, lh=lh)
-            if light:
-                self._lt_halo_tags(cv, P, ("camp",))
         if "ritual" in rows:                                  # 2.118.0: the Ritual line
             mid = mids[rows.index("ritual")]
             fm = tkfont.Font(root=cv, family=P["font"], size=self._hf(10))
@@ -337,7 +411,47 @@ class OverlayParts:
                                 outline="", tags=("mg",))
         return self._goalbar_show(main, cv, H, geo)
 
+    def _gb_window_setup(self, main, lw):
+        """The lines' window takes the bar's click-through and capture setting (overlay_click_through)."""
+        try:
+            from .merged_page import set_click_through
+            from .remnant_page import capture_affinity
+            lw.click_through = bool(getattr(main, "click_through", False))
+            set_click_through(lw, lw.click_through)
+            capture_affinity(lw, bool(getattr(self, "_cap_hidden", False)))
+        except Exception:
+            buglog.caught()
+
     def _goalbar_show(self, main, cv, H, geo):
+        lw = getattr(self, "gb_win", None)
+        if lw is not None:                                    # (its own window: the bar doesn't grow or move)
+            self.gb_cv, self._gb_h = cv, 0
+            lw.follow()
+            return cv
         self.gb_cv, self._gb_h = cv, H
         self._gb_place(main, geo, H, getattr(self, "_gb_below", False))
+        self._gb_fit_later(main)
         return cv
+
+    def _gb_fit_later(self, main):
+        """UI overhaul (feedback: "broken void space under the overlay bar"): growing and shrinking by the lines'
+        height drifts when a size was read before the last change landed - the window kept the old height and an
+        empty strip showed under the bar. Once idle, the window is set to exactly what it holds (the bar's edge
+        stays where it is: the bottom, or the top when the lines are under the bar)."""
+        def fit():
+            try:
+                if not main.winfo_exists():
+                    return
+                want, have = main.winfo_reqheight(), main.winfo_height()
+                if want <= 1 or have <= 1 or abs(want - have) < 2:
+                    return
+                x, y = main.winfo_x(), main.winfo_y()
+                if not getattr(self, "_gb_below", False):
+                    y += have - want                            # (the bottom stays put)
+                main.geometry(f"{main.winfo_width()}x{want}+{x}+{y}")
+            except tk.TclError:
+                pass
+        try:
+            main.after_idle(lambda: main.after(50, fit))
+        except tk.TclError:
+            pass

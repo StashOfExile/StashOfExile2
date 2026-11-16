@@ -8,6 +8,9 @@ from . import themes as TH
 from .style import C
 
 
+INDEX = []        # UI overhaul: every section made here - (title, note, outer) - for Go to anything (goto.py)
+
+
 class BarNote:
     """2.114.0: ns.info.config(text=...) -> the section strip's note (the counts used to sit on their own line)."""
 
@@ -71,8 +74,8 @@ class SectionBar(tk.Canvas):
     def _redraw(self):
         self.delete("all")
         w, h = max(self.winfo_width(), 2), self.H
-        fg = TH.paint_bar(self, "section", tag="bar")
         t = TH.ST.theme
+        fg = TH.paint_bar(self, "section", tag="bar")        # (Round 18: the theme's own bar in the Drawer too)
         stops = t.grad(t.part("bars", "section", "fill") or t.part("bars", "title", "fill"))
         mid = TH.grad_at(stops, .5)
         tid = self.create_text(12, h // 2, text=self.title, anchor="w", fill=fg, font=(TH.head_font(), 11, "bold"))
@@ -164,6 +167,7 @@ def section(parent, title, note="", bg_key="panel2", padx=16, pady=8, expand=Fal
             nl.bind("<Configure>", rewrap)
     inner.section_outer, outer.section_title, outer.section_bar = outer, title, bar
     outer.section_note = note                            # (Settings search finds the words in the ⓘ too)
+    INDEX.append((title, note, outer))
     return outer, inner
 
 
@@ -238,6 +242,17 @@ class EmptyState(tk.Frame):
             self.btn = ttk.Button(self, text=button[0], command=button[1])
             self.btn.pack(pady=(12, 0))
         self.set_text(text)
+        self._wrap, self._parent = wrap, parent
+        parent.bind("<Configure>", self._fit, add="+")       # D3: never wider than the box it is in
+
+    def _fit(self, e=None):
+        try:
+            w = max(120, min(self._wrap, self._parent.winfo_width() - 80))
+            if abs(int(self.title_lbl.cget("wraplength") or 0) - w) >= 8:
+                self.title_lbl.config(wraplength=w)
+                self.body_lbl.config(wraplength=w)
+        except tk.TclError:
+            pass
 
     def set_text(self, text):
         head, _, rest = str(text or "").partition("\n")
@@ -261,6 +276,7 @@ class EmptyState(tk.Frame):
             self.set_text(kw.pop("text"))
         if "wraplength" in kw:
             wl = kw.pop("wraplength")
+            self._wrap = int(wl or 340)
             self.title_lbl.config(wraplength=wl)
             self.body_lbl.config(wraplength=wl)
         if cnf or kw:

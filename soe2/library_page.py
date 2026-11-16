@@ -4,7 +4,6 @@ import tkinter as tk
 from tkinter import ttk
 
 from . import gamedata
-from .clipboard import read_clipboard_text
 from .style import C, MONO
 from .chrome import section as chrome_section
 from .pricefmt import fmt_div
@@ -76,15 +75,15 @@ class LibraryPage:
 
         P2 = C["panel2"]
         tk.Label(right, text="Check an item", bg=P2, fg=C["text"], font=("Segoe UI", 12, "bold"), anchor="w").pack(fill="x")
-        tk.Label(right, text="Copy an item in game (Ctrl+C) and paste it: it's read at once. Price it runs the same "
-                             "search as your price check key.",
+        tk.Label(right, text="Copy an item in game (Ctrl+C), click the box below and press Ctrl+V: it's read at once. "
+                             "Price it runs the same search as your price check key.",
                  bg=P2, fg=C["muted"], anchor="w", justify="left", wraplength=420, font=("Segoe UI", 9)).pack(fill="x", pady=(2, 8))
         btns = tk.Frame(right, bg=P2)
         btns.pack(fill="x", pady=(0, 8))
-        # 2.114.0 (P8: "Check" and "Price check" read as the same thing): Paste item reads it, Price it prices it;
-        # what you type in the box is read as you type (no Check button).
-        ttk.Button(btns, text="Paste item", style="Primary.TButton", command=self.lib_paste).pack(side="left")
-        ttk.Button(btns, text="Price it", command=self.lib_price).pack(side="left", padx=8)
+        # 2.114.0 (P8: "Check" and "Price check" read as the same thing): what you paste (Ctrl+V) or type in the box is
+        # read as you type; Price it prices it. (GGG policy: no Paste item button - a click never reads the clipboard)
+        ttk.Button(btns, text="Price it", style="Primary.TButton", command=self.lib_price).pack(side="left",
+                                                                                              padx=(0, 8))
         ttk.Button(btns, text="Clear", style="Quiet.TButton",
                    command=lambda: (self.lib_in.delete("1.0", "end"), self.lib_check())).pack(side="left")
         self.lib_in = tk.Text(right, height=9, bg=C["odd"], fg=C["text"], insertbackground=C["text"], relief="flat",
@@ -108,7 +107,6 @@ class LibraryPage:
         self.lib_out = tk.Text(right, bg=P2, fg=C["text"], relief="flat", highlightthickness=0, font=("Segoe UI", 10),
                                wrap="word", cursor="arrow")
         self.lib_out.pack(fill="both", expand=True, pady=(8, 0))
-        self.root.after(0, lambda: self.attach_lookup(self.lib_out))      # 2.0 beta 10: right-click > Look up
         for tag, kw in (("h", dict(foreground=C["accent"], font=("Segoe UI", 10, "bold"))),
                         ("k", dict(foreground=C["muted"])), ("good", dict(foreground=C["green"])),
                         ("bad", dict(foreground=C["red"])), ("mono", dict(foreground=C["steel"], font=(MONO, 9)))):
@@ -173,24 +171,13 @@ class LibraryPage:
                 break
 
     # ---------------- check an item
-    def lib_paste(self):
-        txt = read_clipboard_text()
-        if not txt:
-            try:
-                txt = self.root.clipboard_get()
-            except tk.TclError:
-                txt = ""
-        self.lib_in.delete("1.0", "end")
-        self.lib_in.insert("1.0", txt or "")
-        self.lib_check()
-
     def lib_check(self):
         o = self.lib_out
         o.config(state="normal")
         o.delete("1.0", "end")
         txt = self.lib_in.get("1.0", "end").strip()
         if not txt:
-            o.insert("end", "Nothing pasted yet.", "k")
+            o.insert("end", "Nothing pasted yet - click the box above and press Ctrl+V.", "k")
             o.config(state="disabled")
             return
         it = gamedata.read_item(txt)
