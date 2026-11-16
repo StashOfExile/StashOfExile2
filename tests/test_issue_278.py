@@ -38,7 +38,6 @@ class WhatsNewCloses(unittest.TestCase):
         app = source("app.py")
         self.assertIn("lead = lead_of([(lead_version(APP_VERSION)", app)
         self.assertIn('getattr(self, "_wn_lead_shown", False) or notes_card', app)
-        self.assertIn("self._wn_notes_card = False", source("about_page.py"))   # (the quick start isn't one)
 
 
 class RatesPictures(unittest.TestCase):

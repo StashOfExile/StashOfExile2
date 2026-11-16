@@ -679,7 +679,7 @@ class PriceCheckPage:
             self._pc_top.pack_forget() if on else self._pc_top.pack(fill="x", before=self._pc_lbox)
             self._pc_count_head.config(pady=8)
             if on:
-                self.pc_side.pack(in_=pane.left, side="right", fill="y", padx=(16, 0), pady=(0, 12),
+                self.pc_side.pack(in_=pane.left, side="right", anchor="n", padx=(16, 0), pady=(0, 12),
                                   before=self._pc_lbox)
                 self.pc_verdict.pack_forget()
             else:
@@ -735,8 +735,8 @@ class PriceCheckPage:
         P2 = C["panel2"]
         f = self.pc_side = tk.Frame(parent, bg=P2, width=self.PC_SIDE_W, padx=16, pady=12, highlightthickness=1,
                                     highlightbackground=C["line"])
-        f.pack_propagate(False)
-        lab = dict(bg=P2, anchor="w", justify="left", bd=0)
+        tk.Frame(f, bg=P2, width=self.PC_SIDE_W - 2 * 16 - 2, height=0).pack()   # 3.0.6 (owner: "the layout is
+        lab = dict(bg=P2, anchor="w", justify="left", bd=0)           # weird"): as tall as its lines, not the page
         self.pcs_head = tk.Label(f, text="Price", fg=C["muted"], font=("Segoe UI", 9), **lab)
         self.pcs_head.pack(fill="x")
         row = tk.Frame(f, bg=P2)

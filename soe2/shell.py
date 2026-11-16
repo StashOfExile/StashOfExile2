@@ -2121,7 +2121,7 @@ class Shell:
         foot.pack(fill="x", side="bottom", padx=8, pady=8, before=cols)   # 2.69.1: gets its room before the lists
         # 2.69.1: two rows of even buttons, so none is cut off in a narrow Toolkit
         btns = (("Settings", lambda: self.open("settings")), ("✦ What's new", lambda: self.app.show_whatsnew(True)),
-                ("➜ Quick start", lambda: self.app.show_quickstart(force=True)),
+                ("➜ Run setup again", lambda: self.app.features_picker()),
                 ("⟳ Check for updates", self.app.check_updates), ("✕ Quit", self.app.on_close))
         self.menu_foot_btns = []
         for i, (text, cmd) in enumerate(btns):

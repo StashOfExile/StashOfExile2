@@ -722,8 +722,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         seen = SETTINGS.get("seen_version")
         if not force and seen == APP_VERSION and not lead_only:
             return
-        if not seen and not force and self.show_quickstart():     # 2.10.0: a fresh install gets the quick start
-            return                                                # (closing it brings the lead: close_whatsnew)
+        # (3.0.6, owner: no quick start - a fresh install gets this card, then Setup: close_whatsnew)
         notes = notes_between(None if force or lead_only or not seen else seen, APP_VERSION)
         from . import features as FEAT
         beta = FEAT.any_beta()                            # 2.125.6: beta features' notes only with them on
@@ -2156,13 +2155,13 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         v = SETTINGS.get("wealth_account", "")
         return f"Account: {v}" if v else "Account: not set"
 
-    ACC_WHY = ("Your account name as the trade site shows it, like Name#1234. Only used to find your own public "
-               "stash tabs (Stash tab, Wealth). No password, no sign-in.")
+    ACC_WHY = ("Your account name as the trade site shows it, like Name#1234. Only used by Bulk Pricing › Stash tab "
+               "to find your own public stash tab. No password, no sign-in.")
 
     def acc_link(self, parent, bg):
         """A small 'Account: Name' label; a click asks for it. 3.0.6 (owner: in Settings › General it "doesn't explain
-        what it's used for ... someone's gonna think is sketchy"): it lives only where it's used - Stash tab and
-        Wealth - and says why it's asked."""
+        what it's used for ... someone's gonna think is sketchy"): it lives only where it's used - Bulk Pricing ›
+        Stash tab - and says why it's asked."""
         from .style import Tooltip
         self.pc_vars()
         lbl = tk.Label(parent, text=self.acc_text(), bg=bg, fg=C["accent"], cursor="hand2", font=("Segoe UI", 9, "underline"))
@@ -2172,7 +2171,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         return lbl
 
     def acc_ask(self):
-        """The account name, asked where it's used (Stash tab, Wealth): one box, with what it's for."""
+        """The account name, asked where it's used (Bulk Pricing › Stash tab): one box, with what it's for."""
         from tkinter import simpledialog
         self.pc_vars()
         v = simpledialog.askstring("Your account", self.ACC_WHY, initialvalue=self.acc_var.get())

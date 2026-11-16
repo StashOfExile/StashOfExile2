@@ -42,15 +42,26 @@ TRADE_SITE = "Trade Site"      # 3.0.6 (owner): every Trade Site button carries 
 
 
 def trade_icon(btn, color=None, size=16):
-    """A Trade Site button (ttk.Button or tk.Label) -> the same button with the globe icon on its left."""
+    """A Trade Site button (ttk.Button or tk.Label) -> the same button with the globe icon after its words. 3.0.6
+    (owner: "on the right side ... centered alongside the text"): the icon is drawn 2 px lower in its picture, so its
+    middle sits on the words' middle, not above it."""
     try:
         from . import lineicons
-        img = lineicons.icon(btn, "globe", size, color or C["text"])
-        if img is not None:
-            btn.configure(image=img, compound="left")
+        from PIL import Image, ImageTk
+        key = ("trade", int(size), str(color or C["text"]).lower())
+        img = _TRADE_IMG.get(key)
+        if img is None:
+            im = lineicons.image("globe", int(size), str(color or C["text"]))
+            pad = Image.new("RGBA", (im.width, im.height + 3), (0, 0, 0, 0))
+            pad.alpha_composite(im, (0, 3))
+            img = _TRADE_IMG[key] = ImageTk.PhotoImage(pad, master=btn)
+        btn.configure(image=img, compound="right")
     except Exception:
         buglog.caught()
     return btn
+
+
+_TRADE_IMG = {}
 
 
 def role(name):

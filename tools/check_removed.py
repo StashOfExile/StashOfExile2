@@ -32,6 +32,9 @@ REMOVED = [
               "\"we don't need a width input box\" - drag its edge; the account is asked where it's used, Stash tab and "
               "Wealth)",
      ("Messages stay for", "% of the game's width"), ("_drawer_share_pick", "build_account_settings")),
+    ("3.0.6", "the Quick start guide and About's Every version's notes link (owner: \"replaced with the thing we give "
+              "people on first time startup\" - Setup, Run setup again; the link showed only this version's notes)",
+     ("Quick start guide", "Every version's notes"), ("show_quickstart", "quickstart_go", "QUICKSTART")),
     ("3.0.4", "Wealth prices typed by hand (owner: never ask for a price - poe.ninja, else the trade site's exchange, "
               "else No price found) and the Where it is card (owner: it told nothing; What moved it took its place)",
      ("Set my own price", "Use the market price again", "Double-click a price to set your own", "Where it is",

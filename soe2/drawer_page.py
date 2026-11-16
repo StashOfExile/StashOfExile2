@@ -710,6 +710,9 @@ class DrawerHost:
         # you let go (_drawer_resized). Nothing re-docks meanwhile: the watcher waits for the release and this job.
         if not self._drawer_mouse_down():
             self._drawer_note_width()
+        elif (e.width, e.height) != getattr(self, "_drawer_last_wh", (e.width, e.height)):
+            self._drawer_freeze(True)                     # (a resize, not a move: the page waits for the release)
+        self._drawer_last_wh = (e.width, e.height)
         job = getattr(self, "_drawer_cfg_job", None)
         if job:
             try:
@@ -717,6 +720,27 @@ class DrawerHost:
             except tk.TclError:
                 pass
         self._drawer_cfg_job = self.root.after(400, self._drawer_resized)
+
+    def _drawer_freeze(self, on):
+        """3.0.6 (owner: dragging the Drawer's edge "lags in settings and every other page", not on Dashboard): while
+        you drag, the open page keeps its size (it isn't laid out again for every pixel); it fills the Drawer again
+        once, when you let go (_drawer_resized)."""
+        sh = getattr(self, "shell", None)
+        try:
+            if on:
+                if getattr(self, "_drawer_frozen", None) is not None or sh is None or not sh.active:
+                    return
+                w = sh.windows.get(sh.active)
+                if w is None or not getattr(w, "_shown", False) or not w.winfo_ismapped():
+                    return
+                tk.Place.place_configure(w, relwidth=0, relheight=0, width=w.winfo_width(), height=w.winfo_height())
+                self._drawer_frozen = w
+            else:
+                w, self._drawer_frozen = getattr(self, "_drawer_frozen", None), None
+                if w is not None and getattr(w, "_shown", False):
+                    w._place_now()
+        except (tk.TclError, AttributeError):
+            self._drawer_frozen = None
 
     def _drawer_maximized(self):
         """The Drawer was maximized: the Full window, as it is (maximized) - nothing re-docks it or puts its size
@@ -772,10 +796,11 @@ class DrawerHost:
     def _drawer_resized(self):
         self._drawer_cfg_job = None
         if not self.drawer_shown_as_drawer():
-            return
+            return self._drawer_freeze(False)
         if self._drawer_mouse_down():                     # still dragging: wait for the release
             self._drawer_cfg_job = self.root.after(400, self._drawer_resized)
             return
+        self._drawer_freeze(False)
         self._drawer_note_width()
         if getattr(self, "_drawer_share_dirty", False):
             self._drawer_share_dirty = False

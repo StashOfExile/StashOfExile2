@@ -309,7 +309,7 @@ class SettingsPage:
         self.league_box.pack(side="left")
         self.league_box.bind("<<ComboboxSelected>>", self.on_league)
         self.league_box.bind("<<ComboboxSelected>>", lambda e: self.root.after(20, self.root.focus_set), add="+")
-        # (3.0.6, owner: Your account moved to where it's used - Stash tab and Wealth, app.acc_link)
+        # (3.0.6, owner: Your account moved to where it's used - Bulk Pricing › Stash tab, app.acc_link)
 
         # (2.120.0, UX pass 2: Game window title is in Settings › Advanced › Over the game)
 
