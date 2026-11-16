@@ -44,6 +44,24 @@ BETA_AREAS = ("Wealth", "Money Makers", "Game Search", "Market Insights", "Craft
 # repeats. Someone coming from rollup["since"] or older (or a fresh install) sees it instead of each version; someone
 # on a pre-release already saw them and gets only this version's own lines (notes_between).
 NOTES = {
+    # 3.0.4 (owner): Wealth's What moved it, 7-day prices, no typed prices; Exchange Rates 7 days; Freedom of Faith;
+    # Scan stash at other sizes; the Sekhemas legend's random affliction line.
+    "3.0.4": {
+        "big": [
+            ("📉", "What moved it", "Wealth shows why your worth changed this week: prices or amounts, the biggest "
+             "price moves, and each item's week (click it).", ("Open Wealth", "wealth"), "Wealth"),
+        ],
+        "small": [
+            ("Wealth", "Items list: 7 days and Worth change columns."),
+            ("Wealth", "Prices come from poe.ninja or the trade site's exchange, else No price found."),
+            ("Wealth", "Stacks of one item are always one row."),
+            ("Exchange Rates", "7 days column: each price's change this week."),
+            ("Price Checks", "Freedom of Faith: searched at its exact Tribute %."),
+            ("Price Checks", "A tablet's uses remaining is one search line with its Adds ... to a Map line."),
+            ("Scan stash", "Should read stack numbers at game sizes other than 1440p."),
+            ("Trial of the Sekhemas", "Legend: never take a random affliction."),
+        ],
+    },
     # 3.0.3: What's new closes for good (issue #278); Exchange Rates draws only the rows in view.
     "3.0.3": {
         "small": [
