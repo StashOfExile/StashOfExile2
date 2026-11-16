@@ -97,12 +97,18 @@ def exchange_rows():
 
 
 class Icons:
-    """Small currency pictures: from the art cache, else fetched in the background; on_ready() runs (on the window's
-    thread) once new ones arrive."""
+    """Small currency pictures: from the art cache, else fetched in the background by ONE worker, one at a time;
+    on_ready() runs (on the window's thread, at most once a second) once new ones arrive. 3.0.3: it was a thread and
+    a timer per picture - hundreds at once froze the app; after a few failures in a row (no internet, a blocked
+    certificate) it stops asking until the app restarts, and the shipped pictures stand in."""
+
+    GIVE_UP = 5                                  # failures in a row before the downloads stop
 
     def __init__(self, root, on_ready, size=ICON):
+        import queue
         self.root, self.on_ready, self.size = root, on_ready, size
         self.cache, self.wait, self.done, self.failed = {}, set(), set(), {}
+        self.q, self.worker, self.polling, self.misses = queue.Queue(), None, False, 0
 
     @staticmethod
     def path(url):
@@ -131,11 +137,31 @@ class Icons:
             except Exception:
                 self.cache[url] = None
                 return None
+        if self.misses >= self.GIVE_UP:
+            return None
         if url not in self.wait and time.time() - self.failed.get(url, 0) > 600:
             self.wait.add(url)
-            threading.Thread(target=self._fetch, args=(url, p), daemon=True).start()
-            self.root.after(400, self._poll)
+            self.q.put((url, p))
+            if self.worker is None or not self.worker.is_alive():
+                self.worker = threading.Thread(target=self._work, daemon=True)
+                self.worker.start()
+            if not self.polling:
+                self.polling = True
+                self.root.after(1000, self._poll)
         return None
+
+    def _work(self):
+        import queue
+        while True:
+            try:
+                url, path = self.q.get(timeout=5)
+            except queue.Empty:
+                return
+            ok = False
+            if self.misses < self.GIVE_UP:
+                ok = self._fetch(url, path)
+                self.misses = 0 if ok else self.misses + 1
+            self.done = self.done | {url}           # (a new set: read on the window's thread)
 
     def _fetch(self, url, path):
         try:
@@ -146,27 +172,28 @@ class Icons:
                 with open(tmp, "wb") as fh:
                     fh.write(r.content)
                 os.replace(tmp, path)
+                return True
         except Exception:
-            buglog.caught()
-        finally:
-            self.done = self.done | {url}           # (a new set: read on the window's thread)
+            if self.misses == 0:                     # (logged once, not once per picture)
+                buglog.caught()
+        return False
 
     def _poll(self):
         done, self.done = self.done, set()
-        if not done:
-            if self.wait:
-                self.root.after(400, self._poll)
-            return
         self.wait -= done
         for u in done:
             if not os.path.exists(self.path(u)):
                 self.failed[u] = time.time()
-        if self.wait:
-            self.root.after(400, self._poll)
-        try:
-            self.on_ready()
-        except Exception:
-            buglog.caught()
+        if self.misses >= self.GIVE_UP:
+            self.wait.clear()
+        self.polling = bool(self.wait)
+        if self.polling:
+            self.root.after(1000, self._poll)
+        if any(os.path.exists(self.path(u)) for u in done):
+            try:
+                self.on_ready()
+            except Exception:
+                buglog.caught()
 
 
 def picture_paths():
@@ -309,6 +336,7 @@ class RatesList(tk.Frame):
         step = (-1 if e.num == 4 else 1) if getattr(e, "num", None) in (4, 5) else (-1 if e.delta > 0 else 1)
         if len(self._rows) * ROW_H > self.cv.winfo_height():
             self.cv.yview_scroll(step * 2, "units")
+            self.paint()                                # (the rows now in view)
 
     def _motion(self, e):
         i = int(self.cv.canvasy(e.y) // ROW_H)
@@ -417,7 +445,12 @@ class RatesList(tk.Frame):
                                else ("Loading prices from poe.ninja…" if self._loading else
                                      "No rates yet. Pick a league in Settings, then press Refresh now."))
             top_vol = max((r[4] for r in rows), default=1) or 1
-            for i, (typ, cid, name, v, vol, url) in enumerate(rows):
+            cv.configure(scrollregion=(0, 0, W, max(len(rows) * ROW_H, cv.winfo_height())))
+            vy = cv.canvasy(0)                         # 3.0.3: only the rows in view (and a few either side) are
+            first = max(0, int(vy // ROW_H) - 3)       # drawn - all of them, pictures included, froze the app
+            last = min(len(rows), int((vy + max(cv.winfo_height(), ROW_H)) // ROW_H) + 4)
+            for i in range(first, last):
+                typ, cid, name, v, vol, url = rows[i]
                 y0 = i * ROW_H
                 if dl:
                     if i == self.hover:
@@ -451,7 +484,6 @@ class RatesList(tk.Frame):
                     cv.create_text(W - 12, cy, text="! Thin", anchor="e", font=("Segoe UI", 9, "bold"), fill=warn)
                 else:
                     cv.create_text(W - 12, cy, text=f"{vol:,.0f}", anchor="e", font=("Segoe UI", 9), fill=mut)
-            cv.configure(scrollregion=(0, 0, W, max(len(rows) * ROW_H, cv.winfo_height())))
         self.status.config(text=RATES.status_text() + (f"  ·  last problem: {RATES.error}" if RATES.error else "")
                            + f"  ·  {len(rows)} items. Traded: how much poe.ninja saw change hands, in divines; "
                              f"under {THIN} is marked ! Thin - its price is shaky.")
