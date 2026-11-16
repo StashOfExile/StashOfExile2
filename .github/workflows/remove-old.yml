@@ -1,0 +1,57 @@
+# 3.0.3: removes what's left from before 3.0.0, plus the 3.0.2 previews that were never released (issue #278):
+# tags archive/*, branches v2.*, releases v3.0.2 and v3.0.2-linux-preview (with their tags).
+# Actions > Remove old versions > Run workflow, type "yes". It refuses unless 3.0.3 or newer is the full ("latest")
+# release, so every app still finds an update. Running it twice changes nothing. Why: docs/REMOVED_VERSIONS.md
+# (versions before 3.0.0 don't follow GGG's third-party policy; 3.0.2 had issue #278).
+name: Remove old versions
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "yes" to remove archive/* tags, v2.* branches and the 3.0.2 previews'
+        required: true
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  remove:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Check first
+        run: |
+          if [ "${{ inputs.confirm }}" != "yes" ]; then echo "::error::Type yes to run it."; exit 1; fi
+          LATEST=$(gh api "repos/$GH_REPO/releases/latest" -q .tag_name)
+          echo "Latest full release: $LATEST"
+          case "$LATEST" in v3.0.0|v3.0.1|v3.0.2|v2.*|v1.*|"") echo "::error::$LATEST is latest - release 3.0.3 first."; exit 1 ;; esac
+      - name: Releases v3.0.2 and v3.0.2-linux-preview
+        run: |
+          for t in v3.0.2 v3.0.2-linux-preview; do
+            if gh release view "$t" >/dev/null 2>&1; then gh release delete "$t" --yes --cleanup-tag && echo "deleted release $t"
+            else echo "no release $t"; fi
+          done
+      - name: Tags archive/*
+        run: |
+          gh api "repos/$GH_REPO/git/matching-refs/tags/archive/" --paginate -q '.[].ref' | while read -r r; do
+            gh api -X DELETE "repos/$GH_REPO/git/$r" && echo "deleted $r"
+          done
+      - name: Branches v2.*
+        run: |
+          gh api "repos/$GH_REPO/git/matching-refs/heads/v2." --paginate -q '.[].ref' | while read -r r; do
+            gh api -X DELETE "repos/$GH_REPO/git/$r" && echo "deleted $r"
+          done
+      - name: What's left
+        run: |
+          {
+            echo "### Removed older versions"
+            echo "Versions before 3.0.0 don't follow GGG's third-party policy (screen read once per key press);"
+            echo "the 3.0.2 previews had issue #278. Details: docs/REMOVED_VERSIONS.md"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "Releases:"; gh api "repos/$GH_REPO/releases" --paginate -q '.[].tag_name'
+          echo "Tags:"; gh api "repos/$GH_REPO/tags" --paginate -q '.[].name'
+          echo "Branches:"; gh api "repos/$GH_REPO/branches" --paginate -q '.[].name'

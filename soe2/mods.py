@@ -342,6 +342,10 @@ def vfilter(mod):
         return out or None
     if mod.get("novalue"):
         return None
+    if mod.get("exact") and mod.get("value") is not None:      # 3.0.4: priced by its exact value (gear.EXACT_ROLLS)
+        return {"min": mod["value"], "max": mod["value"]}
+    if mod.get("at_least") and mod.get("value") is not None:   # 3.0.4: a tablet's uses: at least as many as yours
+        return {"min": mod["value"]}
     t = min_for(mod)
     if t is None:
         return None

@@ -2,7 +2,7 @@ r"""
 StashOfExile2 - a Path of Exile 2 price checker for tablets and jewels, with a window instead of a text dump.
 Free software under the GNU AGPL v3.0 (see LICENSE; up to 2.129.4: GNU GPL v3.0). Written by an AI (Claude, by Anthropic) under a human's direction.
 
-VERSION 3.0.3
+VERSION 3.0.4
   How versions are numbered (from 2.0.0 on):
     MAJOR.MINOR.PATCH.  The 22 betas ended here: this build is 2.0.0. From now on every build gets a plain number:
       2.0.1, 2.0.2 ...  fixes (nothing new to learn)
@@ -19,6 +19,25 @@ VERSION 3.0.3
   version (settings.json, session.json, modbook.json, mod_rules.json, wealth.json, tabs.txt ...).
 
 VERSION HISTORY
+  3.0.4
+       - No pre-releases: release.yml publishes the full release ("latest") with the "Coming from 2.x?" box; every
+         version is tested on a local build first (owner). Everything older than 3.0.0 was removed from GitHub
+         (Actions › Remove old versions; docs/REMOVED_VERSIONS.md says why).
+       - Wealth: What moved it replaces Where it is - the week's change split into prices (what you hold now x each
+         price's 7-day change, from poe.ninja's sparkline, turned into divines through the pair it trades against)
+         and amounts (the rest since the snapshot from about 7 days ago); the biggest price moves; click an item (or
+         a row) for its week. Items list: 7 days and Worth change columns. No price is ever typed by hand (overrides,
+         Set my own price gone): poe.ninja, else the trade site's exchange, else No price found. The exchange's
+         "too few offers" is kept (bulk_prices.json, price None) so a restart doesn't say "asking..." for ever, and
+         the exchange is asked after a restart too. No price found / Combine stacks switches gone (always combined).
+         wealth_prices.json v3 (refetched once).
+       - Exchange Rates: a 7 days column (small line, mark and %).
+       - Price check: a tablet's "Adds X to a Map" + "N uses remaining" are one trade stat (implicit "... # use
+         remaining"): one row, at least N uses. Freedom of Faith: its Tribute % searched exactly (gear.EXACT_ROLLS).
+       - Scan stash: away from 1440p the game draws stack numbers smaller than the panel (a ~1275 px game: 80% vs
+         89%, 668 read as 1). Each tab now finds its digit size (digit_scale), each slot is read at three sizes
+         around it. 1440p reference shots unchanged (0 of 238 wrong).
+       - Trial of the Sekhemas: the legend's first Avoid line: Random affliction - never take one.
   3.0.3
        - Issue #278: What's new reopened after Got it on 3.0.1 / 3.0.2 when this version was already seen but 3.0.0's
          lead ("Why 3.0") wasn't: that card had no lead, so the lead was never marked seen and closing brought it back.
@@ -3915,7 +3934,7 @@ THE "LEARNING" PART
 import os
 import sys
 
-APP_VERSION = "3.0.3"  # bump this and __version__ in soe2/__init__.py together (see VERSION above)
+APP_VERSION = "3.0.4"  # bump this and __version__ in soe2/__init__.py together (see VERSION above)
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 

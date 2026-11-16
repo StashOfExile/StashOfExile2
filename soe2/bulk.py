@@ -13,7 +13,8 @@ from . import buglog
 from .config import BASE, load_json, save_json
 from .net import call
 
-FILE = "bulk_prices.json"          # {league: {exchange id: [divines each, ts, offers, currency]}}
+FILE = "bulk_prices.json"          # {league: {exchange id: [divines each, ts, offers, currency]}} - divines None (3.0.4):
+                                   # asked, too few offers (kept like a price, so a restart doesn't ask again at once)
 MAX_AGE = 3600
 MIN_OFFERS = 3
 HAVE = ("divine", "exalted")
@@ -56,9 +57,15 @@ def _cache():
 def cached(league, xid, max_age=MAX_AGE):
     """-> (divines each, offers, currency) from the last hour, or None."""
     hit = _cache().get(league, {}).get(xid)
-    if hit and time.time() - hit[1] < max_age:
+    if hit and hit[0] is not None and time.time() - hit[1] < max_age:
         return hit[0], hit[2], hit[3] if len(hit) > 3 else "divine"
     return None
+
+
+def missed(league, xid, max_age=MAX_AGE * 6):
+    """3.0.4: asked within max_age and the exchange had too few offers -> True."""
+    hit = _cache().get(league, {}).get(xid)
+    return bool(hit and hit[0] is None and time.time() - hit[1] < max_age)
 
 
 def per_unit(result):
@@ -99,6 +106,8 @@ def price(league, xid, to_div, call_=None):
     hit = cached(league, xid)
     if hit:
         return hit
+    if missed(league, xid, MAX_AGE):
+        return None
     best = None
     for have in HAVE:
         prices = search(league, xid, have, call_)
@@ -109,9 +118,11 @@ def price(league, xid, to_div, call_=None):
                 best = (d, len(prices), have)
                 if len(prices) >= MIN_OFFERS:
                     break
-    if best is None:
-        return None
     c = _cache()
+    if best is None:
+        c.setdefault(league, {})[xid] = [None, time.time(), 0, None]
+        save_json(FILE, c)
+        return None
     c.setdefault(league, {})[xid] = [best[0], time.time(), best[1], best[2]]
     save_json(FILE, c)
     return best

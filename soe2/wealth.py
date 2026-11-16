@@ -9,6 +9,7 @@ import requests
 import threading
 import time
 from .config import BASE, load_json, save_json, SETTINGS
+from . import buglog
 from .net import call
 from .rates import Rates
 from .mods import JEWEL_KINDS, norm, strip_markup, TAB_KINDS
@@ -394,15 +395,6 @@ def wealth_display_name(it):
     return f"{it['name']} {base}".strip() if it["name"] else base
 
 
-def wealth_key(it):
-    """Manual prices are shared by every copy of the same thing (rares get their own, keyed by listing)."""
-    if it["frame"] in (1, 2):
-        return "item:" + str(it["lid"])
-    if it["frame"] == 3:
-        return "unique:" + it["name"].lower()
-    return "type:" + (it["base"] or it["type"]).lower()
-
-
 WEALTH_CUR_WORDS = {"div": "divine", "divs": "divine", "divine": "divine", "divines": "divine", "d": "divine",
                     "vaal": "vaal", "vaals": "vaal", "chaos": "chaos", "c": "chaos", "ex": "exalted", "exa": "exalted",
                     "exalt": "exalted", "exalted": "exalted", "exalts": "exalted", "regal": "regal", "annul": "annul",
@@ -465,7 +457,6 @@ class WealthStore:
         self.lock = threading.RLock()
         self.tabs = d.get("tabs", [])              # {id, label, amount, currency, enabled}
         self.items = d.get("items", {})            # tab id -> [wealth_item]
-        self.overrides = d.get("overrides", {})    # wealth_key -> divines
         self.snapshots = d.get("snapshots", [])    # {ts, league, total, by_tab, by_cat, n, priced}
         self.results = d.get("results", {})        # tab id -> {total, fetched, warnings, error, qid, ts}
         self.last_sync = d.get("last_sync", 0)
@@ -482,7 +473,7 @@ class WealthStore:
         with self.lock:
             known = {str(i["lid"]) for lst in self.items.values() for i in lst}
             self.rare_prices = {k: v for k, v in self.rare_prices.items() if k in known}   # gone from your tabs: forget
-            data = {"tabs": self.tabs, "items": self.items, "overrides": self.overrides, "snapshots": self.snapshots[-3000:],
+            data = {"tabs": self.tabs, "items": self.items, "snapshots": self.snapshots[-3000:],
                     "results": self.results, "last_sync": self.last_sync, "rare_prices": self.rare_prices,
                     "holdings": self.holdings}
         save_json("wealth.json", data)
@@ -514,7 +505,7 @@ class WealthStore:
         return h["qty"] if h else 0
 
     def snapshot(self, league, prices, why="", replace=False):
-        rows, total, priced = wealth_rows(self.all_items(), prices, self.overrides)
+        rows, total, priced = wealth_rows(self.all_items(), prices)
         if not rows:
             return None
         by_tab, by_cat = {}, {}
@@ -536,8 +527,45 @@ class WealthStore:
         return snap
 
 
-PRICES_VERSION = 2
+PRICES_VERSION = 3          # 3.0.4: each line's 7-day price line (sparkline) is kept too
 BULK_TRIED = set()          # 2.114.3: names the bulk exchange was asked about this run (no answer = too few offers)
+
+
+def _num(x):
+    try:
+        return float(x)
+    except (TypeError, ValueError):
+        return None
+
+
+def _spark(sp):
+    """poe.ninja's sparkline {"totalChange": -6.2, "data": [0, -1.1, ... 7 points, % against the first]} ->
+    (total %, [points]) or None. A missing point (null) takes the one before."""
+    if not isinstance(sp, dict):
+        return None
+    data, out, last = sp.get("data"), [], 0.0
+    if not isinstance(data, list) or not data:
+        tc = _num(sp.get("totalChange"))
+        return (tc, [0.0, tc]) if tc is not None else None
+    for p in data:
+        v = _num(p)
+        last = v if v is not None else last
+        out.append(last)
+    tc = _num(sp.get("totalChange"))
+    return (tc if tc is not None else out[-1]), out
+
+
+def _combine(pts, base):
+    """An item's points (% against the first) in its pair currency + the pair's points in divines -> the item's
+    points in divines. The two lists are lined up from their ends (both end now)."""
+    n = min(len(pts), len(base))
+    if not n:
+        return None
+    a, b = pts[-n:], base[-n:]
+    out = []
+    for x, y in zip(a, b):
+        out.append(None if x is None or y is None else ((1 + x / 100.0) * (1 + y / 100.0) - 1) * 100.0)
+    return out
 
 
 def slug(name):
@@ -671,22 +699,29 @@ class WealthPrices:
                 elif isinstance(items, dict):
                     for k, v in items.items():
                         names[k] = (v or {}).get("name") or names.get(k) or k
-            lines = []
+            lines, spark = [], {}
             for ln in body.get("lines") or []:
                 try:
                     lines.append([ln["id"], names.get(ln["id"]) or ln["id"], float(ln["primaryValue"]),
                                   float(ln.get("volumePrimaryValue") or 0)])
                 except (KeyError, TypeError, ValueError):
-                    pass
-            return {"primary": core.get("primary"), "names": names, "lines": lines, "images": images}
-        lines = []
+                    continue
+                sp = _spark(ln.get("sparkline") or ln.get("sparkLine"))     # 3.0.4: the week, for Wealth
+                if sp:
+                    spark[ln["id"]] = [sp[0], sp[1], ln.get("maxVolumeCurrency"), _num(ln.get("maxVolumeRate"))]
+            return {"primary": core.get("primary"), "names": names, "lines": lines, "images": images, "spark": spark}
+        lines, spark = [], {}
         for ln in body.get("lines") or []:
             try:
                 lines.append([ln["name"], ln.get("baseType") or "", float(ln["primaryValue"]),
                               int(ln.get("listingCount") or 0), bool(ln.get("corrupted"))])
             except (KeyError, TypeError, ValueError):
-                pass
-        return {"lines": lines}
+                continue
+            sp = _spark(ln.get("sparkLine") or ln.get("sparkline"))         # 3.0.4: in the league's primary currency
+            k = ln["name"].lower()
+            if sp and (k not in spark or lines[-1][3] > spark[k][2]):
+                spark[k] = [sp[0], sp[1], lines[-1][3]]
+        return {"lines": lines, "spark": spark}
 
     def _index(self):
         """Build the lookup tables in divines."""
@@ -713,6 +748,93 @@ class WealthPrices:
             for name, base, v, count, corrupted in (self.parts.get(typ) or {}).get("lines", []):
                 self.uniques.setdefault(name.lower(), []).append((base.lower(), v / per_div, count, corrupted, f"poe.ninja {typ}"))
         self.by_name.setdefault("divine orb", (1.0, "poe.ninja Currency"))
+        try:
+            self._index_trends(primary, per_div)
+        except Exception:                                      # (a new answer shape never breaks the prices)
+            buglog.caught()
+            self.trend_by_name, self.trend_by_slug = {}, {}
+
+    def _index_trends(self, primary, per_div):
+        """3.0.4: each item's price change over the last 7 days, in divines -> trend_by_name / trend_by_slug:
+        (change %, [7 points: % against the first]). poe.ninja's line is for the pair the item trades most against
+        (maxVolumeCurrency): the rate is turned the right way round by checking it against the price, then the pair's
+        own change in divines is added on (divines: none)."""
+        value = {}                                             # id -> value in the primary currency
+        spark = {}
+        for typ in NINJA_EXCHANGE_TYPES:
+            part = self.parts.get(typ) or {}
+            for cid, _n, v, _vol in part.get("lines", []):
+                value[cid] = v
+            spark.update(part.get("spark") or {})
+        value.setdefault(primary, 1.0)
+        memo = {}
+
+        def in_div(cid, depth=0):
+            """-> [points] (% against the first) of cid's price in divines, or None."""
+            if cid == "divine":
+                return [0.0] * 7
+            if cid in memo:
+                return memo[cid]
+            memo[cid] = None                                   # (a loop: unknown)
+            sp = spark.get(cid)
+            if not sp or depth > 3:
+                return None
+            _tc, pts, pair, rate = sp
+            pair = pair or primary
+            v, vp = value.get(cid), value.get(pair)
+            if pts and v and vp and rate:
+                import math
+                direct = abs(math.log(v / (rate * vp)))       # rate = pair per item: same way as the price
+                inverse = abs(math.log(v * rate / vp))        # rate = items per pair: the other way
+                if inverse < direct:
+                    pts = [(100.0 / (1 + p / 100.0) - 100.0) if p > -100 else None for p in pts]
+            elif not pts:
+                return None
+            base = in_div(pair, depth + 1) if pair != cid else [0.0] * 7
+            if base is None:
+                return None
+            out = _combine(pts, base)
+            memo[cid] = out
+            return out
+
+        self.trend_by_name, self.trend_by_slug = {}, {}
+        names = {}
+        for typ in NINJA_EXCHANGE_TYPES:
+            for cid, name, _v, _vol in (self.parts.get(typ) or {}).get("lines", []):
+                names[cid] = name
+        for cid in spark:
+            pts = in_div(cid)
+            if pts and pts[-1] is not None:
+                t = (pts[-1], pts)
+                self.trend_by_slug[str(cid).lower()] = t
+                if cid in names:
+                    self.trend_by_name[str(names[cid]).lower()] = t
+        prim = in_div(primary) if primary != "divine" else [0.0] * 7
+        for typ in NINJA_ITEM_TYPES:
+            for k, (_tc, pts, _n) in ((self.parts.get(typ) or {}).get("spark") or {}).items():
+                if prim is not None and pts:
+                    out = _combine(pts, prim)
+                    if out and out[-1] is not None:
+                        self.trend_by_name.setdefault(k, (out[-1], out))
+
+    def trend(self, it):
+        """3.0.4: (change % over 7 days, [points]) in divines for this item, or None (no poe.ninja line for it,
+        priced by the trade site's exchange, or another league's prices)."""
+        if not self.for_league() or it["frame"] in (1, 2):
+            return None
+        tn, ts = getattr(self, "trend_by_name", {}), getattr(self, "trend_by_slug", {})
+        if it["frame"] == 3:
+            return tn.get(it["name"].lower())
+        names = [n for n in (it["type"], it["base"]) if n]
+        for n in names:
+            if n.lower() in tn:
+                return tn[n.lower()]
+        for n in names:
+            if slug(n) in ts:
+                return ts[slug(n)]
+        if any(n.lower() == "divine orb" for n in names):
+            return 0.0, [0.0] * 7
+        return None
 
     def value(self, it):
         """-> (divines per unit, source) or (None, None)."""
@@ -764,6 +886,8 @@ class WealthPrices:
                 continue
             for n in [x for x in (it.get("type"), it.get("base")) if x]:
                 xid = bulk.exchange_id(n)
+                if xid and (n in BULK_TRIED or bulk.missed(SETTINGS.get("league") or self.league or "", xid)):
+                    break                                       # 3.0.4: asked already - too few offers
                 if xid and xid not in seen:
                     seen.add(xid)
                     out.append((n, xid))
@@ -778,7 +902,8 @@ class WealthPrices:
         names = [x for x in (it.get("type"), it.get("base")) if x]
         if not any(bulk.exchange_id(n) for n in names):
             return "not on poe.ninja or the trade site's exchange"
-        if any(n in BULK_TRIED for n in names):
+        lg = SETTINGS.get("league") or self.league or ""
+        if any(n in BULK_TRIED or bulk.missed(lg, bulk.exchange_id(n)) for n in names if bulk.exchange_id(n)):
             return "too few offers on poe.ninja or the trade site's exchange"
         return "not on poe.ninja - asking the trade site's exchange…"
 
@@ -807,15 +932,12 @@ def rares_to_price(items, league, now=None):
     return [it for _k, it in out]
 
 
-def wealth_rows(items, prices, overrides):
-    """-> ([(item, divines each or None, divines total or None, source)], total, priced count)"""
+def wealth_rows(items, prices):
+    """-> ([(item, divines each or None, divines total or None, source)], total, priced count). 3.0.4 (owner):
+    never a price typed by hand - poe.ninja, else the trade site's exchange, else no price found."""
     rows, total, priced = [], 0.0, 0
     for it in items:
-        ov = overrides.get(wealth_key(it))
-        if ov is not None:
-            each, src = float(ov), "your price"
-        else:
-            each, src = prices.value(it)
+        each, src = prices.value(it)
         tot = each * it["qty"] if each is not None else None
         if tot is not None:
             total += tot
