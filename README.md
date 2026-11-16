@@ -2,67 +2,95 @@
 
 *One tool to rule them all.*
 
-> **GGG ToS safety check - read first.** One key press = one action · nothing plays the game for you · never touches the game's memory, code or traffic · reads only your clipboard, Client.txt, your screen, the trade site and poe.ninja. Every change must pass [TOS.md](TOS.md).
+> **GGG ToS safety check - read first.** One key press = one action · nothing plays the game for you · never touches the game's memory, code or traffic · reads Client.txt, the trade site and poe.ninja, and your clipboard or screen only once per key press. Every change must pass [TOS.md](TOS.md).
 
-A Windows toolkit that runs next to **Path of Exile 2**: price checks, bulk pricing, an overlay with helpers, and planning tools. Written by Claude (an AI by Anthropic), directed and tested by a human player. Open source.
+A free, open-source Windows companion for **Path of Exile 2**: price checks, bulk pricing, exchange rates, helpers over the game and league planning. Written by Claude (an AI by Anthropic), directed and tested by a human player.
 
-![The app: Bulk Pricing with three tablets priced](docs/screenshots/app.png)
+![Full window: the Dashboard](docs/screenshots/full-window.png)
 
-![The overlay: the Bar, Notes, a price check card and Music Controls](docs/screenshots/overlay.png)
+| The Drawer (one monitor) | The Overlay over the game |
+|---|---|
+| ![The Drawer over the game's side, on Exchange Rates](docs/screenshots/drawer.png) | ![The overlay: the Bar, Notes, a price check card and Music Controls](docs/screenshots/overlay.png) |
 
-*Screenshots: sample items and made-up listings.*
+*Screenshots: sample data and made-up listings.*
+
+## New in 3.0
+
+![What's new in 3.0: Why 3.0 and How helpers work now](docs/screenshots/whats-new.png)
+
+- **Why 3.0** - to follow Grinding Gear Games' third-party policy: the app reads your screen or clipboard only when you press a key, once per press. Nothing watches your screen by itself.
+- **How helpers work now** - press your **Look key** (**Ctrl+Shift+R**) where a helper applies. The read mark (👁) shows what was read. A price check reads the clipboard on its key (**Ctrl+D**).
+- **Drawer** - the app over the game's side: suggested for one monitor. **Full window** is suggested for two or more.
+- **Trial of the Sekhemas** (BETA), **Back from a map** (Map profit + Top Up Reminders in one card), **Campaign Bar**, **Broaden Search** on price checks.
+- Gone, because they watched the screen by themselves: the Delirium helper, the Temple Helper's Vaal Beacon read, Map Content reads. The Toolkit row is gone too (Go to anything, Ctrl+K, finds every page).
+
+A small **NEW** chip marks what's new on its row and on its page's icon, until you open or use it.
+
+## Third-party policy
+
+GGG's rule for tools: *"Reading from the screen or clipboard may only be performed once per manual key press."* The app follows it at its strictest - only a key you press for the read, never a timer, a click, a file change or the app starting.
+
+- **One read per key press.** Holding a key reads once. Each read shows the read mark (👁) for a second and writes a line in the app's log.
+- **Your screen: only on the Look key.** **Ctrl+Shift+R** as the app comes (Settings › Keybinds). The game still gets the key. One picture of the game window; every helper that applies where you are reads its part, then it's dropped. Clear the key and nothing reads the screen.
+- **Your clipboard: only on a copy key.** The price check key (Ctrl+D), Ctrl+Alt+C for Bulk Pricing, the Top Up key: one read, 0.2 s after the press. A chat command key reads it once, to put your text back. Ctrl+V in one of the app's boxes. Nothing watches the clipboard.
+- **The game's log (Client.txt)** is followed all the time: where you are, Breach warnings, rituals started, whispers.
+- **Never** the game's memory, files or network traffic. The game client is never changed.
+- **Never a macro.** After your key press the app does at most one thing in the game: the game's own item copy, or one chat command. The mouse is never moved or clicked for you.
+- The trade site is searched only for what you started, well inside its limits, with a User-Agent that says who is asking. Rates come from poe.ninja.
+- The full list of every read and its trigger: [TOS.md](TOS.md).
+
+This product isn't affiliated with or endorsed by Grinding Gear Games in any way.
 
 ## What it does
 
-**Pricing**
-- **Price Checks** - hover an item, press **Ctrl+D**: price, how sure, and how it was worked out.
-- **Bulk Pricing** - **Ctrl+Alt+C** on many items (best for tablets, waystones, jewels); priced as a list.
-- **Favorites** - save a search or paste a trade link.
-- **Rate Mods** - rate mods S to F; your ratings tune your price checks.
-- **Exchange Rates** - poe.ninja rates, a converter and a flip check.
+**Trade**
+- **Price Checks** - hover an item, press **Ctrl+D**: price, how sure, and how it was worked out. Too few listings for a base? **Broaden Search** widens it, one step a click.
+- **Bulk Pricing** - **Ctrl+Alt+C** on many items (tablets, waystones, jewels): priced as a list.
+- **Favorites**, **Rate Mods** (your ratings tune your price checks), **Exchange Rates** (poe.ninja, a converter, a flip check), **Market Insights**.
 
-**Game Overlay** (over the game, in your chosen style)
-- **The Bar** - session timer, maps run, average per map, clock, Notes, Calc, Regex, Rates.
-- **Price check card** - the price over the game instead of in the app.
-- **Ritual** - counts rituals, prices Favours rewards, reminds you about tribute and unfinished rituals.
-- **Expedition** - prices each reward in a remnant's book.
-- **Breach / Delirium** - reminders when Hiveblood is full or a Delirium is about to end.
-- **Trade whispers** - a card for each buy whisper.
-- **Campaign Helper** - where you are, what's next, missed rewards.
-- **Island Rumors** - which island each rumor leads to.
-- **Music Controls** (BETA) - ⏮ ⏯ ⏭ for any music player, in a small window you place.
-
-**Planning**
-- **League Plan** - goals by phase, stockpile and farm plan.
-- **Map Library** - every map ranked S to D, by you and the community.
+**Stash**
+- **Wealth** - what your stash is worth: Scan stash reads one tab per Look key press.
 - **Regex** - stash search strings for tablets, waystones, relics, jewels and gear.
-- **Leaderboards** - fastest acts, maps and bosses (opt-in).
-- **Money Makers** (BETA) - community farming strats and the Craft Helper.
+- **Craft Helper** (BETA) - each mod of a tablet or jewel rated S to F, and a next step.
 
-**Beta** (off until you turn it on): Wealth, Market Insights, Game Search, Desecration Helper.
+**League**
+- **League Plan**, **Map Profit** (BETA), **Farming Strategies** (BETA), **Map Library**, **Leaderboards** (opt-in).
 
-## Install
+**Tools**
+- **Game Search** - every skill, item, mod and keyword, from the game's own data, on your PC.
 
-Download `StashOfExile2.exe` from [Releases](../../releases) and run it. It updates itself; your settings stay in `%APPDATA%\StashOfExile2`.
+**Overlay** (over the game, Bar or Panel layout)
+- **Session timer**, Notes, Calc, Regex and Rates menus, the **Price check overlay**.
+- Helpers - press your **Look key** where one applies: **Ritual** (counter, Favours prices, Ritual Identifier), **Expedition** (remnant rewards, Island rumors), **Desecration Helper**, **Temple Helper** (BETA, Vaal Lens), **Trial of the Sekhemas** (BETA), **Back from a map** (Map profit, Top Up Reminders).
+- From the game's log: **Breach**, **Campaign Helper** and the **Campaign Bar**, **Trade whispers**, **Break reminders**. Plus **Music Controls**.
 
-Each release lists the SHA-256 of every download and a VirusTotal scan of the exe: open the [latest release](https://github.com/tiwomm/StashOfExile2/releases/latest), then the VirusTotal link under **Check your download** shows the scan results.
+## Window: Drawer or Full window
+
+- **Drawer** - suggested for one monitor. The app over the game's side; **Ctrl+Shift+Space** (the Drawer key) shows it and puts it away.
+- **Full window** - suggested for two or more monitors. A normal window, where you left it.
+- Switch any time: Settings › General › Window.
+
+## Install and update
+
+Download `StashOfExile2.exe` from [Releases](https://github.com/StashOfExile/StashOfExile2/releases) and run it. It updates itself; your settings stay in `%APPDATA%\StashOfExile2`.
+
+The project moved to [github.com/StashOfExile/StashOfExile2](https://github.com/StashOfExile/StashOfExile2). If your 2.x app doesn't offer 3.0 by itself, download it once from Releases - it updates itself from then on, and your settings are kept.
+
+Each release lists the SHA-256 of every download and a VirusTotal scan of the exe: open the [latest release](https://github.com/StashOfExile/StashOfExile2/releases/latest), then the VirusTotal link under **Check your download**.
 
 From source (Python 3.12): `py -m pip install requests pystray pillow mss numpy opencv-python-headless` then `py stashofexile2.py`. Linux: see [linux/](linux/README.md).
 
 ## Privacy
 
-- Nothing leaves your PC unless you turn on Community data sharing - and then only anonymous data, never names or wealth.
-- Error reports: off until you say yes, a switch of their own. Only where in the code an error happened and its type - never messages, names, items or files.
+- The usage count (on until you switch it off, Settings › Privacy & community): a random id made on your PC, every 10 minutes, so we know how many people use the app. Not your account, name or PC.
+- Nothing else leaves your PC unless you turn on Community data sharing - and then only anonymous data, never names or wealth.
+- Error reports: off until you say yes. Only where in the code an error happened and its type - never messages, names, items or files.
 - Logs (`app_log.txt`, `crash_report.txt`) stay on your PC and leave out your names and folders. You see every word before a bug report is sent.
 - Settings › Privacy & community › Leave and delete my data removes everything of yours from the community board.
 
-## Fair play
-
-One action per key press. Nothing read from the game's memory or traffic. The trade site is searched slowly, well under its limits.
-
 ## Community
 
-Questions and bug reports: [Discord](https://discord.gg/Ta8EVnxx4T). Plans: [ROADMAP.md](ROADMAP.md).
+Questions and bug reports: [Discord](https://discord.gg/jG5uCDYgbR). Plans: [ROADMAP.md](ROADMAP.md).
 
 ## Credits
 

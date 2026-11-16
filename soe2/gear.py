@@ -29,13 +29,16 @@ from . import buglog, gamedata
 from .config import BASE
 from .mods import merge_dups, norm, option_for, read_numbers, search_sid, roll_pct, strip_markup
 from .net import call
-from .trade import apply_opts, _cached, _search_cache, listing_rules
+from .trade import apply_opts, _cached, flag_filters, _search_cache, listing_rules
 
 ARMOUR_CLASSES = {"body_armour", "helmet", "gloves", "boots", "shield", "buckler", "focus"}
 PER_BASE_CLASSES = {"ring", "amulet", "belt", "quiver", "charm", "flask", "relic"}
 ATTACK_WEAPONS = {"bow", "crossbow", "quarterstaff", "spear", "flail", "dagger", "one_hand_axe", "one_hand_mace",
                   "one_hand_sword", "two_hand_axe", "two_hand_mace", "two_hand_sword", "talisman", "claw"}
-EXCEPTIONAL_SOCKETS = {"gloves": 2, "boots": 2, "helmet": 2, "body_armour": 3}
+EXCEPTIONAL_SOCKETS = {"gloves": 2, "boots": 2, "helmet": 2, "body_armour": 3,     # owner: this many sockets
+                       "shield": 2, "focus": 2, "wand": 2, "spear": 2,             # (not from a corruption)
+                       "staff": 3, "quarterstaff": 3, "crossbow": 3, "bow": 3, "talisman": 3,  # is exceptional
+                       "sceptre": 2, "one_hand_mace": 2, "two_hand_mace": 2}
 NOT_GEAR = {"tablet", "waystone", "jewel"}             # priced by the tablet / jewel checker (or not at all)
 
 DEFENCES = {        # trade-site filter -> (item property, name, the stat wordings that feed it)
@@ -325,7 +328,8 @@ def gem_item(g, text):
     sockets = len(sk.group(1).split()) if sk else 0
     q = int(g.get("quality") or 0)
     s = gem_search(g["name"], level, sockets, q, g.get("corrupted"))
-    bits = [f"level {level}+" if level else None, f"{sockets} sockets" if sockets <= 2 else f"{sockets}+ sockets",
+    bits = [f"level {level}+" if level else None,
+            f"{sockets} socket{'s' if sockets != 1 else ''}" if sockets <= 2 else f"{sockets}+ sockets",
             f"{q}%+ quality" if q else "no quality", "corrupted" if g.get("corrupted") else "not corrupted"]
     return {"class": g["class_text"], "gear": True, "gclass": None, "rarity": "Gem", "name": g["name"],
             "base": g["name"], "mods": [], "uses": None, "corrupted": bool(g.get("corrupted")), "quality": q,
@@ -335,7 +339,14 @@ def gem_item(g, text):
 
 def parse_gear(text):
     """A copied piece of gear -> a price-check item (same shape as a tablet / jewel item, plus "gear": True and the
-    search plan), or None if it isn't gear."""
+    search plan), or None if it isn't gear. Its flags (owner decision A: searched with the same flags) ride along."""
+    it = _parse_gear(text)
+    if it is not None:
+        it["flags"] = sorted(gamedata.copy_flags(text))
+    return it
+
+
+def _parse_gear(text):
     g = gamedata.read_item(text)
     gi = gem_item(g, text)                                   # 2.130.0: skill / support / spirit gems
     if gi:
@@ -380,6 +391,8 @@ def parse_gear(text):
              "sid": ids[0] if ids else None, "ids": ids, "group": "explicit" if kind in AFFIX_KINDS else gm["kind"],
              "guess": None, "note": None, "key": None, "novalue": v is None, "covered": None,
              "ref": stat["ref"] if stat else None}
+        if gm.get("header"):                                 # "{ Mutated Prefix Modifier }": the extra word, kept
+            m["header"] = list(gm["header"])
         m["roll"] = roll_pct(m)
         if v is not None and neg and m["roll"] is not None:
             m["roll"] = 1 - m["roll"]
@@ -514,6 +527,9 @@ def parse_gear(text):
     for m in mods:
         if m["covered"] and not m.get("note"):
             m["note"] = m["covered"]
+        if m.get("header"):                                  # a header word the app doesn't know yet: read as usual
+            words = " ".join(w.title() for w in m["header"])
+            m["note"] = (m["note"] + "; " if m.get("note") else "") + f"{words} in its header: read as a normal {m['kind'].lower()} mod"
 
     search = {"category": cinfo.get("trade"), "type": None, "name": None, "rarity": "nonunique",
               "corrupted": bool(g.get("corrupted")), "sockets_min": None}
@@ -543,15 +559,23 @@ def parse_gear(text):
         white = g["rarity"] == "Normal"                 # level, Normal / Magic, not corrupted, fractured or
         lv = g.get("ilvl")                              # sanctified; its quality and sockets (at least) when it has
         top = bool(lv and lv >= ILVL_TOP)               # them. 2.131.4: 82 and up all roll the same - 82+
+        socks = g.get("sockets") or None
+        need_s = EXCEPTIONAL_SOCKETS.get(cls)                  # owner: a base's sockets are searched only when
+        usual = bool(socks) and not g.get("corrupted") and not (need_s and socks >= need_s)   # they are exceptional
+        if usual:                                              # for its class - otherwise not on the first check
+            socks = None
         search.update(type=g["base"], category=None, rarity="normal" if white else "magic", corrupted=False,
                       fractured=False, sanctified=False, ilvl_min=ILVL_TOP if top else lv,
                       ilvl_max=None if top else lv, base_exact=True,
-                      quality_min=q or None, sockets_min=g.get("sockets") or None)
-        notes.append(("white" if white else "magic") + " base: " + ", ".join(
+                      quality_min=q or None, sockets_min=socks)
+        own = gamedata.copy_flags(text) & {"corrupted", "fractured", "sanctified"}     # owner decision A: a
+        notes.append(("white" if white else "magic") + " base: " + ", ".join(        # flagged base: the same flags
             x for x in (f"item level {ILVL_TOP}+ (82 and up roll the same)" if top else
                         f"item level {lv}" if lv else "", f"{q}%+ quality" if q else "",
-                        f"{g['sockets']}+ sockets" if g.get("sockets") else "",
-                        "not corrupted, fractured or sanctified") if x))
+                        f"{socks}+ sockets" if socks else
+                        f"sockets not searched ({g['sockets']} is not exceptional)" if usual else "",
+                        "not corrupted, fractured or sanctified" if not own else
+                        " and ".join(f for f in ("corrupted", "fractured", "sanctified") if f in own) + " only") if x))
     need = EXCEPTIONAL_SOCKETS.get(cls)
     if need and g.get("sockets", 0) >= need and not g.get("corrupted"):
         search["sockets_min"] = g["sockets"]
@@ -574,27 +598,126 @@ def parse_gear(text):
 
 ILVL_TOP = 82            # 2.131.4 (feedback: "any ilvl above 82 doesn't matter ... always search at ilvl 82 min")
 
+def is_exceptional(cls, quality, sockets, name=None):
+    """An exceptional base (the app's one meaning): over 20% quality, more sockets than its class usually rolls
+    (EXCEPTIONAL_SOCKETS) or the game's own "Exceptional" name."""
+    need = EXCEPTIONAL_SOCKETS.get(cls)
+    return bool((quality or 0) > 20 or (need and (sockets or 0) >= need)
+                or str(name or "").startswith("Exceptional "))
+
+
 def base_ladder(item):
-    """2.99.0: a white / blue base's searches, exact first, each a little wider: [(label, item with that search)].
-    [] for anything else. Exact item level + quality -> item level or higher -> 21%+ quality (still exceptional) ->
-    any quality."""
+    """2.99.0: a white / blue base's first search: [(label, item)], or [] for anything else - exactly what the card
+    shows (item level, quality, sockets as its Min / Max boxes). Only that one search: ↔ Broaden Search then widens
+    either, one step a click (base_widen / widen_state)."""
     s = item.get("search") or {}
     if item.get("rarity") not in ("Normal", "Magic") or not (s.get("ilvl_max") or s.get("base_exact")):
         return []
     lv, q = s.get("ilvl_min"), s.get("quality_min")
-
-    def var(**kw):
-        return dict(item, search=dict(s, **kw))
     if s.get("ilvl_max"):
-        out = [(f"item level {lv}" + (f", {q}%+ quality" if q else ""), item),
-               (f"item level {lv}+" + (f", {q}%+ quality" if q else ""), var(ilvl_max=None))]
-    else:                                                   # 2.131.4: 82+ (or no item level) is already the widest
-        out = [((f"item level {lv}+" if lv else "the base") + (f", {q}%+ quality" if q else ""), item)]
-    if q and q > 21:
-        out.append((f"item level {lv}+, 21%+ quality (exceptional)", var(ilvl_max=None, quality_min=21)))
+        return [(f"item level {lv}" + (f", {q}%+ quality" if q else ""), item)]
+    return [((f"item level {lv}+" if lv else "the base") + (f", {q}%+ quality" if q else ""), item)]
+
+
+WIDEN_QUALITY = (25, 22)       # owner (base widening): quality Min steps down to these, then 0-20% (exceptional only)
+WIDEN_AGE = "1 week"           # ... then item level +/-1, then listings up to a week old
+WIDEN_KEYS = ("quality", "ilvl", "age")      # the boxes a widening step changes
+
+
+def _box(v):
+    """A card box's value -> {"min": .., "max": ..} (or {})."""
+    if isinstance(v, dict):
+        return {k: x for k, x in v.items() if k in ("min", "max") and x not in (None, "")}
+    return {"min": v} if v not in (None, "", 0) else {}
+
+
+def base_widen(item, cur, age_hours):
+    """Owner (base widening): a white / blue base's ladder from the boxes searched - each step a little wider and
+    keeping the one before: [(opts it adds, the widened words)]. The first is what Broaden Search runs next (one
+    search a click, never on its own). cur: the card's boxes as searched ({**default_opts, **opts});
+    age_hours: the listed-within window searched (None: any age). [] for anything but a white / blue base.
+      quality: its Min down to 25%, then 22% (never above the item's own quality, never above the Min searched),
+               then 0-20% - only for an exceptional base searched at over 20%
+      sockets: never changed (an exceptional base keeps them; a usual one isn't searched on them at all)
+      item level: its own Min - 1, Max + 1
+      listed within: 1 week (when the window searched is shorter)"""
+    if not widens(item):
+        return []
+    out, add = [], {}
+    qb = _box(cur.get("quality"))
+    q0, own = qb.get("min") or 0, item.get("quality") or 0
+    if q0 and "max" not in qb:
+        for t in WIDEN_QUALITY:
+            if t < q0 and t <= own:
+                add = dict(add, quality={"min": t})
+                out.append(dict(add))
+        exc = is_exceptional(item.get("gclass"), own, item.get("sockets"), item.get("name"))
+        if exc and q0 > 20:
+            add = dict(add, quality={"max": 20})
+            out.append(dict(add))
+    s = item.get("search") or {}
+    exact = {k: v for k, v in (("min", s.get("ilvl_min")), ("max", s.get("ilvl_max"))) if v}
+    lv, ib = {k: v + (1 if k == "max" else -1) for k, v in exact.items()}, _box(cur.get("ilvl"))
+    if lv and ib and lv != ib and all(k in ib and (v <= ib[k] if k == "min" else v >= ib[k]) for k, v in lv.items()):
+        add = dict(add, ilvl=lv)                       # (its own item level +/-1 - only when that's wider than
+        out.append(dict(add))                          # the boxes searched: never +/-2 after a Search again)
+    if age_hours is not None and age_hours < 168:
+        add = dict(add, age=WIDEN_AGE)
+        out.append(dict(add))
+    return [(o, widen_words(o)) for o in out]
+
+
+def widen_state(item, opts, default, age_hours, too_few):
+    """Owner (Broaden Search): after a white / blue base's search -> (the card's Widened words or "", the offer or
+    None). opts: the item's own boxes as searched (rec["opts"]); default: default_opts(item). The offer,
+    {"add": opts the next step adds, "next": its words, "set": the widened boxes after it, "widened": the Widened
+    words after it}, is there only when too few were found, a next step exists and no Quality / Item Level /
+    Listed within box was changed by hand."""
+    if not widens(item):
+        return "", None
+    o = opts or {}
+    done = {k: o[k] for k in WIDEN_KEYS if o.get(k) not in (None, "")}
+    if o.get("widened"):                         # broadened before: still those boxes (Search again repeats it)
+        widened = o["widened"] if widen_words(done) == o["widened"] else ""
+        hand = not widened
+    else:
+        widened, done = "", {}
+        hand = any(k in o and _box(o[k]) != _box(default.get(k)) for k in WIDEN_KEYS)
+    if hand or not too_few:
+        return widened, None
+    nxt = base_widen(item, {**default, **o}, age_hours)
+    if not nxt:
+        return widened, None
+    add, words = nxt[0]
+    return widened, {"add": add, "next": words, "set": {**done, **add}, "widened": widen_words({**done, **add})}
+
+
+def broadened_opts(opts, offer):
+    """Broaden Search: the item's boxes after the offered step (widen_state) - its Quality / Item Level / Listed
+    within as widened (the others as they were), marked "widened" for the card's line."""
+    keep = {k: v for k, v in (opts or {}).items() if k not in WIDEN_KEYS and k != "widened"}
+    return {**keep, **offer["set"], "widened": offer["widened"]}
+
+
+def widens(item):
+    """Can this item's price check widen (Broaden Search: a white or blue base on the base route)? Owner: "all of
+    the white base rules apply to magic bases also" - a blue base's own mods are searched as before, every step."""
+    return item.get("rarity") in ("Normal", "Magic") and bool((item.get("search") or {}).get("base_exact"))
+
+
+def widen_words(o):
+    """What a widened search changed, in the card's words: "quality 22%+, ilvl 79–81, listed within 1 week"."""
+    bits = []
+    q = _box(o.get("quality"))
     if q:
-        out.append((f"item level {lv}+, any quality", var(ilvl_max=None, quality_min=None)))
-    return out
+        bits.append(f"quality {q.get('min', 0)}–{q['max']}%" if "max" in q else f"quality {q['min']}%+")
+    lv = _box(o.get("ilvl"))
+    if lv:
+        bits.append(f"ilvl {lv['min']}–{lv['max']}" if len(lv) == 2 else
+                    f"ilvl {lv['min']}+" if "min" in lv else f"ilvl up to {lv['max']}")
+    if o.get("age"):
+        bits.append(f"listed within {o['age']}")
+    return ", ".join(bits)
 
 
 # ---------------------------------------------------------------- searching
@@ -671,6 +794,8 @@ def build_query(item, must, optional, count_min, values, plain=False):
     for k, name in (("fractured", "fractured_item"), ("sanctified", "sanctified")):     # 2.79.0: white / blue bases
         if s.get(k) is False:
             filters["misc_filters"]["filters"][name] = {"option": "false"}
+    # owner decision A: the item's own flags (corrupted, mirrored, fractured ...) - only listings with the same flags
+    filters["misc_filters"]["filters"].update(flag_filters(item.get("flags")))
     if s.get("ilvl_min"):                                     # 2.72.0: crafting bases (item level: a type filter)
         filters.setdefault("type_filters", {"filters": {}})["filters"]["ilvl"] = {
             k: v for k, v in (("min", s["ilvl_min"]), ("max", s.get("ilvl_max"))) if v}
@@ -727,7 +852,8 @@ def summary(item):
         how = f"by base type ({s['type']})"
     else:
         how = f"by category ({item['class']}) and its totals"
-    bits = [how, "corrupted only" if s.get("corrupted") else "uncorrupted only"]
+    bits = [how, "corrupted only" if s.get("corrupted") or "corrupted" in (item.get("flags") or ()) else
+            "uncorrupted only"] + gamedata.flag_words(item)
     if s.get("sockets_min"):
         bits.append(f"{s['sockets_min']}+ sockets")
     return "Searched " + ", ".join(bits)

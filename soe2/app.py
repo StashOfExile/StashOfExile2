@@ -27,7 +27,7 @@ from .config import (
     AGE_OPTIONS, DATA_UPDATED, APP_DIR, APP_TITLE, APP_VERSION, pretty_version, DATA_DIR, load_json, MIGRATED, MODBOOK, MODBOOK_NOTE, P,
     save_json, save_modbook, SETTINGS, STATUS_OPTIONS, VIEWS, DEFAULTS,
 )
-from .clipboard import clip_seq, read_clipboard_text
+from . import clipread
 from .util import _amt, _num, mmss
 from .net import _STATUS_HOOK, fmt_stamp, LIMITER, per_text
 from .updates import clean_env, cleanup_update, download_asset, FROZEN, latest_release, pick_asset, REPO, is_newer, vtuple
@@ -46,7 +46,7 @@ from .wealth import WEALTH, parse_stack, WPRICES
 from .engine import Engine
 from . import gear, waystone
 from .toasts import Toasts
-from .style import C, MOD_COL, FLAG_COLORS, FONT_TITLE, hotkey_blocked, MONO, Plate, SegBook, SegBar, setup_style, Toast, KeyCapture, Tooltip
+from .style import C, MOD_COL, FLAG_COLORS, FONT_TITLE, hotkey_blocked, MONO, Plate, SegBook, SegBar, setup_style, Toast, KeyCapture, TagTip, Tooltip, flowify
 from .chrome import BarNote, SectionBar, Viewport, section as chrome_section
 from .winsys import ICON_B64, KeyWatch, Tray
 from .wealth_page import WealthPage
@@ -71,11 +71,12 @@ from .plan_page import FocusPokes, GamePlanPage
 from .stashscan_page import StashScanPage      # 2.102.0: Wealth › Scan stash (beta)
 from .remnant_page import RemnantPage         # 2.37.0: Expedition Remnant Price Checker
 from .favours_page import FavoursPage       # 2.128.0: Favours prices (the Ritual helper)
-from .features_page import FeaturesPage     # 2.131.0: the Feature Picker
+from .features_page import FeaturesPage     # 2.131.0: Setup and Settings › General › Features
 from .topup_page import TopUpPage           # 2.131.0: Top Up Reminders
 from .mapprofit_page import MapProfitPage   # 2.132.0: Map profit
 from .temple_page import TemplePage         # 2.132.1: Temple Helper
 from .ritualid_page import RitualIdPage     # 2.132.3: Ritual Identifier
+from .sekhemas_page import SekhemasPage     # Trial of the Sekhemas (BETA)
 from .share_page import SharePage           # 2.132.6: shared Regex / trade favorites
 from .hover_page import HoverPage           # 2.132.3: one look round the mouse (Temple, Ritual Identifier)
 from .ledger_page import LedgerPage           # 2.45.0: Money Makers > Strat Tracker
@@ -84,6 +85,8 @@ from .feed_page import FeedPage               # 2.51.0: Mod book › Manual feed
 from .merged_page import MergedOverlay        # 2.55.0: one overlay window for timer, Mechanic Helper and Notes
 from .ovlight import LightOverlay             # 2.101.0: the light looks (Hairline, Slate, Flanks, Micro)
 from .utilities_page import UtilitiesPage
+from .look_page import LookPage
+from .readmark import ReadMarkPage          # GGG policy: the read mark - each screen / clipboard read shows
 from .tracker_page import TrackerPage
 from .search_page import SearchPage
 from .pricecheck_page import PriceCheckPage    # 2.80.0: Price Checks (one item, the trade site's listings)
@@ -108,8 +111,35 @@ from .config import PAGE_CHECKS       # 1.40: was "Items"
 
 CARD_BOX = 46                 # 2.78.3: a Min / Max / item level box on the item card (px)
 REQ_NAMES = {"lvl": "Level", "str": "Str", "dex": "Dex", "int": "Int"}         # 2.79.0
-MISC_ROWS = (("corrupted", "Corrupted"), ("fractured", "Fractured"), ("desecrated", "Desecrated"),
-             ("sanctified", "Sanctified"), ("mirrored", "Mirrored"), ("unidentified", "Unidentified"))
+MISC_ROWS = (("corrupted", "Corrupted"), ("twice_corrupted", "Twice Corrupted"), ("fractured", "Fractured"),
+             ("desecrated", "Desecrated"), ("sanctified", "Sanctified"), ("mirrored", "Mirrored"),
+             ("unrevealed", "Unrevealed"), ("crafted", "Crafted"), ("cultivated", "Cultivated Vaal Unique"),
+             ("unidentified", "Unidentified"), ("foreseeing", "Foreseeing"))
+# what "Yes" keeps, for each Miscellaneous filter's tip (the trade site's own names)
+MISC_WHAT = {"corrupted": "corrupted listings", "twice_corrupted": "twice corrupted listings",
+             "fractured": "listings with a fractured mod (it can't be changed)",
+             "desecrated": "listings with a desecrated mod", "sanctified": "sanctified listings",
+             "mirrored": "mirrored listings (copies that can't be changed)",
+             "unrevealed": "listings with an unrevealed desecrated mod", "crafted": "listings with a crafted mod",
+             "cultivated": "Cultivated Vaal Uniques (a unique with a mutated mod)",
+             "unidentified": "unidentified listings"}
+# owner decision C: the trade site's other numbers a copied item can have - Trade filters, off until ticked
+EXTRA_NUMS = (("aps", "Attacks per second", "equipment_filters", "aps"),
+              ("crit", "Critical chance", "equipment_filters", "crit"),
+              ("dps", "Damage per second", "equipment_filters", "dps"),
+              ("reload", "Reload time", "equipment_filters", "reload_time"),
+              ("block", "Block", "equipment_filters", "block"),
+              ("spirit", "Spirit", "equipment_filters", "spirit"),
+              ("ward", "Runic ward", "equipment_filters", "ward"),
+              ("stack", "Stack size", "misc_filters", "stack_size"))
+FLOAT_OPTS = ("aps", "crit", "reload")       # numbers with decimals (Min / Max)
+
+
+def misc_tip(key, label):
+    """One line: what a Miscellaneous filter's Yes / No / Any keep."""
+    if key == "foreseeing":
+        return "Foreseeing: the trade site's own Yes / No filter (its filter list doesn't say more about it)."
+    return f"{label} - Yes: only {MISC_WHAT[key]}. No: none of those. Any: either."
 
 
 def plain_notes(md):
@@ -172,9 +202,9 @@ def get_placement(hwnd):
     return None
 
 
-def set_placement(hwnd, rect, zoomed):
+def set_placement(hwnd, rect, zoomed, show=None):
     """Put a window back where get_placement saw it, maximized or not. Windows moves it onto a screen if that
-    monitor is gone."""
+    monitor is gone. show: another showCmd (the Drawer: 4 = SW_SHOWNOACTIVATE, 7 = SW_SHOWMINNOACTIVE, 0 = SW_HIDE)."""
     import ctypes
     W = _wp_struct()
     wp = W()
@@ -182,7 +212,7 @@ def set_placement(hwnd, rect, zoomed):
     ctypes.windll.user32.GetWindowPlacement(hwnd, ctypes.byref(wp))
     wp.rcNormalPosition.left, wp.rcNormalPosition.top, wp.rcNormalPosition.right, wp.rcNormalPosition.bottom = \
         [int(v) for v in rect]
-    wp.showCmd = 3 if zoomed else 1                     # SW_SHOWMAXIMIZED / SW_SHOWNORMAL
+    wp.showCmd = (3 if zoomed else 1) if show is None else int(show)    # SW_SHOWMAXIMIZED / SW_SHOWNORMAL
     wp.flags = 0
     return bool(ctypes.windll.user32.SetWindowPlacement(hwnd, ctypes.byref(wp)))
 
@@ -205,7 +235,46 @@ def on_a_monitor(x, y):
 
 
 from .ova8 import OverlayA8
-class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage, BoardModPage, LeaderboardPage, WellSoulsPage, RumoursPage, ListKeys, AlertsPage, AboutPage, TabReaderPage, SearchOptsPage, ExchangePage, WealthPage, LibraryPage, RegexPage, UtilitiesPage, TrackerPage, SearchPage, CalcOverlay, InsightsPage, MoneyMakersPage, MapLibraryPage, RemnantPage, FavoursPage, LedgerPage, FeedbackPage, FeedPage, MergedOverlay, LightOverlay, GamePlanPage, FocusPokes, OverlayHelp, OverlayParts, CampaignUI, OverlayRates, CommunityPage, RateModsPage, StashScanPage, OverlayQuick, FeaturesPage, TopUpPage, MapProfitPage, TemplePage, RitualIdPage, HoverPage, SharePage, MusicPage, OverlayA8):
+from .drawer_page import DrawerHost          # drawer build: the Drawer (drawer.py, drawer_page.py)
+
+
+# drawer build: the item card in the Drawer's look (mockups.html) - the card's own surface, the mod's kind said in a
+# word. A canvas is in it when cv._look is set. Round 18 (feedback: "it dulled them out... basically grayscale"): the
+# theme's own colors as in the Full window - accent ticks, the mods' colors, the rarity color.
+def _cl(cv):
+    return getattr(cv, "_look", "") == "drawer"
+
+
+def _card_bg(cv):
+    return C["panel2"] if _cl(cv) else C["odd"]
+
+
+def _tick_fill(cv, on):
+    return C["accent"] if on else _card_bg(cv)
+
+
+def _tick_ink(cv):
+    return "#120a04"
+
+
+def _dim_mod(colr, cv):
+    """An unticked mod's color: its own, dimmed toward the card (not gray). Round 18: a light theme (Frost Pane,
+    Gruvbox Light) dims toward its muted text instead - halfway to white was too faint to read."""
+    from . import themes as _th
+    t = _th.ST.theme
+    if t is not None and getattr(t, "light", False):
+        return _th.mix(colr, C["muted"], .55)
+    return _th.mix(colr, _card_bg(cv), .5)
+
+
+def _box_line(cv, enabled):
+    return C["muted"] if enabled else C["line"]
+
+
+KIND_WORD = {"Implicit": "Implicit", "Enchant": "Enchant", "Rune": "Rune"}
+
+
+class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage, BoardModPage, LeaderboardPage, WellSoulsPage, RumoursPage, ListKeys, AlertsPage, AboutPage, TabReaderPage, SearchOptsPage, ExchangePage, WealthPage, LibraryPage, RegexPage, UtilitiesPage, TrackerPage, SearchPage, CalcOverlay, InsightsPage, MoneyMakersPage, MapLibraryPage, RemnantPage, FavoursPage, LedgerPage, FeedbackPage, FeedPage, MergedOverlay, LightOverlay, GamePlanPage, FocusPokes, OverlayHelp, OverlayParts, CampaignUI, OverlayRates, CommunityPage, RateModsPage, StashScanPage, OverlayQuick, FeaturesPage, TopUpPage, MapProfitPage, TemplePage, RitualIdPage, SekhemasPage, HoverPage, SharePage, MusicPage, OverlayA8, LookPage, ReadMarkPage, DrawerHost):
     COLS = [("added", "#", 46, "e"), ("name", "Item", 220, "w"), ("type", "Type", 110, "w"), ("mark", "Status", 90, "center"),
             ("est", "Price", 110, "e"), ("conf", "Confidence", 95, "center"), ("listings", "Listings", 70, "e"), ("priced", "Priced at", 130, "w"),
             ("match", "How it was priced", 300, "w"), ("vmods", "★", 60, "center"),
@@ -229,7 +298,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         _ow.OV_PAL[0] = self.ov_palette                   # 2.109.0: everything over the game in the overlay's style
         self._fresh_install = not SETTINGS.get("seen_version")   # 2.90.0: a new install starts with a clean bar
         if self._fresh_install:                          # 2.118.0: every helper starts on (each can go off in
-            SETTINGS.setdefault("util_delirium_autostart", True)      # Overlay ↳ Overlay Settings › Helpers)
+            self.sounds_off_new()                        # Overlay › Helpers)                        # (owner: sounds start off on a new install)
         root.title(APP_TITLE)
         if sys.platform == "win32":      # own taskbar entry with our icon (not python's)
             try:
@@ -242,8 +311,11 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
             root.iconphoto(True, self.icon_img)
         except Exception:
             buglog.caught()
-        root.geometry(self.saved_geometry() or "1280x800")      # 2.23.1: where you left it last time
-        root.minsize(1000, 560)
+        if self.drawer_boot() == "drawer":                     # drawer build: the Drawer shape starts at its place
+            self.drawer_place_start()
+        else:
+            root.geometry(self.saved_geometry() or "1280x800")      # 2.23.1: where you left it last time
+            root.minsize(1000, 560)
         root.bind("<Configure>", self._note_window, add="+")
         from .style import apply_look                   # 2.0.0: Settings > Appearance (the theme)
         apply_look(look_settings(), root)
@@ -301,13 +373,9 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         self.engine.start()
         self.engine.add(0, "init")
         self.load_session()
-        try:
-            self.last_clip = root.clipboard_get()
-        except tk.TclError:
-            self.last_clip = ""
-        self.last_seq, self.last_heard = clip_seq(), None
-        self.poll_gen, self.last_poll = 0, time.time()
-        root.after(150, self.poll_clipboard, 0)
+        self.last_clip = ""                          # (GGG policy: nothing is read at start - only after a copy key press)
+        self.last_heard = None                       # (no clipboard watcher: each copy key press reads once - clip_granted)
+        clipread.SAID[0] = lambda src, key, what: self.ui_q.put(("read_mark", src, key, what))   # (any thread)
         root.after(100, self.poll_events)
         self._rates_busy = False
         root.after(1500, self.rates_tick)
@@ -316,7 +384,10 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         self.root.after(5 * 60 * 1000, self.keys_refresh)   # 2.88.2: a fresh key watcher every 5 minutes
         self.start_utilities()                       # 2.0: chat commands & notes listen to the same keyboard watcher
         root.after(15000, self.cm_start)             # 2.31.0: the community Mod book (hourly)
+        from . import usage as _usage                 # UI overhaul: the anonymous usage count (Settings › Privacy)
+        _usage.start(root)
         root.after(20000, self.er_start)             # 2.137.0: Error reports (opt-in, hourly)
+        root.after(4000, self.look_key_notice)       # GGG policy: an old Tab Look key was cleared - once, why
         root.after(2500, self.calc_ov_restore)
         root.after(2600, self.music_sync)            # 2.134.0: Music Controls, if on       # 2.74.0: the calculator over the game, if it was up
         # (2.92.2: which switches go on the bar is asked when you enable the overlay, not at start)
@@ -331,6 +402,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         self._last_rect = None
         self.apply_topmost()
         root.after(800, self.apply_topmost)
+        self.drawer_init()                                   # drawer build: the Drawer key, watcher, strip state
         root.after(6000, self.startup_update_check)          # 2.0 beta 7: only if turned on in Settings            # again once the window is on screen (some systems drop it before)
         if SETTINGS.get("tray", True):
             if not self.tray.available:
@@ -343,15 +415,18 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         if e.widget is self.root and hasattr(self, "shell"):
             self.root.after(30, self.shell.show_all)
             self.root.after(60, self.shell.check_owners)      # 2.10.2: maximize / restore / snap
+            self.drawer_on_map()                               # drawer build: a restore we didn't start
 
     def on_unmap(self, e):
         if e.widget is not self.root or self.in_tray:
             return
         if self.root.state() != "iconic":
+            self.drawer_on_unmap()
             return
+        drawer = self.drawer_on_unmap()  # drawer build: True in the Drawer shape - put away is never undone here
         if hasattr(self, "shell") and sys.platform != "win32":
             self.shell.hide_all()        # (Windows hides and brings back a minimized window's own windows itself)
-        if SETTINGS.get("on_top", True) and not self.user_minimized():
+        if not drawer and SETTINGS.get("on_top", True) and not self.user_minimized():
             self.root.after(80, self.unminimize)    # minimized without you asking: bring it straight back
             return
         if SETTINGS.get("tray", True) and self.tray.available:
@@ -433,7 +508,8 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
                   "Esc) and it will stay minimized.", 10)
 
     def apply_topmost(self):
-        on = bool(SETTINGS.get("on_top", True))
+        # drawer build: the Drawer is always on top while shown (SETTINGS["on_top"] = the Full window's own setting)
+        on = bool(SETTINGS.get("on_top", True)) or self.drawer_shown_as_drawer()
         try:
             self.root.attributes("-topmost", on)
             from .overlaywin import OverlayWindow
@@ -476,8 +552,8 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         self._top_label()
         self.hdr_layout()
         self.apply_topmost()
-        self._say("Always on top is " + ("on: the window stays in front and comes back if something minimizes it."
-                                         if SETTINGS["on_top"] else "off."), 8)
+        self._say("Keep the full window on top is " + ("on: the full window stays in front and comes back if "
+                                                       "something minimizes it." if SETTINGS["on_top"] else "off."), 8)
 
     def go_tray(self):
         if self.in_tray or self.root.state() != "iconic":
@@ -489,15 +565,8 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
             self.root.withdraw()
 
     def ev_tray(self, what):
-        if what == "show":
-            self.in_tray = False
-            self.tray.hide_icon()
-            self.root.deiconify()
-            self.root.state("normal")
-            self.root.lift()
-            self.root.focus_force()
-            if hasattr(self, "shell"):
-                self.root.after(30, self.shell.show_all)
+        if what == "show":                               # drawer build: in the remembered shape (app_show)
+            self.app_show(focus=True, why="tray")
         elif what == "updates":                         # 2.100.0: the tray's Check for updates - the app comes back
             self.ev_tray("show")                         # first, so the answer shows over it
             self.root.after(300, lambda: self.check_updates("ask"))
@@ -596,7 +665,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         self.root.after(60, self.restore_zoom)                 # 2.23.1: maximized last time -> maximized again
         self.root.after(1500, self.show_whatsnew)              # 2.0 beta 12: once per new version
         self.root.after(4000, self.league_notice)              # 2.130.0: the new league's heads-up, once
-        self.root.after(2500, self.features_maybe)             # 2.131.0: the Feature Picker, asked once
+        self.root.after(2500, self.features_maybe)             # 2.131.0: Setup, asked once (new installs)
         self.root.after(4000, self.board_name_check)           # 2.85.0: your community name, asked once (2.86.1: or again if reset)
         if SPLASH[0] is not None:                              # 2.0.0: the start-up screen waits for the mod list,
             _splash_step(i=3)                                  # but never more than 3 seconds
@@ -616,34 +685,50 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         today = today or _dt.date.today()
         if SETTINGS.get(key) or not (_dt.date.fromisoformat(start) <= today <= _dt.date.fromisoformat(until)):
             return False
+        if self.drawer_defer(self.league_notice):              # (put away: asked at the next show)
+            return False
         busy = [getattr(self, "_whatsnew", None)]               # (What's new or the quick start)
         if SPLASH[0] is not None or any(w is not None and w.winfo_exists() for w in busy):
             self.root.after(2000, self.league_notice)
             return False
         SETTINGS[key] = True                                   # (once: it never asks again)
         save_json("settings.json", SETTINGS)
-        messagebox.showinfo(
-            "A new league",
-            "A new league has started.\n\nSome features may not work right away: league starts bring changes to the "
-            "trade site's API, to items and to the game's data. They'll be fixed over time, through league start.\n\n"
-            "Thanks for your patience - and good luck this league!", parent=self.dlg_parent())
+        with self.asking():
+            messagebox.showinfo(
+                "A new league",
+                "A new league has started.\n\nSome features may not work right away: league starts bring changes to "
+                "the trade site's API, to items and to the game's data. They'll be fixed over time, through league "
+                "start.\n\nThanks for your patience - and good luck this league!", parent=self.dlg_parent())
         return True
 
     # ---------------- welcome / what's new (once per version)
     def show_whatsnew(self, force=False):
-        from .whatsnew import INTRO, notes_between, split_notes
+        from .whatsnew import INTRO, notes_between, split_notes, lead_of, lead_due
         if SPLASH[0] is not None and not force:            # after the start-up screen
             self.root.after(500, self.show_whatsnew)
             return
+        due = not force and getattr(self, "_drawer_wn_due", False)      # drawer build: first start - shown for everyone
+        # 3.0.0 (owner): "Why 3.0" / "How helpers work now" show to everyone once - after updating, and on a first
+        # start right after the quick start (its version is already seen then: the lead alone brings the card)
+        lead_only = not force and SETTINGS.get("seen_version") == APP_VERSION and \
+            lead_due(SETTINGS.get("whatsnew_lead"), APP_VERSION)
+        if not force and not due and not lead_only and SETTINGS.get("seen_version") == APP_VERSION:
+            return                                       # (nothing to show: nothing to hold back either)
+        if not force and self.drawer_defer(self.show_whatsnew):
+            return
+        if due:
+            self._drawer_wn_due = False
+            force = SETTINGS.get("seen_version") == APP_VERSION
         seen = SETTINGS.get("seen_version")
-        if not force and seen == APP_VERSION:
+        if not force and seen == APP_VERSION and not lead_only:
             return
         if not seen and not force and self.show_quickstart():     # 2.10.0: a fresh install gets the quick start
-            return
-        notes = notes_between(None if force or not seen else seen, APP_VERSION)
+            return                                                # (closing it brings the lead: close_whatsnew)
+        notes = notes_between(None if force or lead_only or not seen else seen, APP_VERSION)
         from . import features as FEAT
         beta = FEAT.any_beta()                            # 2.125.6: beta features' notes only with them on
-        if seen and not force and notes and split_notes(notes, beta) == ([], []):
+        lead = lead_of(notes)
+        if seen and not force and not lead and notes and split_notes(notes, beta) == ([], []):
             SETTINGS["seen_version"] = APP_VERSION        # (only beta notes, beta off: nothing to show)
             save_json("settings.json", SETTINGS)
             return
@@ -666,11 +751,12 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         head = tk.Frame(inner, bg=P2, padx=16, pady=12)
         head.pack(fill="x")
         welcome = not seen and not force
+        self._wn_lead_shown = bool(lead)
         # 2.116.0 (P10): the version once - "What's new · 2.116.0", then what you had and how many updates
         tk.Label(head, text="Welcome to StashOfExile2" if welcome else f"What's new  ·  {pretty_version()}",
                  bg=P2, fg=C["text"], font=(FONT_TITLE, 16, "bold"), anchor="w").pack(fill="x")
         ups = f"  ·  {len(notes)} updates" if len(notes) > 1 else ""
-        tk.Label(head, text=f"version {pretty_version()}" if welcome or not seen or force else
+        tk.Label(head, text=f"version {pretty_version()}" if welcome or not seen or force or lead_only else
                  f"you had {pretty_version(seen)}{ups}", bg=P2, fg=C["muted"], anchor="w").pack(fill="x")
         tk.Frame(inner, bg=C["accent"], height=2).pack(fill="x")
         if welcome:                                             # first start: pick your league right away
@@ -686,7 +772,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         foot = tk.Frame(inner, bg=P1, padx=16, pady=8)
         foot.pack(fill="x", side="bottom")
         ttk.Button(foot, text="Got it", style="Primary.TButton", command=self.close_whatsnew).pack(side="right")
-        tk.Label(foot, text="Shows once per version. Toolkit menu > What's new brings it back.", bg=P1, fg=C["muted"],
+        tk.Label(foot, text="Shows once per version. Settings › About brings it back.", bg=P1, fg=C["muted"],
                  font=("Segoe UI", 9)).pack(side="left")
         t = tk.Text(inner, bg=P1, fg=C["text"], relief="flat", wrap="word", padx=12, pady=8, highlightthickness=0,
                     font=("Segoe UI", 10), cursor="arrow")
@@ -704,6 +790,13 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
                 t.insert("end", line + "\n", "p")
         big, small = split_notes(notes, beta)
         self.wn_heroes = []
+        look = self.look_key_label() if hasattr(self, "look_key_label") else ""
+        for icon, title, lines in lead:                    # 3.0.0: the sections the card leads with
+            lines = [(i, x.replace("{look}", look or "Ctrl+Shift+R as it comes")) for i, x in lines]
+            t.window_create("end", window=self._wn_lead(t, icon, title, lines), padx=4, pady=4)
+            t.insert("end", "\n")
+        if lead and big:
+            t.insert("end", "Also new\n", "h")
         self.wn_small = small
         t.bind("<Configure>", lambda e: self.wn_fit(e.width))
         for icon, title, text, go in big:
@@ -726,6 +819,28 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         # (2.4.0: "Coming next" is no longer shown here - the plan lives in ROADMAP.md)
         t.config(state="disabled")
         card.lift()
+
+    def _wn_lead(self, t, icon, title, lines):
+        """3.0.0: one section the card leads with - a big icon, a heading, short lines each with its own small icon."""
+        P2 = C["panel2"]
+        row = tk.Frame(t, bg=P2, highlightthickness=1, highlightbackground=C["accent"])
+        tk.Frame(row, bg=C["accent"], width=6).pack(side="left", fill="y")
+        tk.Label(row, text=icon, bg=P2, fg=C["accent"], font=("Segoe UI Emoji", 22), width=2).pack(
+            side="left", padx=(8, 8), pady=8, anchor="n")
+        body = tk.Frame(row, bg=P2)
+        body.pack(side="left", fill="both", expand=True, padx=(4, 12), pady=8)
+        tk.Label(body, text=title, bg=P2, fg=C["accent"], font=(FONT_TITLE, 16, "bold"), anchor="w",
+                 justify="left").pack(fill="x", pady=(0, 4))
+        for ic, line in lines:
+            lab = tk.Label(body, text=f"{ic}   {line}", bg=P2, fg=C["text"], font=("Segoe UI", 10), anchor="w",
+                           justify="left", wraplength=520)
+            lab.pack(fill="x", pady=1)
+            lab._wn_wrap = 150                         # (its big icon and thick edge: a wider margin than a hero row)
+        strut = tk.Frame(body, bg=P2, height=1, width=max(300, t.winfo_width() - 120))
+        strut.pack(anchor="w")
+        strut._wn_strut = 120
+        self.wn_heroes.append(row)
+        return row
 
     def _wn_hero(self, t, icon, title, text, go):
         """2.111.0: one big change on the What's new card - an icon, a bold title, a line, and a link to it."""
@@ -761,15 +876,20 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
                 continue
             for b in r.winfo_children():
                 for w in b.winfo_children():
-                    if getattr(w, "_wn_wrap", False):
-                        w.config(wraplength=max(200, width - 110))
+                    m = getattr(w, "_wn_wrap", False)
+                    if m:
+                        w.config(wraplength=max(200, width - (m if m is not True else 110)))
                     elif getattr(w, "_wn_strut", False):
-                        w.config(width=max(300, width - 90))
+                        m = w._wn_strut
+                        w.config(width=max(300, width - (m if m is not True else 90)))
 
     def wn_go(self, target):
         """A hero row's link: 'settings:<tab>' opens that Settings tab, anything else is a page key."""
         if target.startswith("settings:"):
             self.open_settings_tab(target.split(":", 1)[1])
+        elif target.startswith("tab:"):                 # nav phase 2: 'tab:<page>:<tab>' opens a page on a tab
+            _, key, title = target.split(":", 2)
+            self.shell.open_tab(key, title)
         else:
             self.shell.open(target)
 
@@ -814,13 +934,19 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
                 pass
 
     def close_whatsnew(self):
+        from .whatsnew import lead_due, lead_version
         SETTINGS["seen_version"] = APP_VERSION
+        if getattr(self, "_wn_lead_shown", False):             # 3.0.0: "Why 3.0" seen - once for everyone
+            SETTINGS["whatsnew_lead"] = lead_version(APP_VERSION)
+            self._wn_lead_shown = False
         save_json("settings.json", SETTINGS)
         w = getattr(self, "_whatsnew", None)
         if w is not None:
             w.destroy()
             self._whatsnew = None
-        self.root.after(400, self.features_maybe)              # 2.131.1: the Feature Picker next, one at a time
+        if lead_due(SETTINGS.get("whatsnew_lead"), APP_VERSION):     # (the quick start just closed: the lead next)
+            self.root.after(300, self.show_whatsnew)
+        self.root.after(400, self.features_maybe)              # 2.131.1: Setup next, one at a time
 
     def _league_chip(self):
         self.league_chip.config(text="⚑ " + (self.league_var.get() or "pick a league"))
@@ -1090,7 +1216,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
             ("spread_warn", "Warn when prices vary", "int", 0, 200, 5, "x - when the highest listing costs this many "
                                                                       "times the lowest (0 = off)"),
             ("toast_secs", "Messages stay for", "int", 1, 60, 1, "seconds"),
-            ("tray", "Minimize to the system tray", "bool", 0, 0, 0, "takes effect when the app starts"))
+            ("tray", "Put away to the system tray", "bool", 0, 0, 0, "takes effect when the app starts"))
 
     FINE_WINDOW = ("toast_secs", "tray")      # 2.116.0 (P10): on General › Window, not Price checking
 
@@ -1112,7 +1238,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         w = sh.windows.get(sh.active) if sh is not None and sh.active else None
         try:
             if w is not None and w.state_ == "open" and w.winfo_ismapped():
-                return w
+                return w.winfo_toplevel()        # (a page is drawn inside the app's window: that window)
         except tk.TclError:
             pass
         return self.root
@@ -1127,6 +1253,11 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
 
         def wrap(fn):
             def call(*a, **kw):
+                try:                              # drawer build: a native box under a put-away window would freeze
+                    if app.drawer_is_away():      # the window's thread - the app comes forward first
+                        app.app_show(focus=True, why="dialog")
+                except Exception:
+                    buglog.caught()
                 if kw.get("parent") is None:
                     kw["parent"] = app.dlg_parent()
                 return fn(*a, **kw)
@@ -1199,6 +1330,18 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         set_titlebar(self.root, cap, txt, edge, dark=not _th.ST.theme.light)
 
 
+    def sounds_off_new(self):
+        """A new install starts quiet: the overlay's Sound switch (every helper's alert) and League Plan's Soft sound
+        are off until you turn them on. Someone updating keeps what they had (only a fresh install comes here)."""
+        SETTINGS.setdefault("helpers_sound", False)
+        for key in ("breach_alert", "ritual_alert", "whispers"):
+            c = SETTINGS.setdefault(key, {})
+            if isinstance(c, dict):
+                c.setdefault("sound", False)
+        f = SETTINGS.setdefault("focus", {})
+        if isinstance(f, dict):
+            f.setdefault("pokes", {}).setdefault("sound", False)
+
     def restart_app(self):
         """Close and start again (2.0.0: for Appearance changes). Windows, lists and settings are saved first."""
         import subprocess
@@ -1249,7 +1392,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         self.update_total()
 
     HOTKEYS = [("Ctrl+Alt+C", "Add item to the list", "add"), ("C", "Copy item name", "copy"), ("O", "Open trade", "trade"),
-               ("F2", "Pause searches", "pause"), ("Esc", "Minimize", "min")]
+               ("F2", "Pause searches", "pause"), ("Esc", "Put away", "min")]
 
     def build_keybar(self, parent):
         """The bottom plate with the shortcuts drawn as little keys (click one to do the same thing)."""
@@ -1262,6 +1405,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         x = kb.bbox(self.key_dot)[2] + 6
         self.key_state = kb.create_text(x, 18, text="Auto-pricing", anchor="w", fill="#cfe0ff", font=("Segoe UI", 9, "bold"))
         x = kb.bbox(self.key_state)[2] + 22
+        keys_on_bar = []
         for cap, text, name in self.HOTKEYS:
             lb = tk.Label(kb, text=cap, bg=C["key"], fg="#eaf2ff", font=(MONO, 9, "bold"), padx=8, pady=1, bd=2,
                           relief="raised", cursor="hand2" if name != "add" else "arrow")
@@ -1270,6 +1414,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
             x = kb.bbox(wid)[2] + 7
             t = kb.create_text(x, 18, text=text, anchor="w", fill="#b9ccee", font=("Segoe UI", 9))
             self.key_texts[name] = t
+            keys_on_bar.append((wid, t, kb.bbox(t)[2]))
             x = kb.bbox(t)[2] + 26
             if name != "add":
                 act = {"copy": self.hk_copy, "trade": self.hk_trade, "pause": self.toggle_pause, "min": self.hk_min}[name]
@@ -1289,6 +1434,9 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
             box = kb.bbox(self.key_upd)
             fits = box is not None and e.width - 14 - (box[2] - box[0]) > self.key_end
             kb.itemconfigure(self.key_upd, state="normal" if fits else "hidden")
+            for wid_, t_, right in keys_on_bar:               # D3: a key that doesn't fit is left off, not cut in half
+                kb.itemconfigure(wid_, state="normal" if right <= e.width - 8 else "hidden")
+                kb.itemconfigure(t_, state="normal" if right <= e.width - 8 else "hidden")
         kb.bind("<Configure>", place_scope, add="+")
 
     EMPTY_TEXT = ("Nothing to price yet\nHover an item in game and press Ctrl+Alt+C: it shows up here and gets "
@@ -1335,7 +1483,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
             self._say("Checking GitHub for a new version...", 15)
 
         def work():
-            kind, data = latest_release(preview=bool(SETTINGS.get("update_preview")))
+            kind, data = latest_release()
             self.ui_q.put(("update", kind, data))
         threading.Thread(target=work, daemon=True).start()
 
@@ -1413,7 +1561,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         def work():
             use, use_tag = asset, tag
             try:
-                kind, data = latest_release(preview=bool(SETTINGS.get("update_preview")))
+                kind, data = latest_release()
                 if kind == "ok" and is_newer(data.get("tag_name", ""), use_tag or APP_VERSION):
                     newer = pick_asset(data)
                     if newer:
@@ -1438,13 +1586,14 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
             return
         from . import features as FEAT
         if not self.cm_asked():
-            # 2.131.1 (bug): the Feature Picker asks about sharing - this older popup asked it a second time when the
-            # quick start was already closed, or over What's new for people updating. Only once the picker is gone
-            # for good (Never ask again) does it still ask, as before.
-            if FEAT.asked() == "never" and not self._qs_open():
-                self.cm_ask()
+            # 2.131.1 (bug): never over the quick start, What's new or Setup - asked once Setup is answered (the
+            # start-up Setup asks it next itself: setup_then_ask)
+            if FEAT.asked() in ("done", "never") and not self._qs_open() and getattr(self, "feat_win", None) is None:
+                if not self.drawer_defer(self.cm_ask):    # (drawer build: put away - asked at the next show;
+                    self.cm_ask()                         # the hourly sharing below starts either way)
         elif self.cm_sharing() and FEAT.asked() in ("done", "never"):
-            self.cm_name_ask()                            # 2.125.8: sharing, but no name yet - asked once
+            if not self.drawer_defer(self.cm_name_ask):
+                self.cm_name_ask()                        # 2.125.8: sharing, but no name yet - asked once
         self.root.after(60000, self.cm_tick)
 
     def _qs_open(self):
@@ -1488,7 +1637,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         tk.Label(box, text="Pick a community name?", bg=P2, fg=C["text"], font=("Segoe UI", 12, "bold"),
                  anchor="w").pack(fill="x")
         tk.Label(box, text="You share with the community. With a name, your best map, boss and campaign times show "
-                           "on the Leaderboards next to everyone else's - and you can post strats on Money Makers.",
+                           "on the Leaderboards next to everyone else's - and you can post strats on Farming Strategies.",
                  bg=P2, fg=C["text"], justify="left", wraplength=460, anchor="w").pack(fill="x", pady=(8, 4))
         from .privacy import NAME_RULE, NAME_TIP
         rr = tk.Frame(box, bg=P2)
@@ -1666,12 +1815,13 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
             self.root.after(5000, self.er_tick_once)
 
     def er_start(self):
-        """At start: ask once (only when the Feature Picker won't - it asks itself), then send hourly while on."""
+        """At start: ask once (never over Setup), then send hourly while on."""
         from . import errorreports as ER
         from . import features as FEAT
         if not ER.asked() and FEAT.asked() in ("done", "never") and not self._qs_open() and \
                 getattr(self, "feat_win", None) is None:
-            self.er_ask()
+            if not self.drawer_defer(self.er_ask):        # (drawer build: put away - asked at the next show)
+                self.er_ask()
         self.root.after(60000, self.er_tick)
 
     def er_tick(self):
@@ -1927,9 +2077,13 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         return "break"
 
     def hk_esc(self):
-        """Esc: 2.55.1 - first closes an item box (Price checks / Insights), else minimizes as before."""
+        """Esc: 2.55.1 - first closes an item box (Price checks / Insights), else minimizes as before (drawer build:
+        the Drawer is put away)."""
         if not self.ins_preview_dismiss():
-            self.hk_min()
+            if self.drawer_eff() == "drawer":
+                self.drawer_put_away("esc")
+            else:
+                self.hk_min()
 
     def hk_copy(self):
         sel = self.tree.selection() if self._on_checks() else ()
@@ -1945,6 +2099,8 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
             self.status_text, self.status_until = "Select an item first, then press O to open its search on the trade site.", time.time() + 5
 
     def hk_min(self):
+        if self.drawer_eff() == "drawer":         # drawer build: the Drawer is put away (drawer_page.py)
+            return self.drawer_put_away("min")
         self.min_ok_until = time.time() + 3       # YOU asked for it: on_unmap lets it go through
         self.root.iconify()                       # goes to the system tray when that is available (see on_unmap)
 
@@ -1990,7 +2146,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
 
     def acc_text(self):
         v = SETTINGS.get("wealth_account", "")
-        return f"Account: {v}  ⚙" if v else "Account: not set  ⚙"
+        return f"Account: {v}" if v else "Account: not set"
 
     def acc_link(self, parent, bg):
         """A small 'Account: Name ⚙' label that opens Settings › General › Your account (2.123.0)."""
@@ -2134,39 +2290,68 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         self.rates_pages = {k: tk.Frame(win, bg=C["panel"]) for k in ("Rates", "Exchange Helper")}
         w = self.rates_pages["Rates"]
         w.pack(fill="both", expand=True)
-        top = tk.Frame(w, bg=C["panel"], padx=16, pady=8)
-        top.pack(fill="x")
+        # UI overhaul: each currency a row with its picture (rates_view.py); search first, then the sort
+        from .rates_view import RatesList
+        self.rates_list = RatesList(w, self)
+        self.rates_list.pack(fill="both", expand=True)
+        top = tk.Frame(w, bg=C["panel"])                  # (the old status line: kept for its callers, not shown)
         self.rates_status = tk.Label(top, text="", bg=C["panel"], fg=C["text"], anchor="w", justify="left", wraplength=360)
-        self.rates_status.pack(side="left", fill="x", expand=True)
-        ttk.Button(top, text="Refresh now", style="Primary.TButton", command=self.refresh_rates_now).pack(side="right")
+        ttk.Button(self.rates_list.right, text="Refresh now", style="Primary.TButton",
+                   command=self.refresh_rates_now).pack(side="right")
+        bar_ = self.rates_list.right.master                # (laid out again with the button in it: it stays inside
+        if hasattr(bar_, "_flow_layout"):                  # the row's margin instead of past it)
+            bar_.after_idle(bar_._flow_layout)
         # (2.105.0, feedback: no "Check for new rates every hour" switch - they're always checked hourly)
         # ---- 2.2.0: what to post on the in-game Currency Exchange (2.4.0: its own tab, "Exchange Helper")
         hp = self.rates_pages["Exchange Helper"]
         exo, ex = chrome_section(hp, "Exchange Helper")
         exo.pack(fill="x", padx=16, pady=8)
-        tk.Label(ex, text="Pick what you're selling and what you want: it shows the ratio to post on the Currency "
-                          "Exchange, and what you'd get.", bg=C["panel2"], fg=C["muted"], anchor="w", justify="left",
-                 wraplength=560).pack(fill="x")
+        # UI overhaul: each currency with its picture; the market rate, then the three ratios to post as cards
+        tk.Label(ex, text="Pick what you sell and what you want. It shows the ratio to post on the Currency Exchange.",
+                 bg=C["panel2"], fg=C["muted"], anchor="w", justify="left", wraplength=560).pack(fill="x")
         er = tk.Frame(ex, bg=C["panel2"])
-        er.pack(fill="x", pady=(4, 0))
-        tk.Label(er, text="I sell", bg=C["panel2"], fg=C["muted"]).pack(side="left")
+        er.pack(fill="x", pady=(12, 0))
+        tk.Label(er, text="I sell", bg=C["panel2"], fg=C["text"], font=("Segoe UI", 10)).pack(side="left")
         self.ex_amt = tk.StringVar(value="10")
         ttk.Entry(er, textvariable=self.ex_amt, width=7).pack(side="left", padx=8)
         self.ex_have = tk.StringVar(value="Divine Orb")
         self.ex_want = tk.StringVar(value="Exalted Orb")
-        self.ex_boxes = []
+        self.ex_boxes, self.ex_pics = [], []
+        from .rates_view import Icons
+        self.ex_icons = Icons(self.root, lambda: self.draw_exchange(), size=28)
         for i, var in enumerate((self.ex_have, self.ex_want)):
             if i:
-                tk.Label(er, text="for", bg=C["panel2"], fg=C["muted"]).pack(side="left", padx=(8, 8))
+                swap = ttk.Button(er, text="⇄", width=3, command=self.ex_swap, style="Quiet.TButton")
+                swap.pack(side="left", padx=8)
+                Tooltip(swap, "Swap what you sell and what you want")
+                tk.Label(er, text="for", bg=C["panel2"], fg=C["text"], font=("Segoe UI", 10)).pack(side="left",
+                                                                                                padx=(0, 8))
+            if not hasattr(self, "ex_blank"):               # (an empty picture keeps the size in pixels)
+                self.ex_blank = tk.PhotoImage(master=self.root, width=28, height=28)
+            pic = tk.Label(er, bg=C["panel2"], image=self.ex_blank, bd=0)
+            pic.pack(side="left", padx=(0, 4))
+            self.ex_pics.append(pic)
             cb = ttk.Combobox(er, textvariable=var, state="readonly", width=22)
             cb.pack(side="left")
             cb.bind("<<ComboboxSelected>>", lambda e: self.draw_exchange())
             self.ex_boxes.append(cb)
-        ttk.Button(er, text="⇄", width=3, command=self.ex_swap, style="Quiet.TButton").pack(side="left", padx=8)
-        self.ex_out = tk.Label(ex, text="", bg=C["panel2"], fg=C["text"], font=(MONO, 10), anchor="w", justify="left")
+        flowify(er)                                         # D3: the pickers wrap at Drawer width
+        self.ex_page = hp
+        hp.bind("<Configure>", lambda e: e.widget is hp and self.ex_cards_layout(), add="+")
+        self._drawer_look_hooks = getattr(self, "_drawer_look_hooks", []) + [lambda on: self.ex_cards_layout()]
+        self.ex_market = tk.Label(ex, text="", bg=C["panel2"], fg=C["text"], font=(FONT_TITLE, 16), anchor="w")
+        self.ex_market.pack(fill="x", pady=(16, 0))
+        self.ex_back = tk.Label(ex, text="", bg=C["panel2"], fg=C["muted"], font=("Segoe UI", 9), anchor="w")
+        self.ex_back.pack(fill="x")
+        self.ex_cards = tk.Frame(ex, bg=C["panel2"])
+        self.ex_cards.pack(fill="x", pady=(12, 0))
+        for c in range(3):
+            self.ex_cards.columnconfigure(c, weight=1, uniform="ex")
+        self.ex_out = tk.Label(ex, text="", bg=C["panel2"], fg=C["muted"], font=("Segoe UI", 10), anchor="w",
+                               justify="left")
         self.ex_out.pack(fill="x", pady=(8, 0))
-        tk.Label(ex, text="The Currency Exchange only takes whole numbers, so these are the closest whole-number "
-                          "ratios to the market. Rates are from poe.ninja and move during the day.",
+        tk.Label(ex, text="The Currency Exchange takes whole numbers only: these are the closest whole-number ratios to "
+                          "the market. Rates are poe.ninja's and move during the day.",
                  bg=C["panel2"], fg=C["muted"], font=("Segoe UI", 9), anchor="w", justify="left",
                  wraplength=560).pack(fill="x", pady=(8, 0))
         self.ex_amt.trace_add("write", lambda *a: self.draw_exchange())
@@ -2182,18 +2367,13 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         self.conv_var = tk.StringVar(value=start or "8.5")
         ttk.Entry(row, textvariable=self.conv_var, width=9).pack(side="left", padx=8)
         tk.Label(row, text="divines worth in the other currencies?", bg=C["panel2"], fg=C["muted"]).pack(side="left")
-        self.conv_out = tk.Label(conv, text="", bg=C["panel2"], fg=C["good"], font=(MONO, 10, "bold"), anchor="w", justify="left",
+        self.conv_out = tk.Label(conv, text="", bg=C["panel2"], fg=C["good"], font=("Segoe UI", 10, "bold"), anchor="w", justify="left",
                                  wraplength=580)
         self.conv_out.pack(fill="x", pady=(8, 0))
         self.conv_var.trace_add("write", lambda *a: self.draw_rates())
         cols = [("cur", "Currency", 200, "w"), ("worth", "In divines", 120, "e"), ("per", "1 divine buys", 120, "e"),
                 ("vol", "Volume (div)", 110, "e")]
-        tk.Label(w, text="From poe.ninja, about hourly. Volume: how much it saw traded, in divines. Prices in a "  # 2.114.0
-                         "currency not listed are left out and flagged.",
-                 bg=C["panel"], fg=C["muted"], wraplength=600, justify="left", padx=16, pady=8).pack(side="bottom", fill="x")
-        SectionBar(w, "Rates").pack(fill="x", padx=16)         # 2.69.0: the list under its strip, sunken
-        rvp = Viewport(w)
-        rvp.pack(fill="both", expand=True, padx=16)
+        rvp = Viewport(w)                                      # (the old table: kept for its callers, not shown)
         tv = ttk.Treeview(rvp.body, columns=[c[0] for c in cols], show="headings")
         for cid, title, width, anchor in cols:
             tv.heading(cid, text=title)
@@ -2241,6 +2421,9 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
             vol = RATES.vol.get(cur, 0)
             tv.insert("", "end", values=(cur_name(cur, names), fmt_worth(v), (f"{1 / v:,.0f}" if 1 / v >= 10 else f"{1 / v:.2g}"), f"{vol:,.0f}"),
                       tags=("thin",) if vol < 5 else (("odd",) if i % 2 else ()))
+        rl = getattr(self, "rates_list", None)
+        if rl is not None:
+            rl.paint()
 
     def ex_currencies(self):
         """[(display name, currency id)] most traded first, Divine Orb on top."""
@@ -2264,6 +2447,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         if not hasattr(self, "ex_out"):
             return
         from .rates import exchange_offers
+        from .rates_view import picture_paths, url_for
         cur = self.ex_currencies()
         names = [n for n, _c in cur]
         for cb in self.ex_boxes:
@@ -2274,6 +2458,15 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
             if ex:
                 self.ex_want.set(ex)
         have, want = ids.get(self.ex_have.get()), ids.get(self.ex_want.get())
+        paths = picture_paths()
+        for pic, cid in zip(getattr(self, "ex_pics", []), (have, want)):
+            img = self.ex_icons.get(url_for(cid, paths)) if cid else None
+            pic.config(image=img or self.ex_blank)
+            pic.image = img
+        for w in self.ex_cards.winfo_children():
+            w.destroy()
+        self.ex_market.config(text="")
+        self.ex_back.config(text="")
         if have is None or want is None or have == want:
             self.ex_out.config(text="Pick two different currencies." if RATES.table else "No rates yet - press Refresh now.")
             return
@@ -2281,19 +2474,52 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         if not res:
             self.ex_out.config(text="No rate for one of these currencies yet.")
             return
+        self.ex_out.config(text="")
         r, offers = res
         try:
             amt = float(self.ex_amt.get().replace(",", "") or 0)
         except ValueError:
             amt = 0
         hn, wn = self.ex_have.get(), self.ex_want.get()
+
         def num(x):
             return _amt(x) if x >= 1 else f"{x:.3g}"
-        lines = [f"Market: 1 {hn} ≈ {num(r)} {wn}   (1 {wn} ≈ {num(1 / r)} {hn})", ""]
-        for label, a, b, note in offers:
-            get = f"   → {_amt(amt)} {hn} gets you ≈ {num(amt * b / a)} {wn}" if amt else ""
-            lines.append(f"{label:<11} post {a} : {b}{get}")
-        self.ex_out.config(text="\n".join(lines))
+        self.ex_market.config(text=f"1 {hn}  ≈  {num(r)} {wn}")
+        self.ex_back.config(text=f"Market rate (poe.ninja).  1 {wn} ≈ {num(1 / r)} {hn}.")
+        P1 = C["panel"]
+        for col, (label, a, b, note) in enumerate(offers):
+            fair = label == "Fair"
+            card = tk.Frame(self.ex_cards, bg=P1, padx=16, pady=12, highlightthickness=1,
+                            highlightbackground=C["good"] if fair else C["line"])
+            self.ex_cards_place(card, col)
+            tk.Label(card, text=("✓ " if fair else "") + label, bg=P1, fg=C["text"], font=("Segoe UI", 10, "bold"),
+                     anchor="w").pack(fill="x")
+            tk.Label(card, text=note[0].upper() + note[1:] + ".", bg=P1, fg=C["muted"], font=("Segoe UI", 9),
+                     anchor="w", justify="left", wraplength=200).pack(fill="x")
+            tk.Label(card, text=f"Post  {a} : {b}", bg=P1, fg=C["text"], font=(FONT_TITLE, 16), anchor="w"
+                     ).pack(fill="x", pady=(8, 0))
+            tk.Label(card, text=f"{a} {hn} for {b} {wn}", bg=P1, fg=C["muted"], font=("Segoe UI", 9), anchor="w",
+                     wraplength=200, justify="left").pack(fill="x")
+            if amt:
+                tk.Label(card, text=f"{_amt(amt)} {hn} gets ≈ {num(amt * b / a)} {wn}", bg=P1, fg=C["good"],
+                         font=("Segoe UI", 9, "bold"), anchor="w", wraplength=200, justify="left").pack(fill="x",
+                                                                                                      pady=(8, 0))
+
+    def ex_cards_place(self, card, col):
+        """D3: the three offers sit side by side; under 900 px (the Drawer) they stack in one column."""
+        narrow = self.ex_page.winfo_width() < 900       # (drawer-look: by width - stacked they ran off the bottom)
+        if narrow:
+            card.grid(row=col, column=0, columnspan=3, sticky="nsew", pady=(0 if col == 0 else 8, 0))
+        else:
+            card.grid(row=0, column=col, columnspan=1, sticky="nsew", padx=(0 if col == 0 else 8, 0))
+
+    def ex_cards_layout(self):
+        try:
+            for i, card in enumerate(self.ex_cards.winfo_children()):
+                card.grid_configure(pady=0, padx=0)
+                self.ex_cards_place(card, int(i))
+        except tk.TclError:
+            pass
 
     def open_limits(self, _e=None):
         if self.limit_win and self.limit_win.winfo_exists():
@@ -2377,53 +2603,65 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         except Exception:
             buglog.caught()
 
-    def poll_clipboard(self, gen=None):
-        if gen is not None and gen != self.poll_gen:
-            return                                           # an older watcher that was replaced: let it die
-        gen = self.poll_gen
-        self.last_poll = time.time()
-        self.copy_mark_check()
+    # GGG policy (Nov 2026, the strictest reading): "Reading from the screen or clipboard may only be performed once per
+    # manual key press." There is no clipboard watcher - no timer asks Windows anything about the clipboard. A copy key
+    # YOU press in the game (your Ctrl+C / Ctrl+Alt+C, the price check key, the Top Up key - utilities_page) grants one
+    # read (clipread.grant, on the key watcher's thread) and asks for it here; clipread.READ_DELAY later the text is
+    # read once and goes where it belongs. A copy made in any other program is never read.
+    def clip_granted(self, gid):
+        """(any thread) A copy key press was granted one clipboard read: the window thread reads it, once."""
+        self.ui_q.put(("clipread", gid))
+
+    def ev_clipread(self, gid):
+        wait = clipread.due(gid)
+        if wait is None:
+            return None
+        self.root.after(int(wait * 1000) + 1, lambda: self.clip_read_once(gid))   # (one shot: READ_DELAY after the press)
+        return wait
+
+    CLIP_MISSED = gamedata.COPY_MISSED
+
+    def clip_read_once(self, gid):
+        """The press's one read (clipread.take) -> Top Up, Wealth, Price Checks or Bulk Pricing. No retry: a copy that
+        isn't an item says so in one line. -> where it went (for the log line and the read mark), or None."""
         try:
-            seq = clip_seq()
-            if seq is not None:                              # Windows: every copy bumps the counter, even identical text
-                if seq != self.last_seq:
-                    text = read_clipboard_text()
-                    if text is None:                         # another program is holding the clipboard: try again next tick
-                        pass
-                    else:
-                        self.last_seq = seq
-                        if text and self._clip_ignored(text):     # our own chat-command paste (and putting yours back)
-                            self.last_clip = text
-                        elif text:
-                            self.last_clip = text
-                            if self.topup_wants(text) and self.topup_take(text):    # 2.131.4: Top Up's copy first
-                                pass
-                            elif self.wealth_takes(text):        # 2.0 beta 7: a copied stack, counted on Wealth
-                                self.wealth_clip(text)
-                            elif self.pc_wants(text):            # 2.80.0: your price check key on an item -> Price Checks
-                                self.last_heard = time.time()
-                                self.pc_take(text)
-                            elif self.gate_ok(text):
-                                self.last_heard = time.time()
-                                self.accept_clip(text)
-            else:                                            # other systems: only changed text counts
-                try:
-                    text = self.root.clipboard_get()
-                except tk.TclError:
-                    text = ""
-                if text and text != self.last_clip and self._clip_ignored(text):
-                    self.last_clip = text
-                elif text and text != self.last_clip:
-                    self.last_clip = text
-                    self.last_heard = time.time()
-                    if self.wealth_takes(text):
-                        self.wealth_clip(text)
-                    else:
-                        self.accept_clip(text)
+            text = clipread.take(gid)
         except Exception:
             self.log_error("reading the clipboard")
-        finally:
-            self.root.after(150, self.poll_clipboard, gen)
+            return None
+        if text is None:
+            return None                                      # (no read: nothing may be read for this press)
+        where = None
+        try:
+            if text and self._clip_ignored(text):            # our own chat-command paste (and putting yours back)
+                self.last_clip, where = text, "nothing (the app's own chat command)"
+            elif text and text.lstrip().startswith("Item Class:"):
+                self.last_clip = text
+                if self.topup_wants(text) and self.topup_take(text):    # 2.131.4: Top Up's copy first
+                    where = "Top Up Reminders"
+                elif self.wealth_takes(text):                # Count by hand: a copied stack, while counting
+                    self.wealth_clip(text)
+                    where = "Wealth"
+                elif self.pc_wants(text):                    # 2.80.0: your price check key on an item -> Price Checks
+                    self.last_heard = time.time()
+                    self.pc_missed = None                    # (pc_take says why when it can't price it)
+                    self.pc_take(text)
+                    where = ("nothing - " + self.pc_missed) if self.pc_missed else "Price Checks"
+                elif self.gate_ok(text):
+                    self.last_heard = time.time()
+                    self.accept_clip(text)
+                    where = "Bulk Pricing"
+                else:
+                    where = "nothing (not your copy key)"
+        except Exception:
+            self.log_error("reading the clipboard")
+        if where is None:                                    # nothing, or not an item: say why, from the text alone
+            why = gamedata.copy_problem(text) or self.CLIP_MISSED     # (empty, another language, not an item)
+            self.status_text, self.status_until = why, time.time() + 8
+            clipread.say(gid, "nothing - " + why)
+            return None
+        clipread.say(gid, where)
+        return where
 
     def ignore_clip(self, text, secs=3.0):
         """The app itself is about to put this on the clipboard: don't treat it as your copy (called from any thread)."""
@@ -2487,12 +2725,6 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
             self.copy_marker.show(x, y, secs=None if hold else secs, colour=self.marker_colour())
         except Exception:
             self.log_error("showing the copy marker")
-
-    def restart_watcher(self):
-        """Start a fresh clipboard watcher (the old one, if still alive, stops itself)."""
-        self.poll_gen += 1
-        self.last_poll = time.time()
-        self.root.after(50, self.poll_clipboard, self.poll_gen)
 
     ADVANCED = re.compile(r"\{\s*(?:Prefix|Suffix|Implicit|Unique|Desecrated|Enchant)[^}]*\}", re.I)
 
@@ -2566,7 +2798,6 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         if not g:
             self.status_text, self.status_until = "Heard an item copy, but couldn't read it as an item", time.time() + 10
             return
-        cls = gamedata.classes().get(g.get("class") or "", {}).get("name") or g.get("class_text") or "This item"
         what = f"{g.get('name') or g.get('base') or 'item'}" + (f" ({g['base']})" if g.get("base") and g["base"] != g.get("name") else "")
         try:                                                 # 1.42: keep the text, so the reason can be found
             path = P("unpriced_items.txt")
@@ -2577,12 +2808,12 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
             buglog.caught()
         if g.get("stack") is not None and parse_stack(text):      # 2.0 beta 7: one click puts it on Wealth
             name, qty, _c = parse_stack(text)
-            msg = (f"{name} x{qty:,} is a stack: stacks are counted on the Wealth window, not price-checked. "
-                   "Tip: with the Wealth window in front (or while counting), a plain Ctrl+C adds stacks there.")
+            msg = (f"{name} x{qty:,} is a stack: stacks are counted on Wealth (Scan stash, or More ▾ › Count by "
+                   "hand), not price-checked.")
             self.status_text, self.status_until = msg, time.time() + 15
             from . import features as FEAT
             if FEAT.on("wealth"):
-                self.info_card(msg, [("Add it to Wealth", lambda: (self.shell.open("wealth"), self.wealth_clip(text)))])
+                self.info_card(msg, [("Open Wealth", lambda: self.shell.open("wealth"))])
             else:
                 self.info_card(f"{name} x{qty:,} is a stack: currency isn't price-checked. (Counting it is part of "
                                "Wealth, a beta feature: Settings › General › Features.)")
@@ -2594,18 +2825,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
             self.status_text, self.status_until = f"Pricing {cur[0]}...", time.time() + 10
             self.stack_price(cur[0], cur[1], loud=True)
             return
-        if g.get("stack") is not None:
-            why = "stackable items are counted on the Wealth window, not price-checked here"
-        elif g.get("rarity") == "Normal" and g.get("class") in ("tablet", "jewel", "waystone"):
-            why = "a normal (white) one has no mods to price"
-        elif g.get("class") in ("tablet", "jewel") and g.get("rarity") in ("Magic", "Rare"):
-            why = ("its name line wasn't recognized (the copied text is saved in unpriced_items.txt in the data "
-                   "folder)")
-        elif not g.get("base"):
-            why = "its base type isn't in the library"
-        else:
-            why = "the price checker doesn't price this kind of item yet"
-        msg = f"{cls}: not priced - {why}."                  # 2.18.0: no Under the hood link from Price checks
+        msg = gamedata.unpriced_line(g)                      # 2.18.0: no Under the hood link from Price checks
         self.status_text, self.status_until = msg, time.time() + 20
         if hasattr(self, "lib_in"):
             self.lib_in.delete("1.0", "end")
@@ -2863,10 +3083,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
                     getattr(self, "ev_" + ev[0])(*ev[1:])
                 except Exception:
                     self.log_error("handling " + ev[0])
-            if time.time() - self.last_poll > 3:             # the clipboard watcher stalled: restart it
-                self.log_error("clipboard watcher restarted")
-                self.restart_watcher()
-            for step in (self.update_status, self.update_limit_ui):
+            for step in (self.copy_mark_check, self.update_status, self.update_limit_ui):   # (the copy mark: no read)
                 try:
                     step()
                 except Exception:
@@ -2910,6 +3127,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         if s is not None:
             SPLASH[0] = None
             s.close()
+        self.root.after(200, self.drawer_startup)            # drawer build: the Drawer shape starts put away
 
     def ev_ready(self):
         self.close_splash()
@@ -4126,7 +4344,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         book = f"Mod Book: {MARKET.mods_known()} mods learned"
         parts.append(book)
         from . import buglog
-        if buglog.debug_on():                           # 2.116.0: Developer options › Debug mode
+        if buglog.debug_on():                           # 2.116.0: Problems › Debug mode (was Developer options)
             st = buglog.STATS
             book = f"{book}   ·   debug: {st['requests']} requests ({st['slow_requests']} slow), see the app's log"
             parts.append(f"debug: {st['requests']} requests ({st['slow_requests']} slow)")
@@ -4370,8 +4588,6 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         self.batch_ids.clear()
         self.was_busy = False
         self.done_times.clear()
-        self.last_seq = clip_seq()                   # whatever is on the clipboard now is not a new copy
-        self.restart_watcher()
         self.dirty = True
         self.tree.delete(*self.tree.get_children())
         self.update_total()
@@ -4515,7 +4731,9 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         btns = tk.Frame(d, bg=P2)
         btns.pack(fill="x", pady=(8, 0))
         self.detail_search_btn = ttk.Button(btns, text=self._bulk_search_text(rec), style="Primary.TButton",
-                                            command=lambda: self.reprice([rec["id"]]))
+                                            command=lambda: self.pc_search_go(rec))   # (↔ Broaden Search: a step)
+        from .pricecheck_page import search_tip
+        self.detail_search_btn._search_tip = Tooltip(self.detail_search_btn, search_tip(rec))
         self.detail_search_btn.pack(side="left", fill="x", expand=True)
         self.bulkv.search_btn = self.detail_search_btn
         self.detail_open_btn = ttk.Button(btns, text="Trade Site  [O]", command=self.open_trade)
@@ -4538,7 +4756,8 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
 
     @staticmethod
     def _bulk_search_text(rec):
-        return "Search again  •  filters changed" if rec.get("changed") else "Search again  [Enter]"
+        from .pricecheck_page import search_word
+        return "Search again  •  filters changed" if rec.get("changed") else search_word(rec, "Search again  [Enter]")
 
     def _detail_note(self, rec):
         """One short line under the buttons when the price needs a word: no match, by hand, an error, a used tablet."""
@@ -4554,6 +4773,10 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
                     C["good"])
         if rec.get("uses_note"):
             return "✂ " + rec["uses_note"], C["good"]
+        from .pricecheck_page import widened_line
+        wl = widened_line(rec)                       # owner (base widening): how a white / blue base's search widened
+        if wl:
+            return wl, C["text"]
         return None
 
     # ---------------- the card
@@ -4591,6 +4814,8 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         else:
             big = "Pricing…" if st == "pricing" else "Waiting in line…"
         cv = tk.Canvas(d, width=w, height=200, bg=P2, highlightthickness=0, bd=0)
+        cv._look = "drawer" if getattr(self, "_pc_dl", False) and getattr(self, "_card_no_price", False) else ""
+        dl = _cl(cv)
         cv.pack(fill="x")
         fmod = ("Segoe UI", 10)
         self.card_rows, self.card_vals, self.card_opts, self.card_tris = {}, {}, {}, {}
@@ -4598,15 +4823,26 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         self.card_thumbs = {}
         self.card_paint = {}
         with _th.raw():
-            bg = C["odd"]
-            cv.create_rectangle(0, 0, w - 1, 199, fill=bg, outline=t.c(t.part("card", "border", default="border_light")),
-                                tags=("cardframe",))
-            name_c = _th.card_header(cv, 4, 4, w - 5, 54, col, bg)
-            cv.create_text(w // 2, 20, text=it["name"], fill=name_c, font=(_th.head_font(), 12, "bold"),
-                           width=w - 24, justify="center")
-            if it.get("base") and it["base"] != it["name"]:
-                cv.create_text(w // 2, 40, text=it["base"], fill=_th.mix(name_c, C["text"], .45), font=("Segoe UI", 10))
-            y = 62
+            bg = _card_bg(cv)
+            cv.create_rectangle(0, 0, w - 1, 199, fill=bg, outline=bg if dl else
+                                t.c(t.part("card", "border", default="border_light")), tags=("cardframe",))
+            if dl:                                             # the Drawer (mockups.html): the name, then its
+                y = self._card_head_drawer(cv, it, rar, col, w)  # rarity as a chip and the base in one line
+            else:
+                name_c = _th.card_header(cv, 4, 4, w - 5, 54, col, bg)
+                cv.create_text(w // 2, 20, text=it["name"], fill=name_c, font=(_th.head_font(), 12, "bold"),
+                               width=w - 24, justify="center")
+                if it.get("base") and it["base"] != it["name"]:
+                    cv.create_text(w // 2, 40, text=it["base"], fill=_th.mix(name_c, C["text"], .45),
+                                   font=("Segoe UI", 10))
+                y = 62
+            from .pricecheck_page import flag_text, own_flags
+            flags = own_flags(rec)
+            if flags:                                          # Round 18: the item's flags under its name (a mark +
+                cv.create_text(0 if dl else w // 2, y, text=flag_text(flags), anchor="nw" if dl else "n",   # a word)
+                               font=("Segoe UI", 9, "bold"), fill=C["red"] if "corrupted" in flags else C["text"],
+                               width=w - 24, tags=("cardflags",))
+                y += 20
             if getattr(self, "_card_no_price", False):          # 2.123.0 (p4): Price Checks' strip says the price
                 y += 18
             else:
@@ -4639,7 +4875,8 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
                 if shut and summary:
                     lab += "   " + summary
                 tag = f"cardsec_{key}"
-                tid = cv.create_text(12, y, text=lab, anchor="nw", font=("Segoe UI", 9, "bold"),
+                tid = cv.create_text(12 if not dl else 0, y, text=lab, anchor="nw",
+                                     font=("Segoe UI", 9, "bold"),
                                      fill=C["text"] if not shut else C["muted"], tags=(tag, "cardsec"))
                 bb = cv.bbox(tid)
                 x_end = w - 12
@@ -4660,14 +4897,17 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
                 s = it.get("search") or {}
                 if it.get("gear") and not it.get("waystone") and s.get("rarity") != "unique":
                     y = self._card_base_row(cv, rec, it, y, w)
-                if it.get("corrupted"):                       # 2.120.1 (feedback): in plain sight, not folded away
-                    y = self._card_corrupt_row(cv, rec, it, y, w)
                 if it.get("quality"):
                     y = self._card_opt_row(cv, rec, "quality", f"Quality: +{it['quality']}%", it["quality"], y, w)
                 for m in totals:
                     y = self._card_mod_row(cv, rec, m, y, w, fmod, C["good"], card_text(m))
                 if it.get("waystone") and it.get("tier"):     # 2.103.2 (feedback): the tier can be widened
                     y = self._card_opt_row(cv, rec, "tier", "Waystone tier:", it["tier"], y, w)
+                if it.get("waystone") and it.get("area_level"):   # searched by its tier; owner decision C: the
+                    y = self._card_opt_row(cv, rec, "area_level", f"Area level: {it['area_level']}",   # area level
+                                           it["area_level"], y, w)                                     # if ticked
+                    TagTip(cv, "cardopt_area_level", "Ticked: only waystones of this area level (Min / Max). "
+                                                     "Unticked: searched by its tier only.")
                 if it.get("ilvl"):
                     y = self._card_opt_row(cv, rec, "ilvl", f"Item level: {it['ilvl']}", it["ilvl"], y, w)
                 if it.get("sockets"):
@@ -4679,16 +4919,21 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
             if req and section("REQUIREMENTS", "req", summary="  ·  ".join(f"{REQ_NAMES[k]} {v}" for k, v in req.items())):
                 for k, v in req.items():
                     y = self._card_opt_row(cv, rec, "req_" + k, f"{REQ_NAMES[k]}: {v}", v, y, w)
-            # ---- miscellaneous: Any / Yes / No
+            # ---- miscellaneous: Any / Yes / No - the item's own flags first, at Yes (Round 18: the only place)
             from .searchopts_page import default_opts as _dopts
             _cur = {**_dopts(it), **(rec.get("opts") or {})}
-            nset = sum(1 for key, _l in MISC_ROWS if _cur.get(key) not in (None, "any", "", "Any"))
-            if section("MISCELLANEOUS", "misc", count=nset):
-                col_w = (w - 24) // 2
-                for i, (key, label) in enumerate(MISC_ROWS):
-                    x0 = 16 + (i % 2) * col_w
-                    self._card_tri(cv, rec, key, label, x0, y + (i // 2) * 20, facts)
-                y += 20 * ((len(MISC_ROWS) + 1) // 2) + 2
+            grid = self._card_misc_keys(it)
+            nset = sum(1 for key, _l in grid if _cur.get(key) not in (None, "any", "", "Any"))
+            if grid and section("MISCELLANEOUS", "misc", count=nset):
+                import tkinter.font as _tkf
+                f9 = _tkf.Font(family="Segoe UI", size=9)
+                lw = max(f9.measure(label) for _k, label in grid) + 10
+                cols = 2 if 2 * (lw + 52) <= w - 24 else 1
+                col_w = (w - 24) // cols
+                for i, (key, label) in enumerate(grid):
+                    x0 = 16 + (i % cols) * col_w
+                    self._card_tri(cv, rec, key, label, x0, y + (i // cols) * 20, facts, lw)
+                y += 20 * ((len(grid) + cols - 1) // cols) + 2
 
             def ticked(ms):
                 return sum(1 for m in ms if mod_impact(rec, m) != "ignore")
@@ -4699,14 +4944,23 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
                 for m in aug:
                     y = self._card_mod_row(cv, rec, m, y, w, fmod, MOD_COL["rune"], card_text(m))
             own = [m for m in own if m not in aug]
+
+            def pseudo_section():
+                nonlocal y
+                if pseudo and section("PSEUDO FILTERS", "pseudo", count=ticked(pseudo), boxes=True):
+                    for m in pseudo:
+                        y = self._card_mod_row(cv, rec, m, y, w, fmod, MOD_COL["pseudo"], card_text(m))
+            # Round 18: a waystone's own numbers (Item Rarity, Pack Size ...) first, as the card over the game has them
+            top_pseudo = bool(it.get("waystone") or it.get("class") == "Tablet")
+            if top_pseudo:
+                pseudo_section()
             if own and section("STAT FILTERS", "stats", count=ticked(own),
                                boxes=any(self._card_has_vals(rec, m) for m in own)):
                 first = [m for m in own if m.get("kind") in ("Implicit", "Enchant")]
                 for m in first + [m for m in own if m not in first]:
                     y = self._card_mod_row(cv, rec, m, y, w, fmod, imp_c if m in first else mod_c, card_text(m))
-            if pseudo and section("PSEUDO FILTERS", "pseudo", count=ticked(pseudo), boxes=True):
-                for m in pseudo:
-                    y = self._card_mod_row(cv, rec, m, y, w, fmod, MOD_COL["pseudo"], card_text(m))
+            if not top_pseudo:
+                pseudo_section()
             # ---- trade filters
             if section("TRADE FILTERS", "trade"):
                 from .searchopts_page import default_opts
@@ -4721,9 +4975,24 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
                     cv.create_window(110, y, window=cb, anchor="nw", width=w - 126, height=26)
                     self.card_opts[key] = var
                     y += 30
-            if it.get("corrupted"):
-                cv.create_text(w // 2, y + 8, text="Corrupted", font=("Segoe UI", 10, "bold"), fill=C["red"])
-                y += 20
+                # owner decision C: the trade site's other numbers this item has (off until ticked)
+                from .trade import site_has
+                nums = dict(facts.get("props") or {})
+                s_ = it.get("search") or {}
+                if (s_.get("gem") or {}).get("level"):
+                    y = self._card_opt_row(cv, rec, "gem_level", f"Gem level: {s_['gem']['level']}",
+                                           s_["gem"]["level"], y, w)
+                    TagTip(cv, "cardopt_gem_level", "Ticked: gems of this level or more (Min / Max). "
+                                                    "Unticked: any level.")
+                for key, label, group, fid in EXTRA_NUMS:
+                    v = nums.get(key)
+                    if v is None or not site_has(group, fid) or (key == "stack" and (v or 0) <= 1):
+                        continue
+                    shown = f"{v:.2f}" if key in ("aps", "reload") else f"{v:g}%" if key in ("crit", "block") else f"{v}"
+                    y = self._card_opt_row(cv, rec, key, f"{label}: {shown}", v, y, w, lower=key == "reload")
+                    TagTip(cv, f"cardopt_{key}", f"Ticked: only listings with this {label.lower()} - "
+                           + ("at most yours (Max)" if key == "reload" else "yours or more (Min)")
+                           + ", as the trade site counts it. Unticked: any.")
             h2 = y + 8
             cv.configure(height=h2)
             cv.coords("cardframe", 0, 0, w - 1, h2 - 1)
@@ -4745,19 +5014,19 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
 
     def _card_box(self, cv, x, y, on, tag, enabled=True):
         box = 14
-        cv.create_rectangle(x, y, x + box, y + box, outline=C["muted"] if enabled else C["line"],
-                            fill=C["accent"] if on and enabled else C["odd"], tags=("cardbox", tag, tag + "_box"))
+        cv.create_rectangle(x, y, x + box, y + box, outline=_box_line(cv, enabled),
+                            fill=_tick_fill(cv, on and enabled), tags=("cardbox", tag, tag + "_box"))
         if on and enabled:
-            cv.create_line(x + 3, y + 7, x + 6, y + 10, x + 11, y + 4, fill="#120a04", width=2,
+            cv.create_line(x + 3, y + 7, x + 6, y + 10, x + 11, y + 4, fill=_tick_ink(cv), width=2,
                            tags=(tag, tag + "_chk"))
 
     def _card_box_paint(self, cv, x, y, on, tag):
         """2.104.1: tick / untick a box drawn by _card_box, in place."""
         try:
-            cv.itemconfigure(tag + "_box", fill=C["accent"] if on else C["odd"])
+            cv.itemconfigure(tag + "_box", fill=_tick_fill(cv, on))
             cv.delete(tag + "_chk")
             if on:
-                cv.create_line(x + 3, y + 7, x + 6, y + 10, x + 11, y + 4, fill="#120a04", width=2,
+                cv.create_line(x + 3, y + 7, x + 6, y + 10, x + 11, y + 4, fill=_tick_ink(cv), width=2,
                                tags=(tag, tag + "_chk"))
         except tk.TclError:
             pass
@@ -4784,9 +5053,36 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
             try:
                 if rec.get("src") not in ("pc", "fav"):
                     return btn.config(text=self._bulk_search_text(rec))
+                if rec.get("src") == "pc":                       # (Price Checks: ↔ Broaden Search when offered)
+                    return self.pc_search_paint(btn, rec, "Search")
                 btn.config(text="Search  •  filters changed" if rec.get("changed") else "Search")
             except tk.TclError:
                 pass
+
+    def _card_head_drawer(self, cv, it, rar, col, w):
+        """The Drawer's card head (mockups.html): the name; under it the rarity as a chip (a mark and a word) and the
+        base, item level and quality in one muted line. -> the y under it."""
+        from . import themes as _th
+        tid = cv.create_text(0, 0, text=it.get("name") or it.get("base") or "Item", anchor="nw", fill=col,
+                             font=(_th.head_font(), 13, "bold"), width=w - 8)   # (Round 18: its rarity color)
+        bb = cv.bbox(tid) or (0, 0, 0, 20)
+        y = bb[3] + 6
+        x = 0
+        if rar:
+            chip = cv.create_text(x + 10, y + 2, text=f"\u25c6 {rar.title()}", anchor="nw", fill=C["text"],
+                                  font=("Segoe UI", 9))
+            cb = cv.bbox(chip) or (x + 10, y, x + 60, y + 16)
+            _th.round_rect(cv, x, cb[1] - 3, cb[2] + 10, cb[3] + 3, 9, fill=C["panel2"], outline=C["line"])
+            cv.tag_raise(chip)
+            if rar in ("rare", "magic", "unique"):              # (the mark in the game's rarity color, the word says it)
+                cv.create_text(x + 10, y + 2, text="\u25c6", anchor="nw", fill=col, font=("Segoe UI", 9))
+            x = cb[2] + 18
+        bits = [it.get("class") or "", it.get("base") if it.get("base") and it.get("base") != it.get("name") else "",
+                f"item level {it['ilvl']}" if it.get("ilvl") else "", f"{it['quality']}% quality" if it.get("quality")
+                else ""]
+        cv.create_text(x, y + 2, text=" \u00b7 ".join(b for b in bits if b), anchor="nw", fill=C["muted"],
+                       font=("Segoe UI", 9), width=max(80, w - x - 8))
+        return y + 34
 
     def _card_click(self, cv, tag, fn):
         cv.tag_bind(tag, "<Button-1>", lambda e: fn())
@@ -4799,7 +5095,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         cur = {**default_opts(it), **(rec.get("opts") or {})}
         on = cur.get("base") == "same"
         tag = "cardbase"
-        cv.create_rectangle(4, y - 2, w - 4, y + 18, outline="", fill=C["odd"], tags=(tag,))
+        cv.create_rectangle(4, y - 2, w - 4, y + 18, outline="", fill=_card_bg(cv), tags=(tag,))
         self._card_box(cv, 10, y + 2, on, tag)
         txt = cv.create_text(32, y, text=f"Base type: {it['base']}" if on else f"Any {it.get('class') or 'base'}",
                              anchor="nw", font=("Segoe UI", 10), fill=C["text"] if on else C["muted"], tags=(tag,))
@@ -4820,27 +5116,24 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         self.card_opts["base"] = on
         return y + 22
 
-    def _card_corrupt_row(self, cv, rec, it, y, w):
-        """2.120.1 (feedback: a toggle for it on the price check): a corrupted item - ticked = compared with corrupted
-        listings only (buyers pay less for them); unticked = corrupted or not. The same setting as Miscellaneous ›
-        Corrupted."""
-        from .searchopts_page import default_opts
-        cur = {**default_opts(it), **(rec.get("opts") or {})}
-        on = cur.get("corrupted") == "yes"
-        tag = "cardcorrupt"
-        cv.create_rectangle(4, y - 2, w - 4, y + 18, outline="", fill=C["odd"], tags=(tag,))
-        self._card_box(cv, 10, y + 2, on, tag)
-        cv.create_text(32, y, text="Corrupted listings only" if on else "Corrupted or not", anchor="nw",
-                       font=("Segoe UI", 10), fill=C["text"] if on else C["muted"], tags=(tag,))
+    @staticmethod
+    def _card_misc_keys(it, flag_rows=None):
+        """Miscellaneous' Any / Yes / No - every flag the trade site offers, in one place. The item's own flags come
+        first and start at Yes (owner decision A: the same flag only); Corrupted and Crafted are there for every item
+        (Corrupted: the route's own default; Crafted: Any). Words only - no icons here (owner): the Yes / No / Any
+        value is the cue."""
+        from .trade import MISC_OPTS, site_has
+        del flag_rows                                            # (Round 18: no flag toggles in Properties)
+        names = {k: n for k, n, _f in MISC_OPTS}
+        names["corrupted"] = "corrupted"
+        rows = [(k, label) for k, label in MISC_ROWS if site_has("misc_filters", names[k])]
+        has = set(it.get("flags") or ()) | ({"corrupted"} if it.get("corrupted") else set())
+        return [r for r in rows if r[0] in has] + \
+            [r for r in rows if r[0] not in has]                 # (its own: the word and its Yes - no icons, never color alone)
 
-        def click():
-            self.search_opt_set(rec, "corrupted", "any" if on else "yes", redraw=False)
-            self.card_changed(rec)                    # (built again: Miscellaneous shows the same setting)
-        self._card_click(cv, tag, click)
-        return y + 22
-
-    def _card_opt_row(self, cv, rec, key, label, have, y, w):
-        """[✓] Quality: +22%   [min] [max] - one of the item's own filters (rec["opts"][key]); ticked = searched."""
+    def _card_opt_row(self, cv, rec, key, label, have, y, w, lower=False):
+        """[✓] Quality: +22%   [min] [max] - one of the item's own filters (rec["opts"][key]); ticked = searched.
+        lower: less is better (Reload time) - ticking it puts your number in Max."""
         from .searchopts_page import default_opts
         cur = {**default_opts(rec["item"]), **(rec.get("opts") or {})}.get(key)
         if isinstance(cur, dict):
@@ -4849,13 +5142,14 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
             lo, hi = cur, None
         on = cur not in (None, "", 0, {})
         tag = f"cardopt_{key}"
-        cv.create_rectangle(4, y - 2, w - 4 - (2 * CARD_BOX + 34), y + 18, outline="", fill=C["odd"], tags=(tag,))
+        cv.create_rectangle(4, y - 2, w - 4 - (2 * CARD_BOX + 34), y + 18, outline="", fill=_card_bg(cv), tags=(tag,))
         self._card_box(cv, 10, y + 2, on, tag)
         txt = cv.create_text(32, y, text=label, anchor="nw", font=("Segoe UI", 10),
                              fill=C["text"] if on else C["muted"], tags=(tag,))
         st = {"on": on}
         boxes = {}
-        for i, (k, v) in enumerate((("min", lo if on else have), ("max", hi if on else None))):
+        for i, (k, v) in enumerate((("min", lo if on else None if lower else have),
+                                    ("max", hi if on else have if lower else None))):
             e = self._card_entry(cv, "" if v is None else f"{v:g}" if isinstance(v, float) else str(v))
             cv.create_window(w - 12 - 18 - CARD_BOX * (2 - i) - (4 if i == 0 else 0), y - 1, window=e, anchor="nw",
                              width=CARD_BOX, height=20)
@@ -4866,7 +5160,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
             for k, e in boxes.items():
                 tx = e.get().strip().replace(",", ".")
                 try:
-                    vals[k] = int(float(tx)) if tx else None
+                    vals[k] = (float(tx) if key in FLOAT_OPTS else int(float(tx))) if tx else None
                 except ValueError:
                     e.config(highlightbackground=C["red"])
                     return None
@@ -4889,7 +5183,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
             for k, e in boxes.items():          # on Enter
                 tx = e.get().strip().replace(",", ".")
                 try:
-                    vals[k] = int(float(tx)) if tx else None
+                    vals[k] = (float(tx) if key in FLOAT_OPTS else int(float(tx))) if tx else None
                     e.config(highlightbackground=C["line"])
                 except ValueError:
                     e.config(highlightbackground=C["red"])
@@ -4920,16 +5214,17 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         self.card_changed(rec)
         return n
 
-    def _card_tri(self, cv, rec, key, label, x, y, facts):
-        """Corrupted: Any / Yes / No - a click steps through them (this item's search only)."""
+    def _card_tri(self, cv, rec, key, label, x, y, facts, lw=92):
+        """Corrupted: Any / Yes / No - a click steps through them (this item's search only). lw: the labels' width."""
         from .searchopts_page import default_opts
         cur = {**default_opts(rec["item"]), **(rec.get("opts") or {})}.get(key) or "any"
         has = facts.get("flags", set())
         tag = f"cardtri_{key}"
         cv.create_text(x, y, text=label, anchor="nw", font=("Segoe UI", 9),
                        fill=C["text"] if key in has else C["muted"], tags=(tag,))
-        val = cv.create_text(x + 92, y, text=f"{cur.title()} ▾", anchor="nw", font=("Segoe UI", 9, "bold"),
-                             fill=C["accent"] if cur != "any" else C["text"], tags=(tag,))
+        lit = C["accent"]                                     # (the word says it too - Yes / No / Any)
+        val = cv.create_text(x + lw, y, text=f"{cur.title()} ▾", anchor="nw", font=("Segoe UI", 9, "bold"),
+                             fill=lit if cur != "any" else C["text"], tags=(tag,))
         st = {"cur": cur}
 
         def click():
@@ -4938,18 +5233,21 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
             self.card_tris[key] = nxt
             if self._card_mark(rec):                  # 2.104.1: painted in place
                 try:
-                    cv.itemconfigure(val, text=f"{nxt.title()} ▾", fill=C["accent"] if nxt != "any" else C["text"])
+                    cv.itemconfigure(val, text=f"{nxt.title()} ▾", fill=lit if nxt != "any" else
+                                     C["text"])
                     self._card_misc_count(cv, rec)
                 except tk.TclError:
                     pass
         self._card_click(cv, tag, click)
+        TagTip(cv, tag, misc_tip(key, label))
         self.card_tris[key] = cur
 
     def _card_misc_count(self, cv, rec):
         """MISCELLANEOUS  (n) - the count follows the picks, in place."""
-        from .searchopts_page import default_opts
+        from .searchopts_page import default_opts, item_facts
         cur = {**default_opts(rec["item"]), **(rec.get("opts") or {})}
-        n = sum(1 for key, _l in MISC_ROWS if cur.get(key) not in (None, "any", "", "Any"))
+        grid = self._card_misc_keys(rec["item"])
+        n = sum(1 for key, _l in grid if cur.get(key) not in (None, "any", "", "Any"))
         cv.itemconfigure("cardsec_misc", text="▾ MISCELLANEOUS" + (f"  ({n})" if n else ""))
 
     # ---------------- ▸ Advanced (2.79.0): everything that isn't a filter
@@ -5003,7 +5301,15 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         on = mod_impact(rec, m) != "ignore"
         can = bool(m.get("sid")) or not rec.get("resolved")
         box, bx, tx = 14, 10, 32
-        hit = cv.create_rectangle(4, y - 2, w - 4, y + 18, outline="", fill=C["odd"], tags=(tag,))   # the row's click area
+        dl = _cl(cv)
+        if dl:                                               # the Drawer: its kind in a word too
+            word = KIND_WORD.get(m.get("kind") or "")
+            fl_ = m.get("flags") or ()
+            word = word or next((x.title() for x in ("fractured", "desecrated") if x in fl_ or
+                                 str(m.get("sid") or "").startswith(x + ".")), None)
+            if word and not text.startswith(word):
+                text = f"{word} \u00b7 {text}"
+        hit = cv.create_rectangle(4, y - 2, w - 4, y + 18, outline="", fill=_card_bg(cv), tags=(tag,))   # the row's click area
         tier = f"{(m.get('kind') or ' ')[0]}{m['tier']}" if m.get("tier") else ""
         if tier:
             cv.create_text(tx, y + 1, text=tier, anchor="nw", font=("Segoe UI", 8), fill=C["muted"], tags=(tag,))
@@ -5020,7 +5326,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         if src0:                                             # 2.97.2: fractured tan, desecrated green
             colr = MOD_COL[src0]
         from . import themes as _th2                         # unticked: its own color, dimmed (not gray)
-        shown_c = colr if on and can else (_th2.mix(colr, C["odd"], .5) if can else C["muted"])
+        shown_c = colr if on and can else (_dim_mod(colr, cv) if can else C["muted"])
         tid = cv.create_text(tx, y, text=text, anchor="nw", font=font, width=w - tx - 12 - right, justify="left",
                              fill=shown_c, tags=("cardmod", tag, f"cardtxt{idx}"))
         bb = cv.bbox(tid)
@@ -5030,10 +5336,10 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
                            fill=C["red"], tags=(tag,))
             y1 += 14
         by = y + 2
-        rect = cv.create_rectangle(bx, by, bx + box, by + box, outline=C["muted"] if can else C["line"],
-                                   fill=C["accent"] if on and can else C["odd"], tags=("cardbox", tag))
+        rect = cv.create_rectangle(bx, by, bx + box, by + box, outline=_box_line(cv, can),
+                                   fill=_tick_fill(cv, on and can), tags=("cardbox", tag))
         if on and can:
-            cv.create_line(bx + 3, by + 7, bx + 6, by + 10, bx + 11, by + 4, fill="#120a04", width=2,
+            cv.create_line(bx + 3, by + 7, bx + 6, by + 10, bx + 11, by + 4, fill=_tick_ink(cv), width=2,
                            tags=(tag, f"cardchk{idx}"))
         self.card_paint[idx] = {"cv": cv, "rec": rec, "colr": colr, "can": can, "bx": bx, "by": by, "tag": tag}
         fl = m.get("flags") or ()
@@ -5046,7 +5352,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
             ob = 8                                           # ...and a small box right under it, tied with └
             cv.create_text(tx, y1 - 3, text="└", anchor="nw", font=("Segoe UI", 8), fill=fc, tags=(otag,))
             bx0 = tx + 12
-            cv.create_rectangle(bx0, y1, bx0 + ob, y1 + ob, outline=fc, fill=fc if only else C["odd"],
+            cv.create_rectangle(bx0, y1, bx0 + ob, y1 + ob, outline=fc, fill=fc if only else _card_bg(cv),
                                 tags=(otag, otag + "_r"))
             if only:
                 cv.create_line(bx0 + 1, y1 + 4, bx0 + 3, y1 + 7, bx0 + 7, y1 + 1, fill="#120a04", width=2,
@@ -5060,6 +5366,9 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
             self.card_onlys[idx] = (m, only, src)
             y1 = max(y1, (cv.bbox(ox) or (0, 0, 0, y1))[3] + 2)
         # (2.97.1: no "RUNE / SOCKETED" line - runes have their own AUGMENTS section)
+        if dl:                                               # (a line under each mod, as the mockup's rows)
+            y1 += 6
+            cv.create_line(0, y1 - 4, w, y1 - 4, fill=C["line"], tags=("cardsep",))
         cv.coords(hit, 4, y - 2, w - 4 - right, y1 - 2)
         if rkey and self.pc_ask_mod(rec) is m:               # 2.131.2: Ask me about mods I haven't rated
             try:
@@ -5162,10 +5471,10 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         return m.get("value") is not None and not m.get("novalue") and (bool(m.get("sid")) or not rec.get("resolved"))
 
     def _card_entry(self, cv, text, enabled=True):
-        e = tk.Entry(cv, width=5, bg=C["panel"], fg=C["text"], insertbackground=C["text"], relief="flat",
-                     highlightthickness=1, highlightbackground=C["line"], highlightcolor=C["accent"],
-                     font=("Segoe UI", 9), justify="center", disabledbackground=C["odd"],
-                     disabledforeground=C["muted"])
+        e = tk.Entry(cv, width=5, bg=C["bg"] if _cl(cv) else C["panel"], fg=C["text"], insertbackground=C["text"],
+                     relief="flat", highlightthickness=1, highlightbackground=C["line"],
+                     highlightcolor=C["accent"], font=("Segoe UI", 9), justify="center",
+                     disabledbackground=_card_bg(cv), disabledforeground=C["muted"])
         e.insert(0, text)
         if not enabled:
             e.config(state="disabled")
@@ -5237,7 +5546,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         if "obx" in p:
             try:
                 bx0, y1 = p["obx"], p["oby"]
-                cv.itemconfigure(otag + "_r", fill=p["ofc"] if on else C["odd"])
+                cv.itemconfigure(otag + "_r", fill=p["ofc"] if on else _card_bg(cv))
                 cv.delete(otag + "_c")
                 if on:
                     cv.create_line(bx0 + 1, y1 + 4, bx0 + 3, y1 + 7, bx0 + 7, y1 + 1, fill="#120a04", width=2,
@@ -5365,13 +5674,13 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         on = imp != "ignore"
         try:
             cv.itemconfigure(f"cardtxt{idx}", fill=p["colr"] if on and can else
-                             (_th2.mix(p["colr"], C["odd"], .5) if can else C["muted"]))
+                             (_dim_mod(p["colr"], cv) if can else C["muted"]))
             rect = v.card_rows[idx][2]
-            cv.itemconfigure(rect, fill=C["accent"] if on and can else C["odd"])
+            cv.itemconfigure(rect, fill=_tick_fill(cv, on and can))
             cv.delete(f"cardchk{idx}")
             if on and can:
                 bx, by = p["bx"], p["by"]
-                cv.create_line(bx + 3, by + 7, bx + 6, by + 10, bx + 11, by + 4, fill="#120a04", width=2,
+                cv.create_line(bx + 3, by + 7, bx + 6, by + 10, bx + 11, by + 4, fill=_tick_ink(cv), width=2,
                                tags=(p["tag"], f"cardchk{idx}"))
             cv.itemconfigure(f"cardstar{idx}", text="★" if imp == "high" else "☆",
                              fill=C["good"] if imp == "high" else C["muted"])
@@ -5727,6 +6036,8 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         """Remember the window's place and size as it moves (the normal size, not maximized)."""
         if (e is not None and e.widget is not self.root) or not getattr(self, "_win_restored", False):
             return                    # 2.26.2: not while it opens - the first "normal" event wiped "maximized"
+        if not self.drawer_full_geom():
+            return                    # drawer build: main_window is the Full window's place only, never the Drawer's
         try:
             st = self.root.state()
         except tk.TclError:
@@ -5755,6 +6066,8 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         2.123.6 (feedback: "not remembering where it was if on other monitors after it updates"): on Windows the
         window is put back with Windows' own placement record (its monitor, normal place and maximized), which
         Windows itself keeps on a screen."""
+        if self.drawer_eff() != "full":
+            return                    # drawer build: only the Full window goes back to its own place (drawer_page)
         g = SETTINGS.get("main_window") or {}
         if sys.platform == "win32" and g.get("wp") and not getattr(self, "_wp_done", False):
             try:
@@ -5803,8 +6116,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
             self.merged_destroy()                    # (keeps where the overlay was)
         except Exception:
             buglog.caught()
-        self.fv_gen = getattr(self, "fv_gen", 0) + 1  # 2.128.0: the Favours watcher stops
-        self.stop_utilities()                        # saves the notes; stops the Delirium alert if the app started it
+        self.stop_utilities()                        # saves the notes
         save_json("settings.json", SETTINGS)
         save_modbook()
         WEALTH.save()
@@ -5843,6 +6155,11 @@ def main():
     try:
         from .fonts import load as _load_fonts           # 2.110.0: the overlay styles' bundled fonts (this app only)
         _load_fonts()
+    except Exception:
+        buglog.caught()
+    try:                                         # drawer-look: every window scaled by Windows the same way, all
+        from .drawer import pin_ui_dpi           # run (a screen read's mss call can't switch this thread)
+        pin_ui_dpi()
     except Exception:
         buglog.caught()
     root = tk.Tk(className="StashOfExile2")      # 2.10.0: window managers (Hyprland) see class "Stashofexile2"

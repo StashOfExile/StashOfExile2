@@ -358,14 +358,14 @@ class LedgerPage:
                                     ("Log your loot", "Every few runs a box asks for your drops (Ctrl+Alt+C each). You "
                                                       "get profit per run and div / hour."))):
             c = tk.Frame(steps, bg=P2, padx=16, pady=12, highlightthickness=1, highlightbackground=C["line"],
-                         width=220, height=150)
+                         width=180, height=160)
             c.grid(row=0, column=i, padx=8, sticky="n")
             c.pack_propagate(False)
             tk.Label(c, text=str(i + 1), bg=C["accent"], fg="#1a1206", font=("Segoe UI", 12, "bold"), width=2).pack(
                 anchor="w")
             tk.Label(c, text=t, bg=P2, fg="#ffffff", font=("Segoe UI", 12, "bold"), anchor="w").pack(fill="x",
                                                                                                    pady=(8, 2))
-            tk.Label(c, text=d, bg=P2, fg=C["muted"], font=("Segoe UI", 9), wraplength=190, justify="left",
+            tk.Label(c, text=d, bg=P2, fg=C["muted"], font=("Segoe UI", 9), wraplength=148, justify="left",
                      anchor="w").pack(fill="x")
         b = tk.Frame(inner, bg=P1)
         b.pack(pady=(16, 0))
@@ -1010,14 +1010,14 @@ class LedgerPage:
             self.mm_show_page()
             self.mm_show_mine(sid)
         except Exception:
-            self.log_error("opening the strat in Money Makers")
+            self.log_error("opening the strat in Farming Strategies")
 
     def fl_upload_fill(self, st, probs):
         """The strat still misses something the board needs -> Money Makers › Strats › Mine with it picked."""
         self.mm_page.pick("Strats", notify=False)
         self.mm_show_page()
         self.mm_show_mine(st["id"])
-        self.app_toast(f"\"{st['name']}\" is saved in Money Makers › Strats › Mine. Before it can go to the community "
+        self.app_toast(f"\"{st['name']}\" is saved in Farming Strategies › Strats › Mine. Before it can go to the community "
                        f"strats it needs: {', '.join(p.replace('missing ', '') for p in probs[:4])}. Fill those in, "
                        "then press 📤 Post to Community.", "Upload a strat", secs=30)
 
@@ -1706,16 +1706,18 @@ class LedgerPage:
                                      (f3, "tablets", "Tablets & more", "Each tablet (and anything else you use up), "
                                       "and how many runs it lasts. Ctrl+Alt+C each one in game.")):
             g = head(f, title, hint)
-            drop = tk.Label(g, text="Ctrl+Alt+C it in game - or click here to paste", bg=P1, fg=C["muted"],
-                            font=("Segoe UI", 9), pady=8, cursor="hand2", highlightthickness=1,
-                            highlightbackground=C["gold_dim"])
+            drop = tk.Label(g, text="Ctrl+Alt+C it in game - or click here and press Ctrl+V", bg=P1,
+                            fg=C["muted"], font=("Segoe UI", 9), pady=8, cursor="xterm", highlightthickness=1,
+                            highlightbackground=C["gold_dim"], highlightcolor=C["accent"], takefocus=1)
             drop.pack(fill="x", pady=(0, 8))
-            drop.bind("<Button-1>", lambda e, k=kind: self.fl_ed_paste(k))
+            drop.bind("<Button-1>", lambda e: e.widget.focus_set())            # (a click only picks the box)
+            for seq in ("<Control-v>", "<Shift-Insert>"):                      # (a key press: one read)
+                drop.bind(seq, lambda e, k=kind: (self.fl_ed_paste(k, e), "break")[-1])
             sa = ScrollArea(g, bg=P2)
             sa.pack(fill="both", expand=True)
             self.fl_ed_cols[kind] = sa.inner
         # ---- 4: atlas & content (2.78.0: what it runs, as tags; the atlas as a screenshot)
-        g = head(f4, "Atlas & content", "Tick what this setup runs - the same tags Money Makers filters by. Then "
+        g = head(f4, "Atlas & content", "Tick what this setup runs - the same tags Farming Strategies filters by. Then "
                                         "the atlas trees and their points, and a screenshot of your atlas.")
         sa = ScrollArea(g, bg=P2)
         sa.pack(fill="both", expand=True)
@@ -1755,16 +1757,21 @@ class LedgerPage:
         self.fl_ed_shot.pack(side="left")
         sb = tk.Frame(shot, bg=P2)
         sb.pack(side="left", padx=(12, 0), anchor="n")
-        tk.Label(sb, text="Screenshot your atlas in game, then", bg=P2, fg=C["muted"], font=("Segoe UI", 9),
-                 anchor="w").pack(fill="x")
+        tk.Label(sb, text="Screenshot your atlas in game, then press Ctrl+V here - or", bg=P2, fg=C["muted"],
+                 font=("Segoe UI", 9), anchor="w").pack(fill="x")
         self.fl_ed_shot_btns = {}
-        for key, text, cmd, style in (("paste", "Paste screenshot (Ctrl+V)", self.fl_ed_shot_paste, "Primary.TButton"),
-                                      ("file", "Pick an image file…", self.fl_ed_shot_file, "TButton"),
+        for key, text, cmd, style in (("file", "Pick an image file…", self.fl_ed_shot_file, "TButton"),
                                       ("clear", "Remove it", self.fl_ed_shot_clear, "Quiet.TButton")):
             b = ttk.Button(sb, text=text, command=cmd, style=style)
             b.pack(fill="x", pady=(4, 0))
             self.fl_ed_shot_btns[key] = b
-        win.bind("<Control-v>", lambda e: self.fl_ed_shot_paste() if self.fl_ed_steps.cur == 3 else None, add="+")
+
+        def shot_key(e):                           # (GGG policy: the key press reads the picture once - no button)
+            if self.fl_ed_steps.cur != 3 or isinstance(e.widget, (tk.Text, tk.Entry, ttk.Entry)):
+                return None                        # (a box you type in pastes its own text)
+            self.fl_ed_shot_paste(event=e)
+            return "break"
+        win.bind("<Control-v>", shot_key, add="+")
         tk.Label(a, text="Notes (masters, the order you take nodes …)", bg=P2, fg=C["muted"],
                  font=("Segoe UI", 9), anchor="w").pack(fill="x", pady=(12, 2))
         self.fl_ed_notes = tk.Text(a, height=4, bg=C["panel"], fg=C["text"], insertbackground=C["text"],
@@ -1792,7 +1799,7 @@ class LedgerPage:
         ttk.Entry(xr, textvariable=self.fl_ed_extra, width=6).pack(side="left", padx=4)
         tk.Label(xr, text="div", bg=P2, fg=C["text"]).pack(side="left")
         self.fl_ed_extra.trace_add("write", lambda *a: self.fl_ed_cost())
-        self._fl_ed_publish_page(head(f6, "Publish", "How people find it in Money Makers. Asked before anything "
+        self._fl_ed_publish_page(head(f6, "Publish", "How people find it in Farming Strategies. Asked before anything "
                                                      "goes out - steps, loot and tips can be added after, in Mine."))
         win.bind("<Return>", lambda e: None if isinstance(e.widget, tk.Text) else self.fl_ed_forward())
         self.fl_ed_fill()
@@ -1833,15 +1840,16 @@ class LedgerPage:
     def fl_ed_shot_set(self, ref, how):
         if not ref:
             self._say("No picture on the clipboard - take a screenshot (Win+Shift+S, or Print Screen) and press "
-                      "Paste again." if how == "paste" else "That file isn't a picture the app can read.", 8)
+                      "Ctrl+V again." if how == "paste" else "That file isn't a picture the app can read.", 8)
             return None
         self.fl_ed_ver["atlas"]["image"] = ref
         self.fl_ed_shot_paint()
         return ref
 
-    def fl_ed_shot_paste(self, grab=None):
+    def fl_ed_shot_paste(self, grab=None, event=None):
+        """Ctrl+V on the Atlas step: the picture on the clipboard, read once for this key press."""
         from . import stratimg
-        return self.fl_ed_shot_set(stratimg.from_clipboard(grab), "paste")
+        return self.fl_ed_shot_set(stratimg.from_clipboard(grab, event), "paste")
 
     def fl_ed_shot_file(self, path=None):
         from . import stratimg
@@ -1990,7 +1998,7 @@ class LedgerPage:
         self.fl_ed_save()
         if not post:
             st = self.fl_keep_mine(s)
-            self._say(f"\"{st['name']}\" is kept in Money Makers › Mine.", 6)
+            self._say(f"\"{st['name']}\" is kept in Farming Strategies › Mine.", 6)
             return "mine"
         return self.fl_upload()
 
@@ -2159,11 +2167,10 @@ class LedgerPage:
             trees.append({"name": name, "points": pts})
         self.fl_ed_fill()
 
-    def fl_ed_paste(self, kind=None):
-        try:
-            text = self.root.clipboard_get()
-        except tk.TclError:
-            text = ""
+    def fl_ed_paste(self, kind=None, event=None):
+        """Ctrl+V on an item step's box: the copied item, read once for this key press."""
+        from .clipread import app_paste
+        text = app_paste(self.root, event)
         if not self.fl_ed_take(text, kind):
             self._say("The clipboard has no item - hover one in game and press Ctrl+Alt+C.", 6)
 

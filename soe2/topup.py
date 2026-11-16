@@ -31,7 +31,7 @@ DIGIT_MIN = 0.62
 DIGIT_BAND = (0.0, 0.0, 0.62, 0.36)   # x0, y0, x1, y1 of a cell where its count's digits are
 LEARN_FILE = "topup.json"
 PICS = 4                                # pictures kept per item
-DEFAULTS = {"on": False, "items": [], "below": 0.3}   # items: [{"name", "keep"}] - their pictures are in topup.json
+DEFAULTS = {"on": True, "items": [], "below": 0.3}   # items: [{"name", "keep"}] - their pictures are in topup.json
 # 2.131.2 (feedback: "it's asking me every single map, I only want it to ask when I am below a 70% threshold ... same
 # way we handle the % variances on price checks"): a reminder only once you hold less than Keep minus this share
 BELOW_STEPS = (0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7)
@@ -439,6 +439,20 @@ def item_name(text):
     rarity = lines[i][7:].strip()
     if rarity not in ("Currency", "Normal") and m is None:     # (a currency, a stack or a plain item - not gear)
         return None
+    if m is None and rarity == "Normal" and not supply_class(text):
+        return None                     # (feedback: a plain Sacred Focus / Wombgift / armour got listed - gear isn't)
     return lines[i + 1], n
+
+
+# Plain (white) items that are supplies, by the game's "Item Class:" line: keys, fragments, tablets, waystones ...
+# Anything else white (armour, rings, foci, wombgifts) is gear, never a Top Up item.
+SUPPLY_WORDS = ("currency", "omen", "key", "fragment", "splinter", "tablet", "waystone", "logbook", "socketable",
+                "essence", "catalyst", "emotion", "rune", "core", "talisman")
+
+
+def supply_class(text):
+    m = re.search(r"^Item Class:\s*(.+)$", str(text or ""), re.M)
+    cls = m.group(1).strip().lower() if m else ""
+    return any(w in cls for w in SUPPLY_WORDS)
 
 

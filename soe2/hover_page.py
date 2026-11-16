@@ -1,151 +1,147 @@
-"""2.132.3 One look in maps for the helpers that read a tooltip: the Temple Helper (a Vaal Beacon's "Energised Beacons
-55/60") and the Ritual Identifier (a Ritual Altar's type). One picture and one text read feeds both.
-2.132.6 (feedback: "I need it to just read as I'm potentially running past it ... they're too fast to show and then
-disappear"): the whole game is read (not just round the mouse), every second. A failed read no longer stops it
-(a picture of a window on another monitor stopped every later look)."""
+"""2.132.3 One read round the mouse for the helpers that read a tooltip: the Ritual Identifier (a Ritual Altar's type)
+and, in the temple, Vaal Lens (a medallion's name on the ground). One picture and one text read feeds both.
+GGG policy (Nov 2026: "Reading from the screen ... may only be performed once per manual key press"): it reads when
+you press your Look key with the tooltip on screen - the part round the mouse, from the press's one picture
+(screenread.py). It never reads by itself. (Owner decision: the Temple Helper's Vaal Beacon tooltip read and Map
+Content's Temple icon are gone - the Temple Console gives the crystals.)"""
 import time
-import tkinter as tk
 
 from . import buglog
 from . import ritualid as RID
-from . import temple as TM
 
-EVERY_MS = 1000                     # how often it looks (only in a map, the game in front)
-SCREEN = (0.0, 0.0, 1.0, 0.86)      # the part of the game read: all of it but the bottom bar (life, skills, flasks)
-STUCK_SECS = 20                     # 2.138.3: a look still busy after this is let go (see remnant.READ_SECS)
-HEARTBEAT_SECS = 60
-CONTENT_EVERY = 4.0                 # how often Map Content is checked for the Temple icon (until it's seen)
-# 2.137.2 (feedback: "this ritual didn't pop up the message ... it's consistent 100% of the time at any resolution"):
-# one read of the whole game misses small labels (a 4K game is shrunk to fit the text reader; a busy fight breaks
-# the reader's lines). Every other look reads one quarter of it instead, overlapping, at up to twice the size - so
-# each part of the screen is read big at least every 8 s, and the whole of it every 2 s.
-TILES = ((0.0, 0.0, 0.56, 0.56), (0.44, 0.0, 1.0, 0.56), (0.0, 0.44, 0.56, 1.0), (0.44, 0.44, 1.0, 1.0))
+AROUND = (0.25, 0.38, 0.06)        # the part looked at: half its width, up and down from the mouse (parts of the game)
+# A tooltip is found by its long straight edges (a cheap check), then only it is read, made bigger.
+EDGE_LONG = 0.20                    # a tooltip edge: a straight line at least this long (x the game's height) ...
+EDGE_FILL = 0.85                    # ... unbroken for this much of it ...
+EDGE_STEP = 14                      # ... where brightness steps by this much from the row above to the row below
+EDGE_ROWS = 6                       # this many such rows close together = a tooltip
 
 
-def look_box(g, n):
-    """Look number n -> the part of the game read (screen pixels): even = all of it, odd = one quarter in turn."""
-    gx, gy, gw, gh = g
-    x0, y0 = gx + int(gw * SCREEN[0]), gy + int(gh * SCREEN[1])
-    w, h = int(gw * (SCREEN[2] - SCREEN[0])), int(gh * (SCREEN[3] - SCREEN[1]))
-    if n % 2 == 0:
-        return (x0, y0, x0 + w, y0 + h)
-    t = TILES[(n // 2) % len(TILES)]
-    return (x0 + int(w * t[0]), y0 + int(h * t[1]), x0 + int(w * t[2]), y0 + int(h * t[3]))
+def region(pointer, game):
+    """The mouse (x, y) and the game (x, y, w, h) -> (left, top, right, bottom) round the mouse, inside the game."""
+    gx, gy, gw, gh = game
+    px, py = pointer
+    hw = int(AROUND[0] * gw)
+    left, right = max(gx, px - hw), min(gx + gw, px + hw)
+    top, bottom = max(gy, py - int(AROUND[1] * gh)), min(gy + gh, py + int(AROUND[2] * gh))
+    return left, top, right, bottom
+
+
+def find_tooltip(rgb, game_h, xstep=2):
+    """A picture (H x W x 3) -> (x0, y0, x1, y1) of a tooltip in it, or None. A tooltip's frame is made of long,
+    straight, level edges - a map seen from above has almost none (lightning can make one or two)."""
+    import numpy as np
+    a = np.asarray(rgb)[:, ::xstep].astype(np.int16)
+    if a.ndim != 3 or a.shape[0] < 4:
+        return None
+    lum = (a[..., 0] * 3 + a[..., 1] * 6 + a[..., 2]) // 10
+    dy = lum[2:] - lum[:-2]
+    w = max(8, int(game_h * EDGE_LONG / xstep))
+    if dy.shape[1] <= w:
+        return None
+    hits = []
+    for sign in (1, -1):
+        c = np.cumsum((dy * sign) > EDGE_STEP, axis=1, dtype=np.int32)
+        ok = (c[:, w:] - c[:, :-w]) >= int(w * EDGE_FILL)
+        for r in np.flatnonzero(ok.any(axis=1)):
+            cols = np.flatnonzero(ok[r])
+            hits.append((int(r) + 1, int(cols[0]), int(cols[-1]) + w))
+    if len(hits) < EDGE_ROWS:
+        return None
+    hits.sort()
+    span = int(game_h * 0.16)                    # a tooltip is about 0.12 of the game's height
+    best = None
+    for i in range(len(hits)):
+        grp = [h for h in hits[i:] if h[0] - hits[i][0] <= span]
+        if len(grp) >= EDGE_ROWS and (best is None or len(grp) > len(best)):
+            best = grp
+    if best is None:
+        return None
+    pad = int(game_h * 0.012)
+    hgt, wid = lum.shape[0], a.shape[1] * xstep
+    x0 = min(h[1] for h in best) * xstep - pad
+    x1 = max(h[2] for h in best) * xstep + pad
+    return max(0, x0), max(0, best[0][0] - pad), min(wid, x1), min(hgt, best[-1][0] + int(game_h * 0.05))
+
+
+def read_lines(img, game_h, ocr, want=lambda lines: True):
+    """The part round the mouse (one cut of the press's picture) -> its text lines: the tooltip's frame found and read
+    on its own, bigger; Round 18 (feedback: a Ritual Altar hovered and the Look key pressed showed nothing): when that
+    isn't what's wanted (no tooltip found, or the frame found was another box - an altar's name not in it), the whole
+    part is read too (the same picture - no second screen read)."""
+    import numpy as np
+    lines = []
+    tip = find_tooltip(np.asarray(img), game_h)
+    if tip:
+        cut = img.crop(tip)
+        k = 2 if cut.height < game_h * 0.25 else 1
+        if k > 1:
+            cut = cut.resize((cut.width * 2, cut.height * 2))
+        lines = [(t, tuple(int(v / k) for v in b)) for t, b in ocr(cut)]
+    if not lines or not want(lines):
+        lines = lines + list(ocr(img))
+    return lines
 
 
 class HoverPage:
     """Mixed into App."""
 
-    def hover_heartbeat(self, secs, lines):
-        """2.138.3, Debug mode: once a minute in maps - how many looks, the slowest, and whether text was read at all
-        (so a log says whether the looks ran when an altar was missed). Counts only, never the text."""
-        hb = getattr(self, "_hv_hb", None)
-        now = time.time()
-        if hb is None:
-            hb = self._hv_hb = {"t": now, "n": 0, "slow": 0.0, "empty": 0}
-        hb["n"] += 1
-        hb["slow"] = max(hb["slow"], secs)
-        hb["empty"] += 0 if lines else 1
-        if now - hb["t"] >= HEARTBEAT_SECS:
-            buglog.debug("Ritual", f"looks in the last minute: {hb['n']}, slowest {hb['slow']:.1f} s, "
-                                   f"no text read in {hb['empty']}")
-            self._hv_hb = {"t": now, "n": 0, "slow": 0.0, "empty": 0}
+    def hover_medals(self):
+        """Vaal Lens in the temple: a medallion's name under the mouse -> take it or leave it."""
+        return bool(getattr(self, "tm_in_temple", False) and self.temple_pad_on())
 
     def hover_wanted(self):
-        return self.temple_on() or self.ritid_on()
+        return self.ritid_on() or self.hover_medals()
 
-    def hover_start(self):
-        if getattr(self, "_hv_ticking", False) or not self.hover_wanted():
-            return
-        self._hv_ticking = True
-        self.root.after(EVERY_MS, self.hover_tick)
-
-    def hover_tick(self):
-        if not self.hover_wanted():
-            self._hv_ticking = False
-            return
-        try:
-            if self.temple_on():
-                self.ritual_readout_sync()                  # (the crystals ride on the line above the bar)
-            self.hover_look()
-        except Exception:
-            self.log_error("reading tooltips in maps")
-        self.root.after(EVERY_MS, self.hover_tick)
-
-    def hover_look(self, force=False):
-        """One look round the mouse (a background thread); the text goes to each helper that's on."""
-        if getattr(self, "_hv_busy", False):
-            # 2.138.3: a look that never came back no longer stops every later one (it's let go after STUCK_SECS)
-            if time.time() - getattr(self, "_hv_busy_at", 0.0) < STUCK_SECS:
-                return None
-            buglog.debug("Ritual", "a screen look didn't finish in %d s - looking again" % STUCK_SECS)
-        if not force:
-            if getattr(self, "br_area", None) != "map" or not self.hover_wanted():
-                return None
-            try:
-                from .overlaywin import foreground_ok
-                if not foreground_ok():
-                    return None
-            except Exception:
-                buglog.caught()
-        from .alerts_page import game_rect
-        g = game_rect()
-        if not g:
+    def hover_look_job(self, ctx):
+        """A Look key press in a map: the tooltip round the mouse -> a Ritual Altar's type; in the temple, a
+        medallion's name (Vaal Lens)."""
+        if ctx["area"] not in ("map", None) or not self.hover_wanted():
             return None
-        n = self._hv_n = getattr(self, "_hv_n", -1) + 1
-        box = look_box(g, n)
+        from . import screenread as SR
+        g, ptr = ctx["g"], ctx["ptr"]
+        box = region(ptr, g)
         if box[2] <= box[0] or box[3] <= box[1]:
             return None
-        self._hv_busy, self._hv_busy_at = True, time.time()
-        # 2.132.4: does this map have a Temple (Map Content's icon)? Looked for until it's seen, every few seconds
-        look_temple = (self.temple_on() or force) and not getattr(self, "tm_in_map", False) and \
-            time.time() - getattr(self, "_tm_content_at", 0.0) > CONTENT_EVERY
-        if look_temple:
-            self._tm_content_at = time.time()
+        names = [n for n, on in (("Ritual Identifier", self.ritid_on()), ("Vaal Lens", self.hover_medals())) if on]
 
         def work():
             from . import remnant as RM
-            try:
-                has = TM.content_has(RM.grab(TM.content_box(g)), g[3]) if look_temple else None
-                return RM.ocr(RM.grab(box)), has
-            except Exception:
-                buglog.caught()
-                return [], None
+            img = SR.capture(box, ", ".join(names))
+            if img is None:
+                return []
+            return read_lines(img, g[3], RM.ocr, want=lambda ls: bool(RID.parse(ls)) if self.ritid_on() else True)
 
-        t_look = time.time()
+        def found(lines):
+            """(the read mark) An altar's type, or a medallion's name."""
+            if not lines:
+                return False
+            if self.ritid_on() and RID.parse(lines):
+                return True
+            if self.hover_medals():
+                from . import medallions as M
+                med = M.parse(lines)
+                return bool(med["count"] or med["names"])
+            return False
+        work.found = found
 
-        def done(got):
-            self._hv_busy = False
-            lines, has = got or ([], None)
-            self.hover_heartbeat(time.time() - t_look, lines)
-            if has:
-                self.tm_in_map = True
-                try:
-                    self.ritual_readout_sync()
-                except Exception:
-                    buglog.caught()
-            if self.temple_on() or force:
-                self.temple_seen(TM.parse(lines))
-                # 2.142.0 Vaal Lens: a medallion's name on screen in the temple (its label or tooltip), the
-                # Medallions panel closed -> take it or leave it
-                if getattr(self, "tm_in_temple", False) and self.temple_pad_on():
-                    from . import medallions as M
-                    med = M.parse(lines)
-                    if not med["count"]:
-                        for name in dict.fromkeys(n for n, _b in med["names"]):
-                            self.temple_medal_drop(name, med["room"])
-            if self.ritid_on() or force:
+        def done(lines):
+            lines = lines or []
+            # 2.142.0 Vaal Lens: a medallion's name on screen in the temple (its label or tooltip), the
+            # Medallions panel closed -> take it or leave it
+            if self.hover_medals():
+                from . import medallions as M
+                med = M.parse(lines)
+                if not med["count"]:
+                    for name in dict.fromkeys(n for n, _b in med["names"]):
+                        self.temple_medal_drop(name, med["room"])
+            if self.ritid_on():
                 key = RID.parse(lines)
                 self.ritid_seen(key)
                 if not key:                                 # 2.138.0: Debug mode - an altar seen but its type not read
-                    seen = [RID.letters(t) for t, _b in lines or [] if "RITUAL" in RID.letters(t)]
+                    seen = [RID.letters(t) for t, _b in lines if "RITUAL" in RID.letters(t)]
                     seen = [s for s in seen if "REWARD" not in s]
                     if seen and time.time() - getattr(self, "_rid_said", 0.0) > 30:
                         self._rid_said = time.time()
                         buglog.debug("Ritual", "altar seen, type not read: " + " | ".join(s[:40] for s in seen[:3]))
-        try:
-            self.run_bg(work, done)
-        except Exception:
-            self._hv_busy = False
-            raise
-        return True
+        return names[0], work, done

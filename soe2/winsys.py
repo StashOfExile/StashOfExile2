@@ -156,6 +156,8 @@ class KeyWatch:
         self.esc_double = 0.0
         self.ctrl = self.alt = self.shift = False
         self.listener = None        # 2.0: f(vk, ctrl, alt, shift) -> True to swallow the key (Utilities hotkeys)
+        self.up_listener = None     # GGG policy (Nov 2026): f(vk) on a key's release - a held key's repeats aren't
+        #                             new presses (screenread / clipread grant once per press)
         self._swallowed = set()
         self.mouse_on, self._mouse_hook, self._tid = False, None, None     # 2.0 beta 17: mouse buttons as hotkeys
         # 2.88.2 (feedback): Windows quietly drops a keyboard hook that answers too slowly. When it did,
@@ -261,6 +263,11 @@ class KeyWatch:
                                 self.copy_time = time.time()
                             if vk == 0x1B:                                   # Esc: never swallowed, only timed
                                 self.note_esc(down, up)
+                            if up and self.up_listener:
+                                try:
+                                    self.up_listener(vk)
+                                except Exception:
+                                    buglog.caught()
                             if up and vk in self._swallowed:            # the release of a key we acted on
                                 self._swallowed.discard(vk)
                                 return 1
@@ -290,6 +297,8 @@ class KeyWatch:
                         if not (m.flags & 0x01):                    # 0x01 = injected by a program
                             vk = 0x04 if w in (0x207, 0x208) else (0x05 if (m.mouseData >> 16) == 1 else 0x06)
                             if w in (0x208, 0x20C):
+                                if self.up_listener:
+                                    self.up_listener(vk)
                                 if vk in self._swallowed:
                                     self._swallowed.discard(vk)
                                     return 1

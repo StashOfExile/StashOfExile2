@@ -1,19 +1,18 @@
 # Money Makers strats
 
-> **GGG ToS safety check - read first.** One key press = one action, only when you press it · nothing acts in the game by itself (watchers only look and show) · never touch the game's memory, code or traffic · the mouse is never moved or clicked for you · it reads only your clipboard, Client.txt, screen pixels, the trade site (within its limits) and poe.ninja. Every change must pass all of [TOS.md](../TOS.md) (`tools/check_tos.py` checks the code on every PR).
+> **GGG ToS safety check - read first.** One key press = one action, only when you press it · nothing acts in the game by itself (helpers only read and show) · never touch the game's memory, code or traffic · the mouse is never moved or clicked for you · it reads Client.txt, the trade site (within its limits) and poe.ninja, and your clipboard or screen only once per key press (the Look key, a copy key). Every change must pass all of [TOS.md](../TOS.md) (`tools/check_tos.py` checks the code on every PR).
 
 > **Who we build for - read second.** Path of Exile players are utilitarian: they love data and information, problem solving and creative thinking. So every feature shows its numbers *and how they were worked out*, lets you sort, filter, compare and export them (CSV), keeps power-user depth (keys, versions, raw data) one click away instead of hiding it, explains in plain words, and leaves the decision to the player. Pretty is welcome; vague is not.
 
 Each strat is **one file** in this folder, in the standard layout below: a `.csv` file (2.46.0 - what the app saves
-with **⬇ Download Format** and **Export**; opens in Excel / Google Sheets), or `.json`. The older plain-text `.txt`
+with **Export**; opens in Excel / Google Sheets), or `.json`. The older plain-text `.txt`
 layout still reads. One-liners for **Lucrative Strats** go in
 `oneliners.json`. `tools/build_strats.py` checks every file and builds `moneymakers.json`, which ships with the app
 **and** is fetched from `main` by the app (at most every 12 h), so a merged strat reaches everyone without a new release.
 
 **Sharing:** players post straight from the app to the **Community** board (no login - just a name), upvote and
 report there. Admins **promote** the best posts and they join the Official list. Strats in
-this folder are the hand-curated part of the Official list: copy `_template.json` (or fill in the app's
-**Download Format** `.txt`) and send a PR. Files starting with `_` are ignored.
+this folder are the hand-curated part of the Official list: copy `_template.json` and send a PR. Files starting with `_` are ignored.
 
 **What a strat is** = one **Category** and one **Type** inside it. Breach farming is `Mapping` › `Breach`: the
 type is the main thing you farm, the category is how you do it. Everything else goes in **tags**.

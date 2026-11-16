@@ -15,7 +15,7 @@ from tkinter import ttk
 
 from . import board as B
 from .config import SETTINGS, save_json
-from .style import C
+from .style import C, autowrap
 
 PAGE = "Privacy & community"
 NAME_STORED = ("Stored: the name, and a key on this PC (board_session.json in your data folder) - no email, no "
@@ -42,21 +42,27 @@ class CommunityPage:
 
     def build_privacy_community(self, section):
         P2 = C["panel2"]
-        row = section(PAGE, "What leaves your PC", "Nothing, unless you turn something on below. Your wealth, items, "
-                                                   "stash, account and character names never leave it.")
+        row = section(PAGE, "What leaves your PC", "Only the anonymous usage count, unless you turn more on below. "
+                                                   "Your wealth, items, stash, account and character names never leave "
+                                                   "it.")
         ttk.Button(row, text="What's shared, and why?", style="Quiet.TButton",
                    command=lambda: self.cm_ask(info=True)).pack(side="left")
         # ---- data sharing
         # 2.116.0 (P10): one line each - the whole story is behind "What's shared, and why?" (communitymods.WHAT)
-        row = section(PAGE, "Data sharing", "Off until you say yes. Anonymous only - never sold, never used for ads. You "
-                                            "get everyone else's data either way.")
+        row = section(PAGE, "Data sharing", "Off until you say yes, except the usage count. Anonymous only - never sold, "
+                                            "never used for ads. You get everyone else's data either way.")
         g = tk.Frame(row, bg=P2)
         g.pack(fill="x")
         self.cm_share_var = tk.BooleanVar(value=self.cm_sharing())
         self.cy_lb_var = tk.BooleanVar(value=bool(SETTINGS.get("lb_share", True)))
         from . import errorreports as ER
         self.er_var = tk.BooleanVar(value=ER.on())
-        items = ((self.cm_share_var, "Share anonymous data with the community", self.cm_share_changed,
+        from . import usage as US
+        self.usage_var = tk.BooleanVar(value=US.on())
+        items = ((self.usage_var, "Count me as a user", lambda: US.set_on(bool(self.usage_var.get())),
+                  "On until you switch it off: a random id (not you, your account or your PC) every 10 minutes, so "
+                  "we know how many people use the app. Dashboard shows the count."),
+                 (self.cm_share_var, "Share anonymous data with the community", self.cm_share_changed,
                   "Mod prices and ratings, map ranks, campaign zones the guide doesn't know - to the StashOfExile2 "
                   "community server, for better prices and guides for everyone."),
                  (self.cy_lb_var, "Leaderboard times", self.cy_lb_switch,
@@ -69,22 +75,25 @@ class CommunityPage:
         for i, (var, label, cmd, what) in enumerate(items):
             cb = ttk.Checkbutton(g, text=label, variable=var, command=cmd)
             cb.grid(row=i, column=0, sticky="nw", pady=2)
-            tk.Label(g, text=what, bg=P2, fg=C["muted"], font=("Segoe UI", 9), justify="left", wraplength=520,
-                     anchor="w").grid(row=i, column=1, sticky="w", padx=(12, 0), pady=2)
+            wl_ = tk.Label(g, text=what, bg=P2, fg=C["muted"], font=("Segoe UI", 9), justify="left", wraplength=520,
+                           anchor="w")
+            wl_.grid(row=i, column=1, sticky="ew", padx=(12, 0), pady=2)
+            autowrap(wl_, pad=4, minw=200)                  # D3: wraps at Drawer width
+            g.columnconfigure(1, weight=1)
             self.cy_rows[label] = cb
         ttk.Button(row, text="What error reports send", style="Quiet.TButton",
                    command=lambda: self.er_ask(info=True)).pack(anchor="w", pady=(4, 0))     # 2.137.0
         hr = tk.Frame(row, bg=P2)                                                               # 2.96.0
         hr.pack(fill="x", pady=(8, 0))
-        # 2.120.0: Rate Mods is a page under Price Checks now (it was a window opened from here)
+        # 2.120.0: Rate Mods is a page under Price Checks now (it was a window opened from here); nav phase 1: in Trade
         tk.Label(hr, text="Your mod ratings are part of it:", bg=P2, fg=C["muted"], font=("Segoe UI", 9)).pack(
             side="left")
-        lk = tk.Label(hr, text="Price Checks ↳ Rate Mods ›", bg=P2, fg=C["accent"], cursor="hand2",
+        lk = tk.Label(hr, text="Trade › Rate Mods ›", bg=P2, fg=C["accent"], cursor="hand2",
                       font=("Segoe UI", 9, "bold"))
         lk.pack(side="left", padx=(8, 0))
         lk.bind("<Button-1>", lambda e: self.rm_open())
         # ---- your community name
-        row = section(PAGE, "Your community name", "Shown on what you post on Money Makers and beside your Leaderboard "
+        row = section(PAGE, "Your community name", "Shown on what you post on Farming Strategies and beside your Leaderboard "
                                                    "times. Nothing else uses it.")
         box = tk.Frame(row, bg=P2)
         box.pack(fill="x")
@@ -110,7 +119,7 @@ class CommunityPage:
         for name in ("TOS.md", "README.md"):
             ln = tk.Label(lr, text=name + " ›", bg=P2, fg=C["blue"], font=("Segoe UI", 9, "bold"), cursor="hand2")
             ln.pack(side="left", padx=(8, 0))
-            ln.bind("<Button-1>", lambda e, n=name: open_link(f"https://github.com/tiwomm/StashOfExile2/blob/main/{n}"))
+            ln.bind("<Button-1>", lambda e, n=name: open_link(f"https://github.com/StashOfExile/StashOfExile2/blob/main/{n}"))
         self.cy_paint()
 
     # ---------------------------------------------------------------- the name part

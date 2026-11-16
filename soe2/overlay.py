@@ -22,7 +22,7 @@ from . import buglog
 POE_TITLE = "Path of Exile 2"
 
 DEFAULTS = {
-    "chat_enabled": False, "notes_enabled": True, "hideout_key": "F1", "poe_title": POE_TITLE,
+    "chat_enabled": True, "notes_enabled": True, "hideout_key": "F1", "poe_title": POE_TITLE,
     "commands": [],                                  # [{"name", "key", "cmd"}], up to 8
     "notes_visible": True, "notes_locked": False, "notes_text": "Your notes here...", "notes_x": 50, "notes_y": 50, "notes_w": 300,
     "notes_h": 220, "notes_bg": "1A1A2E", "notes_fg": "E2C97E", "notes_opacity": 215, "notes_font": 11,
@@ -44,7 +44,7 @@ VK = {**{f"f{i}": 0x6F + i for i in range(1, 25)},
       # mouse buttons (2.0 beta 17; AutoHotkey names, plus plain ones)
       "mbutton": 0x04, "xbutton1": 0x05, "xbutton2": 0x06, "middle": 0x04, "mouse4": 0x05, "mouse5": 0x06}
 MOUSE_VKS = (0x04, 0x05, 0x06)
-PRETTY = {0x04: "Middle mouse", 0x05: "Mouse 4", 0x06: "Mouse 5", 0x13: "Pause"}
+PRETTY = {0x04: "Middle mouse", 0x05: "Mouse 4", 0x06: "Mouse 5", 0x13: "Pause", 0x20: "Space", 0x09: "Tab"}   # (drawer build: Space, not SPACE)
 MODS = {"^": "ctrl", "!": "alt", "+": "shift"}
 
 
@@ -74,6 +74,12 @@ def key_label(text):
         return "+".join([m for m, on in zip(("Ctrl", "Alt", "Shift"), k[1:]) if on] + [PRETTY[k[0]]])
     name = next((n for n, v in VK.items() if v == k[0]), "?")
     return "+".join([m for m, on in zip(("Ctrl", "Alt", "Shift"), k[1:]) if on] + [name.upper() if len(name) > 1 else name.upper()])
+
+
+def key_label_vk(vk, ctrl=False, alt=False, shift=False):
+    """(vk, Ctrl, Alt, Shift) -> its name as the app shows it ("Ctrl+F1")."""
+    name = PRETTY.get(vk) or next((n.upper() for n, v in VK.items() if v == vk), f"key {vk}")
+    return "+".join([m for m, on in zip(("Ctrl", "Alt", "Shift"), (ctrl, alt, shift)) if on] + [name])
 
 
 # ---------------------------------------------------------------- the game window
@@ -165,15 +171,16 @@ def send_copy(sender=None):
 CLIP_HOOK = [None]          # the app sets this: fn(text) -> "ignore this clipboard text for a moment"
 
 
-def type_chat(cmd, sender=None, sleep=time.sleep, clip=None):
+def type_chat(cmd, sender=None, sleep=time.sleep, clip=None, gid=0):
     """Send a chat command (2.0 beta 8): put it on the clipboard, then in one quick burst press
     Enter (open chat), Ctrl+A + Backspace (clear it), Ctrl+V (paste), Enter (send). Nothing is typed letter by letter,
-    so the chat box only flashes for a moment. Your clipboard is put back afterwards.
-    Modifier keys you are still holding are released first, so Ctrl+H doesn't turn into shortcuts."""
+    so the chat box only flashes for a moment. Your clipboard is put back afterwards: its text is read once for this
+    key press (gid: the press's clipread grant - GGG policy, one read per press; no grant, nothing is read or put
+    back). Modifier keys you are still holding are released first, so Ctrl+H doesn't turn into shortcuts."""
     send = sender or _send_keys
     if clip is None:
-        from .clipboard import read_clipboard_text, write_clipboard_text
-        clip = (read_clipboard_text, write_clipboard_text)
+        from .clipread import take_now, write_text
+        clip = (lambda: take_now(gid, "Chat command (to put your clipboard back)") or "", write_text)
     read, write = clip
     old = read()
     hook = CLIP_HOOK[0]
@@ -313,7 +320,11 @@ class Overlay:
         if action[0] == "chat":
             if not game_active(self.cfg.get("poe_title") or POE_TITLE):
                 return False                   # not in the game: the key does what it normally does
-            threading.Thread(target=type_chat, args=(action[1],), daemon=True).start()
+            from . import clipread
+            gid = clipread.grant(key_label_vk(vk, ctrl, alt, shift), hold=vk, kind="chat")
+            if not gid and vk not in MOUSE_VKS:
+                return True                    # (a held key's repeat: one press, one chat command)
+            threading.Thread(target=type_chat, args=(action[1],), kwargs={"gid": gid}, daemon=True).start()
             return True
         self.pending.append(action)
         return True

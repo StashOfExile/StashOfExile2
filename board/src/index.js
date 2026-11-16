@@ -259,6 +259,8 @@ function sameText(a, b) {                  // constant-time compare for the admi
 // 2.85.0: new columns and tables on an existing database (each statement fails harmlessly once it's done)
 let migrated = false;
 const MIGRATIONS = [
+  // UI overhaul: the anonymous usage count - a hashed random id per install and when it was last seen, nothing else
+  "CREATE TABLE IF NOT EXISTS usage_pings (pid TEXT PRIMARY KEY, last INTEGER NOT NULL)",
   "ALTER TABLE users ADD COLUMN reviewer INTEGER NOT NULL DEFAULT 0",     // 1 = reviews; -1 = an admin took it away
   "ALTER TABLE users ADD COLUMN last_seen INTEGER NOT NULL DEFAULT 0",
   "ALTER TABLE posts ADD COLUMN based_on INTEGER",
@@ -1185,6 +1187,31 @@ async function modStats(url, env) {
   return json({ league, stats: out, players: (await env.DB.prepare("SELECT COUNT(*) AS n FROM contributors").first()).n, active });
 }
 
+// UI overhaul: the usage count. The app sends a random id made on that PC (not an account, name or address);
+// only its sha256 and the time it was last seen are kept; ids not seen for 30 days are dropped.
+async function usagePing(req, env) {
+  let body = {};
+  try { body = await req.json(); } catch (_e) { return json({ error: "bad body" }, 400); }
+  const raw = String(body?.id ?? "");
+  if (!/^[0-9a-f]{32}$/.test(raw)) return json({ error: "bad id" }, 400);
+  // a flood of made-up ids can't pad the count: 300 pings a day per internet address (about two PCs; kept hashed)
+  if (!(await allowance(env, "usage", req.headers.get("CF-Connecting-IP") || "?", 300))) return usageCount(env);
+  const t = now();
+  await env.DB.batch([
+    env.DB.prepare(`INSERT INTO usage_pings (pid, last) VALUES (?1, ?2) ON CONFLICT(pid) DO UPDATE SET last = ?2`)
+      .bind(await sha256(raw), t),
+    env.DB.prepare("DELETE FROM usage_pings WHERE last < ?").bind(t - 30 * 86400),
+  ]);
+  return usageCount(env);
+}
+
+async function usageCount(env) {
+  const t = now();
+  const online = (await env.DB.prepare("SELECT COUNT(*) AS n FROM usage_pings WHERE last >= ?").bind(t - 15 * 60).first()).n;
+  const week = (await env.DB.prepare("SELECT COUNT(*) AS n FROM usage_pings WHERE last >= ?").bind(t - 7 * 86400).first()).n;
+  return json({ online, week });
+}
+
 async function mapRatings(env) {
   const rows = await env.DB.prepare("SELECT name, rank, COUNT(*) AS n FROM map_votes GROUP BY name, rank").all();
   const by = {};
@@ -1294,7 +1321,7 @@ async function bugReport(req, env) {
   const seen = await env.DB.prepare("SELECT n FROM bug_limits WHERE ip = ?").bind(ip).first();
   if (seen && seen.n >= Number(env.BUGS_PER_DAY || 5)) return fail(429, "That's a lot of reports today - try tomorrow.");
   await env.DB.prepare("INSERT INTO bug_limits (ip, n, day) VALUES (?, 1, ?) ON CONFLICT(ip) DO UPDATE SET n = n + 1").bind(ip, day).run();
-  const repo = env.GITHUB_REPO || "tiwomm/StashOfExile2";
+  const repo = env.GITHUB_REPO || "StashOfExile/StashOfExile2";
   const r = await fetch(`https://api.github.com/repos/${repo}/issues`, {
     method: "POST",
     headers: { authorization: `Bearer ${env.GITHUB_TOKEN}`, accept: "application/vnd.github+json",
@@ -1360,6 +1387,8 @@ export default {
       if (path === "/" || path === "/health") return json({ ok: true, schema: RULES.schema });
       if (path === "/auth/join" && req.method === "POST") return join(req, env);
       if (path === "/official") return official(env);
+      if (path === "/usage/ping" && req.method === "POST") return usagePing(req, env);      // UI overhaul
+      if (path === "/usage/count" && req.method === "GET") return usageCount(env);
       if (path === "/mods/batch" && req.method === "POST") return modBatch(req, env);
       if (path === "/mods/stats") return modStats(url, env);
       if (path === "/gems") return gemPrices(url, env);

@@ -325,8 +325,8 @@ def wealth_item(entry, tab):
 
 
 COUNTED_TAB = "counted"               # the "tab" of everything counted by hand
-COUNTED_LABEL = "Counted"
-SRC_LABEL = {"counted": "Counted", "scanned": "Scanned", "hand": "Added by hand"}   # 2.105.1: where a stack came from
+COUNTED_LABEL = "Counted by hand"
+SRC_LABEL = {"counted": "Counted by hand", "scanned": "Scanned", "hand": "Counted by hand"}   # (UI overhaul: one name)   # 2.105.1: where a stack came from
 CLASS_CAT = {"stackable currency": "currency", "map fragments": "fragment", "omen": "currency", "socketable": "currency",
              "delirium instill": "currency", "essence": "currency", "splinter": "fragment", "catalyst": "currency",
              "divination card": "card", "uncut gem": "gem"}
@@ -846,7 +846,7 @@ class WealthJobs:
         if cur and cur["running"]:
             return "A sync is already running."
         if not league:
-            return "Pick a league first (Settings, ⚙ on the dock)."
+            return "Pick a league first (Settings › General)."
         if not re.search(r"#\d+$", acc):
             return "Enter your account name with its number, e.g. YourName#1234 (it's shown on the trade site)."
         if not tabs:

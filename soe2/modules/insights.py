@@ -3,9 +3,8 @@ from . import Module
 
 class Insights(Module):
     key, title, short, icon, kind = "insights", "Market Insights", "Insights", "💎", "tool"
-    labs = True
-    parent = "pricecheck"              # 2.33.0: built on your price checks; 2.80.0: under Price Checks
-    blurb = "The most valuable tablets, waystones and jewels your price checks found, and the mods worth the most."
+    parent = None                      # UI overhaul: its own page under Trade (was under Price Checks)
+    blurb = "Your most valuable items, the top mods and the priciest listings seen - all from your price checks."
 
     def build(self, body):
         self.app.build_insights_window(body)

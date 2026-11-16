@@ -11,7 +11,7 @@ from . import board as B
 from . import moneymakers as MM
 from .config import SETTINGS, save_json
 from .style import over_app
-from .style import C, MONO, SegBar, Tooltip, place_near
+from .style import C, MONO, SegBar, Tooltip, place_near, autowrap
 from .chrome import SectionBar, Viewport, section as chrome_section
 
 ORIGIN = {"community": "Official", "mine": "Mine", "example": "Example", "board": "Community"}
@@ -33,7 +33,7 @@ class MoneyMakersPage:
     def build_money_window(self, body):
         P1 = C["panel"]
         self.mm_strats, self.mm_sel, self.mm_sort = [], None, ("profit", True)     # 2.71.0: best first
-        self.mm_page = SegBar(body, ["Strats", "Lucrative Strats", "Craft Helper", "Strat Tracker"],
+        self.mm_page = SegBar(body, ["Strats", "Lucrative Strats", "Strat Tracker"],     # (UI overhaul: Craft Helper is its own page)
                               command=lambda v: self.mm_show_page(), size=10, pad=(16, 4))
         self.mm_page.pack(anchor="w", padx=8, pady=(8, 0))
         if getattr(self, "shell", None) is not None:          # 2.64.0: its tabs are listed in the sidebar
@@ -42,7 +42,6 @@ class MoneyMakersPage:
         self.mm_strat_page, self.mm_run_page = self.mm_pages["Strats"], self.mm_pages["Strat Tracker"]
         self.mm_build_strats(self.mm_strat_page)
         self.mm_build_oneliners(self.mm_pages["Lucrative Strats"])
-        self.mm_build_tablets(self.mm_pages["Craft Helper"])
         self.build_ledger(self.mm_run_page)                  # 2.45.0: Strat Tracker (was Run tracker: ledger_page.py)
         self.mm_strat_page.pack(fill="both", expand=True)
         self.mm_reload()
@@ -55,8 +54,6 @@ class MoneyMakersPage:
         self.mm_pages[cur].pack(fill="both", expand=True)
         if cur == "Strat Tracker":
             self.fl_refresh()
-        elif cur == "Craft Helper":
-            self.mm_tab_fill()
         elif cur == "Lucrative Strats":
             self.mm_one_fill()
 
@@ -66,18 +63,40 @@ class MoneyMakersPage:
         bar = tk.Frame(page, bg=P1, padx=8, pady=8)
         bar.pack(fill="x")
         # 2.30.0: where the strats come from - the curated Official list, the Community board, or your own
+        # UI overhaul: the search box first, then where the strats come from
+        self.mm_q = tk.StringVar()
+        self.mm_q.trace_add("write", lambda *_a: self.root.after_idle(self.mm_fill))
+        sbox = tk.Frame(bar, bg=C["odd"], highlightthickness=1, highlightbackground=C["line"])
+        sbox.pack(side="left", padx=(0, 16))
+        tk.Label(sbox, text="⌕", bg=C["odd"], fg=C["muted"], font=("Segoe UI Symbol", 10)).pack(side="left", padx=(8, 0))
+        se = tk.Entry(sbox, textvariable=self.mm_q, width=26, bg=C["odd"], fg=C["text"], insertbackground=C["text"],
+                      relief="flat", highlightthickness=0, bd=0, font=("Segoe UI", 10))
+        se.pack(side="left", padx=8, ipady=8)
+        ph = tk.Label(sbox, text="Search strats", bg=C["odd"], fg=C["muted"], font=("Segoe UI", 10))
+        ph.bind("<Button-1>", lambda e: se.focus_set())
+
+        def placeholder(*_a):
+            try:
+                if self.mm_q.get() or self.root.focus_get() is se:
+                    ph.place_forget()
+                else:
+                    ph.place(in_=se, x=0, rely=0.5, anchor="w")
+            except (tk.TclError, KeyError):
+                pass
+        for ev in ("<FocusIn>", "<FocusOut>"):
+            se.bind(ev, placeholder, add="+")
+        self.mm_q.trace_add("write", placeholder)
+        self.root.after(300, placeholder)
         self.mm_view = SegBar(bar, list(VIEWS), command=lambda v: self.mm_view_changed(), size=10, pad=(12, 4))
         self.mm_view.pack(side="left", padx=(0, 16))
         self.mm_board, self.mm_board_ones, self.mm_official = [], [], self._mm_official_cache()
-        tk.Label(bar, text="Search", bg=P1, fg=C["muted"]).pack(side="left", padx=(0, 8))
-        self.mm_q = tk.StringVar()
-        self.mm_q.trace_add("write", lambda *_a: self.root.after_idle(self.mm_fill))
-        ttk.Entry(bar, textvariable=self.mm_q, width=22).pack(side="left")
         self.mm_acct = ttk.Button(bar, text="", command=self.mm_account_click)
         self.mm_acct.pack(side="right")
         ttk.Button(bar, text="↻ Refresh", command=self.mm_refresh).pack(side="right", padx=(0, 8))
         self.mm_live_lbl = tk.Label(bar, text="", bg=P1, fg=C["muted"], font=("Segoe UI", 9))
         self.mm_live_lbl.pack(side="right", padx=8)
+        from .style import flowify as _flow
+        _flow(bar)                                           # D3: wraps at Drawer width, search stays first
         self.mm_account_paint()
         # 2.71.0: filter buttons - what it is (category, then its type), how much thinking, how busy the hands
         self.mm_tag, self.mm_tier = tk.StringVar(value="Any"), tk.StringVar(value="Any")
@@ -97,8 +116,15 @@ class MoneyMakersPage:
             r.chips.pack(side="left", fill="x", expand=True)
             r.chips.bind("<Configure>", lambda e, f=r.chips: self._mm_flow(f, e.width))
             self.mm_chip_rows[key] = r
-        for key in ("cat", "think", "clicks", "content"):
-            self.mm_chip_rows[key].pack(fill="x")
+        # UI overhaul: the kind of strat always shows; effort and content fold under More filters (with how many are on)
+        self.mm_chip_rows["cat"].pack(fill="x")
+        self.mm_more_on = bool(SETTINGS.get("mm_more_filters"))
+        self.mm_more_lbl = tk.Label(self.mm_chip_rows["cat"], text="", bg=P1, fg=C["accent"], cursor="hand2",
+                                    font=("Segoe UI", 9, "bold"), padx=8)
+        self.mm_more_lbl.pack(side="right", anchor="n", pady=(4, 0))
+        self.mm_more_lbl.bind("<Button-1>", lambda e: self.mm_more_filters(not self.mm_more_on))
+        Tooltip(self.mm_more_lbl, "Thoughts per click, Clicks per hour and Content")
+        self.mm_more_filters(self.mm_more_on, save=False)
         Tooltip(self.mm_chip_rows["content"], "What a strat farms - pick any: strats with one of them show.")
         Tooltip(self.mm_chip_rows["think"], "How much thinking a strat needs - a pick shows that level and the easier ones.")
         Tooltip(self.mm_chip_rows["clicks"], "How busy your hands are - a pick shows that pace and the calmer ones.")
@@ -123,10 +149,10 @@ class MoneyMakersPage:
         self.mm_bsort_lab = tk.Label(fbar, text="Board", bg=P1, fg=C["muted"])
         self.mm_bsort_box = ttk.Combobox(fbar, textvariable=self.mm_bsort, values=("Top", "New"), state="readonly", width=5)
         self.mm_bsort_box.bind("<<ComboboxSelected>>", lambda e: (self.mm_board_fetch(), self.root.after(20, self.root.focus_set)))
-        # P6 (2.108.0): + Add my own, and a ⋯ menu for Import file… / Download Format
+        # P6 (2.108.0): + Add my own, and a ⋯ menu for Import file…
         more = ttk.Button(fbar, text="⋯", width=3, command=lambda: self.mm_more_menu(more))
         more.pack(side="right", padx=(8, 0))
-        Tooltip(more, "Import file… · Download Format")
+        Tooltip(more, "Import file…")
         ttk.Button(fbar, text="+ Add my own", command=self.mm_add).pack(side="right", padx=(8, 0))
         from .style import flowify, flow_add
         flowify(fbar)                                        # 2.98.0: wraps in a narrow window
@@ -222,9 +248,31 @@ class MoneyMakersPage:
             pass
 
     # ---------------- 2.71.0: filter buttons and strat cards
+    def mm_more_filters(self, on, save=True):
+        """UI overhaul: show / hide the effort and content filters (the choice is kept)."""
+        self.mm_more_on = on
+        rows = self.mm_chip_rows
+        for key in ("think", "clicks", "content"):
+            if on:
+                rows[key].pack(fill="x")
+            else:
+                rows[key].pack_forget()
+        self.mm_more_paint()
+        if save:
+            SETTINGS["mm_more_filters"] = on
+            save_json("settings.json", SETTINGS)
+
+    def mm_more_paint(self):
+        lbl = getattr(self, "mm_more_lbl", None)
+        if lbl is None:
+            return
+        n = (self.mm_max.get() != "Any") + (self.mm_cmax.get() != "Any") + len(getattr(self, "mm_content", ()))
+        lbl.config(text=("Fewer filters ▴" if self.mm_more_on else "More filters ▾") + (f"  ({n} on)" if n else ""))
+
     def _mm_chip(self, parent, text, on, cmd, empty=False):
-        bg = C["accent"] if on else C["panel2"]
-        fg = C["bg"] if on else (C["muted"] if empty else C["text"])
+        # UI overhaul: a picked chip is filled and bold with an accent edge - orange stays for the one main button
+        bg = C["key"] if on else C["panel2"]
+        fg = C["text"] if on else (C["muted"] if empty else C["text"])
         b = tk.Label(parent, text=text, bg=bg, fg=fg, font=("Segoe UI", 9, "bold" if on else "normal"), padx=8, pady=4,
                      cursor="hand2", highlightthickness=1, highlightbackground=C["accent"] if on else C["line"])
         b.bind("<Button-1>", lambda e: cmd())
@@ -270,6 +318,7 @@ class MoneyMakersPage:
         for w in MM.CLICKS:
             self._mm_chip(rows["clicks"].chips, w, cm == w, lambda w=w: (self.mm_cmax.set(w), self.mm_fill()))
         self._mm_content_chips(rows["content"].chips)
+        self.mm_more_paint()
 
     def _mm_content_chips(self, box):
         """2.78.0: the Content row - the first group (pinnacles and bosses) folds into a menu of check boxes, the
@@ -1181,7 +1230,7 @@ class MoneyMakersPage:
             t.insert("end", f"  (trade site, checked {when}{' - checking again…' if busy else ''})\n", "meta")
         else:
             t.insert("end", "checking the trade site…\n" if busy else
-                     "not checked yet (once a day while Money Makers is open)\n", "meta")
+                     "not checked yet (once a day while Farming Strategies is open)\n", "meta")
 
     def mm_on_show(self):
         self.mm_check_live(force=False)
@@ -1259,24 +1308,8 @@ class MoneyMakersPage:
     def mm_more_menu(self, btn):
         m = tk.Menu(self.root, tearoff=0, bg=C["panel2"], fg=C["text"], activebackground="#2c4a84")
         m.add_command(label="Import file…", command=self.mm_import)
-        m.add_command(label="⬇ Download Format", command=self.mm_download_format)
         m.tk_popup(btn.winfo_rootx(), btn.winfo_rooty() + btn.winfo_height())
         return m
-
-    def mm_download_format(self, path=None):
-        """The blank standard layout as a CSV file (2.46.0; opens in Excel / Google Sheets, the "note" column says
-        what goes in each row): fill it in, then Import file… - or attach it to a Strategy issue on GitHub."""
-        path = path or filedialog.asksaveasfilename(parent=self.root, defaultextension=".csv",
-                                                    initialfile="money-maker-strat-template.csv",
-                                                    filetypes=[("Strat guide (CSV)", "*.csv")])
-        if not path:
-            return None
-        with open(path, "w", encoding="utf-8-sig", newline="") as f:
-            f.write(MM.to_csv(None))
-        self.app_toast(f"Saved the strat template:\n{path}\n\nOpen it in Excel or Google Sheets, fill in the value "
-                       "column (the note column says what goes there), then press Import file… here (or attach it to "
-                       "a Strategy issue on GitHub to share it).", "Download Format")
-        return path
 
     def mm_import(self, path=None):
         path = path or filedialog.askopenfilename(parent=self.root, filetypes=[("Strat", "*.csv *.txt *.json")])
@@ -1549,9 +1582,10 @@ class MoneyMakersPage:
             b.pack(side="right", padx=(8, 0))
             self.mm_one_btns[text] = b
         Tooltip(self.mm_one_btns["🏷 Tags…"], "Pick a one-liner of yours (Mine) to set its type and tags.")
-        tk.Label(page, text="Quick money makers in one line - no guide needed. Official ones come with the app, "
+        tk.Label(page, text="Quick ways to make currency, one line each - no guide needed. Official ones come with the app, "
                             "Community ones from other players; 📤 Post shares yours.", bg=P1, fg=C["muted"],
-                 font=("Segoe UI", 9), anchor="w").pack(fill="x", padx=12, pady=(0, 8))
+                 font=("Segoe UI", 9), anchor="w", justify="left").pack(fill="x", padx=12, pady=(0, 8))
+        autowrap(page.pack_slaves()[-1], pad=24)            # D3: wraps at Drawer width
         box = tk.Frame(page, bg=P1)
         box.pack(fill="both", expand=True, padx=8, pady=(0, 8))
         cols = (("text", "Strat", 560, "w"), ("mech", "Type / tags", 150, "w"), ("score", "▲", 44, "center"),
@@ -1828,8 +1862,14 @@ class MoneyMakersPage:
         self.mm_ch_check_lbl.pack(fill="x")
         self.mm_ch_hint = tk.Label(left, text="", bg=P2, fg=C["muted"], font=("Segoe UI", 9), anchor="w")
         self.mm_ch_hint.pack(fill="x", pady=(2, 8))
-        self.mm_ch_btn = ttk.Button(left, text="Check my tablet", style="Primary.TButton", command=self.mm_tab_check)
-        self.mm_ch_btn.pack(anchor="w")
+        # (GGG policy: no Check button - a click never reads the clipboard. Click the box, press Ctrl+V: one read)
+        self.mm_ch_btn = tk.Label(left, text="Click here and press Ctrl+V to check your tablet", bg=C["panel"],
+                                  fg=C["muted"], font=("Segoe UI", 9), pady=8, cursor="xterm", highlightthickness=1,
+                                  highlightbackground=C["gold_dim"], highlightcolor=C["accent"], takefocus=1)
+        self.mm_ch_btn.pack(fill="x")
+        self.mm_ch_btn.bind("<Button-1>", lambda e: e.widget.focus_set())
+        for seq in ("<Control-v>", "<Shift-Insert>"):
+            self.mm_ch_btn.bind(seq, lambda e: (self.mm_tab_check(event=e), "break")[-1])
         # 2.123.4 (Craft Helper phase 2): the verdict - one word with a mark, the next step, the mods, why
         self.mm_ch_vbox = vb = tk.Frame(left, bg=C["panel"], highlightthickness=1, highlightbackground=C["line"],
                                         padx=8, pady=8)
@@ -1912,7 +1952,7 @@ class MoneyMakersPage:
         pt.bind("<Motion>", self.mm_ch_pair_hover, add="+")
         self.mm_ch_pempty = tk.Frame(low, bg=P1)
         self.mm_ch_pempty_lbl = tk.Label(self.mm_ch_pempty, text="", bg=P1, fg=C["muted"], font=("Segoe UI", 9),
-                                         anchor="w", justify="left")
+                                         anchor="w", justify="left", wraplength=380)       # (D3: wraps)
         self.mm_ch_pempty_lbl.pack(side="left")
         ttk.Button(self.mm_ch_pempty, text="Open Price Checks", style="Quiet.TButton",
                    command=lambda: self.shell.open("pricecheck")).pack(side="left", padx=(8, 0))
@@ -2051,7 +2091,7 @@ class MoneyMakersPage:
             lab.bind("<Configure>", lambda e, w=lab: w.config(wraplength=max(150, e.width - 4)))
         self.mm_ch_check_lbl.config(text=f"CHECK YOUR {K['one'].upper()}")
         self.mm_ch_hint.config(text=f"Hover a {K['one']} in game, press Ctrl+C, then:")
-        self.mm_ch_btn.config(text=f"Check my {K['one']}")
+        self.mm_ch_btn.config(text=f"Click here and press Ctrl+V to check your {K['one']}")
         if self.mm_ch_seg.get() != K["label"]:
             self.mm_ch_seg.pick(K["label"], notify=False)
 
@@ -2141,13 +2181,14 @@ class MoneyMakersPage:
         m.add_command(label="Search the trade site for it", command=lambda: self.mm_tab_trade(row))
         m.tk_popup(e.x_root, e.y_root)
 
-    def mm_tab_check(self, text=None):
-        """Read the copied tablet / jewel and say what to do next (the steps on the left). Good = rated S or A."""
+    def mm_tab_check(self, text=None, event=None):
+        """Read the copied tablet / jewel and say what to do next (the steps on the left). Good = rated S or A.
+        text None: Ctrl+V on the check box - the clipboard, read once for that key press."""
         from . import regex as R
         from . import crafthelper as CH
-        from .clipboard import read_clipboard_text
+        from .clipread import app_paste
         if text is None:
-            text = read_clipboard_text() or ""
+            text = app_paste(self.root, event)
         kind = self.mm_ch_kind
         for k, K in CH.KINDS.items():                      # (a jewel copied while Tablets shows: switch to Jewels)
             if f"Item Class: {K['item_class']}" in text or (k == "jewel" and "Item Class: Jewels" in text):

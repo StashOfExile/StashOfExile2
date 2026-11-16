@@ -1,5 +1,5 @@
 """2.132.0 Map profit - the watcher's side (mapprofit.py has the counting and the log), the bar's profit part with
-its breakdown one hover away, the Map profit window (every map, searchable) and its row in Overlay ↳ Overlay Settings ›
+its breakdown one hover away, the Map profit window (every map, searchable) and its row in Overlay ›
 Helpers. Off until you turn it on. Everything stays on your PC (map_profit.jsonl) - never sent anywhere."""
 import os
 import time
@@ -9,7 +9,7 @@ from tkinter import ttk
 from . import buglog
 from . import mapprofit as MP
 from .config import SETTINGS, save_json
-from .style import C, SegBar, Tooltip
+from .style import C, SegBar, Tooltip, autowrap
 
 REFS_SECS = 600                     # Scan stash's pictures are built again at most this often
 
@@ -23,15 +23,12 @@ class MapProfitPage:
     # ---------------------------------------------------------------- on / off
     def mp_on(self):
         from . import features as FEAT
-        return bool(MP.cfg().get("on")) and FEAT.on("overlay") and FEAT.on("mapprofit")      # (2.132.2: BETA)
+        return bool(MP.cfg().get("on")) and FEAT.on("overlay")      # (its one switch: Overlay › Helpers)
 
     def mp_set(self, on):
         MP.cfg()["on"] = bool(on)
-        from . import features as FEAT                      # (its BETA feature comes on with it, as Features shows)
-        FEAT.beta_on("mapprofit", bool(on))
         save_json("settings.json", SETTINGS)
-        if on:
-            self.topup_start()                              # (Top Up's inventory looks do the reading)
+        if on:                                              # (Top Up's Look key reads of the inventory count)
             if getattr(self, "br_reader", None) is None:    # (the game's log says when you're in a map)
                 try:
                     self.breach_start()
@@ -260,7 +257,7 @@ class MapProfitPage:
         e = e or getattr(self, "mp_last", None)
         if e is None and so_far is None:
             return ["No map counted yet.",
-                    "Open your inventory in your hideout before a map and again after it."]
+                    f"Back from a map, open your inventory and press {self.look_key_text()} when the card asks."]
         out = []
         if so_far is not None:                              # 2.132.1: a town trip - it counts when you're done
             out.append(f"This map so far: {MP.signed(so_far['div'], fmt_div)}" +
@@ -365,6 +362,8 @@ class MapProfitPage:
         self.undo_button(bar, "mapprofit", side="right", padx=(0, 8))
         self.mp_sum = tk.Label(body, text="", bg=P1, fg=C["text"], font=("Segoe UI", 10, "bold"), anchor="w", padx=12)
         self.mp_sum.pack(fill="x")
+        self.look_needed(body, P1, "Map profit counts a map only when you press your Look key - a key just for "
+                                   "that. None is set yet.").pack(fill="x", padx=12)
         # 2.138.0: maps hidden by Clear all › Hide from the list - still kept; one click shows them again
         self.mp_hidden_lbl = tk.Label(body, text="", bg=P1, fg=C["accent"], cursor="hand2", anchor="w", padx=12,
                                       font=("Segoe UI", 9))
@@ -389,8 +388,10 @@ class MapProfitPage:
         tv.bind("<<TreeviewSelect>>", lambda _e: self.mp_greys())
         tv.bind("<Delete>", lambda _e: self.mp_delete_sel())
         self.mp_empty = tk.Frame(box, bg=P1)
-        tk.Label(body, text="On your PC only - never uploaded or shared.", bg=P1, fg=C["muted"], font=("Segoe UI", 9),
-                 anchor="w", padx=12).pack(fill="x", pady=(0, 8))
+        self.mp_how = tk.Label(body, text="", bg=P1, fg=C["muted"], font=("Segoe UI", 9), anchor="w", padx=12,
+                               justify="left")
+        self.mp_how.pack(fill="x", pady=(0, 8))
+        autowrap(self.mp_how, pad=24)                     # (D3: wraps at Drawer width)
         self.mp_list_refresh()
 
     def mp_greys(self):
@@ -610,6 +611,7 @@ class MapProfitPage:
         secs = sum(r["secs"] for r in runs)
         t = self.mp_totals()
         sd, sn = t["session"]
+        self.mp_how.config(text=self.mp_how_text())
         self.mp_sum.config(text=(f"{len(runs)} map{'s' if len(runs) != 1 else ''} · {MP.signed(total, fmt_div)}"
                                  + (f" · {MP.signed(total / len(runs), fmt_div)} / map" if runs else "")
                                  + (f" · {MP.signed(total * 3600 / secs, fmt_div)} / hour" if secs >= 60 else "")
@@ -644,12 +646,20 @@ class MapProfitPage:
             ttk.Button(self.mp_empty, text="Show hidden maps", style="Primary.TButton", command=self.mp_unhide).pack(
                 pady=(8, 0))
             return
-        tk.Label(self.mp_empty, text="No maps yet. Open your inventory before a map to get a baseline.", bg=P1,
-                 fg=C["muted"]).pack()
+        tk.Label(self.mp_empty, text=f"No maps counted yet. Back from a map, open your inventory and press "
+                                     f"{self.look_key_text()} when the card asks.\nA map you skip has no entry.",
+                 bg=P1, fg=C["muted"], justify="center").pack()
         if not self.mp_on():
             ttk.Button(self.mp_empty, text="Turn on Map profit", style="Primary.TButton",
                        command=lambda: (self.mp_set(True), self.mp_sync_switch(), self.mp_list_refresh())
                        ).pack(pady=(8, 0))
+
+    def mp_how_text(self):
+        """The line under the list: which maps are in it, how a map's number is worked out, and where it's kept."""
+        return (f"Only maps you counted are listed: back from a map, press {self.look_key_text()} with your inventory "
+                f"open. A map you skip has no entry. A map's loot = what your inventory gained since your last count "
+                f"at home (stashed in between? press it once before the next map too). On your PC only - never "
+                f"uploaded or shared.")
 
     def mp_chart_draw(self):
         """Bars: profit per day (All Time, Daily) or per hour (Hourly). Hover a bar for its numbers."""
@@ -713,24 +723,7 @@ class MapProfitPage:
         w.geometry(f"+{e.x_root + 16}+{e.y_root + 12}")
         return None
 
-    # ---------------------------------------------------------------- Overlay ↳ Overlay Settings › Helpers: its row
-    def mp_row(self, box, bg, CB):
-        sm = ("Segoe UI", 9)
-        row = tk.Frame(box, bg=bg)
-        row.pack(fill="x", pady=(8, 0))
-        self.al_mp = tk.BooleanVar(value=bool(MP.cfg()["on"]))
-        cb = ttk.Checkbutton(row, text="Map profit (BETA)", variable=self.al_mp, style=CB,
-                             command=lambda: self.mp_set(bool(self.al_mp.get())))
-        cb.pack(side="left")
-        mb = ttk.Button(row, text="Maps…", command=self.mp_list_open)          # (2.132.6: opens Overlay ↳ Map Profit)
-        mb.pack(side="left", padx=(8, 0))
-        info = tk.Label(row, text="ⓘ", bg=bg, fg=C["muted"], font=sm, cursor="question_arrow")
-        info.pack(side="left", padx=(8, 0))
-        tk.Label(box, text="What each map earned, from your inventory before and after it - on your PC only.", bg=bg,
-                 fg=C["muted"], font=sm, anchor="w").pack(fill="x")
-        Tooltip(cb, "Automatically tracks currency from mapping when you leave a map.")
-        Tooltip(mb, "Every map counted, with how each number was worked out.")
-        Tooltip(info, "Only tracks Currency Exchange based items.")
+    # (nav phase 2: its row is in the one Helpers table - alerts_page.build_alerts_panel)
 
     def mp_sync_switch(self):
         v = getattr(self, "al_mp", None)

@@ -1,7 +1,9 @@
 """The Campaign Helper over the game (2.77.0) - the logic is campaign.py.
 
-  * L  The campaign line, on the goal bar (over the Bar / by the Panel): the act and zone, what to do there and
-       what it's worth, the next zone, your level against the zone's, the step. Click it for the act's route.
+  * L  The Campaign Bar (pack 4): the line over the bar - the act and zone, step n / N, the one thing to do now
+       with what it gives, and (dimmed) where next; on the bar itself the zone, You (your level against it), Got
+       so far and Act time, each worked out on hover. The Panel shows the same as one card. Click the line for the
+       act's route. Pop-ups (the Alert card): a boss is down, you left during a boss fight, too low for a zone.
   * M  The act's route: every step - ✓ done, ▸ here, ○ to do, "passed" (gone past without entering). Click a step:
        "I'm here" (a character that's partway through: pick the act, click its step). ◀ ▶ (and their keys).
   * N  Rewards: points, spirit and resistances earned on this character; tick or untick any by hand.
@@ -12,6 +14,7 @@
   * R  Its settings (Overlay › Options › Campaign); S, T: its switches in "On the overlay" and "On the bar".
 
 Mixed into App. GGG ToS: windows, the clipboard and the game's log only."""
+import re
 import tkinter as tk
 from tkinter import ttk
 
@@ -20,10 +23,13 @@ from . import campaign as CP
 from .overlaywin import CanvasText
 
 PAGES = ("Route", "Rewards", "Act times")
-# The Campaign Helper's switches (Overlay Settings › Campaign and the route card's Options ▾ - one setting each)
+# the pop-ups' edge colors (the Alert card): done, left a fight, too low - each also has its mark and its words
+POP_GOOD, POP_BAD, POP_WARN = "#7fd9a0", "#e05a4f", "#ffb347"
+# The Campaign Helper's switches (Overlay › Options › Campaign Helper and the route card's Options ▾ - one setting each)
 CAMP_OPTS = (("ask_route", "Ask which route when a campaign starts"),          # 2.89.0
              ("optional", "Optional zones"), ("tips", "Tips (bosses, vendor checks)"),
-             ("warn", "Missing rewards - warn when I leave an act"),
+             ("warn", "Ask about rewards in town (Got it / Not yet)"),
+             ("popups", "Pop-ups: boss down, left a fight, too low"),
              ("off_at_maps", "Hide it in maps (back in campaign zones)"))   # 2.89.2: "Splits" said nothing to most players
 
 
@@ -68,6 +74,23 @@ def fit_lines(fnt, text, px, lines):
     return "\n".join(out)
 
 
+def _wrap(words, px):
+    """[(word, font, role)] -> lines of at most px pixels (measured); a word longer than a line gets a line of its
+    own. Nothing is cut."""
+    lines, cur, w = [], [], 0
+    for wd, f, role in words:
+        ww = _measure(f, wd)
+        gap = _measure(f, " ") if cur else 0
+        if cur and w + gap + ww > px:
+            lines.append(cur)
+            cur, w, gap = [], 0, 0
+        cur.append((wd, f, role))
+        w += gap + ww
+    if cur:
+        lines.append(cur)
+    return lines
+
+
 class FitText(CanvasText):
     """A canvas text that fits itself into px pixels on at most `lines` lines (the campaign line - its text is set
     again on every overlay refresh)."""
@@ -86,19 +109,31 @@ class CampaignUI:
     # ================================================================ the log
     def campaign_log(self, kind, ts, data):
         """Every game-log event (the session tracker's reader). -> what campaign.log_event said."""
-        if kind not in ("area", "scene", "afk", "level"):
+        if kind not in ("area", "scene", "afk", "level", "say"):
             return None
+        if kind == "say":                                          # (most lines are no cue: nothing to redraw)
+            try:
+                out = CP.log_event(kind, ts, data)
+            except Exception:
+                self.log_error("the campaign helper")
+                return None
+            if out:
+                self.camp_events()
+                self.camp_refresh()
+            return out
         ak = None
         if kind == "area":
             from .gamelog import area_kind
             ak = area_kind(data.get("area"), data.get("seed"), data.get("level", 0))
             self._camp_town = ak == "town"
-        before = CP.line_text()
+        before, was_shown = CP.line_text(), CP.shown()
         try:
             out = CP.log_event(kind, ts, data, ak)
         except Exception:
             self.log_error("the campaign helper")
             return None
+        if CP.shown() != was_shown:                                # Round 18: into / out of a hideout - the line
+            self.camp_refresh()                                    # hides / shows (and the bar's parts with it)
         if kind == "area":                                         # 2.92.2: Vendor ▾ on the bar - in town only
             try:
                 v = self.vendor_on_bar()
@@ -111,16 +146,77 @@ class CampaignUI:
             except Exception:
                 self.log_error("the Vendor menu")
         if kind == "scene" and getattr(self, "_camp_town", False) and CP.cfg()["warn"] and CP.asks():
-            self._camp_later = set()                               # a new town: "Remind me in town" asks again
             self.camp_ask_show()                                   # in town: the rewards to answer
         if out == "maps" and CP.cfg()["off_at_maps"]:
-            self._say("Maps! The campaign line hides in maps and comes back in campaign zones (Overlay › Overlay Settings › "
-                      "Campaign).", 6)
+            self._say("Maps! The campaign line hides in maps and comes back in campaign zones (Overlay › Options › "
+                      "Campaign Helper).", 6)
+        self.camp_events()
         if out or CP.line_text() != before:
             self.camp_refresh()
         if CP.needs_route() and getattr(self, "camp_rq_win", None) is None:
             self.camp_route_ask_show()                             # 2.89.0: a new campaign - which guide?
         return out
+
+    def campaign_where(self, ev):
+        """Round 18: at start, the log's last area (an ("area", ts, data) event, or its data): in a hideout the
+        Campaign Bar stays hidden until you're in a campaign area."""
+        data = ev[2] if isinstance(ev, tuple) else ev
+        if not data:
+            return False
+        try:
+            from .gamelog import area_kind
+            ak = area_kind(data.get("area"), data.get("seed"), data.get("level", 0))
+            if CP.where_now(data.get("area"), ak):
+                self.camp_refresh()
+                return True
+        except Exception:
+            self.log_error("the campaign helper")
+        return False
+
+    # ---------------------------------------------------------------- pack 4: pop-ups from the log (Alert card)
+    def camp_events(self):
+        """What the log just told the Campaign Helper -> short pop-ups over the game (Options: Pop-ups)."""
+        evs = CP.take_events()
+        if not evs or not CP.cfg().get("popups", True):
+            return []
+        shown = []
+        for ev in evs:
+            t = self.camp_popup_text(ev)
+            if not t:
+                continue
+            title, sub, mark, color = t
+            try:
+                from . import alertcard
+                from .alerts_page import game_rect
+                alertcard.show(self.root, title, sub, color=color, mark=mark, secs=7, game=game_rect(),
+                               tag="Campaign", rank=4, vital=ev["kind"] == "left")
+                shown.append(title)
+            except Exception:
+                self.log_error("a campaign pop-up")
+        return shown
+
+    @staticmethod
+    def camp_popup_text(ev):
+        """An event -> (title, line under it, mark, color): every pop-up says what happened with a mark and words."""
+        k = ev.get("kind")
+        if k == "boss":
+            boss = ev.get("boss") or "The boss"
+            title = f"{boss[0].upper() + boss[1:]} is down" + (f" {ev['gives']}" if ev.get("gives") else "")
+            return title, (f"Next → {ev['next']}" if ev.get("next") else "Step done"), "✓", POP_GOOD
+        if k == "left":
+            gives = f"That's {ev['gives']}. " if ev.get("gives") else ""
+            return (f"You left before {ev.get('boss') or 'the boss'} died", f"{gives}Go back → {ev.get('zone')}",
+                    "✕", POP_BAD)
+        if k == "low":
+            n = ev.get("under", 0)
+            return (f"Too low: {n} levels under this zone", f"You {ev.get('you')}, zone {ev.get('zone_level')}. "
+                    "Bosses hit harder - kill a few packs before the boss.", "!", POP_WARN)
+        if k == "act":
+            best = ev.get("best")
+            return (f"{ev.get('act')} done in {CP.fmt(ev.get('secs'))}",
+                    f"Best this league: {CP.fmt(best)}" if best else "Your first time for it this league", "✓",
+                    POP_GOOD)
+        return None
 
     # ---------------------------------------------------------------- 2.89.0: which guide, when a campaign starts
     def camp_route_ask_show(self):
@@ -193,6 +289,12 @@ class CampaignUI:
     def _camp_line_now(self):
         self._camp_line_job = None
         try:
+            if self.camp_in_card() and self.camp_on_bar():     # the Panel: the line is part of its card
+                if getattr(self, "mg_win", None) is not None and CP.line_text() != getattr(self, "_camp_card_was", None):
+                    self.merged_build()
+                return
+            if self.camp_on_bar() and getattr(self, "mg_win", None) is not None and self.camp_bar_replan():
+                return self.merged_build()                  # (a zone name of another length: the bar's parts again)
             if not self.camp_line_redraw():
                 self.goalbar_build()
         except Exception:
@@ -235,14 +337,19 @@ class CampaignUI:
             for tag in ("camp", "campline", "campinfo"):
                 cv.delete(tag)
             self.camp_draw_row(cv, P, lft, rgt, mid, f, n=n, lh=lh)
-            if self.ov_light():
-                self._lt_halo_tags(cv, P, ("camp",))
         except tk.TclError:
             return False
         return True
 
     def camp_on_bar(self):
-        return CP.active()                                  # 2.97.0: on = its line shows (no line switch)
+        return CP.shown()                                   # 2.97.0: on = its line shows (Round 18: not in a hideout)
+
+    def camp_in_card(self):
+        """The Panel layout: the Campaign Bar's line is one card with the rest (never twice); the Bar: over it."""
+        try:
+            return self.merged_layout() != "xpbar"
+        except Exception:
+            return False
 
     def camp_set_on(self, on):
         CP.cfg()["on"] = bool(on)
@@ -268,9 +375,11 @@ class CampaignUI:
 
     # ================================================================ L: the line (drawn on the goal bar)
     def _camp_fonts(self, P, root=None):
+        """-> (head, do, small, small bold) fonts of the Campaign Bar's line (made once per look)."""
         import tkinter.font as tkfont
         root = root or self.root
-        spec = ((P["hfont"], self._hf(9), "bold"), (P["font"], self._hf(10), "normal"), (P["font"], self._hf(9), "normal"))
+        spec = ((P["hfont"], self._hf(9), "bold"), (P["font"], self._hf(10), "bold"), (P["font"], self._hf(9), "normal"),
+                (P["font"], self._hf(9), "bold"))
         cache = self.__dict__.setdefault("_camp_font_cache", {})   # 2.125.4: made once per look (not per redraw)
         k = (str(root), spec)
         if k not in cache:
@@ -284,67 +393,150 @@ class CampaignUI:
             cache[k] = tuple(fs)
         return cache[k]
 
-    @staticmethod
-    def _camp_info(d, fi, room):
-        """Levels and step if they fit in room px, else the step only, else "2/14" (2.123.7), else nothing."""
-        short = d["step"].replace("step ", "").replace(" of ", "/") if d["step"] else ""
-        for info in ("   ".join(t for t in (d["levels"], d["step"]) if t), d["step"], short):
-            if info and _measure(fi, info) + 14 <= room:
-                return info
-        return ""
+    def camp_rows(self, P, width, d=None):
+        """The Campaign Bar's line laid out in width px -> [[(text, font, role)], ...] one list per line:
+          the head (act · zone, and the step n / N with ⓘ when the step has a tip, at the right: role "step"),
+          what to do now (its gain in the gain role), wrapped - never cut,
+          then → where next (dimmed).
+        role: head / step / do / gain / then / to."""
+        d = d or CP.line()
+        if not d:
+            return []
+        fh, fd, fi, fb = self._camp_fonts(P)
+        step = d["step"] + ("  ⓘ" if d.get("tip") else "")
+        out = [[(fit_lines(fh, d["head"], max(40, width - (_measure(fi, step) + 16 if step else 0)), 1), fh, "head")]
+               + ([(step, fi, "step")] if step else [])]
+        words = []                                            # (a gain stays in one piece: never "(+10% cold" / "res)")
+        for part in re.split(r"(\((?:their )?\+[^)]*\))", d["do"]):
+            if not part.strip():
+                continue
+            if part.startswith("(") and "+" in part:
+                words.append((part, fd, "gain"))
+                continue
+            for wd in part.split():
+                words.append((wd, fd, "gain" if wd == "✓" else "do"))
+        out += _wrap(words, width)
+        if d.get("then"):
+            out += _wrap([("then →", fi, "then")] + [(w, fb, "to") for w in d["then"].split(" ")], width)
+        return out
 
     def camp_lines(self, P, avail):
-        """2.123.7 (feedback: "you can't see any of the information"): how many text lines the campaign row needs
-        in avail px - 1 when the head and the whole line fit side by side, else the head on its own line and the
-        line under it, wrapped to at most 3 lines (2.124.1: 2 cut long guide steps)."""
-        d = CP.line()
-        if not d:
-            return 1
-        fh, fm, fi = self._camp_fonts(P)
-        text = "▸ " + CP.line_text()
-        side = avail - _measure(fh, d["head"]) - 12              # (the same sums as camp_draw_row's one line)
-        info = self._camp_info(d, fi, side * 0.45)
-        if _measure(fm, text) <= side - (_measure(fi, info) + 14 if info else 0):
-            return 1
-        return 1 + len(fit_lines(fm, text, avail, 3).split("\n"))
+        """How many text lines the Campaign Bar's line needs in avail px (2.123.7: wraps, never cut)."""
+        return max(1, len(self.camp_rows(P, avail)))
 
     def camp_draw_row(self, cv, P, lft, rgt, mid, font, n=1, lh=0):
-        """Draw the campaign line between lft and rgt, centered on mid; n > 1: the head and step on top, the line
-        wrapped under them (n - 1 lines, lh px each). -> the items clicked for the route card."""
-        from .merged_page import click_not_drag
-        d = CP.line()
-        if not d:
+        """Draw the Campaign Bar's line between lft and rgt: n lines of lh px, centered on mid. -> the items clicked
+        for the route card."""
+        rows = self.camp_rows(P, rgt - lft)
+        if not rows:
             return None
-        hf = (P["hfont"], self._hf(9), "bold")
-        fh, fm, fi = self._camp_fonts(P, cv)
-        y1 = mid - (n - 1) * lh / 2 if n > 1 else mid       # the head's line
-        y2 = mid + lh / 2 if n > 1 else mid                 # the middle of the line's block under it
-        keep = _measure(fi, self._camp_info(d, fi, 10 ** 6).split("   ")[-1].replace("step ", "").replace(" of ", "/")) \
-            + 26 if d["step"] else 0                         # (room for at least "2/14" beside the head)
-        head = cv.create_text(lft, y1, text=fit_lines(fh, d["head"], rgt - lft - keep, 1), anchor="w",
-                              fill=P["head"], font=hf, tags=("mg", "camp"))
-        x = lft + _measure(fh, cv.itemcget(head, "text")) + 12
-        right = rgt
-        # (2.92.2: Vendor ▾ moved to the bar's menus, beside Notes / Calc / Regex)
-        info = self._camp_info(d, fi, (rgt - x) if n > 1 else (rgt - x) * 0.45)
-        if info:
-            cv.create_text(right, y1, text=info, anchor="e", fill=P["muted"], font=(P["font"], self._hf(9)),
-                           tags=("mg", "campinfo"))
-            right -= _measure(fi, info) + 14
-        if n > 1:
-            x, right = lft, rgt
-        it = cv.create_text(x, y2, text="", anchor="w", fill=P["text"], font=font, tags=("mg", "campline"))
-        t = FitText(cv, it, P["bg"], halo=self._mg_halo(P))
-        t.fnt, t.px, t.lines = fm, max(40, right - x), max(1, n - 1)
-        t.config(text="▸ " + CP.line_text())
-        self.tk_ov_lbls["campaign"] = t
+        lh = lh or self._camp_fonts(P)[1].metrics("linespace")
+        y = mid - (len(rows) - 1) * lh / 2
+        items = self.camp_draw_lines(cv, P, rows, lft, rgt, y, lh, ("mg", "camp"))
         if cv is getattr(self, "gb_cv", None) or getattr(self, "gb_cv", None) is None:
             self._gb_camp = (P, lft, rgt, mid, font, n, lh)
-        for item in (head, it):
+        return items
+
+    def camp_draw_lines(self, cv, P, rows, lft, rgt, y, lh, tags):
+        """Draw laid-out rows (camp_rows) from y (the first line's middle). -> the items."""
+        from .merged_page import click_not_drag
+        col = {"head": P["head"], "step": P["muted"], "do": P.get("big") or P["text"],
+               "gain": P.get("on") or P.get("accent") or P["head"], "then": P["muted"], "to": P["text"]}
+        items = []
+        for row in rows:
+            x = lft
+            runs = []                                         # (same font and role: one text)
+            for text, f, role in row:
+                if role == "step":
+                    continue
+                if runs and runs[-1][1] is f and runs[-1][2] == role:
+                    runs[-1][0].append(text)
+                else:
+                    runs.append(([text], f, role))
+            for words, f, role in runs:
+                t = " ".join(words)
+                items.append(self._camp_text(cv, P, x, y, t, f, col[role], "w", tags))
+                x += _measure(f, t + " ")
+            for text, f, role in row:
+                if role == "step":                            # (the step: at the right of the head's line)
+                    it = self._camp_text(cv, P, rgt, y, text, f, col["step"], "e", tags + ("campstep",))
+                    if "ⓘ" in text:
+                        cv.addtag_withtag("campstep", it)
+                        self.ov_tip(cv, "campstep", lambda: (CP.line() or {}).get("tip") or "", hand=False)
+            y += lh
+        for item in items:
             click_not_drag(cv, item, self.camp_route_show)      # (2.112.5: a drag moves the line, no card)
             cv.tag_bind(item, "<Enter>", lambda e: cv.configure(cursor="hand2"))
             cv.tag_bind(item, "<Leave>", lambda e: cv.configure(cursor=""))
-        return head, it
+        return items
+
+    @staticmethod
+    def _camp_text(cv, P, x, y, text, f, fill, anchor, tags):
+        """A text of the line, with the look's outline when it has one (box-less looks, over the game)."""
+        halo = P.get("halo")
+        if halo:
+            for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+                cv.create_text(x + dx, y + dy, text=text, font=f, fill=halo, anchor=anchor, tags=tags)
+        return cv.create_text(x, y, text=text, font=f, fill=fill, anchor=anchor, tags=tags)
+
+    # ---------------------------------------------------------------- the Campaign Bar's parts: how each was worked out
+    def camp_zone_text(self):
+        run = CP.char()
+        z = run.get("hub") or run.get("zone") or "-"
+        zl = run.get("zone_level") or 0
+        return f"{z} · lvl {zl}" if zl else z
+
+    def camp_zone_tip(self):
+        run = CP.char()
+        z, zl, aid = run.get("zone") or "-", run.get("zone_level") or 0, run.get("area") or "?"
+        zt = CP.zone_time(run)
+        return (f"{z}, level {zl} - from the game's log ('Generating level {zl} area \"{aid}\"').\n"
+                + (f"Here for {CP.fmt(zt)}." if zt is not None else "Time here: from the next zone you enter."))
+
+    def camp_you_text(self):
+        d = CP.line() or {}
+        you, zl = d.get("level") or (CP.char_level(), 0)
+        t = CP.level_text(you, zl)
+        if getattr(self, "_camp_you_mode", "full") == "short" and " · " in t:   # (a narrow bar: the words, the
+            mark = t.split(" ", 1)[0]                                            # level is on the hover)
+            return f"{mark} {t.rsplit(' · ', 1)[1]}"
+        return t
+
+    @staticmethod
+    def camp_you_tip():
+        d = CP.line() or {}
+        you, zl = d.get("level") or (CP.char_level(), 0)
+        return CP.level_how(you, zl) + "\nYour level: from the game's log ('is now level ...')."
+
+    def camp_got_text(self, mode=None):
+        g = CP.got_so_far()
+        mode = mode or getattr(self, "_camp_got_mode", "full")
+        p, sp = g["points"], g["spirit"]
+        if mode == "short":
+            return f"Points {p[0]}/{p[1]}"
+        if mode == "mid":
+            return f"Points {p[0]}/{p[1]} · Spirit {sp[0]}/{sp[1]}"
+        return CP.got_text(g)
+
+    @staticmethod
+    def camp_got_tip():
+        return CP.got_how(CP.got_so_far())
+
+    @staticmethod
+    def camp_act_text():
+        t = CP.act_time()
+        return CP.fmt(t) if t is not None else "-"
+
+    @staticmethod
+    def camp_act_tip():
+        run = CP.char()
+        key = run.get("act")
+        best = CP.cfg()["best"].get(CP.SETTINGS.get("league") or "", {}).get(key)
+        done = key in run.get("closed", [])
+        return (f"{CP.act_name(key)}: {CP.fmt(CP.act_time(run))}" + (" (done)" if done else " so far")
+                + (f" - your best this league {CP.fmt(best)}" if best else "") + ".\n"
+                "From the zone changes in the game's log; AFK and gaps over 15 minutes don't count. "
+                "The act ends on its last boss.")
 
     # ================================================================ cards over the game
     def _camp_card(self, title, icon, W, top=0.10, on_close=None, on_moved=None):
@@ -434,7 +626,7 @@ class CampaignUI:
             self.camp_act_cb = cb
         # 2.125.3 (feedback: "the option to select which route from that screen itself ... and the options"): Routes ▾
         # and Options ▾, each a small panel inside the card (a window of its own sent the card behind the game)
-        for key, label, tip in (("options", "Options ▾", "The Campaign Helper's options (as in Overlay Settings)"),
+        for key, label, tip in (("options", "Options ▾", "The Campaign Helper's options (as on Overlay › Options)"),
                                 ("routes", "Routes ▾", "Pick the route: Full, Speedrun or Rush (carry)")):
             b = ttk.Button(top, text=label, style=self.ov_btn("Quiet.TButton"),
                            command=lambda k=key: self.camp_pop_toggle(k), width=len(label) + 1)
@@ -605,10 +797,10 @@ class CampaignUI:
         self.camp_rows = []
         self.camp_marks = marks = {"done": ("✓", P["on"]), "here": ("▸", P["head"]), "todo": ("○", P["muted"]),
                  "passed": ("–", P["muted"])}
-        gives = {}
-        for r in CP.rewards(key):
-            if run["rewards"].get(r["id"]) not in ("got", "skip"):
-                gives.setdefault(CP.norm(r["zone"]), []).append(CP.short_gives(r))
+        state = {}                                             # pack 4: the line has the reward in it - the
+        for r in CP.rewards(key):                              # right side only says got / missed (never twice)
+            st = run["rewards"].get(r["id"])
+            state.setdefault(CP.norm(r["zone"]), []).append(st)
         patch = CP.pack().get("patch", "?")
         for i, s in enumerate(rows):
             here = s["state"] == "here"
@@ -624,19 +816,27 @@ class CampaignUI:
                           anchor="w", wraplength=380, justify="left")
             tl.pack(side="left", fill="x", expand=True)
             f.parts = (ml, tl)
-            side = ", ".join(gives.get(CP.norm(s["zone"]), []))
+            sts = state.get(CP.norm(s["zone"]), [])
+            side, good = "", False
             if s.get("learned"):
                 side = f"not in the {patch} guide"
+            elif sts and all(x == "got" for x in sts):
+                side, good = "✓ got", True
+            elif "missed" in sts:
+                side = "✕ missed"
             elif s["state"] == "passed":
-                side = side or "passed"
+                side = "passed"
             elif s.get("note"):
-                side = side or s["note"]
+                side = s["note"]
             if side:
-                tk.Label(f, text=side, bg=rbg, fg=P["on"] if gives.get(CP.norm(s["zone"])) else P["muted"],
+                tk.Label(f, text=side, bg=rbg, fg=P["on"] if good else P["muted"],
                          font=(P["font"], self.ov_font(9))).pack(side="right")
             for wdg in [f] + list(f.winfo_children()):
                 wdg.bind("<Button-1>", lambda e, i=i: self.camp_here(i))
             self.camp_rows.append(f)
+            if here and s.get("tip") and c["tips"]:
+                tk.Label(page, text="ⓘ " + s["tip"], bg=bg, fg=P["muted"], font=(P["font"], self.ov_font(9)),
+                         anchor="w", justify="left", wraplength=self.ov_px(480)).pack(fill="x", padx=(24, 0))
             if here and s.get("learned"):
                 self._camp_unknown_row(page, P, s)
         if not rows:
@@ -679,7 +879,7 @@ class CampaignUI:
         self.camp_total_labs = {}
         grid = tk.Frame(page, bg=bg)
         grid.pack(fill="x")
-        cells = (("SKILL POINTS", "points"), ("SPIRIT", "spirit"))
+        cells = (("POINTS", "points"), ("SPIRIT", "spirit"))
         for i, (lab, k) in enumerate(cells):
             have, of = tot.get(k, (0, 0))
             f = tk.Frame(grid, bg=bg)
@@ -709,11 +909,12 @@ class CampaignUI:
                                 command=lambda r=r, v=v: self.camp_tick(r["id"], v.get()))
             cb.pack(side="left")
             if st in ("missed", "skip", "remind"):
-                tk.Label(row, text={"missed": "missed", "skip": "skipped", "remind": "remind me"}[st], bg=bg,
+                tk.Label(row, text={"missed": "✕ missed", "skip": "– skipped", "remind": "○ not yet"}[st], bg=bg,
                          fg=P.get("off", P["muted"]) if st == "missed" else P["muted"],
                          font=(P["font"], self.ov_font(9))).pack(side="right")
-        tk.Label(page, text=f"The list comes from the guide pack ({CP.pack().get('name', '')}). Only what the log "
-                            "can prove ticks by itself - tick or untick any reward by hand.", bg=bg, fg=P["muted"],
+        tk.Label(page, text=f"The list comes from the guide pack ({CP.pack().get('name', '')}). A boss's line in the "
+                            "game's log ticks its reward; the rest are asked in town. Tick or untick any by hand.",
+                 bg=bg, fg=P["muted"],
                  font=(P["font"], self.ov_font(9)), anchor="w", justify="left", wraplength=self.ov_px(520)).pack(fill="x", pady=(8, 0))
 
     def _camp_splits_page(self, page, P):
@@ -846,43 +1047,46 @@ class CampaignUI:
 
     # ---------------------------------------------------------------- the rewards to answer (N)
     def camp_ask_show(self):
+        """In town: a reward the log can't see - Got it / Not yet (asks once more next town). One at a time (one
+        main button on the card); the rest follow as you answer."""
         self.camp_ask_close()
-        later = getattr(self, "_camp_later", set())
-        items = [(r, st) for r, st in CP.asks() if r["id"] not in later]
+        items = CP.asks()
         if not items:
             return None
+        r, st = items[0]
         w, body, P = self._camp_card("Campaign rewards", "★", 460, top=0.16, on_close=lambda: self.camp_ask_close())
         bg = P["bg"]
         self.camp_ask_btns = {}
-        for r, st in items[:4]:
-            f = tk.Frame(body, bg=bg, pady=4)
-            f.pack(fill="x")
-            if st == "missed":
-                head, txt = "Missed one:", f"{r['what']} in {r['zone']} ({r['gives']}). It's still there."
-            else:
-                head, txt = "Did you get it?", f"{r['what']} in {r['zone']} ({r['gives']})."
-            tk.Label(f, text=head, bg=bg, fg=P["head"], font=(P["font"], self.ov_font(10), "bold"), anchor="w").pack(fill="x")
-            tk.Label(f, text=txt, bg=bg, fg=P["text"], font=(P["font"], self.ov_font(10)), anchor="w", justify="left",
-                     wraplength=self.ov_px(420)).pack(fill="x")
-            row = tk.Frame(f, bg=bg)
-            row.pack(fill="x", pady=(4, 0))
-            for k, label, style in (("got", "Got it", "Primary.TButton"), ("remind", "Remind me in town", "TButton"),
-                                    ("skip", "Skip it", "Quiet.TButton")):
-                b = ttk.Button(row, text=label, style=self.ov_btn(style), command=lambda r=r, k=k: self.camp_answer(r["id"], k))
-                b.pack(side="left", padx=(0, 8))
-                self.camp_ask_btns[(r["id"], k)] = b
-        if len(items) > 4:
-            tk.Label(body, text=f"+{len(items) - 4} more - Campaign › Rewards", bg=bg, fg=P["muted"],
-                     font=(P["font"], self.ov_font(9))).pack(anchor="w")
+        if st == "missed":
+            head, txt = "Missed one:", f"{r['what']} in {r['zone']} ({r['gives']}). It's still there."
+        elif r.get("town"):
+            head = "In town: " + r["town"][0].lower() + r["town"][1:]
+            txt = f"{r['what']} ({r['gives']}). Did you get it?"
+        else:
+            head, txt = "Did you get it?", f"{r['what']} in {r['zone']} ({r['gives']})."
+        tk.Label(body, text=head, bg=bg, fg=P["head"], font=(P["font"], self.ov_font(10), "bold"), anchor="w",
+                 justify="left", wraplength=self.ov_px(420)).pack(fill="x")
+        tk.Label(body, text=txt, bg=bg, fg=P["text"], font=(P["font"], self.ov_font(10)), anchor="w", justify="left",
+                 wraplength=self.ov_px(420)).pack(fill="x")
+        row = tk.Frame(body, bg=bg)
+        row.pack(fill="x", pady=(8, 0))
+        from .style import Tooltip
+        for k, label, style, tip in (("got", "Got it", "Primary.TButton", "Ticks it in Got so far"),
+                                     ("not_yet", "Not yet", "TButton", "Leaves it open - asks once more next town")):
+            b = ttk.Button(row, text=label, style=self.ov_btn(style), command=lambda k=k: self.camp_answer(r["id"], k))
+            b.pack(side="left", padx=(0, 8))
+            Tooltip(b, tip)
+            self.camp_ask_btns[(r["id"], k)] = b
+        if len(items) > 1:
+            tk.Label(body, text=f"{len(items) - 1} more after this one", bg=bg, fg=P["muted"],
+                     font=(P["font"], self.ov_font(9))).pack(anchor="w", pady=(8, 0))
         self.camp_ask_win = w
         w.show()
         return w
 
     def camp_answer(self, rid, how):
-        """Got it / Remind me in town (asks again at the next town) / Skip it."""
+        """Got it / Not yet (asks once more at the next town)."""
         CP.set_reward(rid, how)
-        if how == "remind":
-            self._camp_later = getattr(self, "_camp_later", set()) | {rid}
         if not self.camp_ask_show():
             self.camp_ask_close()
         self.camp_refresh()
@@ -952,7 +1156,7 @@ class CampaignUI:
 
     # ================================================================ R: its settings (Overlay › Options)
     def camp_options(self, po, into=None):
-        """Its options (route, splits ...). 2.82.0: into = the Campaign card on Overlay ↳ Overlay Settings."""
+        """Its options (route, splits ...). 2.82.0: into = the Campaign Helper card on Overlay › Options."""
         from .chrome import section as chrome_section
         from .style import C, SegBar
         c = CP.cfg()
@@ -995,8 +1199,6 @@ class CampaignUI:
         self.tk_camp_pack.pack(side="top" if into is not None else "left", anchor="w")   # 2.82.0: in a card, own line
         ttk.Button(pk, text="Check for a newer one", style="Quiet.TButton", command=self.camp_check_pack).pack(
             side="left", padx=(0 if into is not None else 8, 0), pady=(4 if into is not None else 0, 0))
-        ttk.Button(pk, text="Open the route", style="Quiet.TButton", command=self.camp_route_show).pack(
-            side="left", padx=(8, 0), pady=(4 if into is not None else 0, 0))
 
     def camp_route_pick(self, name):
         CP.cfg()["route"] = next((k for k, n in CP.ROUTES if n == name), "full")
@@ -1020,7 +1222,7 @@ class CampaignUI:
         self.camp_refresh(line_later=True)
 
     def camp_opt(self, k, value=None):
-        """One Campaign option (Overlay Settings or the card's Options ▾ - the same setting, kept in step)."""
+        """One Campaign option (Overlay › Options or the card's Options ▾ - the same setting, kept in step)."""
         if value is None:
             value = bool(self.tk_camp_vars[k].get())
         CP.cfg()[k] = bool(value)

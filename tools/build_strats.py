@@ -1,5 +1,5 @@
 """Build moneymakers.json from the strats/ folder (2.28.0): one strat per file (.json, or the plain-text .txt
-layout from the app's Download Format) plus oneliners.json (Lucrative Strats). Every file is checked against the layout
+layout - moneymakers.to_csv(None)) plus oneliners.json (Lucrative Strats). Every file is checked against the layout
 (soe2.moneymakers.validate - the same check the app uses).
 
     py tools/build_strats.py           check + write moneymakers.json (revision goes up when the strats changed)

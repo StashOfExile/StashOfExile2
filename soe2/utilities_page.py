@@ -1,5 +1,6 @@
 """The utility windows (2.0 beta 7): Chat commands and Notes (the POE2 Overlay, rebuilt, now two separate utilities)
-(the Delirium alert lives in the Session tracker since 2.10.0: alerts_page.py)."""
+(the helpers are in Overlay › Helpers: alerts_page.py). The keyboard watcher's listener is here: every key
+you press in the game, and (GGG policy, Nov 2026) the Look key and copy keys that let the app read once (look_page.py)."""
 import os
 import sys
 import threading
@@ -9,9 +10,8 @@ from tkinter import ttk
 
 from . import buglog
 from .config import save_json, SETTINGS
-from .overlay import MAX_COMMANDS, Overlay, parse_key
+from .overlay import MAX_COMMANDS, Overlay, key_label_vk, parse_key
 from .style import C, CAPTURING
-from .utilities import DELIRIUM
 
 
 class UtilitiesPage:
@@ -25,10 +25,25 @@ class UtilitiesPage:
         return self.overlay
 
     def start_utilities(self):
-        """Called once at start-up: chat commands and notes listen to the keyboard watcher; the Delirium alert may
-        start too."""
+        """Called once at start-up: chat commands and notes listen to the keyboard watcher."""
         self._ensure_overlay()
         self.keys.listener = self.on_any_key         # 2.0 beta 9: the session tracker's keys come first
+        self.keys.up_listener = self.on_any_key_up   # GGG policy: a key's release - its next key-down is a new press
+        from . import screenread as _sr
+        from .alerts_page import game_rect as _gr
+        _sr.AREA[0] = _gr                            # (one press = one picture of the game window)
+        _sr.ONLY_KEY[0] = self.look_key_vk           # (the one key: a read opens on the Look key and nothing else)
+        _sr.SAID[0] = lambda src, key, what: self.ui_q.put(("read_mark", src, key, what))   # (the read mark)
+        try:                                         # (the app window's handle, read once here on the Tk thread)
+            import sys as _sys
+            if _sys.platform == "win32":
+                import ctypes as _ct
+                _u = _ct.windll.user32
+                _u.GetParent.restype = _ct.c_void_p
+                _u.GetParent.argtypes = [_ct.c_void_p]
+                self._app_hwnd = _u.GetParent(self.root.winfo_id()) or self.root.winfo_id()
+        except Exception:
+            buglog.caught()
         from . import style as _st
         _st.CAPTURE_HOOK[0] = lambda waiting: (self.update_mouse_watch(True) if waiting else
                                                self.root.after(400, self.update_mouse_watch))
@@ -37,8 +52,6 @@ class UtilitiesPage:
         _ov.CLIP_HOOK[0] = self.ignore_clip              # chat commands paste through the clipboard (2.0 beta 8)
         if self.overlay.cfg.get("notes_enabled") and self.overlay.cfg.get("notes_visible"):
             self.root.after(800, self.overlay.show_notes)
-        if SETTINGS.get("util_delirium_autostart"):
-            self.root.after(1500, self.dl_do_start)
         self.alerts_init()                               # 2.10.0: the Breach alert starts here if it's on
         self.root.after(1500, self.tracker_helpers_sync)  # 2.49.0: the Mechanic Helper bar, if its switch is on
         self.root.after(2000, self.util_refresh)
@@ -48,6 +61,26 @@ class UtilitiesPage:
         if CAPTURING[0] is not None:                   # a hotkey box is waiting: the key (or button) goes to it
             self.ui_q.put(("keycap", vk, ctrl, alt, shift))
             return True
+        try:                                           # GGG policy (Nov 2026): the Look key - one screen read a press.
+            self.look_on_key(vk, ctrl, alt, shift)     # It is only heard: the game still gets the key (never True)
+        except Exception:
+            buglog.caught()
+        try:                                           # Round 18: Esc in the game clears what the Look key drew
+            self.look_esc_on_key(vk, ctrl, alt, shift)  # (only heard: the game still gets Esc)
+        except Exception:
+            buglog.caught()
+        try:
+            self.clip_on_key(vk, ctrl, alt, shift)     # your own Ctrl+C / Ctrl+Alt+C in the game: one clipboard read
+        except Exception:
+            buglog.caught()
+        if vk == 0x4B and ctrl and not alt and self._app_in_front():   # UI overhaul: Ctrl+K = Go to anything, read
+            self.ui_q.put(("goto",))                   # here too (Tk's own binding missed it when no app widget had
+            return True                                # the focus - pages are drawn inside the app window now)
+        try:                                           # drawer build: the Drawer key (cached flags and ui_q only)
+            if self.drawer_hotkey(vk, ctrl, alt, shift):
+                return True
+        except Exception:
+            buglog.caught()
         try:
             if self.pc_hotkey(vk, ctrl, alt, shift):
                 return True
@@ -58,12 +91,17 @@ class UtilitiesPage:
                 return True
         except Exception:
             buglog.caught()
+        try:                                           # drawer build: the same key, in game, puts a shown Drawer away
+            if self.drawer_esc_hotkey(vk, ctrl, alt, shift):    # (the card above closes first: one press, one thing)
+                return True
+        except Exception:
+            buglog.caught()
         from . import features as FEAT
-        if not FEAT.on("overlay"):                     # 2.131.0: the Game Overlay is off - its keys do nothing
+        if not FEAT.on("overlay"):                     # 2.131.0: the Overlay is off - its keys do nothing
             return False
         try:                                           # 2.132.6: Regex keys (were one Regex key that copied)
-            i = self.rx_key_hit(vk, ctrl, alt, shift)
-            if i is not None:
+            i = self.rx_key_hit(vk, ctrl, alt, shift)  # (review: they stay behind the Overlay switch, as the Feature
+            if i is not None:                          # Picker says - "its keys"; the Regex page itself always shows)
                 from .overlay import game_active, POE_TITLE
                 if game_active((getattr(self, "overlay", None) and self.overlay.cfg.get("poe_title")) or POE_TITLE):
                     self.ui_q.put(("regexkey", i))
@@ -91,6 +129,85 @@ class UtilitiesPage:
         except Exception:
             buglog.caught()
         return self.overlay.on_key(vk, ctrl, alt, shift)
+
+    def look_esc_on_key(self, vk, ctrl, alt, shift):
+        """(keyboard thread) Esc while the game is in front -> ("look_clear",): what the Look key drew over the game
+        goes. Never True - Esc is never swallowed."""
+        if vk != 0x1B or ctrl or alt or shift:
+            return False
+        from .overlay import game_active, POE_TITLE
+        if game_active((getattr(self, "overlay", None) and self.overlay.cfg.get("poe_title")) or POE_TITLE):
+            self.ui_q.put(("look_clear",))
+        return False
+
+    def on_any_key_up(self, vk):
+        """(keyboard thread) A key went up: the screen and clipboard gates hear it (a held key isn't pressed again)."""
+        from . import clipread, screenread
+        screenread.release(vk)
+        clipread.release(vk)
+
+    def clip_on_key(self, vk, ctrl, alt, shift):
+        """(keyboard thread) GGG policy: your Ctrl+C or Ctrl+Alt+C while the game is in front lets the app read the
+        copy it makes - once for this press (clipread), and only when something in the app takes that copy now
+        (clip_wanted). Never swallowed: the game does the copy."""
+        if vk != 0x43 or not ctrl:
+            return False
+        from .overlay import game_active, POE_TITLE
+        if not game_active((getattr(self, "overlay", None) and self.overlay.cfg.get("poe_title")) or POE_TITLE):
+            return False
+        if not self.clip_wanted(alt):
+            return False                                   # (nothing would use it: nothing is read)
+        from . import clipread
+        gid = clipread.grant("Ctrl+Alt+C" if alt else "Ctrl+C", hold=vk)
+        if gid:
+            self.clip_granted(gid)
+        return bool(gid)
+
+    def clip_wanted(self, alt):
+        """(keyboard thread) Does anything take a copy made with Ctrl+Alt+C (alt) / Ctrl+C right now? Bulk Pricing and
+        the Strat Tracker's boxes take Ctrl+Alt+C; Price Checks and Top Up take Ctrl+C when it's their key; Wealth's
+        Count by hand takes either while you count."""
+        from . import features as FEAT
+        from . import topup as TU
+        from .pricecheck_page import pc_key_is_copy
+        if getattr(self, "w_counting", False):
+            return True
+        if alt:
+            if SETTINGS.get("listen", True):
+                return True
+            for f in ("fd_capturing", "fl_capturing", "fl_ed_open"):
+                try:
+                    if getattr(self, f)():
+                        return True
+                except Exception:
+                    pass
+            return False
+        if pc_key_is_copy() and SETTINGS.get("pc_ctrl_c", True) and FEAT.on("price"):
+            return True
+        try:
+            return bool(self.topup_key_is_copy() and (TU.cfg().get("on") or self.mp_on()))
+        except Exception:
+            return False
+
+    def ev_goto(self):
+        self.shell.goto()
+
+    def _app_in_front(self):
+        """(keyboard thread) The app's own window - or one it owns, like the Go to anything box - is in front."""
+        import sys
+        h = getattr(self, "_app_hwnd", None)
+        if sys.platform != "win32" or not h:
+            return False
+        try:
+            import ctypes
+            u = ctypes.windll.user32
+            u.GetForegroundWindow.restype = ctypes.c_void_p
+            u.GetAncestor.restype = ctypes.c_void_p
+            u.GetAncestor.argtypes = [ctypes.c_void_p, ctypes.c_uint]
+            fg = u.GetForegroundWindow()
+            return bool(fg) and (fg == h or u.GetAncestor(fg, 3) == h)      # (3 = GA_ROOTOWNER)
+        except Exception:
+            return False
 
     def ev_regexkey(self, i):
         self.rx_key_press(i)
@@ -136,9 +253,18 @@ class UtilitiesPage:
             return False
         if not game_active((getattr(self, "overlay", None) and self.overlay.cfg.get("poe_title")) or POE_TITLE):
             return False                                   # outside the game the key does its usual job
+        from . import clipread                             # GGG policy: one press, one copy, one clipboard read
+        if vk in clipread.MOUSE:
+            return False                                   # (a mouse button is not a key press: no read)
+        gid = clipread.grant(key_label_vk(vk, ctrl, alt, shift), hold=vk)
+        if not gid:
+            return True                                    # (a held key's repeat: nothing more)
+
         def go():
             self.keys.pc_time = time.time()
+            clipread.clear()                               # (so the one read finds this copy, or nothing)
             send_copy()
+            self.clip_granted(gid)
         threading.Thread(target=go, daemon=True).start()
         return True
 
@@ -153,31 +279,31 @@ class UtilitiesPage:
             return False                                   # (Ctrl+C: the game copies by itself - nothing to send)
         if not game_active((getattr(self, "overlay", None) and self.overlay.cfg.get("poe_title")) or POE_TITLE):
             return False
+        from . import clipread
+        if vk in clipread.MOUSE:
+            return False                                   # (a mouse button is not a key press: no read)
+        gid = clipread.grant(key_label_vk(vk, ctrl, alt, shift), hold=vk)
+        if not gid:
+            return True
 
         def go():
             self.keys.tu_time = time.time()
+            clipread.clear()
             send_copy()
+            self.clip_granted(gid)
         threading.Thread(target=go, daemon=True).start()
         return True
 
     def open_utilities(self, key="notes"):
         """The ⚙ on the note: bring the app up with the Notes window in front."""
         try:
-            self.root.deiconify()
-            self.root.lift()
+            self.app_show(key, focus=True, why="overlay")
         except Exception:
             buglog.caught()
-        self.shell.open(key)
 
     def stop_utilities(self):
         try:
             self.overlay.close()
-        except Exception:
-            buglog.caught()
-        DELIRIUM.stop()                                  # only if the app started it
-        try:
-            from .utilities import RITUAL                # 2.14.0
-            RITUAL.stop()
         except Exception:
             buglog.caught()
 
@@ -359,7 +485,6 @@ class UtilitiesPage:
         self.overlay.rebind()
         self.overlay.restyle(store=False)
         self.overlay.save_settings()
-        DELIRIUM.set_title(cfg["poe_title"])
         for lbl in (self.ov_msg,):
             lbl.config(text=("Saved. Not understood: " + ", ".join(bad)) if bad else "Saved.",
                        fg=C["red"] if bad else C["green"])
@@ -397,22 +522,6 @@ class UtilitiesPage:
         if which == "poe2db" and open_poe2db():
             self._say("Opened poe2db's modifier list in your browser.", 5)
 
-    # ---------------- delirium alert (2.10.0: no window of its own - Session tracker > Alerts switches it)
-    def dl_do_start(self):
-        """-> None, or why it couldn't start."""
-        err = DELIRIUM.start()
-        self.root.after(1200, self.util_refresh)
-        return err
-
-    def dl_do_stop(self):
-        err = DELIRIUM.stop()
-        self.root.after(200, self.util_refresh)
-        return err
-
-    def dl_do_test(self):
-        return DELIRIUM.test_alert()
-
-    # ---------------- status (dots on the dock / taskbar, and the windows), every 2 s
     def chat_status(self):
         cfg = self.overlay.cfg if getattr(self, "overlay", None) else {}
         if not cfg.get("chat_enabled"):
@@ -421,12 +530,12 @@ class UtilitiesPage:
         return True if (sys.platform != "win32" or (keys is not None and keys.active)) else "warn"
 
     def notes_open(self):
-        """2.114.0 (P9: opening Notes landed on Overlay › Overlay Settings with no word about the note): the note itself, over
-        the game, and where it lives. Switched off: Overlay › Overlay Settings, saying which switch."""
+        """2.114.0 (P9: opening Notes landed on the overlay's settings with no word about the note): the note itself, over
+        the game, and where it lives. Switched off: Overlay › On the Overlay, saying which switch."""
         ov = getattr(self, "overlay", None)
         if ov is None or not ov.cfg.get("notes_enabled"):
-            self.ovh_open("Settings")
-            self._say("Notes is switched off: Overlay › Overlay Settings › On the overlay › Notes.", 10)
+            self.ovh_open("On the Overlay")
+            self._say("Notes is switched off: Overlay › On the Overlay › Notes.", 10)
             return False
         ov.show_notes()
         self._say("Notes is on the overlay bar (Notes ▾) and shows while the game is in front. Double-click a tab to "

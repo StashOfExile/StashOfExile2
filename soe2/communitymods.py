@@ -54,7 +54,7 @@ DETAILS = (
     ("Mod lines the app couldn't read", "the wording only, numbers as #, and the item's base type (like Solar Amulet)",
      "fixing them in the next update"),
     ("Strats you upload yourself", "only when you press Upload / Post - with rates (div per hour), never your totals",
-     "the Money Makers and Strat Tracker boards"),
+     "the Farming Strategies and Strat Tracker boards"),
     ("Your community name, votes and reports", "only when you join, vote or report yourself", "the board itself"),
 )
 WHERE = ("It all goes to the StashOfExile2 community server (run by the app's developer on Cloudflare) - not to GGG, "

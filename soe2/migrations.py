@@ -171,6 +171,107 @@ def _alerts_top_21371(S):
         c["where"] = "top"
 
 
+def _no_previews_21430(S):
+    """2.143.0: no preview builds any more (each version is tested locally, then released) - the switch is gone."""
+    S.pop("update_preview", None)
+
+
+def _helpers_on_ui(S):
+    """UI overhaul: every helper on once (each keeps its own switch) - they were opt-in, so most players never found
+    them."""
+    for key in ("topup", "breaks", "map_profit", "temple", "music"):
+        c = S.setdefault(key, {})
+        if isinstance(c, dict):
+            c["on"] = True
+    feats = S.setdefault("features", {})
+    for key in ("topup", "breaks", "mapprofit", "temple", "music"):
+        feats[key] = True
+    ov = S.setdefault("overlay", {})
+    if isinstance(ov, dict):
+        ov["chat_enabled"] = True
+
+
+def _helpers_one_switch(S):
+    """Features menu: app pages only. The BETA helpers (Top Up Reminders, Break reminders, Map profit, Temple Helper,
+    Music Controls) were a feature switch too, and both had to be on - now their own switch in Overlay › Helpers is
+    the only one. A helper whose feature was off stays off; the feature keys go."""
+    feats = S.get("features")
+    if isinstance(feats, dict):
+        for fkey, (dkey, sub) in (("topup", ("topup", "on")), ("breaks", ("breaks", "on")),
+                                  ("mapprofit", ("map_profit", "on")), ("temple", ("temple", "on")),
+                                  ("music", ("music", "on"))):
+            if fkey in feats and not feats.pop(fkey):
+                d = S.setdefault(dkey, {})
+                if isinstance(d, dict):
+                    d[sub] = False
+        feats.pop("desecrate", None)                     # (2.132.2: the Desecration Helper isn't BETA any more)
+    # Setup (first-run, one question a screen): it is for new installs - someone updating has used the app, so it
+    # isn't shown to them (Settings › General › Features › Run setup again brings it back). The old picker's
+    # data-folder and unrated-mods questions are gone (Settings › Advanced › Data folder; Settings › Price checking).
+    if S.get("seen_version") and not S.get("features_asked"):
+        S["features_asked"] = "done"
+    S.pop("data_dir_asked", None)
+    S.pop("ask_unrated_asked", None)
+
+
+def _no_dev_options(S):
+    """Owner: Settings › Advanced › Developer options and its Show developer options switch are gone - Debug mode
+    sits in Problems on its own. Debug mode only worked with that switch on, so it stays off for anyone who had the
+    switch off."""
+    if not S.pop("dev_options", False):
+        S["debug_mode"] = False
+
+
+def _look_key_policy(S):
+    """GGG policy (Nov 2026: one screen read per key press): the helpers read on the Look key. Gone: the Delirium
+    helper process (its switch util_delirium_autostart; the helper itself is gone - _delirium_gone), Fast Beacon
+    Read (temple.fast_read) and the Ritual tribute reminder (ritual_alert.tribute_reminder)."""
+    S.pop("util_delirium_autostart", None)
+    t = S.get("temple")
+    if isinstance(t, dict):
+        t.pop("fast_read", None)
+    r = S.get("ritual_alert")
+    if isinstance(r, dict):
+        r.pop("tribute_reminder", None)
+
+
+def _delirium_gone(S):
+    """GGG policy (Nov 2026): the Delirium helper is removed (its End Delirium check needed a screen read of its own):
+    its settings (delirium: on, sound), its switch on the overlay bar and the old process's switch go."""
+    S.pop("delirium", None)
+    S.pop("util_delirium_autostart", None)
+    tr = S.get("tracker")
+    if isinstance(tr, dict):
+        tr.pop("delirium", None)
+        if isinstance(tr.get("bar"), dict):
+            tr["bar"].pop("delirium", None)
+
+
+def _look_key_default(S):
+    """GGG policy, owner decision: the Look key is Ctrl+Shift+R as the app comes. A Look key that is unset (or was the
+    old Tab, cleared by look_key_dedicated) becomes it; a key you picked is kept. A person with an older install is
+    told once (look_page.look_key_notice). Cleared later by you: it stays cleared (the empty state)."""
+    from .screenread import DEFAULT_KEY
+    k = str(S.get("look_key") or "").replace(" ", "").lower()
+    if not k or k == "tab":
+        S["look_key"] = DEFAULT_KEY
+        if S.get("seen_version"):
+            S["look_key_notice"] = True
+
+
+def _look_key_dedicated(S):
+    """GGG policy, the strictest reading (owner): a read needs a key pressed for it - the Look key is a key only for
+    the read, not set as the app comes. Tab (the game's map key, the old default - an unset key meant Tab after
+    look_key_policy) is cleared; someone who read on Tab gets one notice saying why (look_page.look_key_notice)."""
+    k = S.get("look_key")
+    was_tab = str(k or "").replace(" ", "").lower() == "tab" or (
+        not k and "look_key_policy" in (S.get("migrations_done") or []))    # (a build where unset meant Tab)
+    if not k or was_tab:
+        S["look_key"] = ""
+        if was_tab and S.get("seen_version"):    # (someone who read on Tab is told why; others meet it in What's new)
+            S["look_key_notice"] = True
+
+
 STEPS = (
     ("modbook_import", "1.x", "app", _modbook_import, "modbook_imported"),
     ("rules_scoped", "2.6.0", "app", _rules_scoped, "rules_scoped_26"),
@@ -190,6 +291,14 @@ STEPS = (
     ("regex_keys_21326", "2.132.6", "settings", _regex_keys_21326, None),
     ("no_motion_21351", "2.135.1", "settings", _no_motion_21351, None),
     ("alerts_top_21371", "2.137.1", "settings", _alerts_top_21371, None),
+    ("no_previews_21430", "2.143.0", "settings", _no_previews_21430, None),
+    ("helpers_on_ui", "UI overhaul", "settings", _helpers_on_ui, None),
+    ("helpers_one_switch", "UI overhaul", "settings", _helpers_one_switch, None),
+    ("no_dev_options", "UI overhaul", "settings", _no_dev_options, None),
+    ("look_key_policy", "GGG policy", "settings", _look_key_policy, None),
+    ("look_key_dedicated", "GGG policy", "settings", _look_key_dedicated, None),
+    ("delirium_gone", "GGG policy", "settings", _delirium_gone, None),
+    ("look_key_default", "GGG policy", "settings", _look_key_default, None),
 )
 
 

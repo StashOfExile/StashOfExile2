@@ -1,7 +1,7 @@
 """P4 (2.108.0, feedback: "a mini settings page over the game when we right click the cog wheel"): right-click the
 overlay's ⚙ = Quick settings, a small box over the game, above the cog and on the game's monitor. (2.119.0: either
-click - All settings… in it opens the full Overlay ↳ Overlay Settings in the app.) Style (2.110.0 - the Overlay ON | OFF switch is gone from here), Sound,
-Lock position, Click-through (2.120.1; Hide the overlay from screen captures is in Overlay ↳ Overlay Settings › Options), Helpers (2.118.0: each helper on / off - the bar has no switches for them any
+click - All settings… in it opens the Overlay page (Helpers) in the app.) Style (2.110.0 - the Overlay ON | OFF switch is gone from here), Sound,
+Lock position, Click-through (2.120.1; Hide the overlay from screen captures is in Overlay › Options), Helpers (2.118.0: each helper on / off - the bar has no switches for them any
 more) and On the bar (the tools' menus). Esc, ✕, a click elsewhere or the cog again closes it.
 GGG ToS: a window over the game; nothing is sent to the game."""
 import tkinter as tk
@@ -12,12 +12,21 @@ from .config import SETTINGS, save_json
 from .style import Tooltip
 
 # (label, key): the helpers switched on / off, then the tools' menus on the bar
-QUICK_HELPERS = (("Breach", "breach"), ("Delirium", "delirium"), ("Ritual", "ritual"), ("Expedition", "remnant"),
-                 ("Campaign", "campaign"), ("League Plan", "focus"), ("Whispers", "whispers"),
-                 ("Top Up", "topup"), ("Breaks", "breaks"), ("Map profit", "mapprofit"), ("Temple", "temple"),
-                 ("Desecration", "desecrate"), ("Music", "music"))   # 2.131.1: every helper (2.132.1: Map profit, Temple)
-BETA_HELPERS = {"topup": "topup", "breaks": "breaks", "mapprofit": "mapprofit", "temple": "temple", "music": "music"}   # 2.132.2      # (a chip only while its beta feature is on - Features)
-QUICK_BAR = (("Notes", "notes"), ("Calc", "calc"), ("Regex", "regex"), ("Rates", "rates"))
+# 2.131.1: every helper, as a chip. Owner: in the same groups and order as Overlay › Helpers (AlertsPage.HELPER_GROUPS)
+QUICK_LABELS = {"breach": "Breach", "ritual": "Ritual", "remnant": "Expedition",
+                "temple": "Temple", "desecrate": "Desecration", "campaign": "Campaign", "focus": "League Plan",
+                "topup": "Top Up", "breaks": "Breaks", "mapprofit": "Map profit", "whispers": "Whispers",
+                "music": "Music", "sekhemas": "Sekhemas"}
+
+
+def quick_groups():
+    """[(group, ((label, key), ...))] - Overlay › Helpers' groups, in its order."""
+    from .alerts_page import AlertsPage
+    return [(g, tuple((QUICK_LABELS[k], k) for k in ks)) for g, ks in AlertsPage.HELPER_GROUPS]
+
+
+QUICK_HELPERS = tuple(x for _g, items in quick_groups() for x in items)
+QUICK_BAR = (("Notes", "notes"), ("Calc", "calc"), ("Regex", "regex"), ("Rates", "rates"), ("App ▸", "app"))
 # 2.124.0 (feedback: each toggle should say what it is on hover): the one-line tips (the helpers' come from
 # alerts_page.HELPER_BLURBS - the same line as on Helpers)
 QUICK_TIPS = {"Style": "How the overlay looks over the game",
@@ -31,15 +40,16 @@ QUICK_TIPS = {"Style": "How the overlay looks over the game",
               "notes": "Notes ▾ on the overlay: your own notes in a window over the game",
               "calc": "Calc ▾ on the overlay: a small calculator over the game",
               "regex": "Regex ▾ on the overlay: your saved stash searches, one click to copy",
-              "rates": "Rates ▾ on the overlay: today's currency exchange rates"}
+              "rates": "Rates ▾ on the overlay: today's currency exchange rates",
+              "app": "App ▸ on the overlay: opens the Drawer"}
 
 
 class OverlayQuick:
     """Mixed into App."""
 
-    # ---------------------------------------------------------------- the one Sound (shared with Overlay ↳ Overlay Settings)
+    # ---------------------------------------------------------------- the one Sound (shared with Overlay › Helpers)
     def helpers_sound_set(self, on):
-        """Every helper's alert sound on or off (the Sound switch here and on Overlay ↳ Overlay Settings › Helpers)."""
+        """Every helper's alert sound on or off (the Sound switch here and on Overlay › Helpers)."""
         on = bool(on)
         SETTINGS["helpers_sound"] = on
         try:
@@ -54,12 +64,7 @@ class OverlayQuick:
             _W.save()
         except Exception:
             buglog.caught()
-        try:
-            from .utilities import DELIRIUM
-            DELIRIUM.set_sound(on)
-        except Exception:
-            buglog.caught()
-        for key in ("delirium", "breach", "ritual", "whispers"):
+        for key in ("breach", "ritual", "whispers"):
             r = (getattr(self, "al_rows", None) or {}).get(key)
             if r is not None:
                 r["sound"].set(on)
@@ -219,20 +224,24 @@ class OverlayQuick:
         self.ovq_lock = row("Lock position", cfg.get("mlocked"), self._ovq_lock)
         self.ovq_ct = row("Click-through", self.click_through_on(), self.ov_click_through_set)
         self.ovq_chips = {}
-        for title, items in (("HELPERS", QUICK_HELPERS), ("ON THE BAR", QUICK_BAR)):
-            tk.Label(body, text=title, bg=P1, fg=Q["muted"], font=(F, 9, "bold"), anchor="w").pack(
-                fill="x", pady=(8, 4))
+        sections = [("HELPERS", None)] + [(g, items) for g, items in quick_groups()] + [("ON THE BAR", QUICK_BAR)]
+        for title, items in sections:
+            if items is None or title == "ON THE BAR":             # (the two headings)
+                tk.Label(body, text=title, bg=P1, fg=Q["muted"], font=(F, 9, "bold"), anchor="w").pack(
+                    fill="x", pady=(8, 4))
+            if items is None:
+                continue
+            if title != "ON THE BAR":                              # (a helper group, as on Overlay › Helpers)
+                tk.Label(body, text=title, bg=P1, fg=Q["muted"], font=(F, 9), anchor="w").pack(fill="x", pady=(2, 2))
             grid = tk.Frame(body, bg=P1)
             grid.pack(fill="x")
-            from . import features as _FEAT
-            items = [(lb, k) for lb, k in items if k not in BETA_HELPERS or _FEAT.on(BETA_HELPERS[k])]
             for i, (label, key) in enumerate(items):
                 b = tk.Label(grid, text=label, font=(F, 9), padx=8, pady=4, cursor="hand2",
                              highlightthickness=1)
                 b.grid(row=i // 4, column=i % 4, sticky="ew", padx=(0, 4), pady=(0, 4))
                 b.bind("<Button-1>", lambda _e, k=key: self._ovq_chip(k))
-                from .alerts_page import HELPER_BLURBS
-                Tooltip(b, HELPER_BLURBS.get(key) or QUICK_TIPS.get(key, ""))
+                from .alerts_page import HELPER_BLURBS, helper_blurb
+                Tooltip(b, helper_blurb(key, self.look_key_text()) if key in HELPER_BLURBS else QUICK_TIPS.get(key, ""))
                 b.label = label
                 self.ovq_chips[key] = b
                 self._ovq_paint(key)
@@ -313,7 +322,7 @@ class OverlayQuick:
         self._ovq_paint(key)
 
     def _ovq_style(self):
-        """2.110.0: a style picked here - the overlay is drawn again in it (Settings › Appearance shows it too)."""
+        """2.110.0: a style picked here - the overlay is drawn again in it (Overlay › Look shows it too)."""
         from .ovlight import STYLES
         name = self.ovq_style.get()
         key = next((k for k, v in STYLES.items() if v == name), None)
@@ -327,7 +336,7 @@ class OverlayQuick:
                     self.ov_quick_win.geometry(f"+{x}+{y}")
                 except tk.TclError:
                     pass
-            v = getattr(self, "ov_look_var", None)           # (Settings › Appearance shows it too)
+            v = getattr(self, "ov_look_var", None)           # (Overlay › Look shows it too)
             if v is not None:
                 try:
                     v.set(name)
@@ -336,7 +345,7 @@ class OverlayQuick:
                     pass
 
     def _ovq_layout(self, name):
-        """Panel | Bar picked here - the overlay is built again (Settings › Appearance shows it too)."""
+        """Panel | Bar picked here - the overlay is built again (Overlay › Look shows it too)."""
         from .merged_page import LAYOUTS
         key = next((k for k, t in LAYOUTS.items() if t == name), None)
         if not key or key == self.merged_layout():

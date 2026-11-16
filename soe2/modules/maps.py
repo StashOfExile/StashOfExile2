@@ -3,7 +3,7 @@ from . import Module
 
 class MapLibrary(Module):
     key, title, short, icon, kind = "maps", "Map Library", "Maps", "🗺", "tool"
-    parent = "tracker"
+    parent = None                      # UI overhaul: its own page (was under Overlay - it isn't an overlay setting)
     blurb = "Every map, tower, citadel and pinnacle fight - rank them S to D or Avoid, share your ranks, see the community's."
 
     def build(self, body):

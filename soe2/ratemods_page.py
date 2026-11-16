@@ -312,7 +312,8 @@ class RateModsPage:
 
     # ---------------------------------------------------------------- the ask (once; Not now = once more, later)
     def rm_ask_tick(self):
-        """Every 10 minutes: enough items priced (or a snooze over) and the app in front - ask, gently."""
+        """Every 10 minutes: enough items priced (or a snooze over) and the app in front - ask, gently. (Drawer
+        build: never while put away - it needs the app in front - and the 10-minute look goes on.)"""
         try:
             priced = sum(1 for r in self.records.values() if r.get("state") == "done")
             if RM.should_ask(priced) and getattr(self, "rm_ask_win", None) is None and self.root.focus_displayof():
@@ -351,8 +352,8 @@ class RateModsPage:
             b = ttk.Button(row, text=label, style=style, command=lambda k=k: pick(k))
             b.pack(side="left", padx=4)
             self.rm_ask_btns[k] = b
-        tk.Label(box, text="Not now asks once more in a few days. Either way, it's always in Price Checks ↳ "
-                           "Rate Mods.",
+        tk.Label(box, text="Not now asks once more in a few days. Either way, it's always in Trade › Rate "
+                           "Mods.",
                  bg=P2, fg=C["muted"], font=("Segoe UI", 9), wraplength=440, justify="center").pack(pady=(12, 0))
         w.protocol("WM_DELETE_WINDOW", lambda: pick("not_now"))
         self.rm_ask_pick = pick

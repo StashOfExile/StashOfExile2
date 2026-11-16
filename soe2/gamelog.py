@@ -14,7 +14,13 @@ Lines used (seen in a real PoE 2 log, Oct 2026):
   2026/10/26 14:25:27 ... [INFO Client 21412] : AFK mode is now ON. Autoreply "This player is AFK."
 Going back into the same map through its portal logs the same area with the SAME seed; a new map has a new seed.
 Hideouts and towns have seed 1. "has been slain" is logged for party members too, and your own joins aren't logged,
-so a name that joins or leaves your area is someone else (2.7.0: only your own deaths count)."""
+so a name that joins or leaves your area is someone else (2.7.0: only your own deaths count).
+
+NPC dialogue (the Campaign Bar), seen in the owner's log (Nov 2026):
+  2026/11/02 20:11:05 ... [INFO Client 18220] The King in the Mists: We will meet again...
+Chat has its channel's mark in front (#global, $trade, &guild, %party, @whisper) and the game's own messages start
+with ": " - those are never dialogue. Local chat ("Name: text") looks the same as an NPC's line, so a "say" is only
+ever used where the guide pack lists that exact speaker and line, in that area (campaign.find_cue)."""
 import os
 import re
 import string
@@ -35,12 +41,20 @@ AFK_ON = re.compile(r"AFK mode is now ON", re.I)
 AFK_OFF = re.compile(r"AFK mode is now OFF", re.I)
 FOCUS = re.compile(r"\[WINDOW\] (Lost|Gained) focus", re.I)
 LEVELUP = re.compile(r"^: (.+?) \(([^)]+)\) is now level (\d+)")     # 2.73.1: League Focus (new characters)
+# an NPC's line: "Speaker: text" - not chat (#$&%@ and *), not the game's own ": ..." lines, no <guild> tag, no
+# [TAG] (the client's own subsystems); the speaker starts with a letter and has no ':' in it
+SAY = re.compile(r"^(?![#$&%@*:<\[\s])(?P<who>[A-Za-z][^:\[\]<>{}]{0,59}?): (?P<text>\S.*)$")
 # 2.9.0, seen in a real PoE 2 log (Oct 2026), twice within 2 s:
 #   2026/10/27 04:50:56 ... [INFO Client 27512] : <brequelwarning>{Stored Hiveblood is almost at the maximum!}
 BREACH_WARN = re.compile(r"^: <brequelwarning>\{([^}]*)\}")
 #   ... : <brequelwarning>{Cannot store any more Hiveblood! Go to the Genesis Tree to consume it.}   (2.10.0)
 #   ... [WARN Client 27512] "BrequelTreeBreachstonesSlot" is missing from ...   (logged while the Brequel tree is open)
 BREQUEL_TREE = re.compile(r'^"BrequelTree')
+# GGG policy (Nov 2026): the Ritual helper reads the screen only on a key press, so the log fills in between - a ritual
+# starting logs its monsters' debug lines ("Metadata/Monsters/LeagueRitual/..."), and a failed one says so:
+#   ... [INFO Client 21412] : The ritual has been disrupted!
+RITUAL_START = re.compile(r"Metadata/Monsters/LeagueRitual", re.I)
+RITUAL_DISRUPTED = re.compile(r"The ritual has been disrupted", re.I)
 
 LOOKBACK = 256 * 1024          # bytes read before the end at start-up, to find the area you are in now
 
@@ -211,11 +225,19 @@ def parse(line):
         return "breach", ts, {"text": b.group(1).strip()}
     if BREQUEL_TREE.search(text):
         return "brequel_tree", ts, {}
+    if RITUAL_DISRUPTED.search(text):
+        return "ritual", ts, {"what": "disrupted"}
+    if RITUAL_START.search(text):
+        return "ritual", ts, {"what": "start"}
     if text.startswith("@From "):                       # 2.98.1: a whisper TO you (Trade Whisper Watcher)
         from .whispers import parse_from
         w = parse_from(text)
         if w:
             return "whisper", ts, {"who": w[0], "msg": w[1]}
+    if m.group(2) == "INFO":                            # the Campaign Bar: an NPC's (or a boss's) line
+        sy = SAY.match(text)
+        if sy:
+            return "say", ts, {"who": sy.group("who").strip(), "text": sy.group("text").strip()}
     return None
 
 

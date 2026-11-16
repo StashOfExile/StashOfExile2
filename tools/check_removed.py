@@ -25,6 +25,96 @@ DOCS = ("README.md", "TOS.md", "linux/README.md", "themes/README.md", "strats/RE
 
 # (version, what it was, words a person read, names in the code / settings keys[, pending])
 REMOVED = [
+    ("Sekhemas legend", "the Trial of the Sekhemas key count (\"no keys yet\" / \"keys: 1 Silver\" under the legend: it "
+                        "counted the log's \"Collected a ... Key\" lines from the app's start and missed keys; the "
+                        "game shows them by the map) and the legend's Close buttons (a click on it closes it)",
+     ("no keys yet", "Closes the legend"),
+     ("sek_log", "_sek_footer", "SANCTUM_KEY", "KEY_KINDS", "close_label")),
+    ("drawer build", "the ⌕ Go to anything button on the Overlay Bar (owner: not needed; App ▸ stays and opens the "
+                     "Drawer)",
+     ("Go to anything in the Drawer", "opens it with Go to anything", "App ▸ and ⌕"), ()),
+    ("GGG policy", "the clipboard watcher: Windows' copy counter asked every 150 ms on a timer (the strictest reading: "
+                   "any clipboard call on a timer is a read) - a copy key press reads once, READ_DELAY after it",
+     ("clipboard watcher restarted",),
+     ("poll_clipboard", "clip_seq", "restart_watcher", "last_seq", "poll_gen", "last_poll", "write_clipboard_text",
+      "GetClipboardSequenceNumber")),
+    ("GGG policy", "the app's buttons and menu items that read the clipboard on a click (a click is not a key press): "
+                   "Paste item, Paste from clipboard, Paste a trade link, Paste screenshot, Test on copied item, "
+                   "Check my tablet, the right-click menu's Paste, Tk's middle-click paste - Ctrl+V reads instead",
+     ("Paste item", "Paste from clipboard", "Paste a trade link", "Paste screenshot", "Test on copied item",
+      "Check my tablet", "click here to paste"),
+     ("lib_paste", "fd_paste")),
+    ("GGG policy", "Tab (the game's map key) as the Look key, and a click on Scan stash's Start reading reading the "
+                   "screen - the Look key is a key only for the read, not set until you pick one; Start reading arms",
+     ("Look key (Tab)", "Look key - Tab", "the game gets the key too", "Tab by default"),
+     ()),
+    ("GGG policy", "Fast Beacon Read (Helpers › Temple: a box round your character read 30 times a second) - GGG allows "
+                   "one screen read per key press; hover a Beacon and press the Look key",
+     ("Fast Beacon Read",), ("temple_fast_on", "temple_fast_set", "temple_fast_start", "temple_fast_wanted",
+                             "_tm_fast_poll", "_tm_fast_why", "ev_tm_fast", "al_tfast", "fast_read", "FAST_EVERY")),
+    ("GGG policy", "the Ritual helper's Tribute reminder (it needed the Favours window watched until it closed)",
+     ("Tribute reminder", "Offer your tribute", "offer it to the King"),
+     ("tribute_reminder", "al_rtrib", "alerts_tribute_changed", "ev_favours_tribute", "ev_favours_offered",
+      "tribute_offered", "tribute_box", "tribute_of", "favours_hud_read", "ev_ritual_tribute", "favours_tribute_read",
+      "rerolls_left", "fv_owed_at", "fv_offered_at")),
+    ("GGG policy", "the Delirium helper (Overlay › Helpers row, Quick settings chip, bar switch, End Delirium alert card, "
+                   "soe2/delirium_alert.py and its three pictures): its End Delirium check was a screen read of its "
+                   "own - the one thing it did - and a Look key press in a map is not an automatic alert",
+     ("End Delirium", "Delirium is still on", "Map done - Delirium", "no Delirium seen"),
+     ("delirium_alert", "delirium_cfg", "delirium_look_job", "ev_delirium_state", "alerts_test_delirium", "dl_last",
+      "dl_win", "delirium_arrows", "map_completed", "objective_completed")),
+    ("GGG policy", "the screen-watching helper processes (Ritual watcher --ritual, Delirium alert --delirium, its "
+                   "splinter icon and the standalone PoE2DeliriumAlert.exe) - Ritual and Delirium read on the Look key",
+     ("PoE2DeliriumAlert.exe", "Moving the splinter", "Watching for Rituals", "Screen capture problem"),
+     ("DeliriumHelper", "RitualHelper", "dl_do_start", "dl_do_stop", "dl_do_test", "util_delirium_autostart",
+      "delirium_runner", "app_mark", "find_game_rect", "make_dpi_aware")),
+    ("GGG policy", "every timed screen watcher (Temple / Ritual Identifier looks, Expedition, Island Rumors, Favours "
+                   "prices, Desecration Helper, Top Up Reminders, Temple Console) - one read per Look key press",
+     ("Watching for remnant reward books", "Watching for Vaal Beacons", "looks when you open your inventory"),
+     ("hover_tick", "hover_start", "hover_look", "remnant_auto_sync", "_remnant_watch", "rm_auto_gen", "topup_start",
+      "topup_tick", "favours_sync", "_fv_watch", "_ru_watch", "ru_start", "ru_stop", "_ws_watch", "ws_start",
+      "ws_stop", "temple_console_tick", "temple_start", "temple_look", "grab_bgr", "AUTO_POLL", "AUTO_GONE",
+      "SETTLE_READS", "read_clipboard_text")),
+    ("GGG policy", "the Temple Helper's Vaal Beacon read (hover a Beacon in a map + the Look key), Map Content's Temple "
+                   "icon, the crystals on the overlay's line and the Crystals full alert card - owner decision: the "
+                   "crystals are read from the Temple Console only (Vaal Lens shows them)",
+     ("Hover a Vaal Beacon", "hover a Vaal Beacon", "Crystals full", "Energised Beacons", "temple_content.png"),
+     ("temple_alert", "tm_in_map", "fast_parse", "content_has", "tm_told", "_temple_part", "fast_box",
+      "FAST_BOX", "_last_score_log")),
+    ("GGG policy", "Map Content's icons (owner decision: nothing looks at the screen on entering a map or to tell it's "
+                   "done): the Ritual icon's all-done tick (ritual_alert.content_state, templates/ritual_content.png) "
+                   "and the Expedition mark (remnant.has_marker) - Ritual follows Client.txt between Look key presses",
+     ("ritual_content.png", "All rituals done", "Expedition mark"),
+     ("content_state", "rt_done", "has_marker", "marker_rect", "rm_mark_check", "rm_mark_at", "MARKER_B64",
+      "MARKER2_B64", "MARKER_SCORE", "MARKER_STRIP", "TICK_MIN")),
+    ("UI overhaul", "the sidebar's Toolkit row and the Toolkit menu (a third list of every page; Go to anything lists "
+                    "them, Settings › About has What's new, Quick start and Check for updates). The menu's code is only "
+                    "reachable without pages (shell PAGES off) - clearing it is left to the shell cleanup",
+     ("Toolkit",), ("_toolkit",), True),
+    ("UI overhaul", "Settings › Advanced › Developer options and its Show developer options switch (owner: Debug mode "
+                    "and Unmatched mods sit in Problems)",
+     ("Developer options", "Show developer options"), ("dev_options", "dev_var", "dev_box")),
+    ("UI overhaul", "Overlay › Options › Campaign Helper's Open the route button (owner: it did nothing there)",
+     ("Open the route",), ()),
+    ("UI overhaul", "the BETA helpers as feature switches (Settings › General › Features listed Top Up Reminders, "
+                    "Break reminders, Map profit, Temple Helper, Music Controls - each helper's one switch is its "
+                    "Overlay › Helpers row); the Feature Picker popup (Setup asks one question a screen; the data "
+                    "folder and unrated-mods questions are in Settings only)",
+     ("What do you want to use?", "Feature Picker"),
+     ("beta_on", "data_dir_asked", "ask_unrated_asked", "features_restart_ask", "feat_never", "feat_share",
+      "feat_folder", "feat_err", "shown_path")),
+    ("nav phase 2", "Overlay Settings as a page of its own (Overlay ↳ Overlay Settings, module ovset) - its parts are "
+                    "the Overlay page's tabs: Helpers, On the Overlay, Look, Options; the Overlay appearance… button "
+                    "(Look is a tab beside Options)",
+     ("Overlay Settings", "Overlay appearance…"),
+     ("OverlaySettings", "ovset", "tk_settings_btn", "topup_row", "mp_row")),
+    ("UI overhaul", "Farming Strategies' Download Format (the blank CSV strat template) - Import file… stays; "
+                    "importing guides from popular sites is on the roadmap",
+     ("Download Format",), ("mm_download_format",)),
+    ("UI overhaul", "the typed Add currency by hand form on Wealth - Count by hand (Ctrl+C on each stack) is the one "
+                    "way to add by hand; its old name Count currency is gone too",
+     ("Add currency by hand", "Added by hand", "Count currency"),
+     ("wealth_manual_add", "wealth_manual_set", "w_man_box", "w_man_name", "w_man_qty", "w_count_btn")),
     ("2.140.0", "the Temple Notepad (the card in the temple is Vaal Lens now: crystals, the board, notes in a fold)",
      ("Temple Notepad",), ()),
     ("2.135.1", "Reduce motion (Settings › Appearance › Motion) and the short fades it switched off - nothing fades now",
@@ -70,7 +160,8 @@ ABSENT = re.compile(r"\bnot\b|\bgone\b|\bremoved\b|\bno longer\b|\.pop\(|\bdel\b
 
 def tokens(path):
     """(kind, text, line) for the strings that aren't docstrings, and the names."""
-    src = open(path, encoding="utf-8").read()
+    with open(path, encoding="utf-8") as fh:
+        src = fh.read()
     out, prev = [], "NEWLINE"
     toks = list(tokenize.generate_tokens(io.StringIO(src).readline))
     for i, t in enumerate(toks):

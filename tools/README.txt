@@ -30,3 +30,9 @@ Checks a release runs (each exits 1 and lists what to fix):
   py tools/check_ux.py         opens every page in an empty data folder (offline): one orange button and one BETA
                                chip per screen; lists icon buttons without a tip, list pages whose search box isn't
                                first, and buttons that are on with nothing picked (UX round 2)
+
+Page smoke test (Linux, Xvfb + Pillow): opens every page and tab the way the sidebar does, plus Settings, Go to
+anything and the status bar; records tracebacks, blank pages, titles, sidebar rows and a screenshot each.
+
+  python3.12 tools/smoke_pages.py --run NAME [--checks]     (outputs/smoke/NAME/report.json, exit 1 on a failure)
+  python3.12 tools/smoke_pages.py --compare baseline NAME   (failures vs. expected changes: titles, sidebar order)

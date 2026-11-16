@@ -22,7 +22,7 @@ from . import board as B
 from .config import APP_VERSION, SETTINGS
 from .style import C, over_app
 
-REPO = "tiwomm/StashOfExile2"
+REPO = "StashOfExile/StashOfExile2"
 UPDATE_EVERY = 3600                 # 2.79.1 (feedback): every hour (was 6 h)
 
 
@@ -52,7 +52,7 @@ class FeedbackPage:
         def work():
             from .updates import latest_release
             try:
-                kind, data = latest_release(preview=bool(SETTINGS.get("update_preview")))
+                kind, data = latest_release()
             except Exception:
                 kind, data = "error", {}
             self.ui_q.put(("update_badge", data.get("tag_name") if kind == "ok" else None))
@@ -83,7 +83,7 @@ class FeedbackPage:
             except Exception:
                 buglog.caught()
             self.upd_badge.config(text=f"⬆ Update {pretty_version(tag)}")
-            if sb is not None:                               # 2.74.2: in the sidebar, above Toolkit and Settings
+            if sb is not None:                               # 2.74.2: in the sidebar, above Settings
                 sb.redraw()
                 return
             if not self.upd_badge.winfo_ismapped():
@@ -140,7 +140,7 @@ class FeedbackPage:
         f = tk.Frame(win, bg=P1, padx=16, pady=12)
         f.pack(fill="both", expand=True)
         tk.Label(f, text="Report a bug", bg=P1, fg=C["accent"], font=("Segoe UI", 12, "bold"), anchor="w").pack(fill="x")
-        tk.Label(f, text="It becomes an issue on GitHub (tiwomm/StashOfExile2), and the developer is told on Discord. "
+        tk.Label(f, text="It becomes an issue on GitHub (StashOfExile/StashOfExile2), and the developer is told on Discord. "
                          "Your account and character names and your Windows user name are taken out - below is exactly "
                          "what goes, word for word. It's public: don't paste whispers or chat.", bg=P1,
                  fg=C["muted"], font=("Segoe UI", 9), wraplength=600, justify="left", anchor="w").pack(fill="x",

@@ -28,7 +28,9 @@ DANGERS = {"QUEENINTHEMISTS": "queens", "WAVESOFBLOOD": "contaminated", "TORNADO
            "CHAOTICBOILS": "tainted", "EXPLOSIVEPODS": "smothered", "ELEMENTALDISTURBANCE": "sapping",
            "CRIMSONWOLVES": "prowling", "EXPLODINGCORPSES": "fractured", "SWARMSOFLOCUSTS": "plagued",
            "PLAGUEBRINGINGTOADS": "croaking"}
-ALTAR = re.compile(r"RITUALAL(?:TAR|T|TI)?")
+# the tooltip's name line: "<Type> Ritual Altar"; Round 18: the game's own name for the place is a Ritual Rune
+# ("<Type> Ritual Rune") - both read, and a name cut short by the tooltip's edge
+ALTAR = re.compile(r"RITUAL(?:AL(?:TAR|T|TI)?|RUNE|RUN)")
 SUFFIX = 4                          # a cut-off name ("NTED Ritual Altar") still counts if its last letters are this many
 
 
@@ -46,19 +48,20 @@ def _from_name(before):
 
 
 def parse(lines):
-    """OCR lines -> a type key ("tainted") or None. The tooltip's "<Type> Ritual Altar" first, then its danger line.
-    "... Ritual Rewards" (after it's done) doesn't count."""
+    """OCR lines -> a type key ("tainted") or None. The tooltip's "<Type> Ritual Altar / Rune" first (the type word
+    may be on the line before it), then its danger line - read across lines too (Round 18: a long danger line wraps,
+    "Clouds of Elemental / Disturbance ..."). "... Ritual Rewards" (after it's done) doesn't count."""
     texts = [letters(t) for t, _box in lines or []]
-    for s in texts:
+    for i, s in enumerate(texts):
         m = ALTAR.search(s)
         if m:
-            k = _from_name(s[:m.start()])
+            k = _from_name(s[:m.start()]) or (_from_name(texts[i - 1]) if i and not s[:m.start()] else None)
             if k:
                 return k
-    for s in texts:
-        for d, k in DANGERS.items():
-            if d in s:
-                return k
+    joined = "".join(texts)
+    for d, k in DANGERS.items():
+        if d in joined:
+            return k
     return None
 
 

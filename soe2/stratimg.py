@@ -50,11 +50,13 @@ def keep(img):
     return "l:" + name
 
 
-def from_clipboard(grab=None):
-    """The picture on the clipboard (a screenshot, or a copied image file). -> "l:<file>" or None."""
+def from_clipboard(grab=None, event=None):
+    """Ctrl+V: the picture on the clipboard (a screenshot, or a copied image file), read once for that key press
+    (clipread.app_paste_image - without a key event nothing is read). -> "l:<file>" or None."""
     try:
-        from PIL import Image, ImageGrab
-        got = (grab or ImageGrab.grabclipboard)()
+        from PIL import Image
+        from .clipread import app_paste_image
+        got = grab() if grab else app_paste_image(event)
     except Exception:
         return None
     if isinstance(got, list):                            # files copied in Explorer

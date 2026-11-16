@@ -1,12 +1,11 @@
-"""2.83.0: Island Rumors in the app (part of the Expedition helper, Remnant's row in Overlay ↳ Overlay Settings) and the
+"""2.83.0: Island Rumors in the app (part of the Expedition helper, Remnant's row in Overlay › Helpers) and the
 Remnant watcher's places: it watches only where remnants can be (feedback: "it keeps popping up in random areas").
-  * Island Rumors: only in your hideout (Client.txt; feedback: "watch only in hideout"). A look at a small copy of
-    the screen for the Uncharted Waters card's parchment; only then its part is read. Each rumor gets a tag: the
-    island and your Map library rank.
-  * Remnant: always on in a Grand Expedition island (Client.txt: ExpeditionLogBook_...), off in hideouts, towns and
-    the campaign; in other maps as before.
+  * Island Rumors: only in your hideout (Client.txt; feedback: "watch only in hideout"). GGG policy (Nov 2026): on a
+    Look key press, the press's one picture is checked for the Uncharted Waters card's parchment; only then its part
+    is read. Each rumor gets a tag: the island and your Map library rank.
+  * Remnant: in a Grand Expedition island (Client.txt: ExpeditionLogBook_...) and maps, never in hideouts, towns and
+    the campaign.
 GGG ToS: it looks at your screen and draws on top - nothing is sent to the game."""
-import threading
 import time
 import tkinter as tk
 
@@ -15,10 +14,6 @@ from . import remnant as RM
 from . import rumours as RU
 from .config import save_json, SETTINGS
 
-POLL = 0.6
-MARK_EVERY = 2.0             # seconds between looks for the Expedition mark in a map
-GONE = 2
-READS = 3                 # 2.113.0: each card is read this many times, the rumors found put together
 GRAND = "ExpeditionLogBook_"
 
 
@@ -28,43 +23,27 @@ class RumoursPage:
         """Every area change: the Remnant watcher's zone and the rumors watcher (hideout only)."""
         a = str(area_id or "")
         self.rm_zone = "grand" if a.startswith(GRAND) else kind
-        self.rm_map_exp = False                   # a map: the watcher waits for the Expedition mark on screen
-        self.rm_mark_at = 0.0
-        if not self.rm_zone_ok():
-            self.remnant_hide()                       # no remnants here: no leftover tags
-        here = kind == "hideout"
-        before = getattr(self, "ru_here", False)
-        self.ru_here = here
-        if here and not before:
-            self.ru_start()
-        elif not here and before:
-            self.ru_stop()
+        self.rm_map_exp = False                   # a map: no full reward book read here yet
+        self.remnant_hide()                           # a new area: no leftover tags (GGG policy: they stay until then)
+        self.favours_hide()
+        self.rm_kept, self.rm_lines = {}, None
+        if self.rm_zone_ok() and self.remnant_cfg().get("on"):
+            try:                                      # 2.129.2: prices ready before a book is read
+                self.remnant_prefetch(SETTINGS.get("league", ""))
+            except Exception:
+                buglog.caught()
+        self.ru_here = kind == "hideout"
+        self.ru_hide()
 
     def rm_zone_ok(self):
         """The Remnant watcher looks only where remnants can be: not in a hideout, town or the campaign.
-        2.98.6 (feedback: the helper stopped working): maps always - a map whose Expedition mark wasn't seen is
-        "unsure" (rm_unsure) and needs a fuller book before tags show; 2.83.0 skipped such maps altogether, and the
-        mark is easy to miss (UI scale, the map overlay, a hidden panel)."""
+        2.98.6 (feedback: the helper stopped working): maps always - a map is "unsure" (rm_unsure) until a book with
+        several rewards is read there. (Owner decision: Map Content's Expedition mark is never read.)"""
         z = getattr(self, "rm_zone", None)
         return z not in ("hideout", "town", "other")
 
     def rm_unsure(self):
         return getattr(self, "rm_zone", None) == "map" and not getattr(self, "rm_map_exp", False)
-
-    def rm_mark_check(self, rect):
-        """In a map until the mark is seen: a look at the right edge every few seconds (cheap). Thread-side."""
-        if getattr(self, "rm_zone", None) != "map" or getattr(self, "rm_map_exp", False):
-            return
-        now = time.time()
-        if now - getattr(self, "rm_mark_at", 0.0) < MARK_EVERY:
-            return
-        self.rm_mark_at = now
-        try:
-            seen = RM.has_marker(RM.grab(RM.marker_rect(rect)), rect[3] - rect[1])
-        except Exception:
-            seen = None
-        if seen or seen is None:                      # (no OpenCV: as before - it watches)
-            self.rm_map_exp = True
 
     # ---------------------------------------------------------------- Island Rumors
     def ru_on(self):
@@ -74,28 +53,37 @@ class RumoursPage:
     def ru_changed(self, on):
         self.remnant_cfg()["rumours"] = bool(on)
         save_json("settings.json", SETTINGS)
-        if on and getattr(self, "ru_here", False):
-            self.ru_start()
-        elif not on:
-            self.ru_stop()
+        if not on:
+            self.ru_hide()
 
-    def ru_start(self):
+    def ru_look_job(self, ctx):
+        """A Look key press in your hideout with the Uncharted Waters card open: its rumors are read once and tagged.
+        The tags stay until your next press or a new area."""
         from . import features as FEAT
-        if not self.ru_on() or not FEAT.on("overlay") or getattr(self, "ru_alive", False) or RM.ocr_available():
-            return
-        self.ru_gen = getattr(self, "ru_gen", 0) + 1
-        self.ru_alive = True
-        threading.Thread(target=self._ru_watch, args=(self.ru_gen,), daemon=True).start()
+        if not (getattr(self, "ru_here", False) and self.ru_on() and FEAT.on("overlay")) or RM.ocr_available():
+            return None
+        from . import screenread as SR
+        rect = ctx["rect"]
 
-    def ru_stop(self):
-        self.ru_gen = getattr(self, "ru_gen", 0) + 1
-        self.ru_alive = False
-        self.ru_hide()
+        def work():
+            pic = SR.capture(rect, "Island Rumors")
+            if pic is None:
+                return None
+            img = RM.mask_own(pic, rect[:2], ("rumours",))            # (2.128.1: our card shows in it)
+            if RU.find_card(img, rect[3] - rect[1]) is None:
+                return [], None
+            return self.ru_read(rect, img)
+        work.found = lambda res: bool(res and res[0])     # (the read mark: the card's rumors read)
 
-    def ru_read(self, rect, img=None):
-        """The game window -> [(rumor, island, box on screen)] (blocking: OCR), [] when no card."""
-        if img is None:
-            img = RM.mask_own(RM.grab(rect), rect[:2], ("rumours",))
+        def done(res):
+            if res is None:
+                return
+            rows, edge = res                               # (read in real pixels; the panel goes in the app's)
+            self.ev_ru_tags([(r, i, SR.to_ui(b)) for r, i, b in rows], SR.to_ui(edge) if edge else edge)
+        return "Island Rumors", work, done
+
+    def ru_read(self, rect, img):
+        """The game window's picture -> [(rumor, island, box on screen)] (blocking: OCR), [] when no card."""
         card = RU.find_card(img, rect[3] - rect[1])
         if card is None:
             return [], None
@@ -132,67 +120,6 @@ class RumoursPage:
         except Exception:
             buglog.caught()
 
-    def _ru_watch(self, gen):
-        from .alerts_page import game_rect
-        from .overlay import game_active
-        last, misses, notcard = None, 0, None
-        got, reads = {}, 0
-        try:
-            while gen == getattr(self, "ru_gen", 0):
-                time.sleep(POLL)
-                if not game_active():
-                    continue
-                g = game_rect()
-                if not g:
-                    continue
-                rect = (g[0], g[1], g[0] + g[2], g[1] + g[3])
-                try:
-                    img = RM.mask_own(RM.grab(rect), rect[:2], ("rumours",))    # (2.128.1: our card shows in it)
-                    card = RU.find_card(img, g[3])
-                    if card is None:
-                        misses += 1
-                        last = None
-                        if misses == GONE:
-                            self.ui_q.put(("ru_tags", [], None))
-                        continue
-                    misses = 0
-                    th = RM.thumb(img.crop(card))
-                    if notcard is not None and not RM.changed(notcard, th):
-                        continue                    # 2.123.5: the same patch that wasn't the card - not read again
-                    if RM.changed(last, th):        # a new card: start over
-                        got, reads = {}, 0
-                    elif reads >= READS:
-                        continue
-                    rows, edge = self.ru_read(rect, img)
-                    if getattr(self, "ru_not_card", False):
-                        notcard, rows = th, []
-                        misses += 1
-                        if misses == GONE:
-                            self.ui_q.put(("ru_tags", [], None))
-                        continue
-                    notcard = None
-                    reads += 1
-                    for r_ in rows:                 # 2.113.0 (feedback: only two of three showed): each card is read
-                        got.setdefault(r_[1], r_)   # up to READS times and what they found is put together
-                    rows = sorted(got.values(), key=lambda r_: r_[2][1])
-                    if rows:                    # 2.104.1 (feedback: nothing showed): a card read while it was still
-                        last = th               # opening gave no rumors and was never read again - now it's read
-                except RM.OcrUnavailable:       # until its rumors are found
-                    break
-                except Exception:
-                    if not getattr(self, "_ru_err", False):
-                        self._ru_err = True
-                        self.ui_q.put(("ru_err",))
-                    continue
-                if rows:
-                    self.ui_q.put(("ru_tags", rows, edge))
-        finally:
-            if gen == getattr(self, "ru_gen", 0):
-                self.ru_alive = False
-
-    def ev_ru_err(self):
-        self.log_error("reading the Uncharted Waters card")
-
     def ev_ru_tags(self, rows, edge):
         if not rows:
             self.ru_hide()
@@ -207,11 +134,13 @@ class RumoursPage:
     def ru_show(self, rows, edge):
         """One small panel beside the Uncharted Waters card (2.113.0, feedback: "too big and clunky... more like the
         rune card helper"): a title, then one tight row per rumor - your Map library rank as a badge, the island,
-        and the rumor in small muted text - in the card's order. Click-through; in captures (2.128.1), painted over before a read."""
+        and the rumor in small muted text - in the card's order. A click on it closes it (owner: as the alert card -
+        alertcard.click_to_close; clicks beside it go to the game); in captures (2.128.1), painted over before a read."""
         self.ru_hide()
         from . import maplib
         from .overlaywin import pal
-        from .alerts_page import click_through, force_topmost
+        from .alerts_page import force_topmost
+        from .alertcard import click_to_close
         from .remnant_page import no_capture
         P = pal()
         mine = maplib.ranks()
@@ -255,7 +184,7 @@ class RumoursPage:
         w.geometry(f"+{int(x)}+{int(y)}")
         w.deiconify()
         try:
-            click_through(w)
+            click_to_close(w, self.ru_hide)
             force_topmost(w)
         except Exception:
             buglog.caught()

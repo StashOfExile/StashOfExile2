@@ -151,3 +151,5 @@ CREATE TABLE IF NOT EXISTS app_errors (
   os TEXT NOT NULL DEFAULT '', first INTEGER NOT NULL, last INTEGER NOT NULL, n INTEGER NOT NULL
 );
 CREATE TABLE IF NOT EXISTS app_error_installs (sig TEXT NOT NULL, cid TEXT NOT NULL, last INTEGER NOT NULL, PRIMARY KEY (sig, cid));
+-- UI overhaul: the anonymous usage count (sha256 of a random id per install, when it was last seen)
+CREATE TABLE IF NOT EXISTS usage_pings (pid TEXT PRIMARY KEY, last INTEGER NOT NULL);
