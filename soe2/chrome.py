@@ -80,7 +80,21 @@ class SectionBar(tk.Canvas):
         mid = TH.grad_at(stops, .5)
         tid = self.create_text(12, h // 2, text=self.title, anchor="w", fill=fg, font=(TH.head_font(), 11, "bold"))
         lx = (self.bbox(tid) or (0, 0, 12, 0))[2] + 12
-        for wd in getattr(self, "_left", []):
+        left, right = getattr(self, "_left", []), list(self._right)
+        try:                                              # 3.0.6 (owner: Bulk Pricing in the Drawer - the strip's
+            need = sum(wd.winfo_reqwidth() + 8 for wd in left + right) + 8   # parts drew over each other): too
+        except tk.TclError:                                                   # narrow - the title goes first,
+            need = 0                                                          # then the right side's last parts
+        if left and lx + need > w:
+            self.itemconfigure(tid, text="")
+            lx = 12
+        while right and lx + sum(wd.winfo_reqwidth() + 8 for wd in left + right) + 8 > w:
+            gone = right.pop(0)
+            try:
+                gone.place_forget()
+            except tk.TclError:
+                pass
+        for wd in left:
             try:
                 wd.place(in_=self, x=lx, y=h // 2, anchor="w")
                 wd.lift(self)                             # (made before the bar: it would draw under it)
@@ -88,7 +102,7 @@ class SectionBar(tk.Canvas):
             except tk.TclError:
                 continue
         x = w - 8
-        for wd in reversed(self._right):
+        for wd in reversed(right):
             try:
                 if wd.winfo_class() in ("Label", "Checkbutton"):
                     wd.configure(bg=mid, activebackground=mid) if wd.winfo_class() == "Checkbutton" else wd.configure(bg=mid)

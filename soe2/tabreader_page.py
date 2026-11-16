@@ -79,8 +79,21 @@ class TabReaderPage:
         self.pc_msg.bind("<Configure>", lambda e: self.pc_msg.config(wraplength=max(300, e.width - 24)))
         self.pctab_mode(save=False)
 
+    def pctab_primary(self):
+        """3.0.6 (owner's rule: one orange button a screen): Stash tab - Read tab is the orange one; Manual Add -
+        Re-price all."""
+        tab = getattr(self, "pc_mode", None) is not None and self.pc_mode.get() == "Stash tab"
+        for name, on in (("reprice_all_btn", not tab), ("pc_read_btn", tab)):
+            b = getattr(self, name, None)
+            if b is not None:
+                try:
+                    b.config(style="Primary.TButton" if on else "TButton")
+                except tk.TclError:
+                    pass
+
     def pctab_mode(self, save=True):
         mode = self.pc_mode.get()
+        self.pctab_primary()
         cfg = SETTINGS.setdefault("pctab", {})
         cfg["mode"] = mode
         if save:

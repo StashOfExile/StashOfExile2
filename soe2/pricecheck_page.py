@@ -595,10 +595,9 @@ class PriceCheckPage:
             self.pc_side_paint(rec)                      # drawer build: the Drawer's price card says the same
         except Exception:
             buglog.caught()
-        if rec is None or getattr(self, "_pc_dl", False):
+        if rec is None:
             f.pack_forget()
-            if rec is None:
-                return
+            return
         elif not f.winfo_manager():
             f.pack(fill="x", padx=12, pady=(4, 8), after=self.pc_recent.master)
         from .pricefmt import fmt_div
@@ -678,12 +677,8 @@ class PriceCheckPage:
             pane.pack_configure(padx=12 if on else 0)
             self._pc_top.pack_forget() if on else self._pc_top.pack(fill="x", before=self._pc_lbox)
             self._pc_count_head.config(pady=8)
-            if on:
-                self.pc_side.pack(in_=pane.left, side="right", anchor="n", padx=(16, 0), pady=(0, 12),
-                                  before=self._pc_lbox)
-                self.pc_verdict.pack_forget()
-            else:
-                self.pc_side.pack_forget()
+            self.pc_side.pack_forget()                   # 3.0.6 (owner: "why is it a different layout than full
+            # screen mode? price card doesn't go on the right"): the Drawer has the price strip across the top too
             lcv, inner = self.pc_lcanvas, self.pc_left
             lcv.config(bg=P2)
             lcv.master.config(bg=P2, highlightthickness=1 if on else 0, highlightbackground=C["line"])

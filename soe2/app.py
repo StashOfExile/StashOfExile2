@@ -1054,7 +1054,9 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         Tooltip(more, "More: Export CSV, Order added")
         self.pause_btn = ttk.Button(frow, text="Pause", command=self.toggle_pause, width=7)
         self.pause_btn.pack(side="right", padx=8)
-        ttk.Button(frow, text="⟳ Re-price all", style="Primary.TButton", command=self.reprice_all).pack(side="right")
+        self.reprice_all_btn = ttk.Button(frow, text="⟳ Re-price all", style="Primary.TButton", command=self.reprice_all)
+        self.reprice_all_btn.pack(side="right")
+        self.pctab_primary()                                # (3.0.6: one orange button - Read tab on a stash tab)
         from .style import flowify                          # 2.98.0: the row wraps in a narrow window
         flowify(frow)
 

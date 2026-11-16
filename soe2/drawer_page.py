@@ -712,6 +712,7 @@ class DrawerHost:
             self._drawer_note_width()
         elif (e.width, e.height) != getattr(self, "_drawer_last_wh", (e.width, e.height)):
             self._drawer_freeze(True)                     # (a resize, not a move: the page waits for the release)
+            self._drawer_drag_profile(True)
         self._drawer_last_wh = (e.width, e.height)
         job = getattr(self, "_drawer_cfg_job", None)
         if job:
@@ -720,6 +721,44 @@ class DrawerHost:
             except tk.TclError:
                 pass
         self._drawer_cfg_job = self.root.after(400, self._drawer_resized)
+
+    def _drawer_drag_profile(self, on):
+        """3.0.6 (owner: the Drawer still lags while its edge is dragged - not seen here, only on Windows): with Debug
+        mode on, one drag is measured - the app's own work (Python, by function) against the time the drag took -
+        and written to drawer_drag.txt in the app's data folder. Function names and times only, nothing personal."""
+        if not SETTINGS.get("debug_mode"):
+            return
+        try:
+            import cProfile
+            if on:
+                if getattr(self, "_drawer_prof", None) is None:
+                    self._drawer_prof = (cProfile.Profile(), time.perf_counter(), [0])
+                    self._drawer_prof[0].enable()
+                self._drawer_prof[2][0] += 1
+                return
+            got, self._drawer_prof = getattr(self, "_drawer_prof", None), None
+            if got is None:
+                return
+            prof, t0, n = got
+            prof.disable()
+            import io
+            import os
+            import pstats
+            from .config import DATA_DIR
+            out = io.StringIO()
+            st = pstats.Stats(prof, stream=out)
+            secs = time.perf_counter() - t0
+            tot = sum(v[2] for v in st.stats.values())      # (the time spent in the app's own Python)
+            out.write(f"Drawer drag: {secs:.2f} s, {n[0]} resize events, app's own Python {tot:.2f} s "
+                      f"({tot / secs * 100 if secs else 0:.0f}% - the rest is Tk drawing and Windows)\n"
+                      f"page open: {getattr(getattr(self, 'shell', None), 'active', '?')}\n\n")
+            st.sort_stats("cumulative").print_stats(30)
+            st.sort_stats("tottime").print_stats(20)
+            with open(os.path.join(DATA_DIR, "drawer_drag.txt"), "w", encoding="utf-8") as f:
+                f.write(out.getvalue())
+        except Exception:
+            self._drawer_prof = None
+            buglog.caught()
 
     def _drawer_freeze(self, on):
         """3.0.6 (owner: dragging the Drawer's edge "lags in settings and every other page", not on Dashboard): while
@@ -796,11 +835,13 @@ class DrawerHost:
     def _drawer_resized(self):
         self._drawer_cfg_job = None
         if not self.drawer_shown_as_drawer():
+            self._drawer_drag_profile(False)
             return self._drawer_freeze(False)
         if self._drawer_mouse_down():                     # still dragging: wait for the release
             self._drawer_cfg_job = self.root.after(400, self._drawer_resized)
             return
         self._drawer_freeze(False)
+        self._drawer_drag_profile(False)
         self._drawer_note_width()
         if getattr(self, "_drawer_share_dirty", False):
             self._drawer_share_dirty = False
