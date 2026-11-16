@@ -66,6 +66,12 @@
   "afflictions": [
    {
     "verdict": "avoid",
+    "name": "Random affliction",
+    "line": "Can end the run: never take one",
+    "rule": true
+   },
+   {
+    "verdict": "avoid",
     "name": "Ghastly Scythe",
     "line": "Any Honour lost ends the run"
    },
