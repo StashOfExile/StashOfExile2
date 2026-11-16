@@ -86,7 +86,7 @@ def key_label_vk(vk, ctrl=False, alt=False, shift=False):
 def game_active(title=POE_TITLE):
     """Is Path of Exile 2 the window you are typing into?"""
     if sys.platform != "win32":
-        if sys.platform.startswith("linux"):         # 2.10.0: Hyprland only; False elsewhere
+        if sys.platform.startswith("linux"):         # Hyprland's socket or X11's window hints (linsys.py)
             from .linsys import game_active as _ga
             return _ga(title)
         return False
@@ -111,6 +111,9 @@ def title_is_game(name, title=POE_TITLE):
 def game_open(title=POE_TITLE):
     """Is the game running (a visible Path of Exile 2 window)? Window titles only - nothing else is looked at."""
     if sys.platform != "win32":
+        if sys.platform.startswith("linux"):         # (True when nothing can tell)
+            from .linsys import game_open as _go
+            return _go(title)
         return True
     import ctypes
     from ctypes import wintypes
@@ -135,7 +138,10 @@ def game_open(title=POE_TITLE):
 
 # ---------------------------------------------------------------- typing a chat command
 def _send_keys(events):
-    """events: [(vk or None, char or None, up)] -> one SendInput call per event (Windows)."""
+    """events: [(vk or None, char or None, up)] -> one SendInput call per event (Windows). Linux: one xdotool run
+    (X11, and XWayland where the game runs under Proton) or ydotool (needs ydotoold) - _send_keys_linux."""
+    if sys.platform.startswith("linux"):
+        return _send_keys_linux(events)
     import ctypes
     from ctypes import wintypes
     ULONG_PTR = ctypes.c_size_t
@@ -157,6 +163,33 @@ def _send_keys(events):
         ki = KEYBDINPUT(vk or 0, ord(ch) if ch else 0, (0x4 if ch else 0) | (0x2 if up else 0), 0, 0)   # 0x4 = UNICODE
         inp = INPUT(1, _U(ki=ki))
         ctypes.windll.user32.SendInput(1, ctypes.byref(inp), ctypes.sizeof(INPUT))
+
+
+KEY_TOOL = [None]           # tests: "xdotool" / "ydotool" / "" (none) - else linsys.key_tool()
+KEY_RUNNER = [None]         # tests: fn(args)
+
+
+def _send_keys_linux(events):
+    """The same key events with the tool linsys.key_tool() picks -> True if sent. While they go, the app's own key
+    watcher ignores them (linkeys.SENDING: they aren't your key presses)."""
+    import subprocess
+    from . import linkeys, linsys
+    tool = KEY_TOOL[0] if KEY_TOOL[0] is not None else linsys.key_tool()
+    if not tool:
+        return False
+    runs = linkeys.xdotool_args(events) if tool == "xdotool" else linkeys.ydotool_args(events)
+    linkeys.SENDING[0] = time.time() + 1.0
+    try:
+        for args in runs:
+            if KEY_RUNNER[0] is not None:
+                KEY_RUNNER[0](args)
+            else:
+                subprocess.run(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=3)
+        return True
+    except (OSError, subprocess.SubprocessError):
+        return False
+    finally:
+        linkeys.SENDING[0] = time.time() + 0.15      # (the X server may still be delivering the last ones)
 
 
 def send_copy(sender=None):

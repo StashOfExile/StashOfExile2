@@ -135,9 +135,17 @@ class LookPage:
             job = self.stash_scan_job(ctx)
             return [job] if job else []
         out = []
+        skip = ()
+        import sys
+        if sys.platform.startswith("linux"):         # Linux with no OCR engine: helpers that only read text don't
+            from . import remnant as _RM             # apply (no picture for nothing - their rows say "needs OCR")
+            if _RM.ocr_available():
+                skip = (self.hover_look_job, self.temple_console_job)
         for make in (self.ritual_look_job, self.hover_look_job, self.temple_console_job,
                      self.remnant_look_job, self.favours_look_job, self.ru_look_job, self.ws_look_job,
                      self.topup_look_job, self.sekhemas_look_job):
+            if make in skip:
+                continue
             try:
                 job = make(ctx)
             except Exception:

@@ -192,9 +192,46 @@ class KeyWatch:
             except Exception:
                 buglog.caught()
 
+    def feed(self, vk, down, up):
+        """One key event from YOUR keyboard (vk: Windows' key code) -> True when one of the app's own hotkeys used it
+        (Windows then keeps it from the game; Linux can't - its key watchers only listen). Windows' hook and the Linux
+        key watchers (linkeys.py) both come here."""
+        self.last_phys = time.time()
+        if vk in (0xA2, 0xA3, 0x11):
+            self.ctrl = down or (self.ctrl and not up)
+        elif vk in (0xA4, 0xA5, 0x12):
+            self.alt = down or (self.alt and not up)
+        elif vk in (0xA0, 0xA1, 0x10):
+            self.shift = down or (self.shift and not up)
+        elif vk == 0x43 and down and self.ctrl and self.alt:
+            self.combo_time = time.time()
+        elif vk == 0x43 and down and self.ctrl and not self.shift:
+            self.copy_time = time.time()
+        if vk == 0x1B:                                   # Esc: never swallowed, only timed
+            self.note_esc(down, up)
+        if up and self.up_listener:
+            try:
+                self.up_listener(vk)
+            except Exception:
+                buglog.caught()
+        if up and vk in self._swallowed:            # the release of a key we acted on
+            self._swallowed.discard(vk)
+            return True
+        if down and self.listener and vk not in (0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0x10, 0x11, 0x12):
+            if self.listener(vk, self.ctrl, self.alt, self.shift):
+                self._swallowed.add(vk)
+                return True
+        return False
+
     def start(self):
         if sys.platform == "win32":
             threading.Thread(target=self._run, daemon=True).start()
+        elif sys.platform.startswith("linux"):         # X11 / XWayland key watcher + the desktop-shortcut socket
+            try:
+                from . import linkeys
+                linkeys.start(self)
+            except Exception as e:
+                self.err = str(e) or e.__class__.__name__
 
     def hook_stale(self, secs=3.0):
         """2.88.2: a copy just came from the game, yet the hook saw no key at all for `secs` - Windows dropped it."""
@@ -244,37 +281,10 @@ class KeyWatch:
                 try:
                     if n >= 0:
                         k = ctypes.cast(l, ctypes.POINTER(KBD)).contents
-                        if k.flags & 0x10:
+                        if k.flags & 0x10:                          # 0x10 = injected by a program, not your keyboard
                             self.last_inj = time.time()
-                        else:
-                            self.last_phys = time.time()
-                        if not (k.flags & 0x10):                    # 0x10 = injected by a program, not your keyboard
-                            down, up = w in (0x100, 0x104), w in (0x101, 0x105)
-                            vk = k.vkCode
-                            if vk in (0xA2, 0xA3, 0x11):
-                                self.ctrl = down or (self.ctrl and not up)
-                            elif vk in (0xA4, 0xA5, 0x12):
-                                self.alt = down or (self.alt and not up)
-                            elif vk in (0xA0, 0xA1, 0x10):
-                                self.shift = down or (self.shift and not up)
-                            elif vk == 0x43 and down and self.ctrl and self.alt:
-                                self.combo_time = time.time()
-                            elif vk == 0x43 and down and self.ctrl and not self.shift:
-                                self.copy_time = time.time()
-                            if vk == 0x1B:                                   # Esc: never swallowed, only timed
-                                self.note_esc(down, up)
-                            if up and self.up_listener:
-                                try:
-                                    self.up_listener(vk)
-                                except Exception:
-                                    buglog.caught()
-                            if up and vk in self._swallowed:            # the release of a key we acted on
-                                self._swallowed.discard(vk)
-                                return 1
-                            if down and self.listener and vk not in (0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0x10, 0x11, 0x12):
-                                if self.listener(vk, self.ctrl, self.alt, self.shift):
-                                    self._swallowed.add(vk)
-                                    return 1                            # the key did something: the game doesn't get it
+                        elif self.feed(k.vkCode, w in (0x100, 0x104), w in (0x101, 0x105)):
+                            return 1                                # the key did something: the game doesn't get it
                 except Exception:
                     buglog.caught()
                 return user32.CallNextHookEx(None, n, w, l)
@@ -341,10 +351,16 @@ class Tray:
     def __init__(self, post):
         self.post, self.icon, self.available = post, None, False
         try:
+            if sys.platform.startswith("linux") and getattr(sys, "frozen", False):
+                import os                                # the Linux build bundles pystray's X11 tray only
+                os.environ.setdefault("PYSTRAY_BACKEND", "xorg")
             import pystray
             self.pystray = pystray
             self.image = app_icon_image()
             self.available = self.image is not None
+            if self.available and sys.platform.startswith("linux") and "xorg" in pystray.Icon.__module__:
+                from .linsys import x_systray            # Linux: only when a tray is there to show the icon in
+                self.available = x_systray()
         except Exception:
             self.available = False
 

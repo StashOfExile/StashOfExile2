@@ -19,6 +19,14 @@ RELEASE_URL = f"https://api.github.com/repos/{REPO}/releases/latest"      # GitH
 
 
 FROZEN = bool(getattr(sys, "frozen", False))       # True when running as the built .exe
+# The Linux build (preview): its releases are pre-releases tagged v<version>-linux-preview, never "latest" - so the
+# Windows app's check (releases/latest) never sees them, and the Linux build reads the newest of those instead.
+LINUX_TAG = "-linux-preview"
+LINUX_URL = f"https://api.github.com/repos/{REPO}/releases?per_page=30"
+
+
+def linux_build():
+    return FROZEN and sys.platform.startswith("linux")
 
 
 _VER = re.compile(r"^\s*[vV]?\s*(\d+)(?:\.(\d+))?(?:\.(\d+))?\s*[-_. ]?\s*"
@@ -56,12 +64,16 @@ def pick_asset(rel, frozen=None):
     py = [a for a in assets if a.get("name", "").lower().endswith(".py")]
     kit = [a for a in assets if a.get("name", "").lower().endswith(".zip")]
     order = exe + kit + py if frozen else kit + exe + py
+    if sys.platform.startswith("linux") and frozen:  # the Linux build: only its own tar.gz
+        order = [a for a in assets if a.get("name", "").lower().endswith("-linux.tar.gz")]
     return order[0] if order else None
 
 
 def latest_release():
     """-> ("ok", release dict) / ("none", msg) / ("error", msg). One small public request; nothing is sent about you.
     2.143.0: full releases only (each is built and tested locally first; no previews)."""
+    if linux_build():
+        return latest_linux()
     try:
         r = requests.get(RELEASE_URL, headers={"Accept": "application/vnd.github+json", "User-Agent": APP_UA}, timeout=20)
     except Exception as e:
@@ -74,6 +86,28 @@ def latest_release():
         return "ok", r.json()
     except Exception:
         return "error", "GitHub's answer could not be read."
+
+
+def newest_linux(releases):
+    """The newest v<version>-linux-preview release in GitHub's list, or None."""
+    rels = [r for r in releases or [] if isinstance(r, dict) and not r.get("draft")
+            and str(r.get("tag_name", "")).endswith(LINUX_TAG)]
+    return max(rels, key=lambda r: vtuple(r.get("tag_name", "")), default=None)
+
+
+def latest_linux():
+    """The Linux build's check: the newest Linux preview release (one small public request)."""
+    try:
+        r = requests.get(LINUX_URL, headers={"Accept": "application/vnd.github+json", "User-Agent": APP_UA}, timeout=20)
+    except Exception as e:
+        return "error", f"Could not reach GitHub ({e}). Check your internet."
+    if r.status_code != 200:
+        return "error", f"GitHub answered {r.status_code}."
+    try:
+        rel = newest_linux(r.json())
+    except Exception:
+        return "error", "GitHub's answer could not be read."
+    return ("ok", rel) if rel else ("none", "No Linux build has been published yet.")
 
 
 def download_asset(asset, dest, progress=None):

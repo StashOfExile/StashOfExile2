@@ -1239,6 +1239,11 @@ class AlertsPage:
             if st == "on" and txt == UNSET_STATUS:  # GGG policy: on, but nothing reads without a Read Key
                 st = "warn"
             lbl = rows[k]["status"]
+            if sys.platform.startswith("linux") and st != "off":     # Linux: no OCR engine - say so on its row
+                from . import ocrengine as _OE
+                st, txt = _OE.row_state(k, st, txt)
+                if _OE.NEEDS in txt and not rows[k].get("ocr_tip"):
+                    rows[k]["ocr_tip"] = Tooltip(lbl, _OE.help_text())
             if rows[k].get("grid"):                 # 2.112.0: one short line under the name
                 # nav phase 2 (never a state by color alone): a mark and a word - ✓ On / – Off / ⚠ - then what it's
                 # doing now (2.119.0: the gray line above it says what it does)

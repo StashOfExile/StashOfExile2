@@ -29,6 +29,7 @@ class UtilitiesPage:
         self._ensure_overlay()
         self.keys.listener = self.on_any_key         # 2.0 beta 9: the session tracker's keys come first
         self.keys.up_listener = self.on_any_key_up   # GGG policy: a key's release - its next key-down is a new press
+        self.keys.keys_source = self.keys_for_binds  # Linux / Hyprland: a pass-through bind for each key (linkeys)
         from . import screenread as _sr
         from .alerts_page import game_rect as _gr
         _sr.AREA[0] = _gr                            # (one press = one picture of the game window)
@@ -542,6 +543,21 @@ class UtilitiesPage:
                   "rename it; right-click for more.", 10)
         return True
 
+    def keys_for_binds(self):
+        """(any thread: settings only) Every key in Settings › Keybinds - on Hyprland each gets a pass-through bind."""
+        try:
+            return [k for _w, k, _g, _id in self.all_hotkeys() if k]
+        except Exception:
+            buglog.caught()
+            return []
+
+    def _linux_key_tool(self):
+        """Linux: the tool chat commands press keys with (xdotool / ydotool), or None - looked up once."""
+        if not hasattr(self, "_lin_kt"):
+            from .linsys import key_tool
+            self._lin_kt = key_tool()
+        return self._lin_kt
+
     def notes_status(self):
         cfg = self.overlay.cfg if getattr(self, "overlay", None) else {}
         return bool(cfg.get("notes_enabled"))
@@ -558,7 +574,10 @@ class UtilitiesPage:
         cfg = self.overlay.cfg
         if not cfg.get("chat_enabled"):
             st, col = "Off", C["muted"]
-        elif sys.platform != "win32":
+        elif sys.platform.startswith("linux") and not self._linux_key_tool():
+            from .linsys import install_cmd
+            st, col = f"On, but chat keys need xdotool ({install_cmd('xdotool')})", C["red"]
+        elif sys.platform != "win32" and not sys.platform.startswith("linux"):
             st, col = "On (keys work on Windows only)", C["good"]
         elif getattr(self, "keys", None) is None or not self.keys.active:
             keys = getattr(self, "keys", None)

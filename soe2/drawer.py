@@ -533,7 +533,7 @@ _WATCH = [None, 0.0]
 
 
 def can_watch():
-    """Can the foreground be read? Windows: yes. Linux: only on Hyprland (Wayland elsewhere can't tell) - then the
+    """Can the foreground be read? Windows: yes. Linux: Hyprland, or X11's window hints (linsys.can_tell) - else the
     click-away watcher stays off. (Cached for 5 s: the window's thread asks every tick.)"""
     if FG_HOOK is not None or WIN:
         return True
@@ -549,8 +549,8 @@ def can_watch():
 
 
 def game_open_now(title="Path of Exile 2"):
-    """Is the game running? (for GAME_OPEN; the window's thread). On Linux only Hyprland can tell - elsewhere it
-    counts as not running, so the Drawer key works everywhere."""
+    """Is the game running? (for GAME_OPEN; the window's thread). On Linux when Hyprland or X11's window hints can
+    tell - elsewhere it counts as not running, so the Drawer key works everywhere."""
     if FG_HOOK is not None:                               # (tests: "the game" is whatever FG_HOOK says)
         return bool(FG_HOOK()[1])
     try:
@@ -558,8 +558,8 @@ def game_open_now(title="Path of Exile 2"):
             from .overlay import game_open
             return bool(game_open(title))
         if sys.platform.startswith("linux"):
-            from .linsys import hypr_socket, game_open as _go
-            return hypr_socket() is not None and bool(_go(title))
+            from .linsys import can_tell, game_open as _go
+            return can_tell() and bool(_go(title))
     except Exception:
         pass
     return False

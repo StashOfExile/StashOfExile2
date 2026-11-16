@@ -3,6 +3,7 @@
 The App mixes this in (app.py: class App(..., SettingsPage)). Methods only - state lives on the App.
 Part of StashOfExile2 (see the launcher's VERSION HISTORY)."""
 import os
+import sys
 import time
 import tkinter as tk
 from tkinter import filedialog, messagebox
@@ -527,6 +528,9 @@ class SettingsPage:
         ttk.Button(row, text="Find it by itself", style="Quiet.TButton",
                    command=lambda: self.tracker_set_log("")).pack(side="left")
         self.game_log_text()
+        if sys.platform.startswith("linux"):                     # Linux build: the Linux check (lincheck.py)
+            from . import lincheck
+            lincheck.build(self, section)
         # 2.131.0: Settings opens on the tab you left it on
         try:
             self.set_nb.select(self.set_nb.titles.index(SETTINGS.get("settings_tab") or "General"))
