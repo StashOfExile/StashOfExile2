@@ -1,7 +1,8 @@
 # 3.0.3: removes what's left from before 3.0.0, plus the 3.0.2 previews that were never released (issue #278):
 # tags archive/*, branches v2.*, releases v3.0.2 and v3.0.2-linux-preview (with their tags).
 # Actions > Remove old versions > Run workflow, type "yes". It refuses unless 3.0.3 or newer is the full ("latest")
-# release, so every app still finds an update. Running it twice changes nothing.
+# release, so every app still finds an update. Running it twice changes nothing. Why: docs/REMOVED_VERSIONS.md
+# (versions before 3.0.0 don't follow GGG's third-party policy; 3.0.2 had issue #278).
 name: Remove old versions
 
 on:
@@ -46,6 +47,11 @@ jobs:
           done
       - name: What's left
         run: |
+          {
+            echo "### Removed older versions"
+            echo "Versions before 3.0.0 don't follow GGG's third-party policy (screen read once per key press);"
+            echo "the 3.0.2 previews had issue #278. Details: docs/REMOVED_VERSIONS.md"
+          } >> "$GITHUB_STEP_SUMMARY"
           echo "Releases:"; gh api "repos/$GH_REPO/releases" --paginate -q '.[].tag_name'
           echo "Tags:"; gh api "repos/$GH_REPO/tags" --paginate -q '.[].name'
           echo "Branches:"; gh api "repos/$GH_REPO/branches" --paginate -q '.[].name'
