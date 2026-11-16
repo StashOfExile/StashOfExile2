@@ -1,8 +1,8 @@
 # Builds StashOfExile2.exe on GitHub's own Windows machine and publishes a release (same steps as build_exe.bat).
 # Runs when main gets a new version: the version in stashofexile2.py (APP_VERSION) that has no "v<version>" tag yet.
-# It makes that tag, builds the exe and publishes it as a PREVIEW (pre-release, 2.97.3): only players who turned on
-# Settings > Updates > Preview builds get it. Once it's been played, Actions > Promote release makes it the full
-# release that everyone's "Check for updates" finds.
+# It makes that tag, builds the exe and publishes it as the FULL release (3.0.3: no previews - every version is built
+# and tested locally first, then merged), so everyone's "Check for updates" finds it. The notes start with the
+# "Coming from 2.x?" box (.github/notice-2x.md).
 # Nothing happens for changes that don't change the version. Also runs by hand (Actions > Release > Run workflow).
 name: Release
 
@@ -95,7 +95,8 @@ jobs:
               echo "::warning::VirusTotal upload failed - no scan link this time"
             fi
           fi
-          python tools/release_notes.py "$V" --sha "$EXE" "$ZIP" --vt "$VT" > notes.md
+          python tools/release_notes.py "$V" --sha "$EXE" "$ZIP" --vt "$VT" > body.md
+          cat .github/notice-2x.md body.md > notes.md
           cat notes.md
 
       - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65  # v2
@@ -105,8 +106,8 @@ jobs:
           target_commitish: ${{ github.sha }}
           name: StashOfExile2 v${{ steps.ver.outputs.version }}
           body_path: notes.md
-          make_latest: false        # 2.97.3: a preview first - Actions > Promote release makes it the full release
-          prerelease: true          # (the app offers previews only to players who opted in)
+          make_latest: true         # 3.0.3: full release (tested locally first, no previews)
+          prerelease: false
           files: |
             dist/StashOfExile2.exe
             StashOfExile2_build_kit_*.zip
