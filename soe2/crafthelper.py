@@ -56,7 +56,7 @@ KINDS = {
     "jewel": {
         "label": "Jewels", "one": "jewel", "item_class": "Jewel",
         "types": ("All", "Ruby", "Emerald", "Sapphire", "Time-Lost"),
-        "flow": (("White jewel", "Orb of Transmutation, then Orb of Augmentation: 2 mods."),
+        "flow": (("Magic jewel, 1 mod", "Orb of Augmentation: 2 mods."),     # owner: there are no white jewels
                  ("2 good mods", "Regal Orb, then Exalted Orbs to fill it."),
                  ("0-1 good mods", "Not worth more currency: start over on another jewel."),
                  ("Rare, 1-2 good mods", "Chaos Orb swaps a mod - stop when it's down to junk."),
@@ -326,8 +326,8 @@ def advice(kind, rarity, n_mods, n_good):
         from .moneymakers import tablet_advice
         return tablet_advice(rarity, n_mods, n_good)
     rarity = (rarity or "").capitalize()
-    if rarity == "Normal" or (not rarity and n_mods == 0):
-        return "White jewel: Orb of Transmutation, then Orb of Augmentation."
+    if rarity == "Normal" or (not rarity and n_mods == 0):       # jewels drop magic or rare - there are no white ones
+        return "Copy a magic or rare jewel."
     if rarity == "Magic":
         if n_mods < 2:
             return "One mod so far: Orb of Augmentation for the second."
