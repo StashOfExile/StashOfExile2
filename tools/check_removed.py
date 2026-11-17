@@ -25,6 +25,8 @@ DOCS = ("README.md", "TOS.md", "linux/README.md", "themes/README.md", "strats/RE
 
 # (version, what it was, words a person read, names in the code / settings keys[, pending])
 REMOVED = [
+    ("3.0.6", "tabs.txt and jewels.txt (owner: no reason to still use .txt - both are one modlists.json now)",
+     ("tabs.txt", "jewels.txt"), ("load_tabs", "load_jewels", "clean_jewel_line", "_clean_tab_line")),
     ("3.0.6", "the Search with fewer mods button (owner: Broaden Search does it for every item - the orange button "
               "searches without the lowest-rated ticked mod; one name for it)",
      ("Search with fewer mods",), ()),

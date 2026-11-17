@@ -3867,8 +3867,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
             if k in keep:
                 ns.tv.selection_add(iid)
         counts = {i: sum(1 for k in known if impact_key(k) == i) for i in IMPACTS}
-        fname = "tabs.txt" if cat == "tablet" else "jewels.txt"
-        ns.info.config(text=self.mb_counts(counts) + ("" if src else f"  ·  {fname} not found - put it in {DATA_DIR} or next to the app and restart"))
+        ns.info.config(text=self.mb_counts(counts) + ("" if src else f"  ·  modlists.json not found - put it in {DATA_DIR} or next to the app and restart"))
 
     @staticmethod
     def mb_counts(counts):

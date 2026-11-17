@@ -168,30 +168,26 @@ _BASES = {}
 
 
 def split_bases(cat):
-    """2.40.0: the base types a search can be split by (one search returns at most 100): the tablets in tabs.txt,
-    the jewels in jewels.txt (each section there starts with the base's name, then "Base Prefix")."""
-    f = {"map.tablet": "tabs.txt", "jewel": "jewels.txt"}.get(cat)
-    if not f:
+    """2.40.0: the base types a search can be split by (one search returns at most 100): the tablets and the jewels
+    in modlists.json (its "tablets" / "jewels" keys are the base names)."""
+    key = {"map.tablet": "tablets", "jewel": "jewels"}.get(cat)
+    if not key:
         return []
-    if f not in _BASES:
+    if key not in _BASES:
         names = []
         try:
+            import json
             from .config import RESOURCE_DIR, APP_DIR
             for folder in (RESOURCE_DIR, APP_DIR):
-                path = os.path.join(folder, f)
+                path = os.path.join(folder, "modlists.json")
                 if os.path.exists(path):
-                    with open(path, encoding="utf-8") as fh:
-                        prev = ""
-                        for ln in fh:
-                            ln = ln.rstrip("\n")
-                            if ln.startswith("Base Prefix") and prev and not prev.startswith("#"):
-                                names.append(prev.strip())
-                            prev = ln
+                    with open(path, encoding="utf-8-sig") as fh:
+                        names = [n for n, secs in (json.load(fh).get(key) or {}).items() if secs]
                     break
         except Exception:
             names = []
-        _BASES[f] = [n for i, n in enumerate(names) if n and n not in names[:i]]
-    return list(_BASES[f])
+        _BASES[key] = [n for i, n in enumerate(names) if n and n not in names[:i]]
+    return list(_BASES[key])
 
 
 def wealth_trade_url(league, qid):
@@ -214,7 +210,7 @@ MOD_SOURCES = (("explicit", "explicitMods", ""), ("fractured", "fracturedMods", 
 
 
 def _kind_guess(line, cls_text):
-    """Prefix or Suffix for a mod line when the listing doesn't say: tabs.txt / jewels.txt know (tablets, jewels)."""
+    """Prefix or Suffix for a mod line when the listing doesn't say: modlists.json knows (tablets, jewels)."""
     k = norm(line)
     kinds = (TAB_KINDS if "tablet" in cls_text.lower() else JEWEL_KINDS).get(k) or set()
     return next(iter(kinds)) if len(kinds) == 1 else "Prefix"

@@ -114,7 +114,7 @@ def move_data(new_dir):
 
 
 DATA_FILES = ["settings.json", "session.json", "modbook.json", "modbook.backup.json", "mod_rules.json", "community_rules.json",
-              "tabs.txt", "jewels.txt", "history.csv", "wealth.json"]
+              "modlists.json", "history.csv", "wealth.json"]
 
 
 MIGRATED = []
@@ -147,10 +147,10 @@ def import_old_data():
 import_old_data()
 
 
-# ---- bundled reference data (1.37): tabs.txt and jewels.txt come inside the app. A newer copy in a new version
+# ---- bundled reference data (1.37): modlists.json (the tablet / jewel mods; was tabs.txt + jewels.txt) comes inside the app. A newer copy in a new version
 # replaces the one in the data folder (the old one is kept as a .bak); your own files (settings, rules, lists) are
 # never touched. Bump a number here when you ship a changed file.
-BUNDLED_DATA = {"tabs.txt": 2, "jewels.txt": 2, "gamedata.json": 1, "regexdata.json": 2, "default_rules.json": 4, "searchdata.json": 1, "anointdata.json": 1, "cxnames.json": 1}   # gamedata 1.38, regexdata 1.44
+BUNDLED_DATA = {"modlists.json": 1, "gamedata.json": 1, "regexdata.json": 2, "default_rules.json": 4, "searchdata.json": 1, "anointdata.json": 1, "cxnames.json": 1}   # gamedata 1.38, regexdata 1.44
 DATA_UPDATED = []
 
 
