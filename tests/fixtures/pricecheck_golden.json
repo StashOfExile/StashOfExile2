@@ -809,6 +809,131 @@
   },
   "route": "gear: white/magic base"
  },
+ "magic_tablet_overseer_one_suffix": {
+  "advanced": true,
+  "copy_problem": null,
+  "item": {
+   "base": "Overseer Tablet",
+   "class": "Tablet",
+   "corrupted": false,
+   "gclass": null,
+   "gear": null,
+   "group_id": null,
+   "ilvl": 81,
+   "name": "Overseer Tablet of the Summoning",
+   "notes": null,
+   "quality": null,
+   "rarity": "Magic",
+   "search": null,
+   "socket_types": null,
+   "sockets": null,
+   "tier": null,
+   "uses": 10,
+   "waystone": null
+  },
+  "item_copy": true,
+  "label": "no magic Overseer Tablet listed right now - not priced · 1 low-impact mod ignored · 10+ uses",
+  "mods": [
+   {
+    "group": "explicit",
+    "hi": 100,
+    "impact": "ignore",
+    "kind": "Suffix",
+    "lo": 70,
+    "min_max": {
+     "min": 70
+    },
+    "rating_tier": null,
+    "shown": "Map has 77% increased chance to contain a Summoning Circle",
+    "sid": "explicit.stat_267210597",
+    "text": "Map has 77(70-100)% increased chance to contain a Summoning Circle",
+    "tier": "1",
+    "value": 77
+   }
+  ],
+  "queries": [
+   {
+    "base": "Overseer Tablet",
+    "count_min": null,
+    "filters": [
+     {
+      "id": "pseudo.pseudo_number_of_uses_remaining",
+      "value": {
+       "min": 10
+      }
+     }
+    ],
+    "rarity": "magic"
+   }
+  ],
+  "read": {
+   "base": "Overseer Tablet",
+   "class": "tablet",
+   "class_text": "Tablet",
+   "corrupted": false,
+   "flags": [],
+   "flavour": [
+    "Can be used in a personal Map Device to add modifiers to a Map."
+   ],
+   "mods": [
+    {
+     "affix": null,
+     "kind": "implicit",
+     "range": null,
+     "source": null,
+     "stat": null,
+     "text": "Empowers the Map Boss of a Map",
+     "tier": null,
+     "trade": [],
+     "values": []
+    },
+    {
+     "affix": null,
+     "kind": "implicit",
+     "range": null,
+     "source": null,
+     "stat": null,
+     "text": "10 uses remaining",
+     "tier": null,
+     "trade": [],
+     "values": [
+      10
+     ]
+    },
+    {
+     "affix": "of the Summoning",
+     "kind": "suffix",
+     "range": [
+      70,
+      100
+     ],
+     "source": null,
+     "stat": "Map has #% increased chance to contain a Summoning Circle",
+     "text": "Map has 77(70-100)% increased chance to contain a Summoning Circle",
+     "tier": 1,
+     "trade": [
+      "explicit.stat_267210597"
+     ],
+     "values": [
+      77
+     ]
+    }
+   ],
+   "name": "Overseer Tablet of the Summoning",
+   "props": {
+    "ilvl": 81
+   },
+   "rarity": "Magic",
+   "socket_types": "",
+   "sockets": 0,
+   "stack": null,
+   "unknown": [
+    "Empowers the Map Boss of a Map",
+    "10 uses remaining"
+   ]
+  },
+  "route": "tablet/jewel reader"
+ },
  "magic_tablet_used": {
   "advanced": true,
   "copy_problem": null,
@@ -1573,8 +1698,43 @@
  "normal_tablet": {
   "advanced": true,
   "copy_problem": null,
+  "item": {
+   "base": "Breach Tablet",
+   "class": "Tablet",
+   "corrupted": false,
+   "gclass": null,
+   "gear": null,
+   "group_id": null,
+   "ilvl": 75,
+   "name": "Breach Tablet",
+   "notes": null,
+   "quality": null,
+   "rarity": "Normal",
+   "search": null,
+   "socket_types": null,
+   "sockets": null,
+   "tier": null,
+   "uses": 10,
+   "waystone": null
+  },
   "item_copy": true,
-  "pc_line": "Tablets: not priced - a normal (white) one has no mods to price.",
+  "label": "no normal Breach Tablet listed right now - not priced · 10+ uses",
+  "mods": [],
+  "queries": [
+   {
+    "base": "Breach Tablet",
+    "count_min": null,
+    "filters": [
+     {
+      "id": "pseudo.pseudo_number_of_uses_remaining",
+      "value": {
+       "min": 10
+      }
+     }
+    ],
+    "rarity": "normal"
+   }
+  ],
   "read": {
    "base": "Breach Tablet",
    "class": "tablet",
@@ -1621,8 +1781,97 @@
     "10 uses remaining (implicit)"
    ]
   },
-  "route": "not priced",
-  "unpriced": "Tablets: not priced - a normal (white) one has no mods to price."
+  "route": "tablet/jewel reader"
+ },
+ "normal_tablet_temple": {
+  "advanced": true,
+  "copy_problem": null,
+  "item": {
+   "base": "Temple Tablet",
+   "class": "Tablet",
+   "corrupted": false,
+   "gclass": null,
+   "gear": null,
+   "group_id": null,
+   "ilvl": 79,
+   "name": "Temple Tablet",
+   "notes": null,
+   "quality": null,
+   "rarity": "Normal",
+   "search": null,
+   "socket_types": null,
+   "sockets": null,
+   "tier": null,
+   "uses": 10,
+   "waystone": null
+  },
+  "item_copy": true,
+  "label": "no normal Temple Tablet listed right now - not priced · 10+ uses",
+  "mods": [],
+  "queries": [
+   {
+    "base": "Temple Tablet",
+    "count_min": null,
+    "filters": [
+     {
+      "id": "pseudo.pseudo_number_of_uses_remaining",
+      "value": {
+       "min": 10
+      }
+     }
+    ],
+    "rarity": "normal"
+   }
+  ],
+  "read": {
+   "base": "Temple Tablet",
+   "class": "tablet",
+   "class_text": "Tablet",
+   "corrupted": false,
+   "flags": [],
+   "flavour": [
+    "Can be used in a personal Map Device to add modifiers to a Map."
+   ],
+   "mods": [
+    {
+     "affix": null,
+     "kind": "implicit",
+     "range": null,
+     "source": null,
+     "stat": null,
+     "text": "Adds Vaal Beacons to a Map",
+     "tier": null,
+     "trade": [],
+     "values": []
+    },
+    {
+     "affix": null,
+     "kind": "implicit",
+     "range": null,
+     "source": null,
+     "stat": null,
+     "text": "10 uses remaining",
+     "tier": null,
+     "trade": [],
+     "values": [
+      10
+     ]
+    }
+   ],
+   "name": "Temple Tablet",
+   "props": {
+    "ilvl": 79
+   },
+   "rarity": "Normal",
+   "socket_types": "",
+   "sockets": 0,
+   "stack": null,
+   "unknown": [
+    "Adds Vaal Beacons to a Map",
+    "10 uses remaining"
+   ]
+  },
+  "route": "tablet/jewel reader"
  },
  "normal_waystone": {
   "advanced": false,

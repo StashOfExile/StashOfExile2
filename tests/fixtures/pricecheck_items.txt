@@ -497,6 +497,33 @@ Item Level: 75
 { Implicit Modifier }
 Adds an Otherworldy Breach to a Map (implicit)
 10 uses remaining (implicit)
+=== normal_tablet_temple
+Item Class: Tablet
+Rarity: Normal
+Temple Tablet
+--------
+Item Level: 79
+--------
+{ Implicit Modifier }
+Adds Vaal Beacons to a Map
+10 uses remaining
+--------
+Can be used in a personal Map Device to add modifiers to a Map.
+=== magic_tablet_overseer_one_suffix
+Item Class: Tablet
+Rarity: Magic
+Overseer Tablet of the Summoning
+--------
+Item Level: 81
+--------
+{ Implicit Modifier }
+Empowers the Map Boss of a Map
+10 uses remaining
+--------
+{ Suffix Modifier "of the Summoning" (Tier: 1) }
+Map has 77(70-100)% increased chance to contain a Summoning Circle
+--------
+Can be used in a personal Map Device to add modifiers to a Map.
 === rare_waystone
 Item Class: Waystones
 Rarity: Rare

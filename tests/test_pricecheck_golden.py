@@ -175,8 +175,11 @@ def snapshot(text, rules=None, tiers=None):
         queries.append(json.loads(json.dumps(q)))
         return 0, [], None
 
-    def item_search(league, base, filters, count_min, corrupted=None):
-        queries.append({"base": base, "filters": json.loads(json.dumps(filters)), "count_min": count_min})
+    def item_search(league, base, filters, count_min, corrupted=None, rarity=None):
+        q = {"base": base, "filters": json.loads(json.dumps(filters)), "count_min": count_min}
+        if rarity:
+            q["rarity"] = rarity
+        queries.append(q)
         return 0, [], None
     with mock.patch.dict(M.RULES, rules or {}, clear=True), mock.patch.dict(M.TIERS, tiers or {}, clear=True), \
             mock.patch.object(EN, "MARKET", _Market()), mock.patch.object(G, "run_search", gear_search), \

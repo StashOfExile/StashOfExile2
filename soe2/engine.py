@@ -538,6 +538,18 @@ class Engine(TabReaderJobs, WealthJobs, StratCostJobs, threading.Thread):
         searchable = [(m, i) for m, i in impacts if i != "ignore" and m.get("sid")]
         unmatched = sum(1 for m, i in impacts if i != "ignore" and not m.get("sid"))
         note = f" · {ignored} low-impact mod{'s' if ignored != 1 else ''} ignored" if ignored else ""
+        if not searchable and item.get("class") == "Tablet":
+            # 3.0.6 (owner): every tablet gets a price - a white one, or one with nothing worth a mod search, is
+            # searched by its base: same rarity, 10+ uses
+            _status, _age, hours = listing_rules()
+            extra, uses_note = uses_filter(self.table, True, item.get("uses"))
+            out = self._price_tablet_base(rec, extra, hours, SETTINGS["min_results"])
+            out.setdefault("model", "")
+            self._scale_for_uses(item, out)
+            label = out.pop("label")
+            rec.update(state="done", label=label + note + uses_note, priced_at=time.time(), skip=False, **out)
+            tell()
+            return
         if not searchable:
             low = bool(ignored) and not unmatched
             rec.update(state="done", total=0, prices=[], est=None, qid=None, partial=False, skip=low, thin=False,
@@ -726,6 +738,33 @@ class Engine(TabReaderJobs, WealthJobs, StratCostJobs, threading.Thread):
         return dict(label=label, total=primary["total"], prices=primary["prices"], qid=primary["qid"], est=est,
                     partial=any_roll or bool(relaxed), thin=thin, nomatch=False, stages=stages, wide=wide, manual=wide,
                     conf=conf, conf_why=why, memory=self._mem_text(mem), model=model_txt, spread=ratio)
+
+    def _price_tablet_base(self, rec, extra, hours, need):
+        """3.0.6: a tablet with no mod worth searching (a white one, or only low-impact mods) -> one search for its
+        base, same rarity, 10+ uses. The price is the floor for that base."""
+        item, league = rec["item"], SETTINGS["league"]
+        rar = {"Normal": "normal", "Magic": "magic", "Rare": "rare"}.get(item.get("rarity"))
+        flags = set(item.get("flags") or ()) or None
+        verify_tot = {"bad": 0, "unverifiable": False}
+        self._turn(rec)
+        total, ids, qid = search_ids(league, item["base"], extra, None, flags, rarity=rar)
+        kind = (item.get("rarity") or "").lower() or "any"
+        st = self._stage(item["base"], f"{kind} {item['base']}", [], total, ids, qid, hours, league, verify_tot,
+                         record=False)
+        if not st["n"]:
+            return dict(label=f"no {kind} {item['base']} listed right now - not priced", total=total, prices=[],
+                        est=None, qid=qid, partial=False, thin=False, nomatch=True, stages=[st], conf="-", conf_why=[])
+        ratio = None
+        try:
+            ratio, _lo, _hi = spread_of([st], league)
+        except Exception:
+            buglog.caught()
+        conf, why = confidence(st["n"], False, False, ratio, verify_tot["unverifiable"], verify_tot["bad"],
+                               st.get("age_h"), False, st.get("unk") or ())
+        thin = st["n"] < need
+        label = f"searched the base: {kind} {item['base']}" + (" · few listings" if thin else "")
+        return dict(label=label, total=total, prices=st["prices"], qid=qid, est=st["est"], partial=False, thin=thin,
+                    nomatch=False, stages=[st], conf=conf, conf_why=why, spread=ratio)
 
     FULL_USES = 10
 

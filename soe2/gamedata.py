@@ -380,7 +380,7 @@ def unpriced_why(g):
     """A read_item() result the price checker doesn't price -> why, in a few words."""
     if g.get("stack") is not None:
         return "stackable items are counted on the Wealth window, not price-checked here"
-    if g.get("rarity") == "Normal" and g.get("class") in ("tablet", "jewel", "waystone"):
+    if g.get("rarity") == "Normal" and g.get("class") in ("jewel", "waystone"):
         return "a normal (white) one has no mods to price"
     if g.get("class") in ("tablet", "jewel") and g.get("rarity") in ("Magic", "Rare"):
         return "its name line wasn't recognized (the copied text is saved in unpriced_items.txt in the data folder)"

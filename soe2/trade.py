@@ -274,7 +274,7 @@ def apply_opts(query, item=None, opts=None):
     return query
 
 
-def search_ids(league, base, filters, count_min, corrupted=None):
+def search_ids(league, base, filters, count_min, corrupted=None, rarity=None):
     """One trade search. Returns (total matches, first listing ids, query id). Same search twice = free.
     corrupted: True / False (corrupted only / uncorrupted only), None (either), or the item's flags (a set: only
     listings with the same flags - owner decision A)."""
@@ -306,6 +306,8 @@ def search_ids(league, base, filters, count_min, corrupted=None):
         flt["misc_filters"] = {"filters": {"corrupted": {"option": "true" if corrupted else "false"}}}
     if api_age:
         flt["trade_filters"] = {"filters": {"indexed": {"option": api_age}}}
+    if rarity:                                        # 3.0.6: a tablet priced by its base - same rarity only
+        flt["type_filters"] = {"filters": {"rarity": {"option": rarity}}}
     if flt:
         query["filters"] = flt
     apply_opts(query)                                 # 2.4.1: this item's own search filters
