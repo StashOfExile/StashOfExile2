@@ -25,6 +25,7 @@ DOCS = ("README.md", "TOS.md", "linux/README.md", "themes/README.md", "strats/RE
 
 # (version, what it was, words a person read, names in the code / settings keys[, pending])
 REMOVED = [
+    ("3.0.6", "Farming Strategies: the ＋ Add my own button (one name: ＋ New strat)", ("Add my own",), ()),
     ("3.0.6", "Farming Strategies' Add my own form (owner: \"so hard to understand\" - a popup of labels and switches): "
               "New strat, a page in Farming Strategies with chips, your copied tablets and waystone, Made for you, "
               "Atlas masters and How it goes; profit an hour comes from runs, not a typed estimate (older ones are "

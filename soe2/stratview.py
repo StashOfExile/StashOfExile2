@@ -398,7 +398,7 @@ class StratViews:
                                    self.mm_clear_filters)
         elif view == "Mine":
             head, body, btn, fn = ("No strats of your own yet", "Write down how you farm - it stays on this PC until "
-                                   "you post it.", "＋ Add my own", self.mm_add)
+                                   "you post it.", "＋ New strat", self.mm_add)
         elif view == "Community":
             if B.configured():
                 head, body, btn, fn = ("No community strats yet", "Strats other players posted show here.",

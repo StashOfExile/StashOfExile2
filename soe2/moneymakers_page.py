@@ -114,7 +114,7 @@ class MoneyMakersPage(StratViews, StratNewPage):
                          ("from", "Where strats come from: Official (comes with the app), Community (posted by "
                                   "players) or Mine (yours, on this PC)."),
                          ("more", "Clicks per hour, Content, Waystone tier and Tag."),
-                         ("filters", "Every filter, the sort and Add my own (New strat).")):
+                         ("filters", "Every filter, the sort and New strat.")):
             self.mm_drops[key] = self._mm_drop(bar, key, tip)
         self.mm_live_lbl = tk.Label(bar, text="", bg=P1, fg=C["muted"], font=("Segoe UI", 9))
         dots = tk.Label(bar, text="⋯", bg=P1, fg=C["text"], font=("Segoe UI", 12, "bold"), padx=8, pady=8,
@@ -122,7 +122,7 @@ class MoneyMakersPage(StratViews, StratNewPage):
         dots.bind("<Button-1>", lambda e: self.mm_more_menu(dots))
         Tooltip(dots, "Refresh, Import file…, your community name")
         self.mm_dots = dots
-        self.mm_add_btn = self._mm_ghost(bar, "＋ Add my own", self.mm_add)
+        self.mm_add_btn = self._mm_ghost(bar, "＋ New strat", self.mm_add)
         Tooltip(self.mm_add_btn, "New strat: write down how you farm - it stays on this PC until you post it.")
         self.mm_drops["sort"] = self._mm_drop(bar, "sort", "The order of the strats under the best one.")
         for w, side, padx in ((self.mm_drops["league"], "left", (0, 8)),
@@ -378,7 +378,7 @@ class MoneyMakersPage(StratViews, StratNewPage):
             m.add_separator()
             if self.mm_filters_on():
                 m.add_command(label="Clear filters", command=self.mm_clear_filters)
-            m.add_command(label="＋ Add my own", command=self.mm_add)
+            m.add_command(label="＋ New strat", command=self.mm_add)
             m.add_command(label="↻ Refresh", command=self.mm_refresh)
             m.add_command(label="Import file…", command=self.mm_import)
         return m
@@ -1144,7 +1144,7 @@ class MoneyMakersPage(StratViews, StratNewPage):
             self.mm_reload()
 
     def mm_add(self):
-        """＋ Add my own: New strat (stratnew.py)."""
+        """＋ New strat (stratnew.py)."""
         return self.mm_new_open(None)
 
     def mm_edit(self):
