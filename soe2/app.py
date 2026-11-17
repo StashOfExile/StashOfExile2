@@ -2661,7 +2661,10 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
                 self.last_clip, where = text, "nothing (the app's own chat command)"
             elif text and text.lstrip().startswith("Item Class:"):
                 self.last_clip = text
-                if self.topup_wants(text) and self.topup_take(text):    # 2.131.4: Top Up's copy first
+                if self.mm_new_wants(text):                  # 3.0.6: Farming Strategies › New strat is open: a
+                    self.mm_new_take_clip(text)              # tablet / waystone goes there, whichever copy key you
+                    where = "New strat"                      # pressed (Ctrl+Alt+C, Ctrl+C, the price check key)
+                elif self.topup_wants(text) and self.topup_take(text):    # 2.131.4: Top Up's copy first
                     where = "Top Up Reminders"
                 elif self.wealth_takes(text):                # Count by hand: a copied stack, while counting
                     self.wealth_clip(text)
@@ -2754,11 +2757,6 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
 
     def accept_clip(self, text):
         """Only a real Ctrl+Alt+C copy of an item we haven't already got becomes a new row."""
-        try:                                                      # 3.0.6: Farming Strategies › New strat, while it
-            if text.lstrip().startswith("Item Class:") and self.mm_new_capturing():     # shows: your tablets and
-                return self.mm_new_take_clip(text)                                      # waystone
-        except Exception:
-            buglog.caught()
         if not SETTINGS.get("listen", True):
             return
         if text.lstrip().startswith("Item Class:"):               # 2.45.0: the Strat Tracker's loot box / setup takes it

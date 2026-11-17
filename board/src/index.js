@@ -111,15 +111,15 @@ export function validateStrat(s) {
     if (!Array.isArray(it) || it.length > 30 || !it.every(okItem))
       out.push('items must be up to 30 of {"kind", "base", "name", "count" 1-1000, "lasts" 1-100, "key_mods", "mods", "rarity"}');
   }
-  // 3.0.6: the league it was made in, and the Atlas masters picked (up to RULES.master_picks of each one's choices)
+  // 3.0.6: the league it was made in, and its Atlas master (one, with up to RULES.master_picks of its choices)
   if (s.league !== undefined && !(typeof s.league === "string" && s.league.trim() && s.league.length <= 60))
     out.push("league: a league name, 60 characters at most");
   if (s.masters !== undefined) {
     const ms = s.masters, M = RULES.masters || {};
-    const ok = ms && typeof ms === "object" && !Array.isArray(ms) && Object.entries(ms).every(([k, v]) =>
+    const ok = ms && typeof ms === "object" && !Array.isArray(ms) && Object.keys(ms).length <= 1 && Object.entries(ms).every(([k, v]) =>
       k in M && Array.isArray(v) && v.length <= (RULES.master_picks || 4) && new Set(v).size === v.length &&
       v.every((x) => M[k].includes(x)));
-    if (!ok) out.push(`masters must be {master: up to ${RULES.master_picks || 4} of its choices}`);
+    if (!ok) out.push(`masters must be one master with up to ${RULES.master_picks || 4} of its choices`);
   }
   if (s.ledger !== undefined) {
     const lg = s.ledger;

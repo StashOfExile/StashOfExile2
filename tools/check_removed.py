@@ -25,6 +25,13 @@ DOCS = ("README.md", "TOS.md", "linux/README.md", "themes/README.md", "strats/RE
 
 # (version, what it was, words a person read, names in the code / settings keys[, pending])
 REMOVED = [
+    ("3.0.6", "Farming Strategies' Crafting, Trading and Other categories and their types (owner: \"this is for "
+              "farming strategies, not crafting, not trading, not flipping, not vendor recipes\" - Mapping and "
+              "Bossing; a strat of a dropped category stays on disk, out of Find); New strat's Also uses row in "
+              "More details (part 1's Mechanic takes several) and the Atlas masters' colors (one master at a time)",
+     ("Tablet crafting", "Waystone crafting", "Gear crafting", "Jewel crafting", "Flask & charm crafting",
+      "Currency flipping", "Bulk selling", "Buy low, sell high", "Vendor recipes"),
+     ()),
     ("3.0.6", "Farming Strategies: the ＋ Add my own button (one name: ＋ New strat)", ("Add my own",), ()),
     ("3.0.6", "Farming Strategies' Add my own form (owner: \"so hard to understand\" - a popup of labels and switches): "
               "New strat, a page in Farming Strategies with chips, your copied tablets and waystone, Made for you, "

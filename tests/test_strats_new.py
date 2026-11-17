@@ -48,22 +48,37 @@ NOW = TF.strat("rites-breach", "Rites breach strat", patch="0.5.5")
 
 
 class Data(unittest.TestCase):
-    def test_masters_max_four(self):
+    def test_masters_one_master_max_four(self):
         ms = {}
         m = "Hilda's Hunting"
-        for c in MM.MASTERS[m]["choices"][:4]:
+        for c in MM.MASTERS[m][:4]:
             ms, what = MM.master_pick(ms, m, c)
             self.assertEqual(what, "on")
-        ms2, what = MM.master_pick(ms, m, MM.MASTERS[m]["choices"][4])
+        ms2, what = MM.master_pick(ms, m, MM.MASTERS[m][4])
         self.assertEqual(what, "full", "a 5th pick does nothing")
         self.assertEqual(ms2, ms)
-        ms3, what = MM.master_pick(ms, m, MM.MASTERS[m]["choices"][0])
+        ms3, what = MM.master_pick(ms, m, MM.MASTERS[m][0])
         self.assertEqual((what, len(ms3[m])), ("off", 3))
+        ms4, what = MM.master_pick(ms, "Jado's Spycraft", "Long Days")
+        self.assertEqual((what, ms4), ("switch", {"Jado's Spycraft": ["Long Days"]}), "one master: the old picks go")
         self.assertTrue(MM.masters_ok(ms))
-        self.assertFalse(MM.masters_ok({m: list(MM.MASTERS[m]["choices"][:5])}), "5 of one master")
+        self.assertFalse(MM.masters_ok({m: list(MM.MASTERS[m][:5])}), "5 of one master")
         self.assertFalse(MM.masters_ok({m: ["Not a choice"]}))
+        self.assertFalse(MM.masters_ok({m: ["Mighty Prey"], "Jado's Spycraft": ["Long Days"]}), "two masters")
         self.assertIn("masters", MM.validate(dict(NOW, masters={"Nobody": ["x"]}))[0])
-        self.assertEqual([len(d["choices"]) for d in MM.MASTERS.values()], [12, 12, 12])
+        self.assertEqual([len(d) for d in MM.MASTERS.values()], [12, 12, 12])
+        self.assertEqual(MM.MASTERS["Doryani's Science"][:6], ("Evolutionary Pressure", "Stitch the Flesh",
+                                                               "Refined Formula", "Disengaged Safeties",
+                                                               "Improved Calibration", "Careful Procurement"),
+                         "the game's order: 3 across, 4 down")
+
+    def test_farming_only(self):
+        self.assertEqual(MM.CATEGORIES, ("Mapping", "Bossing"))
+        crafting = dict(NOW, id="craft", category="Crafting", type="Tablet crafting")
+        self.assertFalse(MM.is_farming(crafting))
+        self.assertTrue(MM.validate(crafting), "not in the layout any more")
+        old = {"id": "old-craft", "name": "x", "category": "Crafting", "clicks_per_hour": 600, "steps": ["a"]}
+        self.assertEqual(MM.migrate(old)["category"], "Crafting", "migrate maps nothing silently")
 
     def test_league_of(self):
         self.assertEqual(MM.LEAGUE_VERSIONS["Forbidden Rites"], "0.5.5")
@@ -247,15 +262,52 @@ class Page(unittest.TestCase):
         a.mm_add()
         self.pump()
         m = "Jado's Spycraft"
-        for c in MM.MASTERS[m]["choices"][:4]:
+        for c in MM.MASTERS[m][:4]:
             self.assertEqual(a.mm_new_master(m, c), "on")
-        self.assertEqual(a.mm_new_master(m, MM.MASTERS[m]["choices"][5]), "full")
+        self.assertEqual(a.mm_new_master(m, MM.MASTERS[m][5]), "full")
         self.assertEqual(len(a.mm_nd["masters"][m]), 4)
         self.assertTrue(any("4 of 4 used" in x for x in a.said))
         self.pump()
-        self.assertIn("4 of 4 used", a.mm_new_cv.tips.get("nw_ms_2_5", ""))
-        a.mm_new_cv.acts["nw_mclear"]()
+        cv = a.mm_new_cv
+        self.assertIn("4 of 4 used", cv.tips.get("nw_ms_2_5", ""))
+        self.assertIn("nw_mtab_0", cv.acts, "one master at a time: a tab each")
+        self.assertNotIn("nw_ms_0_0", cv.acts, "only the shown master's choices")
+        cv.acts["nw_mtab_0"]()
+        self.pump()
+        self.assertIn("nw_mswitch", cv.find_all() and [t_ for i in cv.find_all() for t_ in cv.gettags(i)],
+                      "says that ticking here switches the master")
+        self.assertEqual(a.mm_new_master("Doryani's Science", "Refined Formula"), "switch")
+        self.assertEqual(a.mm_nd["masters"], {"Doryani's Science": ["Refined Formula"]}, "one master a strat")
+        self.pump()
+        cv.acts["nw_mclear"]()
         self.assertEqual(a.mm_nd["masters"], {})
+
+    def test_mechanics_multi(self):
+        a = self.app
+        a.mm_add()
+        for t_ in ("Breach", "Delirium", "Ritual"):
+            a.mm_new_pick("mech", t_)
+        self.assertEqual((a.mm_nd["typ"], a.mm_nd["also"]), ("Breach", ["Delirium", "Ritual"]), "the first is main")
+        a.mm_new_pick("mech", "Breach")
+        self.assertEqual((a.mm_nd["typ"], a.mm_nd["also"]), ("Delirium", ["Ritual"]), "the next becomes main")
+        a.mm_new_pick("mech", "Juiced mapping")
+        self.assertEqual((a.mm_nd["typ"], a.mm_nd["also"]), ("Juiced mapping", ["Delirium", "Ritual"]))
+        self.pump()
+        cv = a.mm_new_cv
+        words = [cv.itemcget(i, "text") for i in cv.find_all() if cv.type(i) == "text"]
+        self.assertIn("✓ Delirium", words)
+        self.assertTrue(any(w.startswith("Main: Juiced mapping · also uses Delirium, Ritual") for w in words))
+        a.mm_nw["name"].var.set("Juiced")
+        a.mm_nw["steps"][0].var.set("Go.")
+        out = a.mm_new_save()
+        self.assertEqual(out["type"], "Juiced mapping")
+        self.assertEqual([x for x in out["tags"] if x in MM.TAG_GROUPS["Also uses"]], ["Delirium", "Ritual"])
+        a.mm_edit()
+        self.assertEqual((a.mm_nd["typ"], a.mm_nd["also"]), ("Juiced mapping", ["Delirium", "Ritual"]))
+        a.mm_new_more()
+        self.pump()
+        self.assertFalse([t_ for t_ in a.mm_new_cv.acts if t_.startswith("nw_tag_Also uses")],
+                         "Also uses is part 1's Mechanic, not a More details row")
 
     def test_copies(self):
         a = self.app
@@ -281,21 +333,75 @@ class Page(unittest.TestCase):
         self.pump()
         self.assertFalse(a.mm_new_capturing(), "closed: copies go where they always went")
 
-    def test_accept_clip_routes_here(self):
+    def test_copy_key_reaches_new_strat(self):
+        """The owner's case: Top Up's key is Ctrl+C, the price check key Ctrl+D, listen on - a plain Ctrl+C, a
+        Ctrl+Alt+C or Ctrl+D on a tablet while New strat is open lands there (through clip_read_once: one read)."""
+        from soe2 import clipread
         from soe2.app import App
         from soe2.utilities_page import UtilitiesPage
-        got = []
-        fake = types.SimpleNamespace(mm_new_capturing=lambda: True, mm_new_take_clip=got.append)
-        App.accept_clip(fake, TABLET)
-        self.assertEqual(got, [TABLET], "while New strat shows, a Ctrl+Alt+C copy goes to it")
+        a = self.app
+        a.mm_add()
+        self.pump()
+        logged = []
+        keys = types.SimpleNamespace(active=True, combo_recent=lambda *x: False, copy_recent=lambda *x: True,
+                                     pc_recent=lambda *x: False, tu_recent=lambda *x: False, hook_stale=lambda *x: False)
+        a.keys = keys
+        a.last_clip, a.own_clip, a.records = "", "", {}
+        a._clip_ignored = lambda text: False
+        a.topup_wants = lambda text: True                # (Top Up's key is Ctrl+C: it would take it - but after us)
+        a.topup_take = lambda text: False
+        a.wealth_takes = lambda text: False
+        a.pc_wants = lambda text: True                   # (Ctrl+D: Price Checks would take it)
+        a.pc_take = lambda text: logged.append("priced")
+        a.gate_ok = lambda text: False                   # (a plain Ctrl+C isn't Bulk Pricing's)
+        a.accept_clip = lambda text: logged.append("bulk")
+        old_reader, old_logger = clipread.READER[0], clipread.LOGGER[0]
+        clipread.LOGGER[0] = logged.append
+        try:
+            for key, text in (("Ctrl+C", TABLET), ("Ctrl+Alt+C", TABLET2), ("Ctrl+D", WAY)):
+                clipread.READER[0] = lambda text=text: text
+                gid = clipread.grant(key, hold=key)
+                clipread.release(key)
+                self.assertEqual(App.clip_read_once(a, gid), "New strat", key)
+            self.assertEqual(len(a.mm_nd["cards"]), 2)
+            self.assertEqual(a.mm_nd["way"]["base"], "Waystone (Tier 15)")
+            self.assertIn("Ctrl+C pressed: read the clipboard once for New strat", logged)
+            self.assertNotIn("priced", logged)
+            clipread.READER[0] = lambda: "Item Class: Rings\nRarity: Rare\nX\nRuby Ring\n--------\n"
+            gid = clipread.grant("Ctrl+D", hold="Ctrl+D")
+            clipread.release("Ctrl+D")
+            self.assertEqual(App.clip_read_once(a, gid), "Price Checks", "not a tablet: where it always went")
+            a.mm_new_close()
+            clipread.READER[0] = lambda: TABLET
+            gid = clipread.grant("Ctrl+D", hold="Ctrl+D")
+            clipread.release("Ctrl+D")
+            self.assertEqual(App.clip_read_once(a, gid), "Price Checks", "closed: nothing for New strat")
+        finally:
+            clipread.READER[0], clipread.LOGGER[0] = old_reader, old_logger
+        # the key watcher hears a plain Ctrl+C while it's open (Top Up off, listen off)
         listen = SETTINGS.get("listen", True)
         try:
             SETTINGS["listen"] = False
-            fake2 = types.SimpleNamespace(w_counting=False, fd_capturing=lambda: False, fl_capturing=lambda: False,
-                                          fl_ed_open=lambda: False, mm_new_capturing=lambda: True)
-            self.assertTrue(UtilitiesPage.clip_wanted(fake2, True), "its copy key press is heard")
+            on = types.SimpleNamespace(w_counting=False, fd_capturing=lambda: False, fl_capturing=lambda: False,
+                                       fl_ed_open=lambda: False, mm_new_capturing=lambda: True,
+                                       topup_key_is_copy=lambda: False, mp_on=lambda: False)
+            self.assertTrue(UtilitiesPage.clip_wanted(on, True), "Ctrl+Alt+C")
+            self.assertTrue(UtilitiesPage.clip_wanted(on, False), "plain Ctrl+C")
         finally:
             SETTINGS["listen"] = listen
+
+    def test_modifiers_synced_on_c(self):
+        """Ctrl+Alt+C heard as Ctrl+C: a missed Alt key-down left Alt "up"; on C, Windows' own state wins."""
+        from soe2.winsys import KeyWatch
+        k = KeyWatch()
+        k.feed(0xA2, True, False)                        # Ctrl down; Alt's key-down never reached the hook
+        user32 = types.SimpleNamespace(GetAsyncKeyState=lambda vk: 0x8000 if vk in (0x11, 0x12) else 0)
+        k.sync_mods(user32)
+        seen = []
+        k.listener = lambda vk, c, a_, s: seen.append((vk, c, a_, s)) and False
+        k.feed(0x43, True, False)
+        self.assertEqual(seen[-1], (0x43, True, True, False))
+        self.assertGreater(k.combo_time, 0, "a Ctrl+Alt+C")
 
     def test_save_edit_round_trip(self):
         a = self.app

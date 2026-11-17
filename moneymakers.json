@@ -1,19 +1,8 @@
 {
  "schema": 2,
- "revision": 4,
+ "revision": 5,
  "strats": [],
- "oneliners": [
-  {
-   "id": "perfect-trans-aug-white-bases",
-   "text": "Perfect Trans + Perfect Aug all white ilvl 80+ bases, look for 2 good mods worth something, then price and list it.",
-   "author": "StashOfExile2",
-   "category": "Crafting",
-   "type": "Gear crafting",
-   "tags": [
-    "Low budget"
-   ]
-  }
- ],
+ "oneliners": [],
  "content": {
   "Pinnacle & bosses": [
    "Arbiter of Ash",

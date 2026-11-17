@@ -29,15 +29,20 @@ LIVE_EVERY = 12 * 3600
 
 # ---- what a strat IS: one category and one type inside it (2.28.0: "Mapping > Breach" - the strat is Breach farming,
 # done while mapping). Fixed lists, so every guide uses the same words and the browser can group them.
+# 3.0.6 (owner: "this is for farming strategies, not crafting, not trading, not flipping, not vendor recipes"): farming
+# only - Mapping and Bossing. A strat of a category that was dropped (Crafting, Trading, Other) stays on disk as it is
+# and doesn't show in Find (is_farming); nothing maps it to another category.
 TAXONOMY = {
     "Mapping": ("Breach", "Delirium", "Ritual", "Expedition", "Abyss", "Essence", "Strongbox", "Rogue Exiles",
                 "Shrines", "Overseer", "Temple", "Juiced mapping", "Alch & go"),
     "Bossing": ("Pinnacle bosses", "Map bosses", "Simulacrum", "Trial of the Sekhemas", "Trial of Chaos"),
-    "Crafting": ("Tablet crafting", "Waystone crafting", "Gear crafting", "Jewel crafting", "Flask & charm crafting"),
-    "Trading": ("Currency flipping", "Bulk selling", "Buy low, sell high", "Services"),
-    "Other": ("Vendor recipes", "Gold", "Other"),
 }
 CATEGORIES = tuple(TAXONOMY)
+
+
+def is_farming(s):
+    """A strat of one of today's categories (the rest stay on disk, out of Find)."""
+    return s.get("category") in TAXONOMY and s.get("type") in TAXONOMY[s["category"]]
 # ---- tags: everything else about it, in groups (checkboxes). The type above is the main thing; "Also uses" are the
 # other mechanics in the same maps. Searching a tag finds both (Breach finds Mapping > Breach and strats that also
 # use Breach).
@@ -200,7 +205,7 @@ def validate(s):
     if lg is not None and (not isinstance(lg, str) or not lg.strip() or len(lg) > 60):
         out.append("league: a league name, 60 characters at most")
     if s.get("masters") is not None and not masters_ok(s["masters"]):
-        out.append(f"masters must be {{master: up to {MASTER_PICKS} of its choices}} - " + ", ".join(MASTERS))
+        out.append(f"masters must be one master with up to {MASTER_PICKS} of its choices - " + ", ".join(MASTERS))
     img = s.get("atlas_image")                # 2.78.0: a screenshot of the atlas (l: on this PC, b: on the board)
     if img is not None and not (isinstance(img, str) and re.fullmatch(r"(l:[A-Za-z0-9._-]{1,80}|b:[0-9a-f]{32})", img)):
         out.append("atlas_image must be \"b:<board image id>\" (or \"l:<file>\" on your PC)")
@@ -278,10 +283,8 @@ def migrate(s):
     if cat in _OLD_MECH_CATS:
         s["category"], s["type"] = "Mapping", cat
     elif cat in TAXONOMY:
-        s.setdefault("type", {"Mapping": "Juiced mapping", "Bossing": "Map bosses", "Crafting": "Gear crafting",
-                              "Trading": "Buy low, sell high"}.get(cat, "Other"))
-    else:
-        s["category"], s["type"] = "Other", "Other"
+        s.setdefault("type", {"Mapping": "Juiced mapping", "Bossing": "Map bosses"}[cat])
+    # (any other category is left as it was: not a farming strat - kept on disk, not shown; 3.0.6)
     if not isinstance(s.get("clicks_per_hour"), str) or s["clicks_per_hour"] not in CLICKS:
         s["clicks_per_hour"] = click_band(s.get("clicks_per_hour", 600)) or "Steady"
     for old, new in (("profit_per_hour", "est_profit"), ("investment", "est_cost")):
@@ -550,45 +553,52 @@ def league_of(s):
     return f"Game {p}" if p and p != "?" else "Unknown game version"
 
 
-# Atlas masters (the atlas' three masters): up to 4 of each one's 12 choices. Shipped with the data model, like
-# TAXONOMY. role = the theme color it is drawn in (color: the mockup's, for reference); never the color alone - each
-# shows its name, a dot and "N of 4".
+# Atlas masters: the strat runs with ONE of the atlas' three masters, and up to 4 of its 12 choices. Shipped with the
+# data model, like TAXONOMY; each master's choices in the game's order (its grid: 3 across, 4 down).
 MASTER_PICKS = 4
+MASTER_COLS = 3
 MASTERS = {
-    "Doryani's Science": {"role": "bad", "color": "#ff6b5e", "choices": (
-        "Evolutionary Pressure", "Stitch the Flesh", "Refined Formula", "Disengaged Safeties", "Improved Calibration",
-        "Careful Procurement", "Mechanical Guardians", "Hidden Patterns", "Volatile Connection", "Head of the Snake",
-        "Dam the River", "Remnants of Greatness")},
-    "Hilda's Hunting": {"role": "link", "color": "#6cb8ff", "choices": (
-        "Breeding Season", "Mighty Prey", "Scarred Lands", "Soul Eaters", "Dangerous Game", "Will of the Draíocht",
-        "Lethal Adaptation", "Call of the Spirits", "Ancient Inscriptions", "Gutting and Skinning",
-        "Claimed Territories", "Patient Battue")},
-    "Jado's Spycraft": {"role": "money", "color": "#f2c55c", "choices": (
-        "Unexpected Missions", "In the Wrong Hands", "Trove Seekers", "Mysterious Gifts", "Eastern Knowledge",
-        "Unforeseen Threats", "Partial Translations", "Long Days", "Stolen Relics", "Ancient Activations",
-        "Keen Appraisal", "Untold Histories")},
+    "Doryani's Science": ("Evolutionary Pressure", "Stitch the Flesh", "Refined Formula", "Disengaged Safeties",
+                          "Improved Calibration", "Careful Procurement", "Mechanical Guardians", "Hidden Patterns",
+                          "Volatile Connection", "Head of the Snake", "Dam the River", "Remnants of Greatness"),
+    "Hilda's Hunting": ("Breeding Season", "Mighty Prey", "Scarred Lands", "Soul Eaters", "Dangerous Game",
+                        "Will of the Draíocht", "Lethal Adaptation", "Call of the Spirits", "Ancient Inscriptions",
+                        "Gutting and Skinning", "Claimed Territories", "Patient Battue"),
+    "Jado's Spycraft": ("Unexpected Missions", "In the Wrong Hands", "Trove Seekers", "Mysterious Gifts",
+                        "Eastern Knowledge", "Unforeseen Threats", "Partial Translations", "Long Days", "Stolen Relics",
+                        "Ancient Activations", "Keen Appraisal", "Untold Histories"),
 }
 
 
 def masters_ok(ms):
-    return isinstance(ms, dict) and all(
+    return isinstance(ms, dict) and len(ms) <= 1 and all(
         k in MASTERS and isinstance(v, list) and len(v) <= MASTER_PICKS and len(set(v)) == len(v)
-        and all(x in MASTERS[k]["choices"] for x in v) for k, v in ms.items())
+        and all(x in MASTERS[k] for x in v) for k, v in ms.items())
+
+
+def master_of(ms):
+    """-> (the strat's master or None, its picks)."""
+    for k, v in (ms or {}).items():
+        if v:
+            return k, list(v)
+    return None, []
 
 
 def master_pick(ms, master, choice):
-    """Tick / untick one choice -> (new masters, what happened: "on", "off" or "full" - 4 of 4 used, nothing)."""
-    ms = {k: list(v) for k, v in (ms or {}).items()}
-    cur = ms.setdefault(master, [])
-    if choice in cur:
-        cur.remove(choice)
+    """Tick / untick one choice -> (new masters, what happened): "on", "off", "full" (4 of 4 used: nothing) or
+    "switch" (a choice of another master: the strat's master is that one now - the old picks are cleared)."""
+    cur, picks = master_of(ms)
+    if cur not in (None, master):
+        return {master: [choice]}, "switch"
+    if choice in picks:
+        picks.remove(choice)
         what = "off"
-    elif len(cur) >= MASTER_PICKS:
-        what = "full"
+    elif len(picks) >= MASTER_PICKS:
+        return ({cur: picks} if cur else {}), "full"
     else:
-        cur.append(choice)
+        picks.append(choice)
         what = "on"
-    return {k: v for k, v in ms.items() if v}, what
+    return ({master: picks} if picks else {}), what
 
 
 def masters_count(ms):
@@ -845,7 +855,7 @@ def to_text(s=None):
            "# Checkboxes: put an x in the box, [x], for each one that applies (one in each [ ] group of Type,",
            "# Thinking and Clicks per hour; as many Tags as fit).",
            "# Needed: Name, Author, Summary, Category + Type, Thinking, Clicks per hour, Steps.",
-           "# Atlas masters: one \"- master: choice, choice\" line each (up to 4 choices).",
+           "# Atlas masters: ONE master - its \"- master: choice, choice\" line (up to 4 choices); leave the rest empty.",
            "# Items: one \"- kind | base | name | uses\" line per tablet or waystone, then a [x] line for each mod",
            "# that matters and a [ ] line for the rest.", ""]
     for key, label in TXT_FIELDS:
@@ -1281,7 +1291,7 @@ def to_csv(s=None):
             w.writerow(("master", master, c, ""))
     if not s:
         for master, d in MASTERS.items():
-            w.writerow(("master", master, "", f"up to {MASTER_PICKS} of: " + " | ".join(d["choices"])))
+            w.writerow(("master", master, "", f"one master; up to {MASTER_PICKS} of: " + " | ".join(d)))
     for k in LEDGER_FIELDS:
         if k in (s.get("ledger") or {}):
             w.writerow(("ledger", k, f"{s['ledger'][k]:g}", "from the Strat Tracker"))

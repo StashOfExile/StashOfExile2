@@ -246,6 +246,17 @@ class KeyWatch:
             except Exception:
                 buglog.caught()
 
+    def sync_mods(self, user32):
+        """3.0.6 (feedback: Ctrl+Alt+C was heard as Ctrl+C): the modifiers' state comes from key-downs and key-ups the
+        hook saw - one missed (Windows skips a hook that answered too slowly in a busy moment) left Alt "up" for good.
+        On C's key-down, Windows' own state of Ctrl, Alt and Shift is taken instead (GetAsyncKeyState: the keys as they
+        are now - no clipboard, no screen)."""
+        try:
+            down = lambda vk: bool(user32.GetAsyncKeyState(vk) & 0x8000)       # noqa: E731
+            self.ctrl, self.alt, self.shift = down(0x11), down(0x12), down(0x10)
+        except Exception:
+            buglog.caught()
+
     def combo_recent(self, secs=1.5):
         return time.time() - self.combo_time < secs
 
@@ -283,8 +294,11 @@ class KeyWatch:
                         k = ctypes.cast(l, ctypes.POINTER(KBD)).contents
                         if k.flags & 0x10:                          # 0x10 = injected by a program, not your keyboard
                             self.last_inj = time.time()
-                        elif self.feed(k.vkCode, w in (0x100, 0x104), w in (0x101, 0x105)):
-                            return 1                                # the key did something: the game doesn't get it
+                        else:
+                            if k.vkCode == 0x43 and w in (0x100, 0x104):
+                                self.sync_mods(user32)              # (3.0.6: C down - Ctrl / Alt / Shift as they are)
+                            if self.feed(k.vkCode, w in (0x100, 0x104), w in (0x101, 0x105)):
+                                return 1                            # the key did something: the game doesn't get it
                 except Exception:
                     buglog.caught()
                 return user32.CallNextHookEx(None, n, w, l)

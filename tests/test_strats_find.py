@@ -45,7 +45,7 @@ STRATS = [strat("breach-t15", "Breach in juiced T15 maps", profit=(1.1, 3.6),
                        {"kind": "tablet", "base": "Breach Tablet", "count": 4}],
                 ledger={"runs": 38, "minutes": 408, "loot_per_run_div": 1.03, "cost_per_run_div": 0.6,
                         "div_per_hour": 2.4}),
-          strat("tablet-craft", "Tablet crafting for sale", typ="Tablet crafting", cat="Crafting", profit=(1.2, 2.2)),
+          strat("simulacrum-runs", "Simulacrum runs", typ="Simulacrum", cat="Bossing", profit=(1.2, 2.2)),
           strat("essence-low", "Essence farming, low tier", typ="Essence", tags=("League start",), profit=(0.5, 1.1))]
 
 
@@ -89,7 +89,7 @@ class Icons(unittest.TestCase):
 class Numbers(unittest.TestCase):
     def test_mechanic_and_tablet(self):
         self.assertEqual(MM.tablet_of(STRATS[0]), "Breach Tablet")
-        self.assertEqual(MM.tablet_of(STRATS[1]), "Irradiated Tablet", "crafting: the generic tablet")
+        self.assertEqual(MM.tablet_of(STRATS[1]), "Irradiated Tablet", "bossing: the generic tablet")
         self.assertEqual(MM.tablet_of(STRATS[2]), "Irradiated Tablet")
         juiced = strat("j", "Juiced", typ="Juiced mapping", tags=("Delirium", "Mid budget"))
         self.assertEqual(MM.tablet_of(juiced), "Delirium Tablet", "a mechanic it also uses")
@@ -196,6 +196,7 @@ class Page(unittest.TestCase):
     def setUp(self):
         from soe2.config import SETTINGS
         SETTINGS["league"] = ""                           # (no league set: Find shows All leagues)
+        save_json(MM.MINE, [])                            # (From: All shows yours too - none here)
         save_json(MM.FILE, {"schema": MM.SCHEMA, "revision": 999, "strats": STRATS,
                             "oneliners": [{"id": "tip-one", "author": "A", "text": "Sell splinters in 100s."},
                                           {"id": "tip-two", "author": "B", "text": "Buy waystones in bulk."}]})
@@ -235,7 +236,7 @@ class Page(unittest.TestCase):
         self.assertEqual([r["s"]["id"] for r in self.app.mm_find_rows], ["essence-low"])
         self.assertIn("clear", self.app.mm_find_cv.acts, "Clear filters shows while a filter is on")
         self.assertIn("League start", self.app.mm_drops["budget"].cget("text"))
-        self.app.mm_filter("Crafting")
+        self.app.mm_filter("Bossing", "Map bosses")
         self.pump()
         self.assertEqual(self.app.mm_find_rows, [])
         self.assertIn("empty_btn", self.app.mm_find_cv.acts, "empty: what it is + one button")

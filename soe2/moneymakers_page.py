@@ -13,13 +13,13 @@ from . import board as B
 from . import moneymakers as MM
 from .config import SETTINGS, save_json
 from .style import over_app
-from .style import C, SegBar, Tooltip
+from .style import C, SegBar, Tooltip, menu_popup
 from .chrome import section as chrome_section
 from .stratview import StratViews, scroller
 from .stratnew import StratNewPage
 
 ORIGIN = {"community": "Official", "mine": "Mine", "example": "Example", "board": "Community"}
-VIEWS = ("Official", "Community", "Mine")
+VIEWS = ("All", "Official", "Community", "Mine")             # 3.0.6: All by default (yours show with the rest)
 CARD_SORT = {"Per hour": ("profit", True), "Upvotes": ("score", True), "Easiest": ("thoughts_per_click", False),
              "Name": ("name", False)}                         # 2.71.0: the Sort (3.0.6: Profit is Per hour)
 TABS = ("Find", "Strat Tracker")                              # 3.0.6: Find (was Strats); Quick tips fold into it
@@ -69,7 +69,7 @@ class MoneyMakersPage(StratViews, StratNewPage):
         # the filters (what they hold is unchanged: 2.71.0 / 2.78.0); 3.0.6: each is one dropdown on one line
         self.mm_q = tk.StringVar()
         self.mm_q.trace_add("write", lambda *_a: self.root.after_idle(self.mm_fill))
-        self.mm_view = tk.StringVar(value="Official")        # where the strats come from (2.30.0)
+        self.mm_view = tk.StringVar(value="All")             # where the strats come from (2.30.0; 3.0.6: All)
         self.mm_league = tk.StringVar(value=self.mm_league_default())    # 3.0.6: your league first
         self._mm_league_touched = False
         self.mm_budget = tk.StringVar(value="Any")
@@ -105,26 +105,23 @@ class MoneyMakersPage(StratViews, StratNewPage):
         self.mm_q.trace_add("write", placeholder)
         se.after(300, placeholder)                           # (gone with the box)
         self.mm_drops = {}
-        for key, tip in (("league", "Which league's strats show: yours (Settings) or All leagues. A strat without "
-                                    "a league goes by its game version."),
-                         ("budget", "What a strat costs to start - a strat's Budget tag."),
-                         ("effort", "Effort: how much thinking a strat needs - a pick shows that level and the "
-                                    "easier ones."),
-                         ("type", "What a strat is: its category, then its type."),
-                         ("from", "Where strats come from: Official (comes with the app), Community (posted by "
-                                  "players) or Mine (yours, on this PC)."),
-                         ("more", "Clicks per hour, Content, Waystone tier and Tag."),
-                         ("filters", "Every filter, the sort and New strat.")):
+        for key, tip in (("league", "Your league's strats, or All leagues."),       # 3.0.6: short (owner)
+                         ("budget", "What a strat costs to start."),
+                         ("effort", "How much thinking a strat needs."),
+                         ("type", "Mapping or Bossing, and its mechanic."),
+                         ("from", "Official, Community, Mine - or All."),
+                         ("more", "Clicks per hour, content, waystone tier, tag."),
+                         ("filters", "Every filter and the sort.")):
             self.mm_drops[key] = self._mm_drop(bar, key, tip)
         self.mm_live_lbl = tk.Label(bar, text="", bg=P1, fg=C["muted"], font=("Segoe UI", 9))
         dots = tk.Label(bar, text="⋯", bg=P1, fg=C["text"], font=("Segoe UI", 12, "bold"), padx=8, pady=8,
                         cursor="hand2", highlightthickness=1, highlightbackground=C["line"])
         dots.bind("<Button-1>", lambda e: self.mm_more_menu(dots))
-        Tooltip(dots, "Refresh, Import file…, your community name")
+        Tooltip(dots, "Refresh, Import file…, community name")
         self.mm_dots = dots
         self.mm_add_btn = self._mm_ghost(bar, "＋ New strat", self.mm_add)
-        Tooltip(self.mm_add_btn, "New strat: write down how you farm - it stays on this PC until you post it.")
-        self.mm_drops["sort"] = self._mm_drop(bar, "sort", "The order of the strats under the best one.")
+        Tooltip(self.mm_add_btn, "Write down how you farm.")
+        self.mm_drops["sort"] = self._mm_drop(bar, "sort", "The order of the list.")
         for w, side, padx in ((self.mm_drops["league"], "left", (0, 8)),
                               (self.mm_drops["budget"], "left", (0, 8)), (self.mm_drops["effort"], "left", (0, 8)),
                               (self.mm_drops["type"], "left", (0, 8)), (self.mm_drops["from"], "left", (0, 8)),
@@ -149,12 +146,14 @@ class MoneyMakersPage(StratViews, StratNewPage):
         self.mm_account_paint()
 
     def _mm_ghost(self, parent, text, cmd):
-        """A secondary (outlined) button for the toolbar."""
+        """A secondary (outlined) button for the toolbar. (Its hover edge goes back to b._edge - the dropdowns set it -
+        and its bindings are added, never replaced: replacing <Leave> took the tooltip's away, and every tip stayed.)"""
         b = tk.Label(parent, text=text, bg=C["panel"], fg=C["text"], font=("Segoe UI", 10), padx=12, pady=8,
                      cursor="hand2", highlightthickness=1, highlightbackground=C["line"])
-        b.bind("<Button-1>", lambda e: cmd())
-        b.bind("<Enter>", lambda e: b.config(highlightbackground=C["muted"]))
-        b.bind("<Leave>", lambda e: b.config(highlightbackground=C["line"]))
+        b._edge = C["line"]
+        b.bind("<Button-1>", lambda e: cmd(), add="+")
+        b.bind("<Enter>", lambda e: b.config(highlightbackground=C["muted"]), add="+")
+        b.bind("<Leave>", lambda e: b.config(highlightbackground=getattr(b, "_edge", C["line"])), add="+")
         return b
 
     def _mm_drop(self, parent, key, tip):
@@ -242,13 +241,13 @@ class MoneyMakersPage(StratViews, StratNewPage):
             return
         lg = self.mm_league.get()
         n_on = sum((self.mm_budget.get() != "Any", self.mm_max.get() != "Any", bool(self.mm_cat.get()),
-                    self.mm_view.get() != "Official", lg != MM.ALL_LEAGUES)) + self.mm_more_count()
+                    self.mm_view.get() != "All", lg != MM.ALL_LEAGUES)) + self.mm_more_count()
         n_more = self.mm_more_count()
         texts = {"league": ("League", lg, lg != MM.ALL_LEAGUES),
                  "budget": ("Budget", self.mm_budget.get(), self.mm_budget.get() != "Any"),
                  "effort": ("Effort", self.mm_max.get(), self.mm_max.get() != "Any"),
                  "type": ("Type", self.mm_type_word(), bool(self.mm_cat.get())),
-                 "from": ("From", self.mm_view.get(), self.mm_view.get() != "Official"),
+                 "from": ("From", self.mm_view.get(), self.mm_view.get() != "All"),
                  "more": ("More", f"{n_more} on" if n_more else "", bool(n_more)),
                  "filters": ("Filters", f"· {n_on}" if n_on else "", bool(n_on)),
                  "sort": ("Sort", self.mm_csort.get(), False)}
@@ -257,11 +256,11 @@ class MoneyMakersPage(StratViews, StratNewPage):
             if b is None:
                 continue
             try:
+                b._edge = C["accent"] if on else C["line"]
                 b.config(text=f"{name}{':' if val and not val.startswith('·') and key not in ('more',) else ''}"
                               f"{' ' + val if val else ''}  ▾",
-                         font=("Segoe UI", 10, "bold" if on else "normal"),
-                         highlightbackground=C["accent"] if on else C["line"], fg=C["text"])
-                b.bind("<Leave>", lambda e, b=b, on=on: b.config(highlightbackground=C["accent"] if on else C["line"]))
+                         font=("Segoe UI", 10, "bold" if on else "normal"), highlightbackground=b._edge,
+                         fg=C["text"])
             except tk.TclError:
                 pass
 
@@ -270,15 +269,15 @@ class MoneyMakersPage(StratViews, StratNewPage):
                        selectcolor=C["accent"])
 
     def mm_drop_menu(self, key, at=None):
-        """A dropdown's menu (radio items: the picked one has its mark)."""
+        """A dropdown's menu (radio items: the picked one has its mark). No tooltip while it's open."""
         m = self._mm_menu()
         self._mm_fill_menu(m, key)
         b = at or self.mm_drops.get(key)
+        self.mm_last_menu = m
         try:
-            m.tk_popup(b.winfo_rootx(), b.winfo_rooty() + b.winfo_height())
+            menu_popup(m, b.winfo_rootx(), b.winfo_rooty() + b.winfo_height())
         except (AttributeError, tk.TclError):
             pass
-        self.mm_last_menu = m
         return m
 
     def _mm_count(self, pred):
@@ -286,12 +285,13 @@ class MoneyMakersPage(StratViews, StratNewPage):
 
     def _mm_fill_menu(self, m, key):
         go = self.mm_filters_changed
-        if key == "league":
+        if key == "league":                              # (the counts: what each choice would show, other filters on)
+            rows = self.mm_rows(league=MM.ALL_LEAGUES)
             have = {}
-            for s in self.mm_strats:
+            for s in rows:
                 have[MM.league_of(s)] = have.get(MM.league_of(s), 0) + 1
             mine = self.mm_league_default()
-            m.add_radiobutton(label=f"{MM.ALL_LEAGUES}  ({len(self.mm_strats)})", variable=self.mm_league,
+            m.add_radiobutton(label=f"{MM.ALL_LEAGUES}  ({len(rows)})", variable=self.mm_league,
                               value=MM.ALL_LEAGUES, command=lambda: self.mm_league_set(MM.ALL_LEAGUES))
             m.add_separator()
             names = ([mine] if mine != MM.ALL_LEAGUES else []) + sorted(x for x in have if x != mine)
@@ -460,19 +460,28 @@ class MoneyMakersPage(StratViews, StratNewPage):
         return d if isinstance(d, dict) else {}
 
     def mm_view_list(self):
+        """The strats of From: Official (with the app and promoted), Community (the board), Mine - or All of them
+        (3.0.6, the default: each row says where it comes from)."""
         view = self.mm_view.get()
+        board = list(self.mm_board) if B.configured() else []
         if view == "Community":
-            return list(self.mm_board) if B.configured() else []
+            return board
         local = MM.all_strats()
         if view == "Mine":
             return [s for s in local if s["origin"] == "mine"]
         have = {s["id"] for s in local}
         promoted = [dict(s, origin="community") for s in self.mm_official.get("strats") or []
                     if not MM.validate(s) and s.get("id") not in have]
-        return [s for s in local if s["origin"] != "mine"] + promoted
+        official = [s for s in local if s["origin"] != "mine"] + promoted
+        if view != "All":
+            return official
+        seen = {s["id"] for s in official}
+        mine = [s for s in local if s["origin"] == "mine"]
+        return official + [p for p in board if p.get("id") not in seen and not (p.get("_post") or {}).get("promoted")] \
+            + mine
 
     def mm_view_changed(self):
-        if self.mm_view.get() == "Community":
+        if self.mm_view.get() in ("Community", "All"):
             self.mm_board_fetch()
         self.mm_sel = None
         self.mm_one_sel = None
@@ -483,17 +492,21 @@ class MoneyMakersPage(StratViews, StratNewPage):
         self.mm_strats = self.mm_view_list()
         self.mm_fill(keep)
 
-    def mm_rows(self):
+    def mm_rows(self, league=None):
+        """The strats the search and filters show (league: count for that League choice instead). 3.0.6: farming
+        strats only - one of a dropped category stays on disk, out of Find."""
         q = self.mm_q.get().strip().lower()
         cat, typ, tag, tier = self.mm_cat.get(), self.mm_type.get(), self.mm_tag.get(), self.mm_tier.get()
         budget = self.mm_budget.get()
-        league = self.mm_league.get()
+        league = league or self.mm_league.get()
         words = {w: k for k, (w, _d) in MM.THINKING.items()}
         mx = words.get(self.mm_max.get(), 5)
         bands = list(MM.CLICKS)
         cmax = bands.index(self.mm_cmax.get()) if self.mm_cmax.get() in bands else len(bands)
         out = []
         for s in self.mm_strats:
+            if not MM.is_farming(s):
+                continue
             if league != MM.ALL_LEAGUES and MM.league_of(s) != league:
                 continue
             if cat and s.get("category") != cat:
@@ -748,7 +761,7 @@ class MoneyMakersPage(StratViews, StratNewPage):
         if ok and isinstance(d, dict):
             self.mm_official = d
             save_json("board_official.json", d)
-            if self.mm_view.get() == "Official":
+            if self.mm_view.get() in ("Official", "All"):
                 self.mm_reload()
             self.mm_one_fill()
 
@@ -771,7 +784,7 @@ class MoneyMakersPage(StratViews, StratNewPage):
                          and not MM.validate(dict(p["data"]))]
         self.mm_board_ones = [dict(p["data"], origin="board", _post=p) for p in (d1 or {}).get("posts", [])] if ok1 else []
         self.mm_live_lbl.config(text=f"Community: {d['total']} strat{'s' if d['total'] != 1 else ''}", fg=C["muted"])
-        if self.mm_view.get() == "Community":
+        if self.mm_view.get() in ("Community", "All"):
             self.mm_reload(keep=keep)
         self.mm_one_fill()
 
@@ -1022,6 +1035,8 @@ class MoneyMakersPage(StratViews, StratNewPage):
         if B.configured() and not getattr(self, "_mm_official_asked", False):
             self._mm_official_asked = True
             self._mm_bg(B.official, self._mm_official_done)
+            if self.mm_view.get() == "All":                       # (All: the board's strats too)
+                self.mm_board_fetch()
 
     def mm_check_live(self, force=False):
         if getattr(self, "_mm_checking", False):
@@ -1095,11 +1110,11 @@ class MoneyMakersPage(StratViews, StratNewPage):
         name = chip_text()
         m.add_command(label=name + ("…" if name.endswith("Community name") else " - community name…"),
                       command=self.mm_account_click)
+        self.mm_last_menu = m
         try:
-            m.tk_popup(btn.winfo_rootx(), btn.winfo_rooty() + btn.winfo_height())
+            menu_popup(m, btn.winfo_rootx(), btn.winfo_rooty() + btn.winfo_height())
         except tk.TclError:
             pass
-        self.mm_last_menu = m
         return m
 
     def mm_import(self, path=None):
@@ -1188,7 +1203,9 @@ class MoneyMakersPage(StratViews, StratNewPage):
         view = view or self.mm_view.get()
         items = self.mm_one_items()
         post = lambda o: o.get("_post") or {}                                   # noqa: E731
-        if view == "Official":
+        if view == "All":                                                      # 3.0.6: every tip, once
+            pool = [o for o in items if o["origin"] == "mine"] + [o for o in items if o["origin"] != "mine"]
+        elif view == "Official":
             pool = [o for o in items if o["origin"] == "board" and post(o).get("promoted")] + \
                    [o for o in items if o["origin"] == "community"]
         elif view == "Community":

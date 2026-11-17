@@ -357,7 +357,8 @@ class StratViews:
         W = max(cv.winfo_width(), 300)
         narrow = self.mm_narrow(cv)
         pad = 16 if narrow else 24
-        rows, total = getattr(self, "mm_find_rows", []), len(getattr(self, "mm_strats", []))
+        rows = getattr(self, "mm_find_rows", [])
+        total = sum(1 for s in getattr(self, "mm_strats", []) if MM.is_farming(s))      # (farming only - 3.0.6)
         y = 12
         if not rows:
             y = self._mm_empty_card(cv, pad, y, W, bool(total))
@@ -485,7 +486,7 @@ class StratViews:
         cy = y + 40
         x = self._mm_mech_chip(cv, tx, cy, s, tags=(tag,))
         for word, chip in ((s.get("category") if s.get("category") != s.get("type") else None, False),
-                           (MM.budget_of(s), True)):
+                           (MM.budget_of(s), True), (self._mm_from_word(s), False)):
             if not word or x + 16 + cv.tw(word, ("Segoe UI", 9)) > left_end:
                 continue
             if chip:
@@ -496,6 +497,12 @@ class StratViews:
         if (s.get("_post") or {}).get("hidden"):
             cv.text(x + 8, cy + 11, "⊘ HIDDEN", ("Segoe UI", 9, "bold"), fill=cv.c("bad"), anchor="w", tags=(tag,))
         return y + h
+
+    def _mm_from_word(self, s):
+        """Where a row comes from, in a word (From: All mixes them - 3.0.6)."""
+        post = s.get("_post") or {}
+        return "Mine" if s.get("origin") == "mine" or post.get("mine") else \
+            "Official" if s.get("origin") in ("community", "example") or post.get("promoted") else "Community"
 
     def _mm_row_narrow(self, cv, r, i, pad, y, W, vmax):
         s, ph, key = r["s"], r["ph"], r["key"]
@@ -516,8 +523,11 @@ class StratViews:
                 fill=cv.c("text_strong"), anchor="w", tags=(tag,))
         x = self._mm_mech_chip(cv, tx, y + 34, s, tags=(tag,))
         if x + 50 < rx - 70:
-            self._mm_effort(cv, x + 10, y + 45, s, tags=(tag,)) if x + 120 < rx - 70 else \
+            x = self._mm_effort(cv, x + 10, y + 45, s, tags=(tag,)) if x + 120 < rx - 70 else \
                 cv.pips(x + 10, y + 40, s.get("thoughts_per_click") or 0, tags=(tag,))
+        word = self._mm_from_word(s)                     # (where it comes from - From: All mixes them)
+        if x + 16 + cv.tw(word, ("Segoe UI", 9)) < rx - 70:
+            cv.text(x + 12, y + 45, word, ("Segoe UI", 9), fill=cv.c("text_muted"), anchor="w", tags=(tag,))
         if ph:
             bx1 = min(tx + 220, rx - 80)
             frac = max(0.02, min(1.0, ph["value"] / vmax))
@@ -888,26 +898,24 @@ class StratViews:
         return yy
 
     def _mm_masters_card(self, cv, s, mine, x0, x1, y):
-        """Atlas masters: each master the strat picks from - its dot, name, "N of 4" and the picks."""
+        """Atlas masters: the strat's master - its name, "N of 4" and the picks."""
         ms = {m: v for m, v in (s.get("masters") or {}).items() if v and m in MM.MASTERS}
         if not ms:
             return y
         card, yy = self._mm_box(cv, x0, x1, y, "Atlas masters", "masters_i",
-                                f"The author's picks: up to {MM.MASTER_PICKS} of each master's choices.")
+                                f"The author's master and up to {MM.MASTER_PICKS} of its choices.")
         for m, picks in ms.items():
-            col = cv.c(MM.MASTERS[m]["role"])
-            cv.create_oval(x0 + 18, yy + 3, x0 + 26, yy + 11, fill=col, outline="")
-            t = cv.text(x0 + 32, yy + 7, m, ("Segoe UI", 10, "bold"), fill=cv.c("text_strong"), anchor="w")
+            t = cv.text(x0 + 18, yy + 7, m, ("Segoe UI", 10, "bold"), fill=cv.c("text_strong"), anchor="w")
             full = len(picks) >= MM.MASTER_PICKS
             cv.text(cv.bbox(t)[2] + 8, yy + 7, f"{'✓ ' if full else ''}{len(picks)} of {MM.MASTER_PICKS}",
                     ("Segoe UI", 9), fill=cv.c("good") if full else cv.c("text_muted"), anchor="w")
             yy += 20
-            x = x0 + 32
+            x = x0 + 18
             for p in picks:
                 w = cv.tw(p, ("Segoe UI", 9)) + 16
-                if x > x0 + 32 and x + w > x1 - 18:
-                    x, yy = x0 + 32, yy + 28
-                x = cv.chip(x, yy, p, MM.MASTERS[m]["role"]) + 6
+                if x > x0 + 18 and x + w > x1 - 18:
+                    x, yy = x0 + 18, yy + 28
+                x = cv.chip(x, yy, p) + 6
             yy += 22 + 12
         yy += 4
         cv.coords(card, *_rr_points(x0, y, x1, yy, R))

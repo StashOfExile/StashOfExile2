@@ -185,6 +185,11 @@ class UtilitiesPage:
             return False
         if pc_key_is_copy() and SETTINGS.get("pc_ctrl_c", True) and FEAT.on("price"):
             return True
+        try:                                               # 3.0.6: New strat is open - your plain Ctrl+C on a
+            if self.mm_new_capturing():                    # tablet or waystone counts too (attributes only)
+                return True
+        except Exception:
+            pass
         try:
             return bool(self.topup_key_is_copy() and (TU.cfg().get("on") or self.mp_on()))
         except Exception:

@@ -1,6 +1,7 @@
 """Build moneymakers.json from the strats/ folder (2.28.0): one strat per file (.json, or the plain-text .txt
 layout - moneymakers.to_csv(None)) plus oneliners.json (Quick tips). Every file is checked against the layout
-(soe2.moneymakers.validate - the same check the app uses).
+(soe2.moneymakers.validate - the same check the app uses): 3.0.6, farming only - Mapping and Bossing (a file of a
+dropped category fails the check; keep it as _name so it is left out).
 
     py tools/build_strats.py           check + write moneymakers.json (revision goes up when the strats changed)
     py tools/build_strats.py --check   check only (exit 1 on a problem) - run by CI on every pull request"""
@@ -41,7 +42,7 @@ def write_board_schema():
     d = {"schema": SCHEMA, "taxonomy": MM.TAXONOMY, "tags": list(MM.all_tags()), "tag_groups": MM.tag_groups(),
          "thinking": {str(k): w for k, (w, _d) in MM.THINKING.items()}, "clicks": list(MM.CLICKS),
          "units": list(MM.UNITS), "required": list(MM.REQUIRED), "lists": list(MM.LISTS), "order": list(MM.ORDER),
-         "one_order": list(MM.ONE_ORDER), "masters": {m: list(d["choices"]) for m, d in MM.MASTERS.items()},
+         "one_order": list(MM.ONE_ORDER), "masters": {m: list(d) for m, d in MM.MASTERS.items()},
          "master_picks": MM.MASTER_PICKS}
     os.makedirs(os.path.dirname(BOARD_SCHEMA), exist_ok=True)
     with open(BOARD_SCHEMA, "w", encoding="utf-8", newline="\n") as f:

@@ -929,9 +929,35 @@ class Toast:
         self.job = self.root.after(int(secs * 1000), self.hide)
 
 
+MENU_OPEN = [False]                 # 3.0.6: a dropdown menu is open (menu_popup) - no tooltip then
+
+
+def menu_popup(menu, x, y):
+    """A dropdown's menu at x, y, with no tooltip while it's open (and the one showing hides). Windows: tk_popup
+    returns when the menu closes; elsewhere the menu's <Unmap> says so."""
+    import sys
+    Tooltip.hide_all()
+    MENU_OPEN[0] = True
+    if sys.platform != "win32":
+        menu.bind("<Unmap>", lambda e: MENU_OPEN.__setitem__(0, False), add="+")
+    try:
+        menu.tk_popup(x, y)
+    finally:
+        if sys.platform == "win32":
+            MENU_OPEN[0] = False
+    return menu
+
+
 class Tooltip:
     """2.37.0: a small tip under a widget while the mouse rests on it (also the text a screen reader can't get from
-    an icon). Tooltip(widget, text); .text can be changed later."""
+    an icon). Tooltip(widget, text); .text can be changed later. 3.0.6: one at a time - a new one hides the last -
+    and none while a dropdown menu is open."""
+    SHOWN = []
+
+    @classmethod
+    def hide_all(cls):
+        for tip in list(cls.SHOWN):
+            tip._leave()
 
     def __init__(self, widget, text, delay=450):
         self.w, self.text, self.delay, self.win, self.job = widget, text, delay, None, None
@@ -964,8 +990,16 @@ class Tooltip:
 
     def show(self):
         self.job = None
-        if not self.text or self.win is not None:
+        if not self.text or self.win is not None or MENU_OPEN[0]:
             return
+        try:                                                # (the mouse must still be on it)
+            px, py = self.w.winfo_pointerxy()
+            wx, wy = self.w.winfo_rootx(), self.w.winfo_rooty()
+            if self.at is None and not (wx <= px < wx + self.w.winfo_width() and wy <= py < wy + self.w.winfo_height()):
+                return
+        except tk.TclError:
+            return
+        Tooltip.hide_all()
         try:
             x, y = self.at or self._where()         # (D3: a spot given for one of many - else as master)
         except tk.TclError:
@@ -981,6 +1015,7 @@ class Tooltip:
         tk.Label(self.win, text=self.text, bg=bg, fg=fg, font=("Segoe UI", SMALL), justify="left",
                  wraplength=420, padx=8, pady=4, highlightthickness=1, highlightbackground=edge).pack()
         place_near(self.w.winfo_toplevel(), self.win, x, y)
+        Tooltip.SHOWN.append(self)
         self.w.after(400, self._watch)
 
     def _watch(self):
@@ -1010,6 +1045,8 @@ class Tooltip:
         return C["panel2"], C["text"], C["line"]
 
     def hide(self):
+        if self in Tooltip.SHOWN:
+            Tooltip.SHOWN.remove(self)
         if self.win is not None:
             try:
                 self.win.destroy()

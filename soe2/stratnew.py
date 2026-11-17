@@ -28,6 +28,7 @@ from .style import C
 from .stratview import R, _rr_points
 
 PLAY = MM.TAG_GROUPS["Play style"]
+ALSO = MM.TAG_GROUPS["Also uses"]                 # the mechanics a strat also uses (part 1's Mechanic, after the first)
 MORE_LISTS = (("requirements", "Requirements", 2), ("craft_steps", "Craft steps", 3), ("setup", "Other setup", 2),
               ("tips", "Tips", 2), ("risks", "Risks", 2), ("_sources", "Sources (links)", 2))
 OLD_LISTS = (("tablets", "Tablets (notes)"), ("waystones", "Waystones (notes)"), ("atlas", "Atlas notes"))
@@ -52,13 +53,15 @@ class StratNewPage:
         self.mm_nd = d = {
             "base": s, "new": new, "suggest": bool(suggest), "post": s.get("_post"),
             "cat": s.get("category") if s.get("category") in MM.TAXONOMY else "Mapping",
-            "typ": None if new else s.get("type"),
+            "typ": None if new or not MM.is_farming(s) else s.get("type"),
+            "also": [t for t in tags if t in ALSO and t != s.get("type")],
             "effort": "Moderate" if new else MM.effort_of(s), "effort0": None if new else MM.effort_of(s),
             "budget": MM.budget_of(s), "play": [t for t in tags if t in PLAY],
-            "tags": [t for t in tags if t not in MM.BUDGETS and t not in PLAY],
+            "tags": [t for t in tags if t not in MM.BUDGETS and t not in PLAY and t not in ALSO],
             "cards": cards[:MM.TABLETS_MAX],
             "way": way, "others": [it for it in items if it.get("kind") not in ("tablet", "waystone")],
-            "masters": {k: list(v) for k, v in (s.get("masters") or {}).items()},
+            "masters": {k: list(v) for k, v in (s.get("masters") or {}).items() if v},
+            "mtab": MM.master_of(s.get("masters"))[0] or next(iter(MM.MASTERS)),
             "league": s.get("league") or own, "more": False, "msg": None,
             "cost_sid": s.get("id") if items and not new else None, "cost_items": [dict(i) for i in items],
             "gen": 0, "job": None,
@@ -182,7 +185,8 @@ class StratNewPage:
 
     # ------------------------------------------------------------------ what's picked
     def mm_new_pick(self, what, value):
-        """A chip: category, type (mechanic), effort, budget, play, tag."""
+        """A chip: category, type, mech (Mapping: several - the first is the main type, the rest Also uses), also
+        (Bossing: the mechanics it also uses), effort, budget, play, tag."""
         d = self.mm_nd
         if what == "cat":
             d["cat"] = value
@@ -190,6 +194,21 @@ class StratNewPage:
                 d["typ"] = None
         elif what == "typ":
             d["typ"] = None if d["typ"] == value else value
+        elif what == "mech":
+            if value == d["typ"]:                        # the main one off: the next becomes the main
+                d["typ"] = d["also"].pop(0) if d["also"] else None
+            elif value in d["also"]:
+                d["also"].remove(value)
+            elif d["typ"] is None:
+                d["typ"] = value
+            elif value in ALSO:
+                d["also"].append(value)
+            else:                                        # (Juiced mapping, Alch & go: a way to map, only the main)
+                old, d["typ"] = d["typ"], value
+                if old in ALSO:
+                    d["also"].insert(0, old)
+        elif what == "also":
+            d["also"] = [t for t in d["also"] if t != value] + ([] if value in d["also"] else [value])
         elif what == "effort":
             d["effort"] = value
         elif what == "budget":
@@ -203,12 +222,23 @@ class StratNewPage:
         self.mm_new_cv.later(1)
 
     def mm_new_master(self, master, choice):
+        """A choice tile: ticks it for that master. One master a strat - a choice of another master switches the
+        strat to it (the old picks are cleared; the page said so above the tiles)."""
         d = self.mm_nd
+        old = MM.master_of(d["masters"])
         d["masters"], what = MM.master_pick(d["masters"], master, choice)
+        d["mtab"] = master
         if what == "full":
             self._say(f"{master}: {MM.MASTER_PICKS} of {MM.MASTER_PICKS} used - untick one first.", 5)
+        elif what == "switch":
+            self._say(f"Atlas masters: {master} now - your {len(old[1])} {old[0]} pick"
+                      f"{'s' if len(old[1]) != 1 else ''} cleared.", 6)
         self.mm_new_cv.later(1)
         return what
+
+    def mm_new_master_tab(self, master):
+        self.mm_nd["mtab"] = master
+        self.mm_new_cv.later(1)
 
     def mm_new_masters_clear(self):
         self.mm_nd["masters"] = {}
@@ -233,13 +263,19 @@ class StratNewPage:
 
     # ------------------------------------------------------------------ copies (Ctrl+Alt+C, through app.accept_clip)
     def mm_new_capturing(self):
-        """While New strat shows, a copied tablet or waystone goes to it."""
+        """While New strat is open (Farming Strategies › Find), a copied tablet or waystone goes to it - whichever
+        copy key you press: Ctrl+Alt+C, Ctrl+C or the price check key. Attributes only: the key watcher's thread asks
+        this too (clip_wanted)."""
         if not getattr(self, "mm_new_on", False):
             return False
-        try:
-            return bool(self.mm_new_cv.winfo_ismapped())
-        except (AttributeError, tk.TclError):
-            return False
+        win = (getattr(getattr(self, "shell", None), "windows", None) or {}).get("money")
+        if win is not None and getattr(win, "state_", "open") != "open":
+            return False                                 # (another page shows)
+        return getattr(getattr(self, "mm_page", None), "value", "Find") == "Find"
+
+    def mm_new_wants(self, text):
+        """(the window thread) Is this copy one for New strat - open, and a tablet or waystone?"""
+        return self.mm_new_capturing() and MM.copied_card(text) is not None
 
     def mm_new_take_clip(self, text):
         """One copy (the press's one read, done by clipread) -> a tablet card (up to 4) or the waystone."""
@@ -369,7 +405,9 @@ class StratNewPage:
         s.setdefault("clicks_per_hour", "Steady")
         handled = set(MM.BUDGETS) | set(PLAY) | {t for g in MM.tag_groups().values() for t in g}
         s["tags"] = ([d["budget"]] if d["budget"] else []) + list(d["play"]) + \
-            [t for t in d["tags"] if t in handled] + [t for t in base.get("tags") or [] if t not in handled]
+            [t for t in d["also"] if t != d["typ"]] + \
+            [t for t in d["tags"] if t in handled and t not in ALSO] + \
+            [t for t in base.get("tags") or [] if t not in handled]
         s["masters"] = {m: list(v) for m, v in d["masters"].items() if v}
         s["items"] = self.mm_new_items()
         more = nw["more"]
@@ -631,15 +669,24 @@ class StratNewPage:
             return self._nw_chips(cv, ix, cr, yy, [(c, f"nw_cat_{c}", d["cat"] == c,
                                                     lambda c=c: self.mm_new_pick("cat", c)) for c in MM.CATEGORIES])
         y = self._nw_row(cv, cx, cr, y, "Category", cats) + 14
-        y = self._nw_row(cv, cx, cr, y, "Mechanic" if d["cat"] == "Mapping" else "Type",
-                         lambda ix, yy: self._nw_mechs(cv, d, ix, cr, yy), mid=14) + 14
+        if d["cat"] == "Mapping":
+            y = self._nw_row(cv, cx, cr, y, "Mechanic", lambda ix, yy: self._nw_mechs(cv, d, ix, cr, yy), mid=14,
+                             tag="nw_mech_i", info="Pick one or more. The first is what the strat is (its type); "
+                                                   "the others are what it also uses.") + 14
+        else:
+            def types(ix, yy):
+                return self._nw_chips(cv, ix, cr, yy, [(t, f"nw_typ_{i}", d["typ"] == t,
+                                                        lambda t=t: self.mm_new_pick("typ", t))
+                                                       for i, t in enumerate(MM.TAXONOMY[d["cat"]])])
+            y = self._nw_row(cv, cx, cr, y, "Type", types) + 14
+            y = self._nw_row(cv, cx, cr, y, "Mechanic", lambda ix, yy: self._nw_mechs(cv, d, ix, cr, yy, ALSO),
+                             mid=14, tag="nw_mech_i", info="The mechanics it also uses - pick any.") + 14
 
         def effort(ix, yy):
             return self._nw_chips(cv, ix, cr, yy, [(w, f"nw_eff_{w}", d["effort"] == w,
                                                     lambda w=w: self.mm_new_pick("effort", w)) for w in MM.EFFORTS])
         y = self._nw_row(cv, cx, cr, y, "Effort", effort, tag="nw_eff_i",
-                         info="How much thinking and clicking a run takes: Easy, Moderate or Hard. Find's Effort "
-                              "filter uses it.") + 14
+                         info="How much thinking and clicking a run takes. The Effort filter uses it.") + 14
 
         def budget(ix, yy):
             return self._nw_chips(cv, ix, cr, yy, [(w, f"nw_bud_{i}", d["budget"] == t,
@@ -654,21 +701,20 @@ class StratNewPage:
             return self._nw_chips(cv, ix, cr, yy, chips)
         return self._nw_row(cv, cx, cr, y, "Play style", play)
 
-    def _nw_mechs(self, cv, d, x0, x1, y):
-        """The category's types as cards: the mechanic's tablet picture over its word (no picture: the word)."""
-        types = list(MM.TAXONOMY.get(d["cat"], ()))
+    def _nw_mechs(self, cv, d, x0, x1, y, only=None):
+        """The mechanics as cards, several can be on: the tablet's picture over its word (no picture: the word) and
+        ✓ when on. Mapping: its types - the first picked is the main one (the strat's type), the rest Also uses.
+        only: just these (Bossing: the mechanics it also uses)."""
+        types = list(only or MM.TAXONOMY.get(d["cat"], ()))
         types.sort(key=lambda t: t not in MM.MECH_TABLET)
-        mapping = d["cat"] == "Mapping"
-        w, h, gap = (86, 66, 8) if mapping else (0, 30, 8)
-        if not mapping:
-            return self._nw_chips(cv, x0, x1, y, [(t, f"nw_typ_{i}", d["typ"] == t,
-                                                   lambda t=t: self.mm_new_pick("typ", t)) for i, t in enumerate(types)])
+        main = None if only else d["typ"]
+        w, h, gap = 86, 66, 8
         x = x0
         for i, t in enumerate(types):
             if x > x0 and x + w > x1:
                 x, y = x0, y + h + gap
             tag = f"nw_typ_{i}"
-            on = d["typ"] == t
+            on = t == main or t in d["also"]
             col = cv.c("accent")
             fill = TH.mix(cv.c("surface_raised"), col, .14) if on else cv.c("surface")
             line = col if on else cv.c("border_light")
@@ -683,12 +729,18 @@ class StratNewPage:
             else:                                       # (no picture: the word alone, on two lines if it needs)
                 cv.create_text(x + w / 2, ty, text=word, font=F9, width=w - 10, justify="center", anchor="center",
                                fill=cv.c("text_strong") if on else cv.c("text"), tags=(tag,))
-            cv.acts[tag] = lambda t=t: self.mm_new_pick("typ", t)
+            cv.acts[tag] = lambda t=t: self.mm_new_pick("also" if only else "mech", t)
             cv.lifts[tag] = [(b, {"outline": line}, {"outline": col if on else cv.c("text_muted")})]
             if got is not None and cv.tw(word, F9) > w - 8:
                 cv.tips[tag] = t
             x += w + gap
-        return y + h
+        y += h
+        if not only and main:                           # what the picks mean, in words
+            also = [a for a in d["also"] if a != main]
+            line = f"Main: {main}" + (f" · also uses {', '.join(also)}" if also else "")
+            y = cv.bottom(cv.text(x0, y + 8, line, F9, fill=cv.c("text_muted"), width=x1 - x0, tags=("nw_mainline",)),
+                          y + 22)
+        return y
 
     # ---- 2 / 3 your tablets, your waystone
     def _nw_keys_line(self, cv, x, y, before, after, x1):
@@ -841,55 +893,73 @@ class StratNewPage:
         y += self._nw_card(cv, "way", c, cx, wx1, y)[0] + 12
         return self._nw_made(cv, "waystone", cx, cr, y)
 
-    # ---- 4 Atlas masters
+    # ---- 4 Atlas masters (like the game: one master at a time, its 12 choices in a 3 × 4 grid)
     def _nw_part_masters(self, cv, d, x0, x1, y, n):
-        picked = MM.masters_count(d["masters"])
-        total = MM.MASTER_PICKS * len(MM.MASTERS)
-        self._nw_head(cv, n, picked > 0, "Atlas masters", x0, x1, y, optional=True,
-                      info=f"Up to {MM.MASTER_PICKS} choices of each master's 12 - the ones you run this strat with. "
-                           "They show on the strat.")
+        cur, picks = MM.master_of(d["masters"])
+        self._nw_head(cv, n, bool(picks), "Atlas masters", x0, x1, y, optional=True,
+                      info=f"The master you run this strat with, and up to {MM.MASTER_PICKS} of its choices. One "
+                           "master a strat.")
         cv.button(x1 - 24, y - 3, "Clear", "nw_mclear", self.mm_new_masters_clear, anchor="e", h=30,
-                  enabled=picked > 0, tip="Untick every master's choices" if picked else "Nothing picked yet")
+                  enabled=bool(picks), tip="Untick the picks" if picks else "Nothing picked yet")
         cx, cr = x0 + 54, x1 - 24
         y += 40
-        cols = 6 if cr - cx >= 620 else 4 if cr - cx >= 420 else 3
-        gap = 6
-        for m, md in MM.MASTERS.items():
-            col = cv.c(md["role"])
-            mine = d["masters"].get(m) or []
-            full = len(mine) >= MM.MASTER_PICKS
-            top = y
-            box = cv.card(cx, y, cr, y + 10, None, lift=False)
-            cv.create_rectangle(cx, y + 2, cx + 3, y + 10, fill=col, outline="", tags=("edge",))
-            edge = cv.find_all()[-1]
-            cv.create_oval(cx + 14, y + 16, cx + 22, y + 24, fill=col, outline="")
-            cv.text(cx + 30, y + 20, m, ("Segoe UI", 10, "bold"), fill=cv.c("text_strong"), anchor="w")
-            cnt = f"✓ {len(mine)} of {MM.MASTER_PICKS}" if full else f"{len(mine)} of {MM.MASTER_PICKS}"
-            cv.text(cr - 14, y + 20, cnt, F9, fill=cv.c("good") if full else cv.c("text_muted"), anchor="e")
-            yy = y + 38
-            cw = (cr - cx - 24 - (cols - 1) * gap) / cols
-            for i, ch in enumerate(md["choices"]):
-                gx = cx + 12 + (i % cols) * (cw + gap)
-                gy = yy + (i // cols) * (40 + gap)
-                tag = f"nw_ms_{list(MM.MASTERS).index(m)}_{i}"
-                on = ch in mine
-                fill = TH.mix(cv.c("surface_raised"), col, .2) if on else cv.c("surface")
-                line = col if on else cv.c("border")
-                b = TH.round_rect(cv, gx, gy, gx + cw, gy + 40, 4, fill=fill, outline=line, tags=(tag,))
-                cv.create_text(gx + cw / 2, gy + 20, text=("✓ " if on else "") + ch, font=("Segoe UI", 8 if cw < 96 else 9),
-                               fill=cv.c("text_strong") if on else cv.c("text_muted") if full else cv.c("text"),
-                               anchor="center", justify="center", width=cw - 8, tags=(tag,))
-                cv.acts[tag] = lambda m=m, ch=ch: self.mm_new_master(m, ch)
-                cv.lifts[tag] = [(b, {"outline": line}, {"outline": col if on or not full else cv.c("border")})]
-                if full and not on:
-                    cv.tips[tag] = f"{MM.MASTER_PICKS} of {MM.MASTER_PICKS} used - untick one first"
-            rows = -(-len(md["choices"]) // cols)
-            y = yy + rows * (40 + gap) + 6
-            cv.coords(box, *_rr_points(cx, top, cr, y, 6))
-            cv.coords(edge, cx, top + 3, cx + 3, y - 3)
-            cv.tag_raise(edge)
-            y += 10
-        return y - 10
+        tab = d.get("mtab") or cur or next(iter(MM.MASTERS))
+        names = list(MM.MASTERS)
+        tw = (cr - cx) / len(names)                      # the masters: one segmented row
+        stacked = tw < 150
+        th = 52 if stacked else 40
+        for i, m in enumerate(names):
+            tx0, tx1 = cx + i * tw, cx + (i + 1) * tw
+            tag = f"nw_mtab_{i}"
+            shown, mine = m == tab, m == cur
+            col = cv.c("accent")
+            fill = TH.mix(cv.c("surface_raised"), col, .14) if shown else cv.c("surface")
+            b = TH.round_rect(cv, tx0 + (0 if i == 0 else 2), y, tx1 - (0 if i == len(names) - 1 else 2), y + th, 6,
+                              fill=fill, outline=col if shown else cv.c("border_light"), tags=(tag,))
+            k = len(picks) if mine else 0
+            count = (f"✓ {k} of {MM.MASTER_PICKS}" if mine and k >= MM.MASTER_PICKS else f"{k} of {MM.MASTER_PICKS}")
+            font = ("Segoe UI", 9, "bold") if shown else F9
+            if stacked:
+                cv.text((tx0 + tx1) / 2, y + 17, cv.fit(m, font, tw - 12), font, fill=cv.c("text_strong") if shown
+                        else cv.c("text"), anchor="center", tags=(tag,))
+                cv.text((tx0 + tx1) / 2, y + 36, count, F9, fill=cv.c("text_muted"), anchor="center", tags=(tag,))
+            else:
+                cv.text((tx0 + tx1) / 2, y + th / 2, f"{m}  ·  {count}", font,
+                        fill=cv.c("text_strong") if shown else cv.c("text"), anchor="center", tags=(tag,))
+            cv.acts[tag] = lambda m=m: self.mm_new_master_tab(m)
+            cv.lifts[tag] = [(b, {"outline": col if shown else cv.c("border_light")},
+                              {"outline": col if shown else cv.c("text_muted")})]
+            if mine:
+                cv.tips[tag] = f"Your strat's master: {k} of {MM.MASTER_PICKS} picked"
+        y += th + 12
+        if cur and cur != tab and picks:                 # ticking here switches the strat's master: said first
+            note = (f"Your strat uses {cur} ({len(picks)} pick{'s' if len(picks) != 1 else ''}). Ticking one here "
+                    f"switches it to {tab} and clears those.")
+            y = cv.bottom(cv.text(cx, y, "! " + note, F9, fill=cv.c("warn", "text"), width=cr - cx,
+                                  tags=("nw_mswitch",)), y + 16) + 10
+        cols = MM.MASTER_COLS
+        gap = 8
+        cw = min(240, (cr - cx - (cols - 1) * gap) / cols)
+        full = tab == cur and len(picks) >= MM.MASTER_PICKS
+        mine = picks if tab == cur else []
+        for i, ch in enumerate(MM.MASTERS[tab]):
+            gx = cx + (i % cols) * (cw + gap)
+            gy = y + (i // cols) * (44 + gap)
+            tag = f"nw_ms_{names.index(tab)}_{i}"
+            on = ch in mine
+            col = cv.c("accent")
+            fill = TH.mix(cv.c("surface_raised"), col, .16) if on else cv.c("surface")
+            line = col if on else cv.c("border")
+            b = TH.round_rect(cv, gx, gy, gx + cw, gy + 44, 6, fill=fill, outline=line, tags=(tag,))
+            cv.create_text(gx + cw / 2, gy + 22, text=("✓ " if on else "") + ch, font=F9, width=cw - 12,
+                           justify="center", anchor="center", tags=(tag,),
+                           fill=cv.c("text_strong") if on else cv.c("text_muted") if full else cv.c("text"))
+            cv.acts[tag] = lambda m=tab, ch=ch: self.mm_new_master(m, ch)
+            cv.lifts[tag] = [(b, {"outline": line}, {"outline": col if on or not full else cv.c("border")})]
+            if full and not on:
+                cv.tips[tag] = f"{MM.MASTER_PICKS} of {MM.MASTER_PICKS} used - untick one first"
+        rows = -(-len(MM.MASTERS[tab]) // cols)
+        return y + rows * (44 + gap) - gap
 
     # ---- 5 How it goes
     def _nw_part_how(self, cv, d, x0, x1, y, n):
@@ -935,7 +1005,7 @@ class StratNewPage:
                 self._nw_place(cv, more[key], ix, yy, cr - ix, hh)
                 return yy + hh
             y = self._nw_row(cv, cx, cr, y, label, put, mid=17) + 10
-        groups = [(g, t) for g, t in MM.tag_groups().items() if g not in ("Budget", "Play style")]
+        groups = [(g, t) for g, t in MM.tag_groups().items() if g not in ("Budget", "Play style", "Also uses")]
         for g, tags in groups:
             def chips(ix, yy, tags=tags, g=g):
                 return self._nw_chips(cv, ix, cr, yy, [(t, f"nw_tag_{g}_{i}", t in d["tags"],
@@ -1062,7 +1132,8 @@ class StratNewPage:
                 (bool(d["cards"]) and all(c["ticked"] or not c["mods"] for c in d["cards"]),
                  f"Tablets · {n_t} copied"),
                 (bool(d["way"]), "Waystone"),
-                (pts > 0, f"Atlas masters · {pts} of {MM.MASTER_PICKS * len(MM.MASTERS)} points"),
+                (pts > 0, f"Atlas masters · {pts} of {MM.MASTER_PICKS}" +
+                 (f" · {MM.master_of(d['masters'])[0]}" if pts else "")),
                 (bool(f["steps"]), f"How it goes · {len(f['steps'])} step{'s' if len(f['steps']) != 1 else ''}"))
         for ok, word in rows:
             cv.text(x0 + 16, yy + 8, ("✓ " if ok else "○ ") + word, F9, fill=cv.c("good") if ok else cv.c("text"),

@@ -118,6 +118,7 @@ FEATURES = (
     "Cost per map",
     "All leagues",
     "In your map device",
+    "All",                      # 3.0.6 Find › From: Official, Community and Mine together (the default)
     "Linux check",              # Linux build: Settings › Advanced and  StashOfExile2 --check-linux  - session, keys,
                                 # screen picture, clipboard, key sending, OCR, Client.txt, each with its fix
 )

@@ -21,9 +21,9 @@ type is the main thing you farm, the category is how you do it. Everything else 
 |---|---|
 | Mapping | Breach, Delirium, Ritual, Expedition, Abyss, Essence, Strongbox, Rogue Exiles, Shrines, Overseer, Temple, Juiced mapping, Alch & go |
 | Bossing | Pinnacle bosses, Map bosses, Simulacrum, Trial of the Sekhemas, Trial of Chaos |
-| Crafting | Tablet crafting, Waystone crafting, Gear crafting, Jewel crafting, Flask & charm crafting |
-| Trading | Currency flipping, Bulk selling, Buy low, sell high, Services |
-| Other | Vendor recipes, Gold, Other |
+
+Farming only (3.0.6, owner): no crafting, trading, flipping or vendor recipes. A strat of a category that was dropped
+is kept as it is but doesn't show in Find; one-liners about them are kept in `_not_farming_oneliners.json` (ignored).
 
 | Tag group | Tags (any number) |
 |---|---|
@@ -55,14 +55,14 @@ Searching a tag finds both: `Breach` finds Mapping › Breach and strats tagged 
 | `sources` | no | `[{"title", "url"}]` |
 
 | `items` | no | `[{"kind", "base", "name", "count", "lasts", "key_mods", "mods", "rarity"}]` - what a run uses, with the mods that matter (`key_mods`; `mods` = every line of the copy): the app checks their trade price once a day (Cost per map) |
-| `masters` | no | Atlas masters: `{"Doryani's Science": ["Refined Formula", ...]}` - up to 4 of each master's choices (`moneymakers.MASTERS`) |
+| `masters` | no | Atlas masters: ONE master and up to 4 of its choices, e.g. `{"Doryani's Science": ["Refined Formula", ...]}` (`moneymakers.MASTERS`) |
 | `ledger` | no | numbers from the author's Strat Tracker: `runs`, `minutes`, `cost_per_run_div`, `loot_per_run_div`, `profit_per_run_div`, `div_per_hour` |
 
 **The CSV layout** (one header for every Money Makers CSV): `section,field,value,note`. `strat` rows hold the fields
 above (`thinking` as a word, `est_cost_div` a run, `est_profit_div` an hour), `tag` rows one tag each (field = its
 group), list rows one line each (section = the list, field = 1, 2, 3 ...), `source` rows a link (note = its title),
 `item` rows `1:kind`, `1:base`, `1:count`, `1:lasts`, `1:key_mod` (repeat for more mods; `1:mod` for a line that
-doesn't matter), `master` rows one Atlas masters pick each (field = the master), and `ledger` rows the Farm
+doesn't matter), `master` rows one Atlas masters pick each (field = the master - one master), and `ledger` rows the Farm
 Ledger's numbers under the same names as its own CSV. The `note` column is help - the app ignores it.
 
 One-liner (`oneliners.json`): `{"id", "text", "author"}` + optional `category`, `type`, `tags`, `updated`.
