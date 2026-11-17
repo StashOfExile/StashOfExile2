@@ -26,7 +26,7 @@ import build_gamedb as BG                                  # noqa: E402
 import build_searchdata as BS                              # noqa: E402
 from soe2 import config, gamesearch, names                 # noqa: E402
 
-FILES = ("gamedata.json", "searchdata.json", "modlists.json", "regexdata.json", "mapdata.json", "trialdata.json", "anointdata.json",
+FILES = ("gamedata.json", "searchdata.json", "modlists.json", "regexdata.json", "mapdata.json", "trialdata.json", "anointdata.json", "atlasmasters.json",
          "campaign.json", "crafthelper.json", "soe2/moneymakers.py", "soe2/waystone.py", "soe2/vaallens_plan.py",
          "soe2/medallions.py", "soe2/ritualid.py", "soe2/sekhemas.json", "tests/fixtures/gamedb_samples.txt")
 
@@ -46,6 +46,23 @@ def edit_json(root, name, fn):
     fn(d)
     with open(p, "w", encoding="utf-8") as f:
         json.dump(d, f, ensure_ascii=False)
+
+
+class AtlasMastersFile(unittest.TestCase):
+    """atlasmasters.json (3.0.6): the 36 master choices match MASTERS; text comes from an allowed source only."""
+
+    def test_names_match_masters_and_sources_clean(self):
+        from soe2.moneymakers import MASTERS
+        with open(os.path.join(ROOT, "atlasmasters.json"), encoding="utf-8") as f:
+            d = json.load(f)
+        self.assertEqual({m: set(c) | {x.split(" / ", 1)[1] for x in d["missing"] if x.startswith(m + " / ")}
+                          for m, c in d["masters"].items()}, {m: set(c) for m, c in MASTERS.items()})
+        self.assertEqual(sum(len(v) for v in MASTERS.values()), 36)
+        for m, ch in d["masters"].items():
+            for c, e in ch.items():
+                self.assertTrue(e["text"].strip() and e["source"].startswith("https://"), (m, c))
+                self.assertIsNone(BG.BLACKLIST.search(e["text"] + e["source"]), (m, c))
+        self.assertIsNone(BG.BLACKLIST.search(json.dumps(d["conflicts"]).replace("game8", "")))
 
 
 class BuildChecks(unittest.TestCase):
@@ -76,7 +93,13 @@ class BuildChecks(unittest.TestCase):
         b = BG.Build().run()
         ch = [r for r in b.rows if r["class"] == "Atlas Master Choice"]
         self.assertEqual(len(ch), 36)
-        self.assertTrue(all(r["text"].startswith(BG.NOT_IN_DATA) for r in ch))
+        with open(os.path.join(ROOT, "atlasmasters.json"), encoding="utf-8") as f:
+            am = json.load(f)
+        for r in ch:                                                   # text only from atlasmasters.json, else "not in the data"
+            m = r["props"][0][1]
+            e = am["masters"][m].get(r["name"])
+            self.assertEqual(r["lines"], e["text"].split("\n") if e else [BG.NOT_IN_DATA], r["name"])
+            self.assertEqual(r["source"], e["source"] if e else "soe2/moneymakers.py MASTERS")
         sk = [r for r in b.rows if r["group"] == "Trial of the Sekhemas"]
         self.assertEqual(len(sk), 85)
         self.assertTrue(all(r["text"] == BG.NOT_IN_DATA for r in sk))    # no ratings, no "why"
@@ -326,7 +349,8 @@ class PoE1Filter(unittest.TestCase):
 
 class Shipped(unittest.TestCase):
     def test_bundled_and_built_everywhere(self):
-        self.assertEqual(config.BUNDLED_DATA["gamedb.json"], 2)
+        self.assertEqual(config.BUNDLED_DATA["gamedb.json"], 3)
+        self.assertEqual(config.BUNDLED_DATA["atlasmasters.json"], 1)
         self.assertEqual(config.BUNDLED_DATA["gamedb_hide.json"], 1)
         self.assertGreaterEqual(config.BUNDLED_DATA["searchdata.json"], 2)         # (the PoE1 rows left it)
         for f in ("build_exe.bat", "build_linux.sh", os.path.join(".github", "workflows", "release.yml")):
@@ -334,7 +358,8 @@ class Shipped(unittest.TestCase):
                 s = fh.read()
             self.assertIn("gamedb.json", s, f)
             self.assertIn("gamedb_hide.json", s, f)
-        for f in ("gamedb.json", "gamedb_hide.json"):
+            self.assertIn("atlasmasters.json", s, f)
+        for f in ("gamedb.json", "gamedb_hide.json", "atlasmasters.json"):
             self.assertTrue(os.path.isfile(os.path.join(ROOT, f)), f)
 
 

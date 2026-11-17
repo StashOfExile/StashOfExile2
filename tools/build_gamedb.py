@@ -356,14 +356,18 @@ class Build:
     def masters(self):
         G = "Atlas Masters"
         M = py_const(self.root, "soe2/moneymakers.py", "MASTERS")
+        AM = read_json(self.root, "atlasmasters.json")["masters"]       # effect text + source (poe2db.tw), not invented
         for master, ch in M.items():
             if len(ch) != 12:
                 self.bad(f"{master}: {len(ch)} choices, expected 12")
             self.add(f"atlas-master/{slug(master)}", master, G, "Atlas Master", "atlas, master",
                      [", ".join(ch), ("Choices", str(len(ch)))], "soe2/moneymakers.py MASTERS", self.current)
             for c in ch:
+                e = (AM.get(master) or {}).get(c)
+                lines = [x for x in e["text"].split("\n") if x] if e and e.get("text") else [NOT_IN_DATA]
                 self.add(f"atlas-master/{slug(master)}/choice/{slug(c)}", c, G, "Atlas Master Choice", f"atlas, master, {master}",
-                         [NOT_IN_DATA, ("Master", master)], "soe2/moneymakers.py MASTERS", self.current)
+                         lines + [("Master", master)], e["source"] if e and e.get("text") else "soe2/moneymakers.py MASTERS",
+                         self.current)
 
     # ---------------------------------------------------------------- Vaal Temple
     def temple(self):

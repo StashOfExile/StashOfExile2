@@ -38,10 +38,15 @@ JUNK = re.compile(r"[^\w' ()\-:,.]+")
 # rate them for loot. Sources gathered Nov 2026:
 #   epoe.io Expedition guide (Larky's farming priorities: S Opulent, Oath, Power; A Death, Soul, Time; skip Bond;
 #   "danger" runes Moon, Toxic, Bloodletting; arena hazards Earth; Life flagged for poor loot; Protective awkward),
-#   timesaver.gg Aldur's Saga guide (Power, Death, Bond; Opulent and Oath community picks).
+#   (timesaver.gg credit removed 2026-11-17: its guides are a currency-seller blog with "Buy now" boxes.)
 # Effect lines are the game's own rune text (RePoE poe2 export, keywords.json).
-# S and A are the guides' picks. B-D are grouped from those notes and each rune's effect: B = some upside (more
-# kills, XP), C = only makes monsters tougher, D = hazards / dangerous. Bond: reports differ, so it's marked.
+# S and A are epoe.io's picks (guide reviewed for 0.5.5e). B-D are grouped from each rune's effect: B = some upside
+# (more kills, XP), C = only makes monsters tougher, D = hazards / dangerous.
+# 2026-11-17 re-check: Bond A -> C. epoe.io (https://epoe.io/blog/path-of-exile-2-expedition-guide) does not rank it A
+# and says to skip Bond setups (encounters ending early reported); it was only in A through the timesaver.gg page.
+# Still uncertain (no allowed source ranks them): Rebirth / Wisdom / Ward in B (epoe.io lists Rebirth and Ward only as
+# "approach with caution"), Moon / Toxic / Bloodletting in D (epoe.io: caution), Earth / Sky / Tidal in D (hazards by
+# their game text only), Oath in S (epoe.io: S but conditional on handling its summoner).
 RUNE_TIPS_UPDATED = "Nov 2026"
 RUNE_TIERS = [   # (2.130.4, feedback: C and D in alphabetical order - S-B stay in the players' order)
     ("S", "Opulent", "increased monster rarity"),
@@ -50,12 +55,12 @@ RUNE_TIERS = [   # (2.130.4, feedback: C and D in alphabetical order - S-B stay 
     ("A", "Time", "slain monsters may respawn rarer"),
     ("A", "Death", "slain monsters may merge, stronger"),
     ("A", "Soul", "union of souls"),
-    ("A", "Bond", "rares may transfer a mod - mixed reports"),
     ("B", "Rebirth", "chance to rebirth on death"),
     ("B", "Wisdom", "increased experience"),
     ("B", "Ward", "protected by runic ward"),
     ("C", "Adaptive", "adaptation"),
     ("C", "Arcane", "extra energy shield, stunning nova"),
+    ("C", "Bond", "rares may transfer a mod - encounters may end early, skip"),
     ("C", "Celestial", "fire / cold / lightning explosion on death"),
     ("C", "Cold", "extra cold damage"),
     ("C", "Cyclonic", "exposure, armour break, wither on hit"),
