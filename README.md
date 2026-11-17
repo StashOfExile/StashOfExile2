@@ -73,7 +73,12 @@ This product isn't affiliated with or endorsed by Grinding Gear Games in any way
 
 ## Install and update
 
-Download `StashOfExile2.exe` from [Releases](https://github.com/StashOfExile/StashOfExile2/releases) and run it. It updates itself; your settings stay in `%APPDATA%\StashOfExile2`.
+Two Windows downloads on every [release](https://github.com/StashOfExile/StashOfExile2/releases/latest) - pick one:
+
+- **Installer** - `Setup-StashOfExile2-<version>.exe`. Puts it in your Start menu and Windows search, and in Settings › Apps to uninstall. Installs for you only, so no admin prompt.
+- **Portable** - `StashOfExile2.exe`. Run it from any folder.
+
+Both update themselves, and both keep your settings in `%APPDATA%\StashOfExile2` - uninstalling never deletes them.
 
 The project moved to [github.com/StashOfExile/StashOfExile2](https://github.com/StashOfExile/StashOfExile2). If your 2.x app doesn't offer 3.0 by itself, download it once from Releases - it updates itself from then on, and your settings are kept.
 

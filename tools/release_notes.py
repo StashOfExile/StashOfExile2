@@ -22,6 +22,7 @@ def vt(s):
 
 v = sys.argv[1]
 SHA = sys.argv[sys.argv.index("--sha") + 1:sys.argv.index("--sha") + 3] if "--sha" in sys.argv else []
+SETUP = sys.argv[sys.argv.index("--setup") + 1] if "--setup" in sys.argv else ""     # 3.0.6: the installer's
 VT = sys.argv[sys.argv.index("--vt") + 1] if "--vt" in sys.argv and sys.argv.index("--vt") + 1 < len(sys.argv) else ""
 src = open(os.path.join(os.path.dirname(__file__), "..", "soe2", "whatsnew.py"), encoding="utf-8").read()
 notes = {}
@@ -54,10 +55,14 @@ for i, ver in enumerate(versions):
 if SHA:                                             # 2.132.8: checksums and the VirusTotal scan
     print("**Check your download**\n")
     print(f"- StashOfExile2.exe SHA-256: `{SHA[0]}`")
+    if SETUP:
+        print(f"- Setup-StashOfExile2-{v}.exe SHA-256: `{SETUP}`")
     if len(SHA) > 1:
         print(f"- Build kit zip SHA-256: `{SHA[1]}`")
     if VT:
         print(f"- VirusTotal scan: {VT}")
     print("- Check: `certutil -hashfile StashOfExile2.exe SHA256` (Windows). Same text = same file.\n")
-print("**Download:** StashOfExile2.exe (Windows). The app keeps your data in %APPDATA%\\StashOfExile2, so updating "
-      "never touches it.\n\nThis product isn't affiliated with or endorsed by Grinding Gear Games in any way.")
+print(f"**Download (Windows):** Setup-StashOfExile2-{v}.exe installs it (Start menu, Windows search, uninstall from "
+      "Settings › Apps; no admin needed). Or StashOfExile2.exe - the portable one, run it from any folder. Both keep "
+      "your data in %APPDATA%\\StashOfExile2, so updating never touches it.\n\nThis product isn't affiliated with or "
+      "endorsed by Grinding Gear Games in any way.")

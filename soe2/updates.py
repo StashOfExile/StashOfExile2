@@ -58,7 +58,8 @@ def pick_asset(rel, frozen=None):
     """The file to download from a release: the .exe when we are an exe, else a .py (or the .exe if none)."""
     frozen = FROZEN if frozen is None else frozen
     assets = [a for a in rel.get("assets", []) if a.get("browser_download_url", "").startswith(f"https://github.com/{REPO}/")]
-    exe = [a for a in assets if a.get("name", "").lower().endswith(".exe")]
+    exe = [a for a in assets if a.get("name", "").lower().endswith(".exe")
+           and "setup" not in a.get("name", "").lower()]      # 3.0.6: the installer is for people, not the updater
     if sys.platform != "win32":                      # 2.10.0: never an .exe on Linux / macOS
         exe = []
     exe.sort(key=lambda a: not a.get("name", "").lower().startswith("stashofexile2"))   # 2.0: not the Delirium helper
@@ -224,3 +225,35 @@ def cleanup_update(app_dir, me=None, tries=20, sleep=None):
             return True
         sleep(0.5)
     return False
+
+
+INSTALL_KEY = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\{4A06F3CE-701E-4E4F-BA95-0CF8D0630828}_is1"
+
+
+def installed(exe=None):
+    """3.0.6: True when this copy came from Setup-StashOfExile2 (installer/installed.txt lies next to the exe)."""
+    exe = exe or sys.executable
+    return FROZEN and os.path.exists(os.path.join(os.path.dirname(os.path.abspath(exe)), "installed.txt"))
+
+
+def note_installed_version(version, exe=None):
+    """3.0.6: an installed copy updates itself like the portable one (it swaps its own exe), so the version shown in
+    Settings > Apps is set here, once it runs - the installer's own entry, current user only. -> True when written."""
+    if sys.platform != "win32" or not installed(exe):
+        return False
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, INSTALL_KEY, 0, winreg.KEY_READ | winreg.KEY_SET_VALUE) as k:
+            try:
+                cur = winreg.QueryValueEx(k, "DisplayVersion")[0]
+            except OSError:
+                cur = None
+            if cur != version:
+                winreg.SetValueEx(k, "DisplayVersion", 0, winreg.REG_SZ, version)
+                winreg.SetValueEx(k, "DisplayName", 0, winreg.REG_SZ, "StashOfExile2")
+        return True
+    except OSError:
+        return False
+    except Exception:
+        buglog.caught()
+        return False

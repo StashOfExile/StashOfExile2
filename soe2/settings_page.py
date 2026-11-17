@@ -498,6 +498,10 @@ class SettingsPage:
         ttk.Button(ur, text="Unmatched mods…", command=self.unmatched_open).pack(side="left")
         self.dev_unm_lbl = tk.Label(ur, text="", bg=P2, fg=C["muted"], font=("Segoe UI", 9))
         self.dev_unm_lbl.pack(side="left", padx=(8, 0))
+        mr = ttk.Button(ur, text="Measure resizing", style="Quiet.TButton", command=self.measure_resizing)
+        mr.pack(side="right")                            # 3.0.6: the Drawer drag's lag, measured on your PC
+        Tooltip(mr, "Resizes the window step by step on four pages and times each step (about 20 seconds - "
+                    "don't touch it meanwhile). Writes resize_test.txt in the data folder: times only.")
         self.dev_paint(save=False)
         row = section("Advanced", "Recent messages", "The last 20 messages the app showed you (they go away "
                                                      "by themselves, so they're kept here). Hover one to keep it up.")
@@ -1092,6 +1096,15 @@ class SettingsPage:
                                           filetypes=[("Pictures", "*.png *.jpg *.jpeg *.bmp *.gif *.webp"), ("All files", "*.*")])
         if path:
             self.shell.set_wallpaper(path)
+
+    def measure_resizing(self):
+        from . import resizetest
+        try:
+            path, _lines = resizetest.run(self)
+            self.app_toast("Done - resize_test.txt is in the data folder.", "Measure resizing", kind="success")
+            self.open_path(path)
+        except Exception:
+            buglog.caught()
 
     def on_desktop_icons(self):
         """(Before 2.0 beta 21 a checkbox; now Appearance > Launcher.)"""

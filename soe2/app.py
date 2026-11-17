@@ -401,7 +401,6 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         bind_own_configure(root, self._remember_rect)    # 1.42: where the title bar was BEFORE a minimize
         self._last_rect = None
         self.apply_topmost()
-        self.root.after(500, self.apply_composited)
         root.after(800, self.apply_topmost)
         self.drawer_init()                                   # drawer build: the Drawer key, watcher, strip state
         root.after(6000, self.startup_update_check)          # 2.0 beta 7: only if turned on in Settings            # again once the window is on screen (some systems drop it before)
@@ -507,27 +506,6 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         self.unmin_count = getattr(self, "unmin_count", 0) + 1
         self._say("The window was minimized without you asking, so it was brought back. Minimize it again (or press "
                   "Esc) and it will stay minimized.", 10)
-
-    def apply_composited(self):
-        """3.0.6 (owner: the Drawer lagged while its edge was dragged on every page but Dashboard; with the pages taken
-        off it didn't): dragging the Drawer's inner edge moves everything in the window on the screen, and on Windows
-        each part of a page is a window of its own - hundreds of them moved and painted one by one on each step.
-        Dashboard is one. WS_EX_COMPOSITED has Windows paint the whole window into one picture, then show it once.
-        Settings "win_composited" (no switch: a test build's) turns it off."""
-        if sys.platform != "win32" or not SETTINGS.get("win_composited", True):
-            return
-        try:
-            import ctypes
-            u = ctypes.windll.user32
-            u.GetWindowLongW.restype = ctypes.c_long
-            u.GetWindowLongW.argtypes = [ctypes.c_void_p, ctypes.c_int]
-            u.SetWindowLongW.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_long]
-            for h in {self._hwnd(), self.root.winfo_id()}:
-                ex = u.GetWindowLongW(h, -20)
-                if not ex & 0x02000000:
-                    u.SetWindowLongW(h, -20, ex | 0x02000000)
-        except Exception:
-            buglog.caught()
 
     def apply_topmost(self):
         # drawer build: the Drawer is always on top while shown (SETTINGS["on_top"] = the Full window's own setting)
@@ -6204,6 +6182,8 @@ def _splash_step(text=None, i=None):
 def main():
     if FROZEN and sys.platform == "win32":                # 2.29.1: remove what an update left behind
         threading.Thread(target=cleanup_update, args=(APP_DIR,), daemon=True).start()
+        from .updates import note_installed_version        # 3.0.6: an installed copy's version in Settings › Apps
+        threading.Thread(target=note_installed_version, args=(APP_VERSION,), daemon=True).start()
     try:
         from .fonts import load as _load_fonts           # 2.110.0: the overlay styles' bundled fonts (this app only)
         _load_fonts()

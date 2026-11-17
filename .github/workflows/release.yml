@@ -60,6 +60,19 @@ jobs:
           --add-data "soe2\templates;soe2\templates" --add-data "soe2\ritual_glyphs.json;soe2" --add-data "soe2\sekhemas.json;soe2" --add-data "soe2\fonts;soe2\fonts" --hidden-import pystray._win32 --hidden-import PIL._tkinter_finder
           --hidden-import cv2 --hidden-import mss --hidden-import numpy --collect-submodules winrt stashofexile2.py
 
+      # 3.0.6 (owner: "an installer too ... I still want the portable option"): Setup-StashOfExile2-<version>.exe -
+      # per user (no admin), Start menu, Settings > Apps, uninstaller (installer/StashOfExile2.iss). Its name doesn't
+      # start with "StashOfExile2", so older apps' updater still takes the portable exe.
+      - name: Build the installer (Inno Setup)
+        if: steps.ver.outputs.skip == 'false'
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress; }
+          & $iscc "/DAppVersion=${{ steps.ver.outputs.version }}" installer\StashOfExile2.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Get-ChildItem dist
+
       - name: Make the build kit zip and the release notes
         if: steps.ver.outputs.skip == 'false'
         shell: bash
@@ -84,7 +97,8 @@ jobs:
         run: |
           V="${{ steps.ver.outputs.version }}"
           cp dist/StashOfExile2.exe StashOfExile2.exe
-          sha256sum StashOfExile2.exe "StashOfExile2_build_kit_$V.zip" > SHA256SUMS.txt
+          cp "dist/Setup-StashOfExile2-$V.exe" "Setup-StashOfExile2-$V.exe"
+          sha256sum StashOfExile2.exe "Setup-StashOfExile2-$V.exe" "StashOfExile2_build_kit_$V.zip" > SHA256SUMS.txt
           cat SHA256SUMS.txt
           EXE=$(sha256sum StashOfExile2.exe | cut -d' ' -f1)
           ZIP=$(sha256sum "StashOfExile2_build_kit_$V.zip" | cut -d' ' -f1)
@@ -98,7 +112,8 @@ jobs:
               echo "::warning::VirusTotal upload failed - no scan link this time"
             fi
           fi
-          python tools/release_notes.py "$V" --sha "$EXE" "$ZIP" --vt "$VT" > body.md
+          SETUP=$(sha256sum "Setup-StashOfExile2-$V.exe" | cut -d' ' -f1)
+          python tools/release_notes.py "$V" --sha "$EXE" "$ZIP" --setup "$SETUP" --vt "$VT" > body.md
           cat .github/notice-2x.md body.md > notes.md
           cat notes.md
 
@@ -113,6 +128,7 @@ jobs:
           prerelease: false
           files: |
             dist/StashOfExile2.exe
+            dist/Setup-StashOfExile2-*.exe
             StashOfExile2_build_kit_*.zip
             SHA256SUMS.txt
 

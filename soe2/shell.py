@@ -1125,6 +1125,8 @@ class Shell:
 
     def _pages_fit(self):
         self._fit_job = None
+        if getattr(self, "_fit_hold", False):            # (resizetest: a page held at its size on purpose)
+            return
         for w in list(self.windows.values()):
             try:
                 w.reposition()
