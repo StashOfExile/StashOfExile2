@@ -1,7 +1,7 @@
 """3.0.6 (owner: dragging the Drawer's edge is "laggy as fuck" on every page but Dashboard - fixed blind four times, not
 gone): Settings › Advanced › Problems › Measure resizing. The app resizes its own window step by step on a few pages,
 the way a drag does, in different ways, and times each step - on YOUR PC, where the lag is. Written to
-resize_test.txt in the data folder: page names, step times and counts only, nothing about you.
+resize_test_drawer.txt / _full.txt in the data folder: page names, step times and counts only, nothing about you.
 
 Ways, for each page:
   normal        - as it is (the page laid out once the size settles)
@@ -121,7 +121,8 @@ def run(app):
             sh._pages_fit_soon()
         except Exception:
             buglog.caught()
-    path = os.path.join(DATA_DIR, "resize_test.txt")
+    shape = "drawer" if getattr(app, "drawer_shown_as_drawer", lambda: False)() else "full"
+    path = os.path.join(DATA_DIR, f"resize_test_{shape}.txt")
     try:
         with open(path, "w", encoding="utf-8") as f:
             f.write("\n".join(lines) + "\n")

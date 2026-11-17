@@ -501,7 +501,7 @@ class SettingsPage:
         mr = ttk.Button(ur, text="Measure resizing", style="Quiet.TButton", command=self.measure_resizing)
         mr.pack(side="right")                            # 3.0.6: the Drawer drag's lag, measured on your PC
         Tooltip(mr, "Resizes the window step by step on four pages and times each step (about 20 seconds - "
-                    "don't touch it meanwhile). Writes resize_test.txt in the data folder: times only.")
+                    "don't touch it meanwhile). Writes resize_test_drawer.txt (or _full.txt) in the data folder: times only.")
         self.dev_paint(save=False)
         row = section("Advanced", "Recent messages", "The last 20 messages the app showed you (they go away "
                                                      "by themselves, so they're kept here). Hover one to keep it up.")
@@ -1101,7 +1101,8 @@ class SettingsPage:
         from . import resizetest
         try:
             path, _lines = resizetest.run(self)
-            self.app_toast("Done - resize_test.txt is in the data folder.", "Measure resizing", kind="success")
+            self.app_toast(f"Done - {os.path.basename(path)} is in the data folder.", "Measure resizing",
+                           kind="success")
             self.open_path(path)
         except Exception:
             buglog.caught()
