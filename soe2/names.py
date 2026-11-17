@@ -127,6 +127,11 @@ FEATURES = (
                                 # screen picture, clipboard, key sending, OCR, Client.txt, each with its fix
 )
 
+# Game Search's categories that come from gamedb.json (tools/build_gamedb.py), in the order they follow "Endgame Items".
+# Title Case. gamedb.json, Game Search and the build tool all use exactly these.
+GAME_SEARCH_GROUPS = ("Tablets", "Waystones", "Atlas Masters", "Vaal Temple", "Pinnacles & Areas",
+                      "Trial of the Sekhemas", "Ritual Altars", "Leagues")
+
 OLD = {
     # 2.132.4 - 2.143.0: the overlay's settings were a child page, Overlay ↳ Overlay Settings. Nav phase 2: they are
     # the Overlay page's tabs (Helpers, On the Overlay, Look, Options) - an old name opens the Overlay page

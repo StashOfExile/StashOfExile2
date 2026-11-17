@@ -22,6 +22,33 @@ and a search the trade site takes (unidentified uniques too). Run it after rebui
 Bases and uniques newer than gamedata.json don't need a rebuild to work: the app downloads the trade site's own item
 list once a day (trade_items.json in the data folder) and uses it where the game data has nothing.
 
+tools/build_gamedb.py rebuilds gamedb.json (Game Search's offline game database: Tablets, Waystones, Atlas Masters, Vaal
+Temple, Pinnacles & Areas, Trial of the Sekhemas, Ritual Altars, Leagues). Only facts from the game's own files: it reads
+modlists.json, regexdata.json, mapdata.json, gamedata.json, searchdata.json and a few names in the app's code - no
+community ratings, nothing looked up when the app runs. Run it after any of those files changes:
+
+  py tools/build_gamedb.py            build, verify, write gamedb.json
+  py tools/build_gamedb.py --check    verify only (and says if gamedb.json is out of date)
+
+It checks every row before writing and refuses to write (exit 1, each failure printed) if one fails: every tablet and
+waystone mod has a stat in gamedata.json, every item name exists, modlists.json and regexdata.json agree on each tablet
+type's mods and ranges, and every mod line on the real copies in tests/fixtures/gamedb_samples.txt matches a row. To
+refresh those copies from the test build's data folder (session.json and unpriced_items.txt; only item text is kept):
+
+  py tools/build_gamedb.py --refresh-samples C:\path\to\Builds\soe2\testdata
+
+After a rebuild raise "gamedb.json" in BUNDLED_DATA (soe2/config.py) by 1.
+
+Removing a wrong row without a rebuild: add its id to gamedb_hide.json, one entry per row with a one-line reason:
+
+  [{"id": "tablet/any/mod/increased-rarity-of-items-found-in-map", "reason": "the game text differs in 0.5.6"}]
+
+Game Search leaves the row out the next time it opens, and the build skips it. Row ids are in gamedb.json and shown in a
+row's details (more ›). Raise "gamedb_hide.json" in BUNDLED_DATA by 1 when you ship a changed hide list.
+
+tools/build_searchdata.py also drops the Path of Exile 1 leftovers (scarabs, Maven's Invitations, watchstones ...): see its
+docstring. Without the PoE2-Search.html page, py tools/build_searchdata.py --refilter filters the searchdata.json here.
+
 Checks a release runs (each exits 1 and lists what to fix):
 
   py tools/check_names.py      one name per feature: page names from soe2/names.py, in Title Case; no old names

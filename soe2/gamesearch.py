@@ -32,9 +32,14 @@ def load():
                          "lt": (t or "").lower()})
         order = list(d.get("order") or [])
         rows += anoint_rows()
+        db_rows, db_order = gamedb_rows()
+        rows += db_rows
+        for g in reversed(db_order):                       # the new categories follow Endgame Items, in the file's order
+            if g not in order:
+                order.insert(order.index("Endgame Items") + 1 if "Endgame Items" in order else len(order), g)
         if any(r["g"] == ANOINTS for r in rows) and ANOINTS not in order:
             order.insert(order.index("Modifiers") if "Modifiers" in order else len(order), ANOINTS)
-        _DATA.update(rows=rows, order=order, nolink=set(d.get("nolink") or []),
+        _DATA.update(rows=rows, order=order, nolink=set(d.get("nolink") or []) | set(db_order),
                      version=d.get("version", "?"), error=None)
     except Exception as e:
         _DATA.update(rows=[], order=[], nolink=set(), version="?",
@@ -69,6 +74,45 @@ def anoint_rows():
         return out
     except Exception:
         return []
+
+
+def gamedb_rows():
+    """3.0.6: the offline game database (gamedb.json, tools/build_gamedb.py): tablets, waystones, Atlas masters, Vaal
+    Temple, pinnacles and areas, Trial of the Sekhemas, Ritual altars, leagues - facts from the game's own files only.
+    A row listed in gamedb_hide.json ([{"id": ..., "reason": ...}]) is left out, so a wrong row is removed by adding
+    its id there, with no rebuild. -> (rows, the categories in order)"""
+    path = _find("gamedb.json")
+    if not path:
+        return [], []
+    try:
+        with open(path, encoding="utf-8") as f:
+            d = json.load(f)
+        hide = hidden_ids()
+        out = []
+        for r in d["rows"]:
+            if r["id"] in hide:
+                continue
+            t, k = r["text"], r.get("tags") or ""
+            out.append({"n": r["name"], "g": r["group"], "c": r["class"], "k": k, "t": t, "ln": r["name"].lower(),
+                        "lk": k.lower(), "lt": t.lower(), "db": True, "id": r["id"], "src": r["source"],
+                        "v": r["version"], "props": r.get("props") or [], "lines": r.get("lines") or []})
+        return out, list(d.get("order") or [])
+    except Exception:
+        buglog.caught()
+        return [], []
+
+
+def hidden_ids():
+    path = _find("gamedb_hide.json")
+    if not path:
+        return set()
+    try:
+        with open(path, encoding="utf-8-sig") as f:
+            d = json.load(f)
+        return {e["id"] for e in d if isinstance(e, dict) and e.get("id")}
+    except Exception:
+        buglog.caught()
+        return set()
 
 
 def emotion_counts(em):
