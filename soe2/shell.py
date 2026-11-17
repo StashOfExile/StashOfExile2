@@ -560,8 +560,9 @@ class DeskWindow(tk.Frame if EMBED else tk.Toplevel):
         if self.key in OVER and self._g and not EMBED:
             x, y, w, h = self._g
             tk.Place.place_configure(self, in_=self.shell.desk, x=x, y=y, width=w, height=h, relwidth=0, relheight=0)
-        else:
-            tk.Place.place_configure(self, in_=self.shell.desk, x=0, y=0, width=0, height=0, relwidth=1, relheight=1)
+        else:                                            # 3.0.6: the area's size now, not "follow it" (relwidth) -
+            dw, dh = self.shell.desk_size()              # see Shell._pages_fit_soon
+            tk.Place.place_configure(self, in_=self.shell.desk, x=0, y=0, width=dw, height=dh, relwidth=0, relheight=0)
 
     def deiconify(self):
         if not EMBED:
@@ -1104,6 +1105,31 @@ class Shell:
         except Exception:
             buglog.caught()
 
+    def desk_size(self):
+        return max(MIN_W, self.desk.winfo_width()), max(MIN_H, self.desk.winfo_height())
+
+    def _pages_fit_soon(self, _e=None):
+        """3.0.6 (owner: dragging the Drawer "laggy everywhere but dashboard - figure out what dashboard is doing
+        right"): Dashboard is one drawing whose size follows the window at once and whose contents are drawn again
+        40 ms after the size stops changing (dashboard_page.later). Every page now does the same: the main area
+        follows the window at once (cheap), and the open pages - hundreds of parts each, every one a window of its
+        own on Windows - are laid out once, 40 ms after the size stops changing, not on every step of a drag."""
+        job = getattr(self, "_fit_job", None)
+        if job is not None:
+            try:
+                self.root.after_cancel(job)
+            except tk.TclError:
+                pass
+        self._fit_job = self.root.after(40, self._pages_fit)
+
+    def _pages_fit(self):
+        self._fit_job = None
+        for w in list(self.windows.values()):
+            try:
+                w.reposition()
+            except Exception:
+                buglog.caught()
+
     def _follow(self):
         self._follow_job = None
         org = self.desk_origin()
@@ -1111,8 +1137,11 @@ class Shell:
         if (org, size) == getattr(self, "_last_place", None):
             return
         self._last_place = (org, size)
-        for w in self.windows.values():
-            w.reposition()
+        if EMBED:
+            self._pages_fit_soon()                       # (3.0.6: like Dashboard - once the size settles)
+        else:
+            for w in self.windows.values():
+                w.reposition()
         try:
             self.check_owners()
             self.monitor_check()
