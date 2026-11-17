@@ -37,6 +37,9 @@ MAP_TYPES = MM.TAG_GROUPS["Map type"]
 BOSS_TAGS = tuple(tag for _w, tag in MM.BOSS_CHIPS)
 F9, F10, FB = ("Segoe UI", 9), ("Segoe UI", 10), ("Segoe UI", 8, "bold")  # token-ok (canvas)
 URL = re.compile(r"https?://\S+")
+ROWS = (("p1", "Prefix 1"), ("p2", "Prefix 2"), ("s1", "Suffix 1"), ("s2", "Suffix 2"))
+ROWS = dict(ROWS)
+PICKER_BUSY = "Finish or cancel the picker first"
 
 
 def _map_content():
@@ -117,10 +120,9 @@ class StratNewPage:
             cv.later(10)
 
     # ------------------------------------------------------------------ the typed fields (real entries on the canvas)
-
-    # ------------------------------------------------------------------ the typed fields (real entries on the canvas)
-    def _mm_new_entry(self, value="", hint="", lines=0):
-        """A field drawn on the page: an Entry, or (lines) a Text that grows with its lines; hint shows while empty."""
+    def _mm_new_entry(self, value="", hint="", lines=0, right=False):
+        """A field drawn on the page: an Entry (right: a number, right-aligned), or (lines) a Text that grows with its
+        lines; hint shows while empty."""
         cv = self.mm_new_cv
         kw = dict(bg=C["odd"], fg=C["text"], insertbackground=C["text"], relief="flat", highlightthickness=1,
                   highlightbackground=C["line"], highlightcolor=C["accent"], font=F10)
@@ -134,7 +136,7 @@ class StratNewPage:
                 return not w.get("1.0", "end-1c")
         else:
             var = tk.StringVar(value=value)
-            w = tk.Entry(cv, textvariable=var, bd=7, **kw)          # (the border is the field's inner padding)
+            w = tk.Entry(cv, textvariable=var, bd=7, justify="right" if right else "left", **kw)   # (bd: its padding)
             w.var = var
             var.trace_add("write", lambda *_a: self._mm_new_typed())
 
@@ -149,7 +151,10 @@ class StratNewPage:
                     if not empty() or self.root.focus_get() is w:
                         ph.place_forget()
                     else:
-                        ph.place(in_=w, x=7 if not lines else 8, rely=0.5, anchor="w")
+                        if right:
+                            ph.place(in_=w, relx=1.0, x=-8, rely=0.5, anchor="e")
+                        else:
+                            ph.place(in_=w, x=7 if not lines else 8, rely=0.5, anchor="w")
                 except (tk.TclError, KeyError):
                     pass
             for ev in ("<FocusIn>", "<FocusOut>", "<Map>", "<KeyRelease>"):
@@ -173,9 +178,9 @@ class StratNewPage:
         nw["tips"] = self._mm_new_entry("\n".join(s.get("tips") or []), "One per line", lines=1)
         nw["risks"] = self._mm_new_entry("\n".join(s.get("risks") or []), "What can go wrong", lines=1)
         nw["source"] = self._mm_new_entry(stext, "Link to the guide or video, and its author")
-        nw["hand_q"] = self._mm_new_entry("", "Search mods…")                      # the by-hand picker
-        nw["hand_min"] = self._mm_new_entry("", "min")
-        nw["hand_props"] = {name: self._mm_new_entry("", "min") for name in MM.hand_props()}
+        nw["hand_q"] = self._mm_new_entry("", "Search…")                           # the by-hand pickers
+        nw["hand_rows"] = {r: self._mm_new_entry("", "min", right=True) for r in ROWS}
+        nw["hand_props"] = {name: self._mm_new_entry("", "any", right=True) for name in MM.hand_props()}
 
     def _mm_new_typed(self):
         """A key typed in a field: a new empty step when the last is filled; the side panel and Needs follow."""
@@ -190,8 +195,6 @@ class StratNewPage:
             steps.append(self._mm_new_entry("", "Next step…"))
         if getattr(self, "mm_nd", None):
             self.mm_nd["msg"] = None
-            if self.mm_nd.get("hand"):
-                self._mm_hand_sync()
         self.mm_new_cv.later(180)
 
     def _mm_val(self, w):
@@ -350,102 +353,138 @@ class StratNewPage:
         return m
 
     def mm_new_hand_open(self, which):
-        """The picker for a slot: "way", or a tablet slot (an empty one: the next free). A slot filled by hand opens
-        with what it has."""
+        """The picker for a slot (the approved mockup v3): "way", or a tablet slot (an empty one: the next free). A
+        slot filled by hand opens with what it has. Nothing goes in the slot until Done."""
         d = self.mm_nd
         if which != "way":
             which = min(int(which), len(d["cards"]), MM.TABLETS_MAX - 1)
         c = d["way"] if which == "way" else (d["cards"][which] if which < len(d["cards"]) else None)
         st = dict((c or {}).get("hand_state") or {})
         d["hand"] = {"which": which, "kind": "waystone" if which == "way" else "tablet", "tier": st.get("tier"),
-                     "ttype": st.get("ttype"), "pick": None, "mods": [list(x) for x in st.get("mods") or []],
-                     "props": dict(st.get("props") or {})}
+                     "ttype": st.get("ttype"), "unique": st.get("unique"), "open": None,
+                     "rows": dict(st.get("rows") or {})}
         nw = self.mm_nw
         nw["hand_q"].var.set("")
-        nw["hand_min"].var.set("")
+        for r, e in nw["hand_rows"].items():
+            e.var.set((st.get("mins") or {}).get(r, ""))
         for name, e in nw["hand_props"].items():
-            e.var.set(d["hand"]["props"].get(name, ""))
-        d["sel"] = which if c is not None else d.get("sel")
+            e.var.set((st.get("props") or {}).get(name, ""))
         self.mm_new_cv.later(1)
         return d["hand"]
 
     def mm_new_hand_close(self):
+        """Cancel / ✕: the picker goes, nothing is added."""
         self.mm_nd["hand"] = None
         self.mm_new_cv.later(1)
 
     def mm_new_hand_set(self, field, value):
-        """The waystone's tier, or the tablet's type."""
+        """The waystone's tier; the tablet's type (its rows start empty - nothing is picked for you); a unique."""
         h = self.mm_nd["hand"]
-        h[field] = value
         if field == "ttype":
-            h["mods"] = [m for m in h["mods"] if m[0] in MM.hand_tablet_types().get(value, [])]
-        self._mm_hand_sync()
+            h.update(ttype=value, unique=None, rows={}, open=None)
+            for e in self.mm_nw["hand_rows"].values():
+                e.var.set("")
+        elif field == "unique":
+            h.update(unique=value, ttype=MM.unique_tablets().get(value) or h.get("ttype"), rows={}, open=None)
+        else:
+            h[field] = value
         self.mm_new_cv.later(1)
 
-    def mm_new_hand_pick(self, template):
-        self.mm_nd["hand"]["pick"] = template
-        self.mm_new_cv.later(1)
-
-    def mm_new_hand_add(self):
-        """Add (grayed until a mod is picked): the mod, with its minimum when one is typed."""
-        h, nw = self.mm_nd["hand"], self.mm_nw
-        if not h or not h.get("pick"):
-            return None
-        v = re.sub(r"[^\d.]", "", self._mm_val(nw["hand_min"]))
-        h["mods"] = [m for m in h["mods"] if m[0] != h["pick"]] + [[h["pick"], v]]
-        h["pick"] = None
-        nw["hand_min"].var.set("")
-        nw["hand_q"].var.set("")
-        self._mm_hand_sync()
-        self.mm_new_cv.later(1)
-        return h["mods"]
-
-    def mm_new_hand_del(self, i):
+    def mm_new_hand_dropdown(self, row):
+        """Open / close a row's list ("p1" ... "s2") or the uniques' ("unique"); its search starts empty."""
         h = self.mm_nd["hand"]
-        if 0 <= i < len(h["mods"]):
-            h["mods"].pop(i)
-        self._mm_hand_sync()
+        h["open"] = None if h.get("open") == row else row
+        self.mm_nw["hand_q"].var.set("")
         self.mm_new_cv.later(1)
 
-    def _mm_hand_options(self):
-        """The mods the search finds (the waystone's, or the picked tablet type's)."""
+    def mm_new_hand_choose(self, row, value):
         h = self.mm_nd["hand"]
-        pool = MM.hand_waystone_mods() if h["kind"] == "waystone" else MM.hand_tablet_types().get(h.get("ttype"), [])
+        if row == "unique":
+            self.mm_new_hand_set("unique", value)
+            return h
+        if value:
+            h["rows"][row] = value
+        else:
+            h["rows"].pop(row, None)
+        h["open"] = None
+        self.mm_new_cv.later(1)
+        return h
+
+    def _mm_hand_options(self, row):
+        """What a row's list shows: that tablet type's prefixes (or suffixes) - not the one the other row of the
+        same kind has - or every unique tablet; the search narrows it."""
+        h = self.mm_nd["hand"]
         q = self._mm_val(self.mm_nw["hand_q"]).strip().lower()
-        have = {m[0] for m in h["mods"]}
-        return [m for m in pool if m not in have and (not q or q in m.lower())]
+        if row == "unique":
+            pool = list(MM.unique_tablets())
+        else:
+            pre, suf = MM.hand_tablet_affixes(h.get("ttype"))
+            other = {"p1": "p2", "p2": "p1", "s1": "s2", "s2": "s1"}[row]
+            pool = [m for m in (pre if row.startswith("p") else suf) if m != h["rows"].get(other)]
+        return [m for m in pool if not q or q in m.lower()]
 
-    def _mm_hand_sync(self):
-        """The picker's choices -> the slot's card (once it has a tier / a type)."""
-        d = self.mm_nd
-        h = d.get("hand")
-        if not h:
-            return None
+    def mm_new_hand_ready(self):
+        h = self.mm_nd.get("hand")
+        return bool(h and (h.get("tier") if h["kind"] == "waystone" else (h.get("ttype") or h.get("unique"))))
+
+    def _mm_hand_values(self):
         nw = self.mm_nw
-        h["props"] = {n: re.sub(r"[^\d.]", "", self._mm_val(e)) for n, e in nw["hand_props"].items()
-                      if self._mm_val(e).strip()}
-        state = {"tier": h.get("tier"), "ttype": h.get("ttype"), "mods": [list(m) for m in h["mods"]],
-                 "props": dict(h["props"])}
+        num = lambda w: re.sub(r"[^\d.]", "", self._mm_val(w))       # noqa: E731
+        return ({n: num(e) for n, e in nw["hand_props"].items() if num(e)},
+                {r: num(e) for r, e in nw["hand_rows"].items() if num(e)})
+
+    def mm_new_hand_summary(self):
+        """The picker's footer: what Done puts in the slot."""
+        h = self.mm_nd.get("hand")
+        if not h:
+            return ""
+        props, mins = self._mm_hand_values()
         if h["kind"] == "waystone":
             if not h.get("tier"):
-                return None
-            card = MM.hand_card("waystone", tier=h["tier"], props=h["props"], mods=h["mods"])
-            card["hand_state"] = state
+                return "Pick its tier."
+            bits = [f"{n} {v}{'' if n.lower().startswith('revives') else '%'}+" for n, v in
+                    ((n, props[n]) for n in MM.hand_props() if n in props)]
+            return f"Waystone (Tier {h['tier']})" + (" · " + ", ".join(bits) if bits else "")
+        if h.get("unique"):
+            return f"{h['unique']} · {h.get('ttype') or 'Tablet'} · unique"
+        if not h.get("ttype"):
+            return "Pick its type."
+        n = len(h["rows"])
+        return f"{h['ttype']} · 10 uses · {n} mod{'s' if n != 1 else ''}"
+
+    def mm_new_hand_done(self):
+        """Done: the picked waystone / tablet goes in its slot (the picker closes)."""
+        d = self.mm_nd
+        h = d.get("hand")
+        if not self.mm_new_hand_ready():
+            return None
+        props, mins = self._mm_hand_values()
+        state = {"tier": h.get("tier"), "ttype": h.get("ttype"), "unique": h.get("unique"), "rows": dict(h["rows"]),
+                 "mins": mins, "props": props}
+        if h["kind"] == "waystone":
+            card = MM.hand_card("waystone", tier=h["tier"], props=props)
+        elif h.get("unique"):
+            card = MM.unique_card(h["unique"], h.get("ttype"))
+            card["hand"] = True
+        else:
+            card = MM.hand_card("tablet", base=h["ttype"],
+                                mods=[(h["rows"][r], mins.get(r)) for r in ROWS if h["rows"].get(r)])
+        card["hand_state"] = state
+        if h["kind"] == "waystone":
             d["way"] = card
         else:
-            if not h.get("ttype"):
-                return None
-            card = MM.hand_card("tablet", base=h["ttype"], mods=h["mods"])
-            card["hand_state"] = state
             i = h["which"]
             if i < len(d["cards"]):
                 d["cards"][i] = card
             elif len(d["cards"]) < MM.TABLETS_MAX:
                 d["cards"].append(card)
-                h["which"] = len(d["cards"]) - 1
+                i = len(d["cards"]) - 1
+            h["which"] = i
             self._mm_new_city()
         d["sel"] = h["which"]
+        d["hand"] = None
         self._mm_new_cost_later()
+        self.mm_new_cv.later(1)
         return card
 
     # ------------------------------------------------------------------ copies (whichever copy key, via clip_read_once)
@@ -975,7 +1014,10 @@ class StratNewPage:
             else:
                 b = TH.round_rect(cv, x, y, x + sz, y + sz, 6, fill=cv.c("surface_sunken"),
                                   outline=cv.c("border_light"), tags=(tag,))
-                if cv.icon(c["base"], x + sz / 2, y + sz / 2, 62, anchor="center", tags=(tag,)) is None:
+                uniq = c.get("unique")                   # (a unique: its own picture, else its base's)
+                if (not uniq or cv.icon(c.get("name"), x + sz / 2, y + sz / 2, 62, anchor="center",
+                                        tags=(tag,)) is None) and \
+                        cv.icon(c["base"], x + sz / 2, y + sz / 2, 62, anchor="center", tags=(tag,)) is None:
                     cv.text(x + sz / 2, y + sz / 2, cv.fit(c["base"].split()[0], F9, sz - 8), F9,
                             fill=cv.c("text_muted"), anchor="center", tags=(tag,))
                 if which == "way":
@@ -983,14 +1025,16 @@ class StratNewPage:
                     sub = (f"T{c['tier']}" if c.get("tier") else c["base"]) + (
                         " · by hand" if c.get("hand") else f" · {MM.short_div(p)} div" if p is not None else "")
                 else:
-                    sub = " · ".join(x_ for x_ in (c["base"].replace(" Tablet", ""), "by hand" if c.get("hand") else
+                    sub = c["name"] if uniq else \
+                        " · ".join(x_ for x_ in (c["base"].replace(" Tablet", ""), "by hand" if c.get("hand") else
                                                    f"{c['uses']} uses" if c.get("uses") else "") if x_)
                 cv.acts[tag] = (lambda w=which: self.mm_new_hand_open(w)) if c.get("hand") else \
                     (lambda w=which: self.mm_new_select(w))
                 cv.menus[tag] = lambda X, Y, w=which: self.mm_new_slot_menu(w, X, Y)
                 cv.lifts[tag] = [(b, {"outline": cv.c("border_light")}, {"outline": cv.c("text_muted")})]
                 cv.tips[tag] = f"{c.get('name') or c['base']} - click: tick its mods · right-click: remove it"
-            cv.text(x + sz / 2, y + sz + 14, kind, F9, fill=cv.c("text"), anchor="center", tags=(tag,))
+            cv.text(x + sz / 2, y + sz + 14, "★ Unique" if c and c.get("unique") else kind, F9, fill=cv.c("text"),
+                    anchor="center", tags=(tag,))
             cv.text(x + sz / 2, y + sz + 33, cv.fit(sub, F9, sz + gap + 10), F9, fill=cv.c("text_muted"),
                     anchor="center", tags=(tag,))
             x += sz + gap
@@ -1020,92 +1064,160 @@ class StratNewPage:
         return y
 
     def _nw_hand_panel(self, cv, d, x0, x1, y):
-        """The by-hand picker, a small card under the slots: the waystone's tier and top numbers, or the tablet's
-        type; then Add a mod - its search box first, the matches, a minimum, Add (grayed until one is picked)."""
+        """The by-hand picker, the approved mockup v3: a card under the slots - its picture, title, one line of help
+        and ✕; Waystone: TIER (16 squares) and WAYSTONE MODIFIERS · at least (one row each, as a waystone reads);
+        Tablet: TYPE chips + ★ Unique ▾, then Prefix 1 / 2, Suffix 1 / 2 (each a list of what this type can roll, with
+        its search first) and a min; a footer: what Done puts in, Cancel, Done (the page's one orange button now)."""
         h, nw = d["hand"], self.mm_nw
-        card = TH.round_rect(cv, x0, y, x1, y + 10, 8, fill=cv.c("surface"), outline=cv.c("border"))
         way = h["kind"] == "waystone"
-        t = cv.text(x0 + 16, y + 24, "Waystone by hand" if way else "Tablet by hand", ("Segoe UI", 10, "bold"),
-                    fill=cv.c("text_strong"), anchor="w")
-        cv.text(cv.bbox(t)[2] + 6, y + 24, "· nothing to copy? pick it here", F9, fill=cv.c("text_muted"), anchor="w")
-        cv.button(x1 - 12, y + 8, "✕", "nw_hand_x", self.mm_new_hand_close, anchor="e", h=30, w=32,
-                  tip="Close the picker")
-        yy = y + 50
-        lx, ix = x0 + 16, x0 + 16 + 132 if x1 - x0 > 560 else x0 + 16
-        stacked = ix == lx
-        cr = x1 - 16
+        acc = cv.c("accent")
+        card = TH.round_rect(cv, x0, y, x1, y + 10, 10, fill=cv.c("surface_raised"), outline=cv.c("border_light"))
+        pic = (f"Waystone (Tier {h['tier']})" if h.get("tier") else "Waystone") if way else \
+            (h.get("unique") or h.get("ttype") or "Breach Tablet")
+        got = cv.icon(pic, x0 + 18, y + 30, 40, anchor="w")
+        if got is None and h.get("unique"):
+            got = cv.icon(h.get("ttype"), x0 + 18, y + 30, 40, anchor="w")
+        tx = x0 + 18 + (54 if got is not None else 0)
+        cv.text(tx, y + 20, "Waystone by hand" if way else "Tablet by hand", ("Segoe UI", 12, "bold"),
+                fill=cv.c("text_strong"), anchor="w")
+        cv.text(tx, y + 40, cv.fit("Nothing to copy? Set the tier and the numbers you aim for." if way else
+                                   "Pick the type, then up to 2 prefixes and 2 suffixes. Lists show only what this "
+                                   "type can roll.", F9, x1 - tx - 70), F9, fill=cv.c("text_muted"), anchor="w")
+        cv.button(x1 - 18, y + 14, "✕", "nw_hand_x", self.mm_new_hand_close, anchor="e", h=36, w=40,
+                  tip="Close without adding")
+        yy = y + 68
+        lx = x0 + 18
+        cr = x1 - 18
 
-        def label(text, yy_):
-            cv.text(lx, yy_ + (6 if stacked else 15), text, FB, fill=cv.c("text_muted"), anchor="w")
-            return yy_ + (20 if stacked else 0)
+        def label(text, yy_, extra=None):
+            t_ = cv.text(lx, yy_ + 6, text, FB, fill=cv.c("text_muted"), anchor="w")
+            if extra:
+                cv.text(cv.bbox(t_)[2] + 4, yy_ + 6, extra, F9, fill=cv.c("text_muted"), anchor="w")
+            return yy_ + 18
         if way:
             yy = label("TIER", yy)
-            yy = self._nw_chips(cv, ix, cr, yy, [(str(n), f"nw_ht_{n}", h.get("tier") == n,
-                                                  lambda n=n: self.mm_new_hand_set("tier", n))
-                                                 for n in range(1, 17)], h=30) + 14
-            yy = label("TOP NUMBERS · MIN", yy)
-            cw = max(150, (cr - ix) / 3)
-            x, ry = ix, yy
+            sq, g = 32, 4
+            x = lx
+            for n in range(1, 17):
+                if x + sq > cr:
+                    x, yy = lx, yy + sq + g
+                tag = f"nw_ht_{n}"
+                on = h.get("tier") == n
+                b = TH.round_rect(cv, x, yy, x + sq, yy + sq, 5, fill=TH.mix(cv.c("surface"), acc, .16) if on
+                                  else cv.c("surface"), outline=acc if on else cv.c("border_light"), tags=(tag,))
+                cv.text(x + sq / 2, yy + sq / 2, str(n), ("Segoe UI", 9, "bold") if on else F9,
+                        fill=cv.c("text_strong") if on else cv.c("text"), anchor="center", tags=(tag,))
+                cv.acts[tag] = lambda n=n: self.mm_new_hand_set("tier", n)
+                cv.lifts[tag] = [(b, {"outline": acc if on else cv.c("border_light")},
+                                  {"outline": acc if on else cv.c("text_muted")})]
+                cv.tips[tag] = f"Tier {n}"
+                x += sq + g
+            yy += sq + 20
+            yy = label("WAYSTONE MODIFIERS", yy, "· at least")
+            yy += 4
             for name in MM.hand_props():
-                if x + cw > cr + 2:
-                    x, ry = ix, ry + 40
-                cv.text(x, ry + 15, name, F9, fill=cv.c("text"), anchor="w")
-                self._nw_place(cv, nw["hand_props"][name], x + cw - 72, ry, 62, 30)
-                x += cw
-            yy = ry + 30 + 16
+                e = nw["hand_props"][name]
+                filled = bool(self._mm_val(e).strip())
+                try:
+                    e.configure(highlightbackground=C["accent"] if filled else C["line"])
+                except tk.TclError:
+                    pass
+                cv.text(lx, yy + 16, f"{name}:", F10, fill=cv.c("text"), anchor="w")
+                self._nw_place(cv, e, lx + 208, yy, 88, 32)
+                if not name.lower().startswith("revives"):
+                    cv.text(lx + 208 + 88 + 12, yy + 16, "%", F10, fill=cv.c("text_muted"), anchor="w")
+                yy += 38
         else:
             yy = label("TYPE", yy)
-            yy = self._nw_chips(cv, ix, cr, yy, [(b.replace(" Tablet", "") + (" (Precursor)" if b.startswith(
-                "Irradiated") else ""), f"nw_htt_{i}", h.get("ttype") == b, lambda b=b: self.mm_new_hand_set("ttype", b))
-                for i, b in enumerate(MM.hand_tablet_types())], h=30) + 6
-            yy = cv.bottom(cv.text(ix, yy + 4, f"{10} uses - the trade search looks for {MM.TABLET_USES}+", F9,
-                                   fill=cv.c("text_muted")), yy + 16) + 12
-        ready = way and h.get("tier") or not way and h.get("ttype")
-        yy = label("ADD A MOD", yy)
-        if not ready:
-            yy = cv.bottom(cv.text(ix, yy + 8, "Pick its " + ("tier" if way else "type") + " first.", F9,
-                                   fill=cv.c("text_muted")), yy + 16) + 14
-        else:
-            self._nw_place(cv, nw["hand_q"], ix, yy, min(320, cr - ix), 32)   # (the search box first)
-            yy += 38
-            opts = self._mm_hand_options()
-            for i, m in enumerate(opts[:6]):
-                tag = f"nw_ho_{i}"
-                on = m == h.get("pick")
-                b = TH.round_rect(cv, ix, yy, cr, yy + 28, 4, fill=TH.mix(cv.c("surface_raised"), cv.c("accent"), .16)
-                                  if on else cv.c("surface_raised"), outline=cv.c("accent") if on else "", tags=(tag,))
-                cv.text(ix + 10, yy + 14, cv.fit(("✓ " if on else "") + m, F9, cr - ix - 20), F9,
-                        fill=cv.c("text_strong") if on else cv.c("text"), anchor="w", tags=(tag,))
-                cv.acts[tag] = lambda m=m: self.mm_new_hand_pick(m)
-                cv.lifts[tag] = [(b, {"outline": cv.c("accent") if on else ""}, {"outline": cv.c("text_muted")})]
-                cv.tips[tag] = m
-                yy += 31
-            if len(opts) > 6:
-                yy = cv.bottom(cv.text(ix, yy + 2, f"{len(opts) - 6} more - type to narrow the list", F9,
-                                       fill=cv.c("text_muted")), yy + 14) + 6
-            elif not opts:
-                yy = cv.bottom(cv.text(ix, yy + 2, "No mod matches.", F9, fill=cv.c("text_muted")), yy + 14) + 6
-            yy += 4
-            pick = h.get("pick")
-            cv.text(ix, yy + 16, cv.fit(pick or "Pick a mod above", F9, max(60, cr - ix - 190)), F9,
-                    fill=cv.c("text") if pick else cv.c("text_muted"), anchor="w")
-            self._nw_place(cv, nw["hand_min"], cr - 170, yy, 70, 32)
-            cv.button(cr, yy, "Add", "nw_hand_add", self.mm_new_hand_add, anchor="e", h=32, enabled=bool(pick),
-                      tip="Add it (with its minimum, if you typed one)" if pick else "Pick a mod first")
-            yy += 44
-            for i, (tmpl, v) in enumerate(h["mods"]):
-                tag = f"nw_hm_{i}"
-                line = MM.hand_line(tmpl, v) + ("" if v else "  (any value)")
-                b = TH.round_rect(cv, ix, yy, cr, yy + 28, 4, fill=cv.c("surface_raised"), outline="", tags=(tag,))
-                cv.text(ix + 10, yy + 14, cv.fit("✓ " + line, F9, cr - ix - 50), F9, fill=cv.c("text"), anchor="w",
+            chips = [(b.replace(" Tablet", ""), f"nw_htt_{i}", h.get("ttype") == b and not h.get("unique"),
+                      lambda b=b: self.mm_new_hand_set("ttype", b)) for i, b in enumerate(MM.hand_tablet_types())]
+            chips.append((("★ " + h["unique"]) if h.get("unique") else "★ Unique ▾", "nw_huniq", bool(h.get("unique")),
+                          lambda: self.mm_new_hand_dropdown("unique"), "Every unique tablet, with its picture"))
+            yy = self._nw_chips(cv, lx, cr, yy, chips) + 14
+            if h.get("open") == "unique":
+                yy = self._nw_hand_list(cv, "unique", lx, cr, yy) + 10
+            if h.get("unique"):
+                yy = cv.bottom(cv.text(lx, yy + 4, f"★ {h['unique']} · {h.get('ttype') or 'Tablet'} - a unique: its "
+                                                   "mods are fixed, it goes in by name.", F9, fill=cv.c("text"),
+                                       width=cr - lx), yy + 16) + 10
+            elif h.get("ttype"):
+                for r, lab in ROWS.items():
+                    cv.text(lx, yy + 17, lab.upper(), FB, fill=cv.c("text_muted"), anchor="w")
+                    bx0, bx1 = lx + 86, cr - 98
+                    tag = f"nw_hrow_{r}"
+                    val = h["rows"].get(r)
+                    b = TH.round_rect(cv, bx0, yy, bx1, yy + 34, 4, fill=cv.c("surface_sunken"),
+                                      outline=acc if h.get("open") == r else cv.c("border_light"), tags=(tag,))
+                    cv.text(bx0 + 10, yy + 17, cv.fit(val or ("Pick a prefix…" if r.startswith("p") else
+                                                             "Pick a suffix…"), F10, bx1 - bx0 - 36), F10,
+                            fill=cv.c("text") if val else cv.c("text_muted"), anchor="w", tags=(tag,))
+                    cv.text(bx1 - 12, yy + 17, "▾", F9, fill=cv.c("text_muted"), anchor="center", tags=(tag,))
+                    cv.acts[tag] = lambda r=r: self.mm_new_hand_dropdown(r)
+                    cv.lifts[tag] = [(b, {"outline": acc if h.get("open") == r else cv.c("border_light")},
+                                      {"outline": cv.c("text_muted")})]
+                    cv.tips[tag] = val or ("This type's prefixes" if r.startswith("p") else "This type's suffixes")
+                    e = nw["hand_rows"][r]
+                    try:
+                        e.configure(highlightbackground=C["accent"] if self._mm_val(e).strip() else C["line"])
+                    except tk.TclError:
+                        pass
+                    self._nw_place(cv, e, cr - 88, yy, 88, 34)
+                    yy += 42
+                    if h.get("open") == r:
+                        yy = self._nw_hand_list(cv, r, bx0, bx1, yy) + 8
+            yy = cv.bottom(cv.text(lx, yy + 4, "★ Unique ▾ lists every unique tablet (with its picture); a unique has "
+                                               "fixed mods, so it's added by name - no affix rows.", F9,
+                                   fill=cv.c("text_muted"), width=cr - lx), yy + 16) + 12
+        cv.create_line(lx, yy, cr, yy, fill=cv.c("border"))
+        yy += 12
+        ready = self.mm_new_hand_ready()
+        d0, _d1 = cv.button(cr, yy, "Done", "nw_hand_done", self.mm_new_hand_done, kind="primary", enabled=bool(ready),
+                            anchor="e", h=44, tip="Put it in the slot" if ready else
+                            ("Pick its tier first" if way else "Pick its type first"))
+        c0, _c1 = cv.button(d0 - 10, yy + 4, "Cancel", "nw_hand_cancel", self.mm_new_hand_close, anchor="e", h=36,
+                            tip="Close without adding")
+        st = cv.text(lx, yy + 22, self.mm_new_hand_summary(), F9, fill=cv.c("text_muted"), anchor="w",
+                     width=max(120, c0 - lx - 24), tags=("nw_hand_sum",))
+        yy = max(yy + 44, cv.bottom(st, yy + 30)) + 16
+        cv.coords(card, *_rr_points(x0, y, x1, yy, 10))
+        return yy
+
+    def _nw_hand_list(self, cv, row, x0, x1, y):
+        """A searchable list (its search box first): a row's mods, or every unique tablet with its picture."""
+        nw = self.mm_nw
+        box = TH.round_rect(cv, x0, y, x1, y + 10, 6, fill=cv.c("surface"), outline=cv.c("border_light"))
+        self._nw_place(cv, nw["hand_q"], x0 + 8, y + 8, min(320, x1 - x0 - 16), 32)
+        yy = y + 46
+        opts = self._mm_hand_options(row)
+        uniq = row == "unique"
+        if not uniq and self.mm_nd["hand"]["rows"].get(row):
+            opts = [""] + opts                               # (none: empties the row)
+        tablets = MM.unique_tablets() if uniq else {}
+        for i, m in enumerate(opts[:8]):
+            tag = f"nw_hopt_{row}_{i}"
+            b = TH.round_rect(cv, x0 + 6, yy, x1 - 6, yy + (32 if uniq else 28), 4, fill=cv.c("surface_raised"),
+                              outline="", tags=(tag,))
+            tx = x0 + 16
+            if uniq:
+                if cv.icon(m, tx, yy + 16, 24, anchor="w", tags=(tag,)) is not None or \
+                        cv.icon(tablets.get(m), tx, yy + 16, 24, anchor="w", tags=(tag,)) is not None:
+                    tx += 32
+                t_ = cv.text(tx, yy + 16, m, F10, fill=cv.c("text"), anchor="w", tags=(tag,))
+                cv.text(cv.bbox(t_)[2] + 8, yy + 16, tablets.get(m, ""), F9, fill=cv.c("text_muted"), anchor="w",
                         tags=(tag,))
-                cv.text(cr - 12, yy + 14, "✕", F9, fill=cv.c("text_muted"), anchor="e", tags=(tag,))
-                cv.acts[tag] = lambda i=i: self.mm_new_hand_del(i)
-                cv.tips[tag] = "Remove it"
-                cv.lifts[tag] = [(b, {"outline": ""}, {"outline": cv.c("text_muted")})]
-                yy += 31
+            else:
+                cv.text(tx, yy + 14, cv.fit(m or "- none -", F9, x1 - x0 - 40), F9,
+                        fill=cv.c("text") if m else cv.c("text_muted"), anchor="w", tags=(tag,))
+            cv.acts[tag] = lambda m=m: self.mm_new_hand_choose(row, m)
+            cv.lifts[tag] = [(b, {"outline": ""}, {"outline": cv.c("text_muted")})]
+            cv.tips[tag] = m or "Empty this row"
+            yy += (35 if uniq else 31)
+        more = len(opts) - 8
+        if more > 0 or not opts:
+            yy = cv.bottom(cv.text(x0 + 12, yy + 2, f"{more} more - type to narrow the list" if more > 0 else
+                                   "Nothing matches.", F9, fill=cv.c("text_muted")), yy + 14) + 6
         yy += 6
-        cv.coords(card, *_rr_points(x0, y, x1, yy, 8))
+        cv.coords(box, *_rr_points(x0, y, x1, yy, 6))
         return yy
 
     def _nw_mods_card(self, cv, which, c, x0, x1, y):
@@ -1166,72 +1278,21 @@ class StratNewPage:
 
     # ---- 3 Atlas master (one master at a time, its 12 choices in the game's 3 × 4 grid)
     def _nw_part_masters(self, cv, d, x0, x1, y, n):
+        """3 · Atlas master: the master list, its 12 choices as squares in the game's grid, the picks (mockup v3)."""
         cur, picks = MM.master_of(d["masters"])
         self._nw_head(cv, n, bool(picks), "Atlas master", x0, x1, y,
                       note=f"optional · one master, up to {MM.MASTER_PICKS} picks")
-        cv.button(x1 - 24, y - 6, "Clear", "nw_mclear", self.mm_new_masters_clear, anchor="e", h=36,
-                  enabled=bool(picks), tip="Untick the picks" if picks else "Nothing picked yet")
         cx, cr = x0 + 72, x1 - 24
         y += 46
         tab = d.get("mtab") or cur or next(iter(MM.MASTERS))
-        names = list(MM.MASTERS)
-        px1 = cx + min(cr - cx, max(420, (cr - cx) * 0.905))
-        panel = TH.round_rect(cv, cx, y, px1, y + 10, 8, fill=cv.c("surface"), outline=cv.c("border"))
-        ip, gap = 14, 7
-        iw = px1 - cx - 2 * ip
-        tw = (iw - 2 * gap) / 3
-        ty = y + ip
-        for i, m in enumerate(names):
-            tx0 = cx + ip + i * (tw + gap)
-            tag = f"nw_mtab_{i}"
-            shown, mine = m == tab, m == cur
-            col = cv.c("accent")
-            fill = TH.mix(cv.c("surface_raised"), col, .14) if shown else cv.c("surface_raised")
-            b = TH.round_rect(cv, tx0, ty, tx0 + tw, ty + 74, 6, fill=fill, outline=col if shown else cv.c("border"),
-                              tags=(tag,))
-            first, spec = m.split("'s ")[0], m.split(" ", 1)[1] if " " in m else ""
-            k = len(picks) if mine else 0
-            cv.text(tx0 + tw / 2, ty + 18, first, ("Segoe UI", 10, "bold"), fill=cv.c("text_strong"), anchor="center",
-                    tags=(tag,))
-            cv.text(tx0 + tw / 2, ty + 37, spec.upper(), FB, fill=cv.c("text_muted"), anchor="center", tags=(tag,))
-            cv.text(tx0 + tw / 2, ty + 56, f"{k} of {MM.MASTER_PICKS}" + (" ✓" if k >= MM.MASTER_PICKS else ""), F9,
-                    fill=cv.c("text"), anchor="center", tags=(tag,))
-            cv.acts[tag] = lambda m=m: self.mm_new_master_tab(m)
-            cv.lifts[tag] = [(b, {"outline": col if shown else cv.c("border")},
-                              {"outline": col if shown else cv.c("text_muted")})]
-            cv.tips[tag] = m + (f" - your strat's master: {k} of {MM.MASTER_PICKS} picked" if mine else "")
-        gy = ty + 74 + gap
         if cur and cur != tab and picks:                 # ticking here switches the strat's master: said first
             note = (f"Your strat uses {cur} ({len(picks)} pick{'s' if len(picks) != 1 else ''}). Ticking one here "
                     f"switches it to {tab} and clears those.")
-            gy = cv.bottom(cv.text(cx + ip, gy + 4, "! " + note, F9, fill=cv.c("warn", "text"), width=iw,
-                                   tags=("nw_mswitch",)), gy + 18) + 10
-        cols = MM.MASTER_COLS
-        th = max(56, min(112, tw / 1.7))
-        full = tab == cur and len(picks) >= MM.MASTER_PICKS
-        mine = picks if tab == cur else []
-        for i, ch in enumerate(MM.MASTERS[tab]):
-            gx = cx + ip + (i % cols) * (tw + gap)
-            gy_ = gy + (i // cols) * (th + gap)
-            tag = f"nw_ms_{names.index(tab)}_{i}"
-            on = ch in mine
-            col = cv.c("accent")
-            fill = TH.mix(cv.c("surface_raised"), col, .16) if on else cv.c("surface_raised")
-            line = col if on else cv.c("border")
-            b = TH.round_rect(cv, gx, gy_, gx + tw, gy_ + th, 6, fill=fill, outline=line, tags=(tag,))
-            cv.create_text(gx + tw / 2, gy_ + th / 2, text=ch, font=F9, width=tw - 16, justify="center",
-                           anchor="center", tags=(tag,),
-                           fill=cv.c("text_strong") if on else cv.c("text_muted") if full else cv.c("text"))
-            if on:
-                cv.text(gx + tw - 14, gy_ + 14, "✓", ("Segoe UI Symbol", 9, "bold"), fill=col, anchor="center",
-                        tags=(tag,))
-            cv.acts[tag] = lambda m=tab, ch=ch: self.mm_new_master(m, ch)
-            cv.lifts[tag] = [(b, {"outline": line}, {"outline": col if on or not full else cv.c("border")})]
-            cv.tips[tag] = f"{MM.MASTER_PICKS} of {MM.MASTER_PICKS} used - untick one first" if full and not on \
-                else ch + (" - picked" if on else "")
-        y2 = gy + 4 * (th + gap) - gap + ip
-        cv.coords(panel, *_rr_points(cx, y, px1, y2, 8))
-        return y2
+            y = cv.bottom(cv.text(cx, y, "! " + note, F9, fill=cv.c("warn", "text"), width=cr - cx,
+                                  tags=("nw_mswitch",)), y + 16) + 10
+        return self._mm_atlas_panel(cv, cx, cr, y, cur, picks, tab,
+                                    {"tab": self.mm_new_master_tab, "pick": self.mm_new_master,
+                                     "clear": self.mm_new_masters_clear})
 
     # ---- 4 How it goes
     def _nw_part_how(self, cv, d, x0, x1, y, n):
@@ -1300,15 +1361,18 @@ class StratNewPage:
         cv.create_line(x0 + 24, y, x1 - 24, y, fill=cv.c("border"))
         y += 20
         miss = self.mm_new_missing()
+        busy = bool(d.get("hand"))                       # (a picker is open: its Done is the orange button)
         label = "Send suggestion" if d["suggest"] else "Save strat"
         cv.button(x0 + 24, y + 4, "Cancel", "nw_cancel", self.mm_new_close, h=38, tip="Back without saving")
-        sx0, _sx1 = cv.button(x1 - 24, y, label, "nw_save", self.mm_new_save, kind="primary", enabled=not miss,
-                              anchor="e", h=44,
-                              tip=("Needs: " + ", ".join(miss)) if miss else
+        sx0, _sx1 = cv.button(x1 - 24, y, label, "nw_save", self.mm_new_save, kind="primary",
+                              enabled=not miss and not busy, anchor="e", h=44,
+                              tip=PICKER_BUSY if busy else ("Needs: " + ", ".join(miss)) if miss else
                               ("Saves it to Mine (on this PC until you post it)" if not d.get("post") else
                                "Saves it on the community board"))
         msg = d.get("msg")
-        if msg:
+        if busy:
+            text, role = PICKER_BUSY, "text_muted"
+        elif msg:
             text, role = msg
         elif miss:
             text, role = "Needs: " + ", ".join(miss), "text_muted"

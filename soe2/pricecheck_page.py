@@ -174,11 +174,43 @@ BUNDLED_ICONS = {**TABLET_ICONS, "Waystone": WAYSTONE_ICON}
 _ICONS = None
 
 
+_WAY_TIERS = {"key": None, "urls": {}}
+
+
+def waystone_tier_icons():
+    """{tier: picture URL} from the trade site's /data/static list (trade_static.json, downloaded once a day): its
+    Waystones group has one entry a tier."""
+    try:
+        from .config import P, load_json
+        path = P("trade_static.json")
+        key = os.path.getmtime(path) if os.path.exists(path) else None
+        if key != _WAY_TIERS["key"]:
+            urls = {}
+            for group in (load_json("trade_static.json", {}) or {}).get("result") or []:
+                if "waystone" not in f"{group.get('id', '')} {group.get('label', '')}".lower():
+                    continue
+                for e in group.get("entries") or []:
+                    m = re.search(r"(\d+)", f"{e.get('text', '')} {e.get('id', '')}")
+                    img = str(e.get("image") or "")
+                    if m and img:
+                        urls[int(m.group(1))] = img if img.startswith("http") else "https://web.poecdn.com" + img
+            _WAY_TIERS.update(key=key, urls=urls)
+    except Exception:
+        buglog.caught()
+    return _WAY_TIERS["urls"]
+
+
 def art_url(base):
-    """The picture for an item base: its own, else (a waystone of any tier) the shipped waystone's."""
+    """The picture for an item base (or a unique's name): its own (learned from listings), else a waystone's tier
+    picture (the trade site's static list), else the shipped waystone picture."""
     ic = icons()
     base = str(base or "")
-    return ic.get(base) or (ic.get("Waystone") if base.startswith("Waystone") else None)
+    if ic.get(base):
+        return ic[base]
+    if base.startswith("Waystone"):
+        m = re.search(r"Tier (\d+)", base)
+        return (waystone_tier_icons().get(int(m.group(1))) if m else None) or ic.get("Waystone")
+    return None
 
 
 def icons():

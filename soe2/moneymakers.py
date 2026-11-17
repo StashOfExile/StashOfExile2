@@ -288,7 +288,12 @@ def migrate(s):
     if not isinstance(s, dict):
         return s
     if "type" in s and isinstance(s.get("clicks_per_hour"), str):
-        return retag(s)
+        s = retag(s)
+        if any(isinstance(x, str) for x in s.get("sources") or []):      # (an older file's plain lines: a link is
+            src = sources_of(s)                                           # a source, other words stay as a tip)
+            s = dict(s, sources=[x for x in src if x["url"]],
+                     tips=list(s.get("tips") or []) + [f"Source: {x['title']}" for x in src if not x["url"]])
+        return s
     s = dict(retag(s))
     cat = s.get("category")
     if cat in _OLD_MECH_CATS:
@@ -650,11 +655,72 @@ def copied_card(text):
         lines = [m["shown"] for m in w["mods"] if not (m.get("endgame") and not m.get("value"))]
         return {"kind": "waystone", "base": w["base"], "name": w["name"], "rarity": w["rarity"], "uses": None,
                 "tier": w.get("tier"), "mods": lines, "ticked": []}
+    u = unique_from_text(text)                          # 3.0.6: a unique tablet - by its name (fixed mods)
+    if u:
+        return unique_card(*u)
     it = parse_item(text)
     if not it or it.get("class") != "Tablet":
         return None
     return {"kind": "tablet", "base": it["base"], "name": it["name"], "rarity": it["rarity"], "uses": it.get("uses"),
             "tier": None, "mods": [m["shown"] for m in it["mods"]], "ticked": []}
+
+
+def unique_tablets():
+    """Every unique tablet the app knows -> {name: base}: the game data's uniques on a tablet base, and the trade
+    site's item list (its uniques of a Tablet type - downloaded once a day)."""
+    from . import gamedata as GD
+    out = {}
+    try:
+        for name, bases in (GD.load().get("uniques") or {}).items():
+            b = next((x for x in bases or [] if str(x).endswith("Tablet")), None)
+            if b:
+                out[name] = b
+    except Exception:
+        pass
+    try:
+        GD.load_trade_items()
+        for name, bases in (GD.TRADE_ITEMS.get("uniques") or {}).items():
+            b = next((x for x in bases or [] if str(x).endswith("Tablet")), None)
+            if b and name not in out:
+                out[name] = b
+    except Exception:
+        pass
+    return dict(sorted(out.items()))
+
+
+def unique_from_text(text):
+    """A copied unique tablet -> (name, base, uses) or None."""
+    lines = [ln.strip() for ln in str(text or "").replace("\r", "").split("\n") if ln.strip()]
+    if len(lines) < 4 or not lines[0].startswith("Item Class:") or "tablet" not in lines[0].lower():
+        return None
+    if lines[1] != "Rarity: Unique":
+        return None
+    name, base = lines[2], lines[3]
+    if not base.endswith("Tablet"):
+        return None
+    m = re.search(r"(\d+)\s+uses?\s+remaining", str(text), re.I)
+    return name, base, int(m.group(1)) if m else None
+
+
+def unique_card(name, base=None, uses=None):
+    """A unique tablet's card: added by its name (its mods are fixed - nothing to tick)."""
+    base = base or unique_tablets().get(name) or "Tablet"
+    return {"kind": "tablet", "base": base, "name": name, "rarity": "Unique", "uses": uses, "tier": None,
+            "mods": [], "ticked": [], "unique": True}
+
+
+def sources_of(s):
+    """A strat's sources as [{"title", "url"}] - also from an older file's plain lines ("url" empty when a line
+    isn't a link)."""
+    out = []
+    for x in s.get("sources") or []:
+        if isinstance(x, dict) and (x.get("url") or x.get("title")):
+            out.append({"title": str(x.get("title") or x.get("url")), "url": str(x.get("url") or "")})
+        elif isinstance(x, str) and x.strip():
+            m = re.search(r"https?://\S+", x)
+            out.append({"title": (re.sub(r"\s+", " ", x.replace(m.group(0), "")).strip(" -·,|") if m else x.strip())
+                        or (m.group(0) if m else x), "url": m.group(0) if m else ""})
+    return out
 
 
 def card_item(card):
@@ -683,9 +749,12 @@ def item_card(it):
     keys = list(it.get("key_mods") or [])
     mods = list(it.get("mods") or keys)
     mods += [k for k in keys if k not in mods]
-    return {"kind": it["kind"], "base": base, "name": it.get("name") or base, "rarity": it.get("rarity") or "",
-            "uses": it.get("lasts") if it["kind"] == "tablet" else None, "tier": int(m.group(1)) if m else None,
-            "mods": mods, "ticked": keys, "count": int(it.get("count") or 1)}
+    out = {"kind": it["kind"], "base": base, "name": it.get("name") or base, "rarity": it.get("rarity") or "",
+           "uses": it.get("lasts") if it["kind"] == "tablet" else None, "tier": int(m.group(1)) if m else None,
+           "mods": mods, "ticked": keys, "count": int(it.get("count") or 1)}
+    if str(it.get("rarity") or "").lower() == "unique":
+        out["unique"] = True
+    return out
 
 
 # New strat (3.0.6, mockup v2): the Map type chips (City adds a tablet slot) and the Bosses chips -> their tags
@@ -698,6 +767,24 @@ BOSS_CHIPS = (("Map bosses", "Map bosses"), ("Simulacrum", "Simulacrum"), ("Cita
 BOSS_TYPE = {"Map bosses": "Map bosses", "Simulacrum": "Simulacrum"}      # Bossing's type from its first boss
 DEVICE_TABLETS = 3                                # tablets in your map device - a City has a 4th slot
 _TABLET_TEXT = re.compile(r"(?:(\d+)\s*[×x]?\s+)?(" + "|".join(MECH_TABLET) + r")\b[^.,;]*?\btablets?\b", re.I)
+
+
+def _tiers_words(wt):
+    """{"min": 1, "max": 15} -> "Tier 1–15"."""
+    if not isinstance(wt, dict):
+        return ""
+    return f"Tier {wt['min']}" if wt["min"] == wt["max"] else f"Tier {wt['min']}–{wt['max']}"
+
+
+def hand_tablet_affixes(base):
+    """A tablet type's (prefixes, suffixes) - what it can roll (modlists.json)."""
+    from .config import P
+    try:
+        with open(P("modlists.json"), encoding="utf-8-sig") as f:
+            secs = (json.load(f).get("tablets") or {}).get(base) or {}
+    except Exception:
+        secs = {}
+    return list(dict.fromkeys(secs.get("Prefix") or [])), list(dict.fromkeys(secs.get("Suffix") or []))
 
 
 def short_tag(t):
@@ -715,22 +802,23 @@ def device_slots(s):
         w = ways[0]
         m = re.search(r"Tier (\d+)", str(w.get("base") or ""))
         out.append({"kind": "waystone", "base": w.get("base") or "Waystone", "word": "Waystone",
-                    "sub": f"Tier {m.group(1)}" if m else (tiers_text(s.get("waystone_tiers")) or "any tier"),
+                    "sub": f"Tier {m.group(1)}" if m else (_tiers_words(s.get("waystone_tiers")) or "any tier"),
                     "count": 1, "item": w})
     elif isinstance(s.get("waystone_tiers"), dict):
         wt = s["waystone_tiers"]
         out.append({"kind": "waystone", "base": f"Waystone (Tier {wt['max']})", "word": "Waystone",
-                    "sub": f"Tier {wt['min']}" if wt["min"] == wt["max"] else f"Tier {wt['min']}-{wt['max']}",
-                    "count": 1, "item": None})
+                    "sub": _tiers_words(wt), "count": 1, "item": None})
     tabs = [i for i in items if i.get("kind") == "tablet"]
     if tabs:
         by = {}
         for it in tabs:
-            by.setdefault(it.get("base") or "Tablet", []).append(it)
-        for base, its in by.items():
+            uniq = str(it.get("rarity") or "").lower() == "unique" and it.get("name")
+            by.setdefault((it["name"], it.get("base")) if uniq else (None, it.get("base") or "Tablet"), []).append(it)
+        for (uname, base), its in by.items():
             n = sum(max(1, int(i.get("count") or 1)) for i in its)
-            out.append({"kind": "tablet", "base": base, "word": base.replace(" Tablet", "") or "Tablet",
-                        "sub": f"{n} needed", "count": n, "item": its[0]})
+            out.append({"kind": "tablet", "base": uname or base, "word": uname or base.replace(" Tablet", "") or
+                        "Tablet", "sub": ("unique · " if uname else "") + f"{n} needed", "count": n, "item": its[0],
+                        "fallback": base if uname else None})
     else:
         for line in s.get("tablets") or []:
             for m in _TABLET_TEXT.finditer(str(line)):
@@ -770,16 +858,6 @@ def hand_tablet_types():
         d = {}
     return {base: list(dict.fromkeys((secs or {}).get("Prefix", []) + (secs or {}).get("Suffix", [])))
             for base, secs in d.items()}
-
-
-def hand_waystone_mods():
-    """-> the waystone mod templates the app knows (the Regex tool's list), "#" where the number goes."""
-    try:
-        from . import regex as R
-        R.load()
-        return [m["text"][:1].upper() + m["text"][1:] for m in R.mods("waystone")]
-    except Exception:
-        return []
 
 
 def hand_line(template, minimum=None):
@@ -825,6 +903,16 @@ def made_for_you(kind, cards, league, sid_of=None, uses_sid=None):
     if not cards:
         return {"regex": "", "url": None, "caption": "", "ticked": 0}
     items = [card_item(c) for c in cards]
+    if kind == "tablet" and len(cards) == 1 and cards[0].get("unique"):      # a unique: by its name
+        c = cards[0]
+        q = {"query": {"status": {"option": _status()}, "name": c["name"], "type": c["base"]}, "sort": {"price": "asc"}}
+        return {"regex": f'"{c["name"].lower()}"', "query": q, "ticked": 0, "caption": f"{c['name']} · unique",
+                "url": (f"https://www.pathofexile.com/trade2/search/poe2/{urllib.parse.quote(league or 'Standard')}"
+                        f"?q=" + urllib.parse.quote(json.dumps(q, separators=(",", ":"))))}
+    cards = [c for c in cards if not c.get("unique")]
+    items = [card_item(c) for c in cards]
+    if not cards:
+        return {"regex": "", "url": None, "caption": "", "ticked": 0}
     ticked = sum(len(i.get("key_mods") or []) for i in items)
     rx = item_regex([i for i in items if i.get("key_mods")]) if ticked else ""
     word = f"{ticked} ticked mod{'s' if ticked != 1 else ''}"

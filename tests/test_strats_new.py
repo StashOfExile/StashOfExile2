@@ -166,6 +166,27 @@ class Data(unittest.TestCase):
         self.assertEqual(b["items"], [{"kind": "tablet", "base": "Breach Tablet", "count": 1}])
 
 
+class Art(unittest.TestCase):
+    def test_waystone_tier_icons(self):
+        """A waystone's picture by its tier: the trade site's static list (Waystones), the shipped one last."""
+        from soe2 import pricecheck_page as PCP
+        from soe2.config import P
+        save_json(P("trade_static.json"), {"result": [
+            {"id": "Waystones", "label": "Waystones", "entries": [
+                {"id": "waystone-tier-7", "text": "Waystone (Tier 7)", "image": "/gen/image/t7.png"},
+                {"id": "waystone-tier-15", "text": "Waystone (Tier 15)", "image": "https://x.example/t15.png"}]},
+            {"id": "Currency", "entries": [{"id": "chaos", "text": "Chaos Orb", "image": "/c.png"}]}]})
+        os.utime(P("trade_static.json"), (time.time() + 5, time.time() + 5))
+        try:
+            self.assertEqual(PCP.waystone_tier_icons(), {7: "https://web.poecdn.com/gen/image/t7.png",
+                                                         15: "https://x.example/t15.png"})
+            self.assertEqual(PCP.art_url("Waystone (Tier 7)"), "https://web.poecdn.com/gen/image/t7.png")
+            self.assertEqual(PCP.art_url("Waystone (Tier 3)"), PCP.icons().get("Waystone"), "else the shipped one")
+        finally:
+            os.remove(P("trade_static.json"))
+            self.assertEqual(PCP.waystone_tier_icons(), {}, "(gone with its file)")
+
+
 class Page(unittest.TestCase):
     """New strat in the Farming Strategies page (the same stand-in for the app as test_strats_find)."""
     setUpClass = classmethod(TF.Page.setUpClass.__func__)
@@ -298,17 +319,21 @@ class Page(unittest.TestCase):
         self.assertTrue(any("4 of 4 used" in x for x in a.said))
         self.pump()
         cv = a.mm_new_cv
-        self.assertIn("4 of 4 used", cv.tips.get("nw_ms_2_5", ""))
-        self.assertIn("nw_mtab_0", cv.acts, "one master at a time: a tab each")
-        self.assertNotIn("nw_ms_0_0", cv.acts, "only the shown master's choices")
-        cv.acts["nw_mtab_0"]()
+        jado = list(MM.MASTERS).index(m)
+        self.assertIn("4 of 4 used", cv.tips.get(f"am_{jado}_5", ""))
+        self.assertIn("am_tab_0", cv.acts, "the master list: one each")
+        self.assertNotIn("am_0_0", cv.acts, "only the shown master's choices")
+        self.assertIn("4 of 4 ✓", self.words(cv), "the list says how many points it has")
+        cv.acts["am_tab_0"]()
         self.pump()
         self.assertIn("nw_mswitch", cv.find_all() and [t_ for i in cv.find_all() for t_ in cv.gettags(i)],
                       "says that ticking here switches the master")
         self.assertEqual(a.mm_new_master("Doryani's Science", "Refined Formula"), "switch")
         self.assertEqual(a.mm_nd["masters"], {"Doryani's Science": ["Refined Formula"]}, "one master a strat")
         self.pump()
-        cv.acts["nw_mclear"]()
+        self.assertIn("1 · Refined Formula".split(" · ")[1], self.words(cv), "the picks, numbered")
+        self.assertIn("one more point", self.words(cv))
+        cv.acts["am_clear"]()
         self.assertEqual(a.mm_nd["masters"], {})
 
     def test_mechanics_multi(self):
@@ -502,7 +527,8 @@ class Page(unittest.TestCase):
         self.assertTrue(a.mm_detail_on, "saved: opened, in Mine")
         self.pump()
         dv = a.mm_detail_cv
-        self.assertIn("mt_0", dv.tips, "the opened strat shows its Atlas master's grid")
+        self.assertTrue([k for k in dv.tips if k.startswith("am_")], "the opened strat shows its Atlas master")
+        self.assertFalse([k for k in dv.acts if k.startswith("am_")], "read only there")
         for tag in ("tile_ph_i", "tile_cost_i", "tile_way", "tile_master"):
             self.assertIn(tag, dv.tips, tag)
         self.assertEqual(dv.primaries, ["Run this strat"])
@@ -578,9 +604,12 @@ class Page(unittest.TestCase):
         finally:
             requests.get = orig
 
+    def words(self, cv):
+        return [cv.itemcget(i, "text") for i in cv.find_all() if cv.type(i) == "text"]
+
     def test_waystone_by_hand(self):
-        """No waystone to copy: its tier, every header number the app knows (waystone.PROPS) with a minimum, and
-        its mods - into the slot, Made for you and the trade search."""
+        """No waystone to copy (mockup v3): its tier (16 squares) and its WAYSTONE MODIFIERS · at least, as a
+        waystone reads them - nothing goes in the slot until Done; Cancel adds nothing."""
         from soe2.waystone import PROPS, WAYSTONE_HEADERS
         a = self.app
         a.mm_add()
@@ -591,35 +620,45 @@ class Page(unittest.TestCase):
         self.pump()
         self.assertEqual(a.mm_nd["hand"]["kind"], "waystone")
         self.assertEqual(list(a.mm_nw["hand_props"]), [PROPS[k][1] for k in WAYSTONE_HEADERS], "the header numbers")
-        self.assertEqual(list(a.mm_nw["hand_props"]), ["Waystone Drop Chance", "Pack Size", "Item Rarity",
+        self.assertEqual(list(a.mm_nw["hand_props"]), ["Waystone Drop Chance", "Item Rarity", "Pack Size",
                                                        "Monster Rarity", "Monster Effectiveness", "Revives Available"])
-        self.assertIsNone(a.mm_nd["way"], "no tier yet: nothing in the slot")
+        w_ = self.words(cv)
+        for x in ("Waystone by hand", "WAYSTONE MODIFIERS", "· at least", "Item Rarity:", "Revives Available:"):
+            self.assertIn(x, w_, x)
+        self.assertNotIn("ADD A MOD", w_, "a waystone's mods aren't picked")
+        self.assertEqual(w_.count("%"), 5, "a unit after each number - Revives has none")
+        self.assertEqual([f"nw_ht_{n}" in cv.acts for n in range(1, 17)], [True] * 16, "Tier 1-16")
+        self.assertEqual(cv.tips.get("nw_hand_x"), "Close without adding")
+        self.assertEqual(cv.primaries, [], "Done greyed until a tier is picked")
+        self.assertIn("Finish or cancel the picker first", cv.tips.get("nw_save", ""), "Save waits")
         a.mm_new_hand_set("tier", 15)
         a.mm_nw["hand_props"]["Item Rarity"].var.set("30")
         a.mm_nw["hand_props"]["Revives Available"].var.set("1")
         self.pump()
-        self.assertNotIn("nw_hand_add", cv.acts, "Add is grayed until a mod is picked")
-        a.mm_nw["hand_q"].var.set("more monster life")
+        self.assertEqual(cv.primaries, ["Done"], "while the picker is open, Done is the one orange button")
+        self.assertIsNone(a.mm_nd["way"], "nothing in the slot before Done")
+        self.assertEqual(a.mm_new_hand_summary(), "Waystone (Tier 15) · Item Rarity 30%+, Revives Available 1+")
+        cv.acts["nw_hand_cancel"]()
         self.pump()
-        opts = a._mm_hand_options()
-        self.assertTrue(opts and "monster life" in opts[0].lower(), "the search finds it")
-        cv.acts["nw_ho_0"]()
-        a.mm_nw["hand_min"].var.set("25")
+        self.assertIsNone(a.mm_nd["way"], "Cancel: nothing added")
+        cv.acts["nw_slot_way"]()
+        a.mm_new_hand_set("tier", 15)
+        a.mm_nw["hand_props"]["Item Rarity"].var.set("30")
+        a.mm_nw["hand_props"]["Revives Available"].var.set("1")
         self.pump()
-        cv.acts["nw_hand_add"]()
+        cv.acts["nw_hand_done"]()
         w = a.mm_nd["way"]
         self.assertEqual((w["base"], w["tier"], w["hand"]), ("Waystone (Tier 15)", 15, True))
-        self.assertIn("Item Rarity: +30%", w["ticked"])
-        self.assertIn("Revives Available: 1", w["ticked"])
-        self.assertTrue(any("25% more monster life" in m.lower() for m in w["ticked"]))
+        self.assertEqual(w["ticked"], ["Item Rarity: +30%", "Revives Available: 1"])
         m = a.mm_new_made("waystone")
         q = unquote(m["url"])
         for part in ('"map_iir":{"min":30}', '"map_revives":{"min":1}', '"map_tier":{"min":15,"max":15}'):
             self.assertIn(part, q)
         self.pump()
-        words = [cv.itemcget(i, "text") for i in cv.find_all() if cv.type(i) == "text"]
-        self.assertIn("T15 · by hand", words)
-        self.assertEqual(cv.primaries, [], "one orange button only (Save strat - grayed here)")
+        self.assertIn("T15 · by hand", self.words(cv))
+        self.assertIsNone(a.mm_nd["hand"], "Done closes it")
+        cv.acts["nw_slot_way"]()                          # opens again with what it has
+        self.assertEqual((a.mm_nd["hand"]["tier"], a.mm_nw["hand_props"]["Item Rarity"].var.get()), (15, "30"))
 
     def test_tablet_by_hand(self):
         a = self.app
@@ -627,34 +666,140 @@ class Page(unittest.TestCase):
         a.mm_new_hand_menu(x=0, y=0)
         a.mm_last_menu.invoke(1)                         # Pick by hand ▾ › Tablet
         self.pump()
+        cv = a.mm_new_cv
         self.assertEqual(a.mm_nd["hand"]["kind"], "tablet")
         types_ = list(MM.hand_tablet_types())
         self.assertIn("Breach Tablet", types_)
         self.assertIn("Irradiated Tablet", types_)
+        self.assertEqual(cv.primaries, [], "Done greyed until a type is picked")
         a.mm_new_hand_set("ttype", "Breach Tablet")
+        self.pump()
+        self.assertEqual(a.mm_nd["hand"]["rows"], {}, "a type picks nothing for you")
+        self.assertEqual(cv.primaries, ["Done"])
+        w_ = self.words(cv)
+        for x in ("PREFIX 1", "PREFIX 2", "SUFFIX 1", "SUFFIX 2", "Pick a prefix…", "Pick a suffix…"):
+            self.assertIn(x, w_, x)
+        self.assertNotIn("(any value)", " ".join(w_))
+        pre, suf = MM.hand_tablet_affixes("Breach Tablet")
+        cv.acts["nw_hrow_p1"]()
+        self.pump()
+        self.assertEqual(a._mm_hand_options("p1"), pre, "only this type's prefixes")
         a.mm_nw["hand_q"].var.set("pack size")
         self.pump()
-        pick = next(o for o in a._mm_hand_options() if "Breaches" in o)
-        a.mm_new_hand_pick(pick)
-        a.mm_nw["hand_min"].var.set("12")
-        a.mm_new_hand_add()
+        self.assertEqual(a._mm_hand_options("p1"), ["(5—7)% increased Pack Size in Map"], "the search narrows it")
+        a.mm_new_hand_choose("p1", "(5—7)% increased Pack Size in Map")
+        self.assertNotIn("(5—7)% increased Pack Size in Map", a._mm_hand_options("p2"), "not the one Prefix 1 has")
+        a.mm_nw["hand_q"].var.set("")
+        self.assertEqual(a._mm_hand_options("s1"), suf, "the suffixes: only this type's")
+        pick = "Breaches in Map have (5—15)% increased Pack Size"
+        a.mm_new_hand_choose("s1", pick)
+        a.mm_nw["hand_rows"]["s1"].var.set("12")
+        self.assertEqual(a.mm_new_hand_summary(), "Breach Tablet · 10 uses · 2 mods")
+        self.pump()
+        self.assertEqual(cv.primaries, ["Done"], "one orange button")
+        cv.acts["nw_hand_done"]()
         c = a.mm_nd["cards"][0]
         self.assertEqual((c["base"], c["uses"], c["hand"]), ("Breach Tablet", 10, True))
-        self.assertEqual(c["ticked"], ["Breaches in Map have 12% increased Pack Size"], "its minimum in the line")
-        m = MM.made_for_you("tablet", [c], "Standard", sid_of=lambda line: "explicit.pack",
-                            uses_sid="implicit.uses")
+        self.assertEqual(c["ticked"], ["5% increased Pack Size in Map", "Breaches in Map have 12% increased Pack Size"],
+                         "its minimum in the line (else its lowest)")
+        m = MM.made_for_you("tablet", [dict(c, ticked=c["ticked"][1:])], "Standard",
+                            sid_of=lambda line: "explicit.pack", uses_sid="implicit.uses")
         q = json.loads(unquote(m["url"].split("?q=", 1)[1]))
         self.assertEqual(q["query"]["stats"][0]["filters"], [{"id": "explicit.pack", "value": {"min": 12}}])
         self.assertTrue(a.mm_new_made("tablet")["regex"])
         a.mm_costs()["_new1"] = {"prices": {"0": 0.3}, "at": time.time()}
         a.mm_nd["cost_sid"], a.mm_nd["cost_items"] = "_new1", [i for i in a.mm_new_items()]
         self.assertIn("by hand", a.mm_new_cost()[0]["how"], "the sum's tooltip says it")
-        a.mm_new_hand_close()
         a.mm_nw["name"].var.set("By hand")
         a.mm_new_pick("mech", "Breach")
         a.mm_nw["steps"][0].var.set("Go.")
         out = a.mm_new_save()
-        self.assertEqual(out["items"][0]["key_mods"], ["Breaches in Map have 12% increased Pack Size"])
+        self.assertEqual(out["items"][0]["key_mods"][1], "Breaches in Map have 12% increased Pack Size")
+
+    def test_unique_tablet(self):
+        """★ Unique ▾: every unique tablet, added by name - its slot, the trade search and a copy of one."""
+        a = self.app
+        names = MM.unique_tablets()
+        self.assertGreaterEqual(len(names), 5)
+        name = next(iter(names))
+        a.mm_add()
+        a.mm_new_hand_open(0)
+        self.pump()
+        cv = a.mm_new_cv
+        cv.acts["nw_huniq"]()
+        self.pump()
+        self.assertEqual(set(a._mm_hand_options("unique")), set(names), "every unique tablet")
+        self.assertIn("nw_hopt_unique_0", cv.acts)
+        a.mm_new_hand_choose("unique", name)
+        self.pump()
+        self.assertNotIn("PREFIX 1", self.words(cv), "a unique: no affix rows")
+        cv.acts["nw_hand_done"]()
+        c = a.mm_nd["cards"][0]
+        self.assertEqual((c["name"], c["rarity"], c.get("unique")), (name, "Unique", True))
+        from soe2 import stratcost as SC
+        m = a.mm_new_made("tablet")
+        self.assertIn(name, unquote(m["url"]).replace("+", " "), "Made for you: by name")
+        item = MM.card_item(c)
+        q, _a, _b = SC.query(item)
+        self.assertEqual(q["query"]["name"], name, "the Trade Site query: by name")
+        slots = MM.device_slots({"items": [item]})
+        self.assertTrue(any(s_.get("word") == name for s_ in slots), "its slot shows its name")
+        txt = ("Item Class: Tablet\nRarity: Unique\n" + name + "\n" + names[name] + "\n--------\nUses Remaining: 3\n")
+        self.assertEqual(MM.unique_from_text(txt)[0], name, "a copied unique lands by name")
+
+    def test_tiles_fill_the_row(self):
+        """A tile with nothing to say goes; the rest share the row evenly (no lone tile, no gap) - Tier 1–15."""
+        a = self.app
+        s = dict(NOW, id="tiles", items=[{"kind": "waystone", "base": "Waystone (Tier 15)", "count": 1}],
+                 waystone_tiers={"min": 1, "max": 15}, masters={})
+        s.pop("items")
+        save_json(MM.MINE, [s])
+        a.mm_league_set(MM.ALL_LEAGUES)
+        a.mm_view_set("Mine")
+        a.mm_open("tiles|mine")
+        self.pump()
+        dv = a.mm_detail_cv
+        dv.redraw()
+        boxes = dv.tile_boxes
+        self.assertNotIn("master", boxes, "no master: no tile")
+        ws = {round(b[2] - b[0]) for b in boxes.values()}
+        self.assertEqual(len(ws), 1, f"even widths: {boxes}")
+        right = max(b[2] for b in boxes.values())
+        self.assertGreater(right, dv.winfo_width() - 60, "they fill the row")
+        self.assertIn("Tier 1–15", self.words(dv))
+        self.assertEqual(MM._tiers_words({"min": 1, "max": 15}), "Tier 1–15")
+
+    def test_example_strats_render_all_sections(self):
+        """Every example strat opens with all its parts - a broken one used to leave the hero empty."""
+        from soe2 import buglog
+        a = self.app
+        orig = buglog.caught
+        boom = []
+        buglog.caught = lambda *x, **k: boom.append(x)
+        gimmick = {"id": "gimmick", "name": "Delirium into Simulacrums (Doryani)", "type": "Bossing",
+                   "subtype": "Simulacrum", "tags": ["Delirium", "Breach", "Simulacrum"],
+                   "masters": {"Doryani's Science": MM.MASTERS["Doryani's Science"][:4]},
+                   "sources": ["GimmickNL on YouTube", "https://example.org/x"], "steps": ["Run it."]}
+        try:
+            every = [dict(s, id=f"ex{i}") for i, s in enumerate(list(TF.STRATS) + [OLD, NOW, gimmick])]
+            save_json(MM.MINE, every)
+            a.mm_league_set(MM.ALL_LEAGUES)
+            a.mm_view_set("Mine")
+            for s in every:
+                a.mm_open(f"{s['id']}|mine")
+                self.pump()
+                a.mm_detail_cv.redraw()
+                dv = a.mm_detail_cv
+                self.assertEqual(boom, [], s.get("name"))
+                tips = set(dv.tips) | set(dv.acts)
+                self.assertTrue(tips, s.get("name"))
+                self.assertIn("Run this strat", dv.primaries, s.get("name"))
+                w_ = self.words(dv)
+                self.assertIn(s["name"], w_, "the hero: its name")
+            self.assertTrue([k for k in dv.tips if k.startswith("am_")], "the master card")
+            self.assertIn("GimmickNL on YouTube", " ".join(self.words(dv)), "a plain source line shows")
+        finally:
+            buglog.caught = orig
 
     def test_old_strat_edit_keeps_its_numbers(self):
         a = self.app

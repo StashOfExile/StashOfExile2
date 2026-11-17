@@ -121,6 +121,7 @@ FEATURES = (
     "All",                      # 3.0.6 Find › From: Official, Community and Mine together (the default)
     "Map type",                 # 3.0.6 New strat › What you farm (was Farm type): City, Juiced maps ...
     "Pick by hand",             # 3.0.6 New strat › In your map device: a slot filled without a copy
+    "Waystone modifiers",       # 3.0.6 Waystone by hand: its numbers (at least), as a waystone reads them
     "From the author",          # 3.0.6 an opened strat: its older free text, folded at the bottom
     "Parts",                    # 3.0.6 New strat's side panel: what's done
     "Linux check",              # Linux build: Settings › Advanced and  StashOfExile2 --check-linux  - session, keys,

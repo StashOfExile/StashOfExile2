@@ -36,9 +36,21 @@ def due(s, all_costs, league, now=None):
 
 def query(item):
     """One item of a strat -> a trade search: its base type, its key mods (those the app knows), cheapest first."""
-    from .moneymakers import stat_id
+    from .moneymakers import stat_id, waystone_props
     st = dict(STATUS_OPTIONS).get(SETTINGS.get("status"), "securable")
     q = {"query": {"status": {"option": st}, "type": item["base"]}, "sort": {"price": "asc"}}
+    if str(item.get("rarity") or "").lower() == "unique" and item.get("name"):
+        q["query"]["name"] = item["name"]                   # 3.0.6: a unique tablet - by its name
+        return q, 0, 0
+    wp = waystone_props(item)                               # 3.0.6: a waystone - its tier and numbers (Endgame
+    if wp is not None:                                      # filters, at least yours)
+        tier, props = wp
+        mp = {fid: {"min": v} for fid, _ro, v in props}
+        if tier:
+            mp["map_tier"] = {"min": tier, "max": tier}
+        if mp:
+            q["query"]["filters"] = {"map_filters": {"filters": mp}}
+        return q, len(props), len(item.get("key_mods") or [])
     ids = [i for i in (stat_id(m) for m in item.get("key_mods") or []) if i]
     if ids:
         q["query"]["stats"] = [{"type": "and", "filters": [{"id": i} for i in ids]}]

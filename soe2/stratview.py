@@ -706,8 +706,7 @@ class StratViews:
             x = self._mm_effort(cv, x + 4, ty + 11, s, tags=("h_eff",))
             cv.tips["h_eff"] = "Effort: " + MM.THINKING.get(s.get("thoughts_per_click"), ("", "?"))[1]
         by = post.get("author", {}).get("name") or s.get("author") or "?"
-        src = next((x_.get("title") for x_ in s.get("sources") or [] if x_.get("title") and x_["title"] != x_.get("url")),
-                   None)
+        src = next((x_["title"] for x_ in MM.sources_of(s) if x_["title"] and x_["title"] != x_["url"]), None)
         meta = " · ".join(m for m in ([f"By {by}", src] + ([f"▲ {post.get('score', 0)}"] if post else [])
                                        + (["⊘ HIDDEN"] if post.get("hidden") else [])) if m)
         if x + 60 < wr:
@@ -774,16 +773,21 @@ class StratViews:
             tiles.append("way")
         if master:
             tiles.append("master")
-        cols = 2 if narrow or W < 900 else len(tiles)
+        cols = 2 if (narrow or W < 900) and len(tiles) > 2 else len(tiles)
         gap = 16
         tw = (W - 2 * pad - (cols - 1) * gap) / cols
         th = 120
+        rows_n = -(-len(tiles) // cols)
         num = (TH.head_font(None, "num"), 20 if narrow else 22)
         f9, lab = ("Segoe UI", 9), ("Segoe UI", 9, "bold")
         for i, kind in enumerate(tiles):
+            row = i // cols
+            in_row = len(tiles) - row * cols if row == rows_n - 1 else cols     # (a short last row fills it evenly)
+            tw = (W - 2 * pad - (in_row - 1) * gap) / in_row
             x0 = pad + (i % cols) * (tw + gap)
-            ty = y + (i // cols) * (th + gap)
+            ty = y + row * (th + gap)
             tag = f"tile_{kind}"
+            cv.tile_boxes = (getattr(cv, "tile_boxes", {}) if i else {}) | {kind: (x0, ty, x0 + tw, ty + th)}
             cv.card(x0, ty, x0 + tw, ty + th, None, lift=False)
             if kind == "ph":
                 l_ = cv.text(x0 + 20, ty + 26, "PER HOUR", lab, fill=cv.c("text_muted"), anchor="w")
@@ -819,7 +823,7 @@ class StratViews:
                 it = way.get("item") or {}
                 n = len(it.get("mods") or it.get("key_mods") or [])
                 line = (f"{n} mod{'s' if n != 1 else ''}" + (f", {it['rarity'].lower()}" if it.get("rarity") else "")
-                        if n else ("its tier" if not it else "no mods"))
+                        if n else ("" if not it else "no mods"))
                 cv.text(wx, ty + 70, cv.fit(line, f9, x0 + tw - wx - 16), f9, fill=cv.c("text_muted"), anchor="w")
                 cv.tips[tag] = (it.get("name") or way["base"]) + "".join("\n★ " + m for m in it.get("key_mods") or [])
             else:
@@ -908,7 +912,9 @@ class StratViews:
             sl_ = TH.round_rect(cv, x, yy, x + sz, yy + sz, 6, fill=cv.c("surface_sunken"), outline=cv.c("border_light"),
                                 tags=(tag,))
             cv.lifts[tag] = [(sl_, {"outline": cv.c("border_light")}, {"outline": cv.c("text_muted")})]
-            if cv.icon(sl["base"], x + sz / 2, yy + sz / 2, 60, anchor="center", tags=(tag,)) is None:
+            if cv.icon(sl["base"], x + sz / 2, yy + sz / 2, 60, anchor="center", tags=(tag,)) is None and not (
+                    sl.get("fallback") and cv.icon(sl["fallback"], x + sz / 2, yy + sz / 2, 60, anchor="center",
+                                                   tags=(tag,)) is not None):
                 cv.text(x + sz / 2, yy + sz / 2, cv.fit(sl["word"], ("Segoe UI", 9), sz - 8), ("Segoe UI", 9),
                         fill=cv.c("text_muted"), anchor="center", tags=(tag,))
             if sl["count"] > 1:
@@ -917,8 +923,8 @@ class StratViews:
                 bb = cv.bbox(bi)
                 cv.tag_lower(TH.round_rect(cv, bb[0] - 4, bb[1] - 1, bb[2] + 3, bb[3] + 1, 3,
                                            fill=cv.c("surface_raised"), outline=cv.c("border"), tags=(tag,)), bi)
-            cv.text(x + sz / 2, yy + sz + 14, sl["word"], ("Segoe UI", 9), fill=cv.c("text"), anchor="center",
-                    tags=(tag,))
+            cv.text(x + sz / 2, yy + sz + 14, cv.fit(sl["word"], ("Segoe UI", 9), sz + gap - 6), ("Segoe UI", 9),
+                    fill=cv.c("text"), anchor="center", tags=(tag,))
             cv.text(x + sz / 2, yy + sz + 34, sl["sub"], ("Segoe UI", 9), fill=cv.c("text_muted"), anchor="center",
                     tags=(tag,))
             it = sl.get("item")
@@ -968,32 +974,138 @@ class StratViews:
         return yy
 
     def _mm_master_card(self, cv, s, mine, x0, x1, y):
-        """Atlas master: the strat's master, its 12 choices as in the game (3 × 4), the picked ones marked ✓."""
+        """Atlas master (read only): the master list, its 12 choices as in the game (3 × 4 squares), the picks."""
         master, picks = MM.master_of(s.get("masters"))
         if not master:
             return y
         card, yy = self._mm_box(cv, x0, x1, y, "Atlas master", note=f"{master} · {len(picks)} of {MM.MASTER_PICKS}")
-        yy -= 6
-        cols, gap = MM.MASTER_COLS, 7
-        cw = (x1 - x0 - 40 - (cols - 1) * gap) / cols
-        chh = 88
-        for i, ch in enumerate(MM.MASTERS[master]):
-            gx = x0 + 20 + (i % cols) * (cw + gap)
-            gy = yy + (i // cols) * (chh + gap)
-            on = ch in picks
-            acc = cv.c("accent")
-            tag = f"mt_{i}"
-            TH.round_rect(cv, gx, gy, gx + cw, gy + chh, 6, fill=TH.mix(cv.c("surface_raised"), acc, .16) if on
-                          else cv.c("surface"), outline=acc if on else cv.c("border"), tags=(tag,))
-            cv.create_text(gx + cw / 2, gy + chh / 2, text=ch, font=("Segoe UI", 9), width=cw - 12, justify="center",
-                           fill=cv.c("text_strong") if on else cv.c("text"), tags=(tag,))
-            if on:
-                cv.text(gx + cw - 10, gy + 12, "✓", ("Segoe UI Symbol", 9, "bold"), fill=acc, anchor="center",
-                        tags=(tag,))
-            cv.tips[tag] = ch + (" - picked" if on else "")
-        yy += 4 * (chh + gap) - gap + 20
+        yy = self._mm_atlas_panel(cv, x0 + 20, x1 - 20, yy - 6, master, picks, master, None) + 20
         cv.coords(card, *_rr_points(x0, y, x1, yy, R))
         return yy
+
+    def _mm_atlas_panel(self, cv, x0, x1, y, cur, picks, tab, act):
+        """Atlas master as the approved mockup (v3): the master list (name, SPECIALTY, 4 pips, "N of 4"; the shown
+        one with the accent), the shown master's 12 choices as square tiles in the game's 3 × 4 grid (picked: a 2 px
+        accent edge, a warm fill, ✓), and the details (its picks numbered, the hovered choice, Clear picks).
+        act: None (read only) or {"tab": fn(master), "pick": fn(master, choice), "clear": fn} -> y under it."""
+        acc = cv.c("accent")
+        warm = TH.mix(cv.c("surface_raised"), acc, .18)
+        f9, fb = ("Segoe UI", 9), ("Segoe UI", 8, "bold")  # token-ok (canvas)
+        W = x1 - x0
+        names = list(MM.MASTERS)
+        pad = 16
+        frame = TH.round_rect(cv, x0, y, x1, y + 10, 8, fill=cv.c("surface"), outline=cv.c("border"))
+        ix0, ix1 = x0 + pad, x1 - pad
+        iw = ix1 - ix0
+        tile, gap = 92, 8
+        grid_w = 3 * tile + 2 * gap
+        list_w = 190 if iw >= 190 + 16 + grid_w + 16 + 200 else 150
+        stacked = iw < list_w + 16 + grid_w               # (narrow: the masters as a row; the details go under)
+        if stacked:
+            tile = max(70, min(92, (iw - 2 * gap) / 3))
+            grid_w = 3 * tile + 2 * gap
+        yy = y + pad
+        # -- the masters
+        cv.text(ix0, yy + 6, "MASTER", fb, fill=cv.c("text_muted"), anchor="w")
+        yy += 18
+        if stacked:
+            mw, mh, mgap = (iw - 2 * gap) / 3, 88, gap
+        else:
+            mw, mh, mgap = list_w, 92, 6
+        for i, m in enumerate(names):
+            mx = ix0 + (i * (mw + mgap) if stacked else 0)
+            my = yy + (0 if stacked else i * (mh + mgap))
+            shown, mine = m == tab, m == cur
+            k = len(picks) if mine else 0
+            tag = f"am_tab_{i}"
+            b = TH.round_rect(cv, mx, my, mx + mw, my + mh, 6, fill=warm if shown else cv.c("surface_raised"),
+                              outline=acc if shown else cv.c("border"), width=1, tags=(tag,))
+            first, spec = m.split("'s ")[0], (m.split(" ", 1)[1] if " " in m else "")
+            cv.text(mx + 12, my + 20, first, ("Segoe UI", 10, "bold"), fill=cv.c("text_strong"), anchor="w",
+                    tags=(tag,))
+            cv.text(mx + 12, my + 41, spec.upper(), fb, fill=cv.c("text_muted"), anchor="w", tags=(tag,))
+            for p_ in range(MM.MASTER_PICKS):
+                px = mx + 12 + p_ * 17
+                cv.create_rectangle(px, my + 54, px + 13, my + 57, outline="",
+                                    fill=acc if p_ < k else cv.c("surface_high"), tags=(tag,))
+            cv.text(mx + 12, my + 72, f"{k} of {MM.MASTER_PICKS}" +
+                    (" ✓" if k >= MM.MASTER_PICKS else ""), f9, fill=cv.c("text"), anchor="w", tags=(tag,))
+            if act:
+                cv.acts[tag] = lambda m=m: act["tab"](m)
+                cv.lifts[tag] = [(b, {"outline": acc if shown else cv.c("border")},
+                                  {"outline": acc if shown else cv.c("text_muted")})]
+            cv.tips[tag] = m + (f" - the strat's master: {k} of {MM.MASTER_PICKS}" if mine else "")
+        if stacked:
+            gy0 = yy + mh + 14
+            note_y = None
+        else:
+            gy0 = y + pad
+            note_y = yy + 3 * (mh + mgap) + 6
+            cv.text(ix0, note_y + 8, "One master per strat.", f9, fill=cv.c("text_muted"), anchor="w")
+        # -- the 12 choices
+        gx0 = ix0 if stacked else ix0 + list_w + 16
+        mine = picks if tab == cur else []
+        full = tab == cur and len(picks) >= MM.MASTER_PICKS
+        dx0 = gx0 + grid_w + 16                          # the details column (stacked: under the grid)
+        dw = ix1 - dx0
+        under = dw < 180                                 # (no room on the right: the details go under the grid)
+        if under:
+            dx0, dw = gx0, ix1 - gx0
+        detail_y = gy0 + 4 * (tile + gap) + 6 if under else gy0
+        hover_name = None
+        for i, ch in enumerate(MM.MASTERS[tab]):
+            gx = gx0 + (i % 3) * (tile + gap)
+            gy = gy0 + (i // 3) * (tile + gap)
+            tag = f"am_{names.index(tab)}_{i}"
+            on = ch in mine
+            b = TH.round_rect(cv, gx, gy, gx + tile, gy + tile, 6, fill=warm if on else cv.c("surface_raised"),
+                              outline=acc if on else cv.c("border"), width=2 if on else 1, tags=(tag,))
+            cv.create_text(gx + tile / 2, gy + tile / 2, text=ch, width=tile - 12, justify="center", anchor="center",
+                           font=("Segoe UI", 9, "bold") if on else f9, tags=(tag,),
+                           fill=cv.c("text_strong") if on else cv.c("text_muted") if full else cv.c("text"))
+            if on:
+                cv.text(gx + tile - 12, gy + 12, "✓", ("Segoe UI Symbol", 9, "bold"), fill=acc, anchor="center",
+                        tags=(tag,))
+            lift = [(b, {"outline": acc if on else cv.c("border")}, {"outline": acc if on else cv.c("text_muted")})]
+            cv.lifts[tag] = lift
+            if act:
+                cv.acts[tag] = lambda m=tab, ch=ch: act["pick"](m, ch)
+            cv.tips[tag] = (f"{MM.MASTER_PICKS} of {MM.MASTER_PICKS} used - untick one first" if full and not on
+                            else ch + (" - picked" if on else ""))
+        # -- the details
+        yy2 = detail_y
+        tm = cv.text(dx0, yy2 + 6, f"{tab} · {len(mine)} of {MM.MASTER_PICKS} points".upper(), fb,
+                     fill=cv.c("text_muted"), anchor="w")
+        _ = tm
+        yy2 += 22
+        for n in range(MM.MASTER_PICKS):
+            have = n < len(mine)
+            cv.create_oval(dx0, yy2 + 2, dx0 + 18, yy2 + 20, outline="",
+                           fill=acc if have else cv.c("surface_high"))
+            from .style import text_on
+            cv.text(dx0 + 9, yy2 + 11, str(n + 1), fb, fill=text_on(acc) if have else cv.c("text_muted"),
+                    anchor="center")
+            cv.text(dx0 + 28, yy2 + 11, cv.fit(mine[n] if have else ("one more point" if n == len(mine) else ""),
+                                               ("Segoe UI", 10), dw - 30), ("Segoe UI", 10),
+                    fill=cv.c("text") if have else cv.c("text_muted"), anchor="w")
+            yy2 += 26
+        yy2 += 6
+        cv.create_line(dx0, yy2, dx0 + dw, yy2, fill=cv.c("border"))
+        yy2 += 12
+        hn = cv.text(dx0, yy2 + 8, "Hover a choice", ("Segoe UI", 10, "bold"), fill=cv.c("text_strong"), anchor="w")
+        cv.text(dx0, yy2 + 28, cv.fit("What it does shows here when the game data has it.", f9, dw), f9,
+                fill=cv.c("text_muted"), anchor="w")
+        for i, ch in enumerate(MM.MASTERS[tab]):           # (the hovered choice's name, without a redraw)
+            cv.lifts[f"am_{names.index(tab)}_{i}"].append((hn, {"text": "Hover a choice"}, {"text": ch}))
+        yy2 += 46
+        if act:
+            cv.button(dx0, yy2, "Clear picks", "am_clear", act["clear"], h=36, enabled=bool(picks),
+                      tip="Untick the picks" if picks else "Nothing picked yet")
+            yy2 += 48
+        _ = hover_name
+        bottom = max(gy0 + 4 * (tile + gap) - gap, yy2, (note_y or 0) + 20) + pad
+        cv.coords(frame, *_rr_points(x0, y, x1, bottom, 8))
+        return bottom
 
     def _mm_content_card(self, cv, s, mine, x0, x1, y):
         """Content: the mechanics (with their pictures), bosses, map content and map type it farms."""
@@ -1075,18 +1187,20 @@ class StratViews:
         return self._mm_list_card(cv, x0, x1, y, "Risks", s.get("risks") or [], "risks")
 
     def _mm_sources_card(self, cv, s, mine, x0, x1, y):
-        srcs = s.get("sources") or []
+        srcs = MM.sources_of(s)                          # (an older file's plain lines read too)
         if not srcs:
             return y
         card, yy = self._mm_box(cv, x0, x1, y, "Sources")
         import webbrowser
         for i, src in enumerate(srcs):
             tg = f"src{i}"
-            si = cv.text(x0 + 20, yy, (src.get("title") or src["url"]) + "  ↗", ("Segoe UI", 9), fill=cv.c("link"),
-                         width=x1 - x0 - 40, tags=(tg,))
-            cv.acts[tg] = lambda u=src["url"]: webbrowser.open(u)
-            cv.lifts[tg] = [(si, {"fill": cv.c("link")}, {"fill": cv.c("accent")})]
-            cv.tips[tg] = src["url"]
+            link = bool(src["url"])
+            si = cv.text(x0 + 20, yy, src["title"] + ("  ↗" if link else ""), ("Segoe UI", 9),
+                         fill=cv.c("link") if link else cv.c("text"), width=x1 - x0 - 40, tags=(tg,))
+            if link:
+                cv.acts[tg] = lambda u=src["url"]: webbrowser.open(u)
+                cv.lifts[tg] = [(si, {"fill": cv.c("link")}, {"fill": cv.c("accent")})]
+                cv.tips[tg] = src["url"]
             yy = cv.bottom(si, yy + 14) + 6
         yy += 14
         cv.coords(card, *_rr_points(x0, y, x1, yy, R))
