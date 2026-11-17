@@ -226,6 +226,16 @@ Versions follow Semantic Versioning 2.0.0, always written in full: 2.10.0 adds f
 
 ## ▶ Next up
 
+### Fix: Vaal Lens room placement (owner, 2026-11-17: "temple helper seems gutted")
+Before 3.0 (2.140-2.143) Vaal Lens watched the Temple Console while it was open, so picking a room card showed where it goes (1 / 2 on the best lit tiles, ✕ near reward rooms) and the gold path to the Architect, live. Since 3.0 (one read per Read Key press) it only updates on a press.
+Found in the owner's log (2026-11-17): the board is still read fine on a press (architect, rooms, paths, reward rooms), crystals read 54/60. But the card's plan said "Nothing to plan with these cards" for a hand of Path, Commander's Chamber, Sealed Vault ×2, Path, Crimson Hall.
+- **Plan every room card in hand**, not only the Thaumaturge combos and the Architect path (`vaallens_plan.hand_plan`): each card gets its best tile (`rank`) and a step number, drawn with the existing marks. "Nothing to plan" only when there truly is no safe tile.
+- **One press, whole plan:** after opening the console, one Read Key press reads the board and every card in the list (`card_names`) and plans them all. Picking a card and pressing again highlights where that one goes. Say so on the card: "Press Ctrl+Shift+R after placing a room to update the plan."
+- **Card list read check:** log the cards read on each press (debug), so a missed card list shows up.
+- **The card didn't come back** after closing the temple (owner had to turn the helper off and on): find why the Vaal Lens card stays hidden on the next console open / temple entry, and fix it.
+- GGG rule stays: nothing is read without a press; no watching.
+
+
 Re-styling the app (e.g. the YouTube Music-style shell) is set aside for later (2.57.0).
 
 Order (decided 2026-11-05): the page passes, then the Privacy & data hub, then the craft helpers, then a stress test of every menu. Linux is player-built.
