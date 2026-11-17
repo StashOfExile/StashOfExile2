@@ -595,6 +595,34 @@ def masters_ok(ms):
         and all(x in MASTERS[k] for x in v) for k, v in ms.items())
 
 
+_MASTER_TEXT = {"key": False, "data": {}}
+
+
+def master_text(master, choice):
+    """What an Atlas master's choice does - from atlasmasters.json (shipped with the app: {"masters": {master:
+    {choice: {"text", "source"}}}}), or None when the file or the choice isn't there. Read once (again when the file
+    changes)."""
+    from .config import APP_DIR, RESOURCE_DIR, P
+    path = next((p for p in (P("atlasmasters.json"), os.path.join(RESOURCE_DIR, "atlasmasters.json"),
+                             os.path.join(APP_DIR, "atlasmasters.json")) if os.path.isfile(p)), None)
+    try:
+        key = (path, os.path.getmtime(path)) if path else None
+    except OSError:
+        key = None
+    if key != _MASTER_TEXT["key"]:
+        data = {}
+        if path:
+            try:
+                with open(path, encoding="utf-8-sig") as f:
+                    data = (json.load(f) or {}).get("masters") or {}
+            except Exception:
+                data = {}
+        _MASTER_TEXT.update(key=key, data=data if isinstance(data, dict) else {})
+    hit = (_MASTER_TEXT["data"].get(master) or {}).get(choice)
+    text = hit.get("text") if isinstance(hit, dict) else hit if isinstance(hit, str) else None
+    return str(text).strip() or None if text else None
+
+
 def master_of(ms):
     """-> (the strat's master or None, its picks)."""
     for k, v in (ms or {}).items():
@@ -665,27 +693,50 @@ def copied_card(text):
             "tier": None, "mods": [m["shown"] for m in it["mods"]], "ticked": []}
 
 
+_UNIQ = {"key": None, "out": {}}
+
+
 def unique_tablets():
-    """Every unique tablet the app knows -> {name: base}: the game data's uniques on a tablet base, and the trade
-    site's item list (its uniques of a Tablet type - downloaded once a day)."""
+    """Every unique tablet the app knows -> {name: base}, from three lists put together: the game data's uniques on a
+    tablet base, the trade site's item list (trade_items.json, downloaded once a day) and poe.ninja's UniqueTablets
+    (the Wealth prices, wealth_prices.json - newer than the game data). Kept until one of the files changes."""
     from . import gamedata as GD
+    from .config import P, load_json
+
+    def stamp(name):
+        try:
+            return os.path.getmtime(P(name))
+        except OSError:
+            return None
+    key = (stamp("trade_items.json"), stamp("wealth_prices.json"), stamp("gamedata.json"))
+    if key == _UNIQ["key"] and _UNIQ["out"]:
+        return dict(_UNIQ["out"])
     out = {}
+
+    def add(name, base):
+        name, base = str(name or "").strip(), str(base or "").strip()
+        if name and base.endswith("Tablet") and name not in out:
+            out[name] = base
     try:
         for name, bases in (GD.load().get("uniques") or {}).items():
-            b = next((x for x in bases or [] if str(x).endswith("Tablet")), None)
-            if b:
-                out[name] = b
+            add(name, next((x for x in bases or [] if str(x).endswith("Tablet")), None))
     except Exception:
         pass
     try:
         GD.load_trade_items()
         for name, bases in (GD.TRADE_ITEMS.get("uniques") or {}).items():
-            b = next((x for x in bases or [] if str(x).endswith("Tablet")), None)
-            if b and name not in out:
-                out[name] = b
+            add(name, next((x for x in bases or [] if str(x).endswith("Tablet")), None))
     except Exception:
         pass
-    return dict(sorted(out.items()))
+    try:
+        part = ((load_json("wealth_prices.json", {}) or {}).get("parts") or {}).get("UniqueTablets") or {}
+        for ln in part.get("lines") or []:
+            if isinstance(ln, list) and len(ln) > 1:
+                add(ln[0], ln[1] or "Tablet")
+    except Exception:
+        pass
+    _UNIQ.update(key=key, out=dict(sorted(out.items())))
+    return dict(_UNIQ["out"])
 
 
 def unique_from_text(text):
@@ -696,8 +747,8 @@ def unique_from_text(text):
     if lines[1] != "Rarity: Unique":
         return None
     name, base = lines[2], lines[3]
-    if not base.endswith("Tablet"):
-        return None
+    if not base.endswith("Tablet"):                      # (a base the lists know better)
+        base = unique_tablets().get(name) or base
     m = re.search(r"(\d+)\s+uses?\s+remaining", str(text), re.I)
     return name, base, int(m.group(1)) if m else None
 
@@ -818,7 +869,8 @@ def device_slots(s):
             n = sum(max(1, int(i.get("count") or 1)) for i in its)
             out.append({"kind": "tablet", "base": uname or base, "word": uname or base.replace(" Tablet", "") or
                         "Tablet", "sub": ("unique · " if uname else "") + f"{n} needed", "count": n, "item": its[0],
-                        "fallback": base if uname else None})
+                        "fallback": (base if base in hand_tablet_types() else unique_tablets().get(uname) or base)
+                        if uname else None})
     else:
         for line in s.get("tablets") or []:
             for m in _TABLET_TEXT.finditer(str(line)):

@@ -594,7 +594,8 @@ class WealthPrices:
         """One poe.ninja overview. -> parsed JSON, or None when it hasn't changed since last time (HTTP 304)."""
         path = "exchange/current/overview" if typ in NINJA_EXCHANGE_TYPES else "stash/current/item/overview"
         hdr = {"User-Agent": WEALTH_UA, "Accept": "application/json"}
-        if self.src == league and self.etags.get(typ) and typ in self.parts:
+        if self.src == league and self.etags.get(typ) and typ in self.parts and \
+                (typ not in NINJA_ITEM_TYPES or "icons" in self.parts[typ]):   # (3.0.6: a part from before icons)
             hdr["If-None-Match"] = self.etags[typ]
         r = requests.get(f"{NINJA_ECON}/{path}", params={"league": league, "type": typ}, headers=hdr, timeout=20)
         if r.status_code == 304:
@@ -602,6 +603,19 @@ class WealthPrices:
         r.raise_for_status()
         self.etags[typ] = r.headers.get("ETag")
         return r.json()
+
+    def _learn_icons(self):
+        """3.0.6: the uniques' pictures poe.ninja sends with its prices go to the app's picture list (Price Checks'
+        icons.json) - so every unique (each unique tablet too) has its picture. No request of its own."""
+        got = {}
+        for typ in NINJA_ITEM_TYPES:
+            got.update((self.parts.get(typ) or {}).get("icons") or {})
+        if got:
+            try:
+                from .pricecheck_page import icons_learn
+                icons_learn(got)
+            except Exception:
+                buglog.caught()
 
     def ensure(self, league, force=False):
         """Refresh if older than an hour (or `force`). `league` is the trade-site name; poe.ninja may spell it
@@ -706,8 +720,11 @@ class WealthPrices:
                 if sp:
                     spark[ln["id"]] = [sp[0], sp[1], ln.get("maxVolumeCurrency"), _num(ln.get("maxVolumeRate"))]
             return {"primary": core.get("primary"), "names": names, "lines": lines, "images": images, "spark": spark}
-        lines, spark = [], {}
+        lines, spark, icons = [], {}, {}
         for ln in body.get("lines") or []:
+            icon = str(ln.get("icon") or "") if isinstance(ln, dict) else ""
+            if ln.get("name") and icon.startswith("https://"):            # 3.0.6: each unique's picture (kept)
+                icons.setdefault(str(ln["name"]), icon)
             try:
                 lines.append([ln["name"], ln.get("baseType") or "", float(ln["primaryValue"]),
                               int(ln.get("listingCount") or 0), bool(ln.get("corrupted"))])
@@ -717,10 +734,11 @@ class WealthPrices:
             k = ln["name"].lower()
             if sp and (k not in spark or lines[-1][3] > spark[k][2]):
                 spark[k] = [sp[0], sp[1], lines[-1][3]]
-        return {"lines": lines, "spark": spark}
+        return {"lines": lines, "spark": spark, "icons": icons}
 
     def _index(self):
         """Build the lookup tables in divines."""
+        self._learn_icons()
         cur = self.parts.get("Currency") or {}
         primary = cur.get("primary") or "divine"
         per_div = 1.0

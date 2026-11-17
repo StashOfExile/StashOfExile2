@@ -211,7 +211,7 @@ class LedgerPage:
         lh = tk.Frame(left, bg=P2)
         lh.pack(fill="x")
         tk.Label(lh, text="MY SETUPS", bg=P2, fg=C["muted"], font=("Segoe UI", 9, "bold")).pack(side="left")
-        ttk.Button(lh, text="＋ New", command=self.fl_new, style="Quiet.TButton").pack(side="right")
+        ttk.Button(lh, text="＋ New strat", command=self.fl_new_strat, style="Quiet.TButton").pack(side="right")
         self.fl_list = SetupCards(left, self, bg=P2)
         self.fl_list.pack(fill="both", expand=True, pady=(8, 8))
         ttk.Button(left, text="Compare setups", command=self.fl_compare).pack(fill="x")
@@ -374,6 +374,12 @@ class LedgerPage:
         ttk.Button(b, text="Import a CSV…", style="Quiet.TButton", command=self.fl_import_csv).pack(side="left",
                                                                                                  padx=(8, 0))
         return f
+
+    def fl_new_strat(self):
+        """3.0.6 (owner): ＋ New strat here is Find's - the same New strat page (one way to make one); Run this strat
+        then makes its setup here."""
+        self._fl_to_strats()
+        return self.mm_add()
 
     def _fl_to_strats(self):
         self.mm_page.pick("Find", notify=False)

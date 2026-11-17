@@ -241,6 +241,22 @@ def icon_learn(base, url):
             buglog.caught()
 
 
+def icons_learn(found):
+    """Many learned at once ({name: https URL}, e.g. poe.ninja's uniques): icons.json is written once, and only
+    when something changed."""
+    ic = icons()
+    new = {k: v for k, v in (found or {}).items() if k and str(v or "").startswith("https://") and ic.get(k) != v}
+    if not new:
+        return 0
+    ic.update(new)
+    try:
+        from .config import save_json
+        save_json("icons.json", {k: v for k, v in ic.items() if BUNDLED_ICONS.get(k) != v})
+    except Exception:
+        buglog.caught()
+    return len(new)
+
+
 # Item flags as a mark and a word (never by color alone): on each listing and on the item you priced
 FLAG_MARKS = (("corrupted", "⊘", "Corrupted"), ("twice_corrupted", "⊘", "Twice Corrupted"), ("mirrored", "◈", "Mirrored"),
               ("fractured", "◆", "Fractured"), ("desecrated", "✚", "Desecrated"), ("sanctified", "✦", "Sanctified"),

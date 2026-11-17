@@ -1016,9 +1016,10 @@ class StratNewPage:
                 b = TH.round_rect(cv, x, y, x + sz, y + sz, 6, fill=cv.c("surface_sunken"),
                                   outline=cv.c("border_light"), tags=(tag,))
                 uniq = c.get("unique")                   # (a unique: its own picture, else its base's)
-                if (not uniq or cv.icon(c.get("name"), x + sz / 2, y + sz / 2, 62, anchor="center",
-                                        tags=(tag,)) is None) and \
-                        cv.icon(c["base"], x + sz / 2, y + sz / 2, 62, anchor="center", tags=(tag,)) is None:
+                pics = ([c.get("name")] if uniq else []) + [c["base"]] + \
+                    ([MM.unique_tablets().get(c.get("name"))] if uniq else [])
+                if not any(cv.icon(p_, x + sz / 2, y + sz / 2, 62, anchor="center", tags=(tag,)) is not None
+                           for p_ in pics if p_):
                     cv.text(x + sz / 2, y + sz / 2, cv.fit(c["base"].split()[0], F9, sz - 8), F9,
                             fill=cv.c("text_muted"), anchor="center", tags=(tag,))
                 if which == "way":
@@ -1194,7 +1195,7 @@ class StratNewPage:
         if not uniq and self.mm_nd["hand"]["rows"].get(row):
             opts = [""] + opts                               # (none: empties the row)
         tablets = MM.unique_tablets() if uniq else {}
-        for i, m in enumerate(opts[:8]):
+        for i, m in enumerate(opts):                     # (every one: Visions of Paradise was past the 8th)
             tag = f"nw_hopt_{row}_{i}"
             b = TH.round_rect(cv, x0 + 6, yy, x1 - 6, yy + (32 if uniq else 28), 4, fill=cv.c("surface_raised"),
                               outline="", tags=(tag,))
@@ -1213,10 +1214,8 @@ class StratNewPage:
             cv.lifts[tag] = [(b, {"outline": ""}, {"outline": cv.c("text_muted")})]
             cv.tips[tag] = m or "Empty this row"
             yy += (35 if uniq else 31)
-        more = len(opts) - 8
-        if more > 0 or not opts:
-            yy = cv.bottom(cv.text(x0 + 12, yy + 2, f"{more} more - type to narrow the list" if more > 0 else
-                                   "Nothing matches.", F9, fill=cv.c("text_muted")), yy + 14) + 6
+        if not opts:
+            yy = cv.bottom(cv.text(x0 + 12, yy + 2, "Nothing matches.", F9, fill=cv.c("text_muted")), yy + 14) + 6
         yy += 6
         cv.coords(box, *_rr_points(x0, y, x1, yy, 6))
         return yy
@@ -1224,13 +1223,20 @@ class StratNewPage:
     def _nw_mods_card(self, cv, which, c, x0, x1, y):
         """The picked copy: its picture and name, and its mods as toggles - tick the ones that matter."""
         card = TH.round_rect(cv, x0, y, x1, y + 10, 8, fill=cv.c("surface"), outline=cv.c("border"))
-        got = cv.icon(c["base"], x0 + 16, y + 26, 26, anchor="w")
+        uniq = c.get("unique")
+        got = (cv.icon(c.get("name"), x0 + 16, y + 26, 26, anchor="w") if uniq else None)
+        if got is None:
+            got = cv.icon(c["base"], x0 + 16, y + 26, 26, anchor="w")
         tx = x0 + 16 + (36 if got is not None else 0)
         t = cv.text(tx, y + 26, c.get("name") or c["base"], ("Segoe UI", 10, "bold"), fill=cv.c("text_strong"),
                     anchor="w")
-        cv.text(cv.bbox(t)[2] + 4, y + 26, "· tick the mods that matter", F9, fill=cv.c("text_muted"), anchor="w")
+        cv.text(cv.bbox(t)[2] + 4, y + 26, f"· ★ unique {c['base']}" if uniq else "· tick the mods that matter", F9,
+                fill=cv.c("text_muted"), anchor="w")
         yy = y + 46
-        if not c["mods"]:
+        if uniq:
+            yy = cv.bottom(cv.text(x0 + 16, yy, "A unique: its mods are fixed - searched by its name.", F9,
+                                   fill=cv.c("text_muted")), yy + 14) + 12
+        elif not c["mods"]:
             yy = cv.bottom(cv.text(x0 + 16, yy, f"No mods - a white {c['kind']}: searched by its base.", F9,
                                    fill=cv.c("text_muted")), yy + 14) + 12
         else:

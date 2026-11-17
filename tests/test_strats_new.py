@@ -773,6 +773,135 @@ class Page(unittest.TestCase):
         self.assertIn("Tier 1–15", self.words(dv))
         self.assertEqual(MM._tiers_words({"min": 1, "max": 15}), "Tier 1–15")
 
+    def test_unique_tablets_every_source(self):
+        """The unique tablets: game data + the trade site's list + poe.ninja's UniqueTablets, each addable by hand
+        (the list shows every one - Visions of Paradise was past the 8th) and by copy."""
+        from soe2.config import P
+        save_json(P("wealth_prices.json"), {"v": 3, "parts": {"UniqueTablets": {"lines": [
+            ["Visions of Paradise", "Irradiated Tablet", 0.2, 10, False],
+            ["Newer Than The Data", "Breach Tablet", 0.1, 3, False]]}}})
+        os.utime(P("wealth_prices.json"), (time.time() + 7, time.time() + 7))
+        try:
+            names = MM.unique_tablets()
+            self.assertEqual(names.get("Newer Than The Data"), "Breach Tablet", "poe.ninja's list counts")
+            for n in ("Visions of Paradise", "Mastered Domain", "Clear Skies", "Season of the Hunt"):
+                self.assertIn(n, names)
+            a = self.app
+            a.mm_add()
+            a.mm_new_hand_open(0)
+            a.mm_new_hand_dropdown("unique")
+            self.pump()
+            cv = a.mm_new_cv
+            shown = [cv.tips.get(f"nw_hopt_unique_{i}") for i in range(len(names))]
+            self.assertEqual(shown, list(names), "every one is in the list")
+            for n, base in names.items():
+                a.mm_new_hand_open(0)
+                a.mm_new_hand_choose("unique", n)
+                c = a.mm_new_hand_done()
+                self.assertEqual((c["name"], c["base"]), (n, base), "added by hand: " + n)
+                txt = f"Item Class: Tablet\nRarity: Unique\n{n}\n{base}\n--------\nUses Remaining: 3\n"
+                self.assertEqual(MM.unique_from_text(txt)[:2], (n, base), "by copy: " + n)
+        finally:
+            os.remove(P("wealth_prices.json"))
+
+    def test_ninja_icons_learned(self):
+        """poe.ninja's item overview carries each unique's picture: kept with the prices and learned into the
+        app's picture list - no request of its own; a cached part without pictures is fetched in full once."""
+        from soe2 import pricecheck_page as PCP
+        from soe2 import wealth as W
+        url = "https://web.poecdn.com/gen/image/abc/MasteredDomain.png"
+        bodies = {"Currency": {"core": {"primary": "divine"}, "items": [{"id": "divine", "name": "Divine Orb"}],
+                               "lines": [{"id": "divine", "primaryValue": 1}]},
+                  "UniqueTablets": {"lines": [{"name": "Mastered Domain", "baseType": "Irradiated Tablet",
+                                               "primaryValue": 0.3, "listingCount": 4, "icon": url},
+                                              {"name": "No Picture", "baseType": "Breach Tablet", "primaryValue": 1,
+                                               "icon": "/relative.png"}]}}
+        wp = W.WealthPrices()
+        asked = []
+        wp._get = lambda typ, league: (asked.append(typ), bodies.get(typ, {}))[1]
+        orig = W.Rates.names_for
+        W.Rates.names_for = staticmethod(lambda league: [league])
+        try:
+            wp.ensure("Standard", force=True)
+        finally:
+            W.Rates.names_for = orig
+        self.assertEqual(wp.parts["UniqueTablets"]["icons"], {"Mastered Domain": url}, "https pictures only")
+        self.assertEqual(PCP.icons().get("Mastered Domain"), url, "learned: every unique gets its picture")
+        self.assertEqual(PCP.art_url("Mastered Domain"), url)
+        self.assertEqual(PCP.icons_learn({"Mastered Domain": url}), 0, "unchanged: icons.json isn't written")
+        self.assertEqual(len(asked), len(W.NINJA_EXCHANGE_TYPES) + len(W.NINJA_ITEM_TYPES), "no extra requests")
+        # a part cached before pictures were kept: asked in full (no ETag), once
+        sent = []
+
+        class R:
+            status_code, headers = 200, {"ETag": "e2"}
+
+            def raise_for_status(self):
+                pass
+
+            def json(self):
+                return {"lines": []}
+        orig_get = W.requests.get
+        W.requests.get = lambda *a_, **k: (sent.append(k.get("headers") or {}), R())[1]
+        try:
+            wp2 = W.WealthPrices()
+            wp2.src, wp2.etags, wp2.parts = "Standard", {"UniqueTablets": "e1", "UniqueRelics": "e1"}, {
+                "UniqueTablets": {"lines": []}, "UniqueRelics": {"lines": [], "icons": {}}}
+            wp2._get("UniqueTablets", "Standard")
+            wp2._get("UniqueRelics", "Standard")
+        finally:
+            W.requests.get = orig_get
+        self.assertNotIn("If-None-Match", sent[0], "no pictures yet: asked in full")
+        self.assertEqual(sent[1].get("If-None-Match"), "e1", "with pictures: the ETag as before")
+
+    def test_atlas_master_text(self):
+        """What a choice does: atlasmasters.json (when it has it) - in the details on hover and in each tile's
+        tooltip, on New strat and on the opened strat; missing file or choice: the plain line."""
+        from soe2.config import P
+        m = "Doryani's Science"
+        ch = MM.MASTERS[m][0]
+        a = self.app
+        a.mm_add()
+        a.mm_new_master_tab(m)
+        self.pump()
+        cv = a.mm_new_cv
+        i = list(MM.MASTERS).index(m)
+        save_json(P("atlasmasters.json"), {"version": 1, "game_version": "0.5.5", "masters": {
+            m: {ch: {"text": "Monsters evolve faster.", "source": "game data"}}}})
+        try:
+            self.assertEqual(MM.master_text(m, ch), "Monsters evolve faster.")
+            self.assertIsNone(MM.master_text(m, MM.MASTERS[m][1]), "a choice it lacks: nothing")
+            a.mm_new_cv.redraw()
+            self.assertIn("Monsters evolve faster.", cv.tips[f"am_{i}_0"], "the tile's tooltip")
+            hover = [new for _it, _old, new in cv.lifts[f"am_{i}_0"]]
+            self.assertIn({"text": "Monsters evolve faster."}, hover, "the details column on hover")
+            self.assertIn({"text": "What it does shows here when the game data has it."},
+                          [new for _it, _old, new in cv.lifts[f"am_{i}_1"]], "a choice it lacks: the plain line")
+            s = dict(NOW, id="mt", masters={m: [ch]})
+            save_json(MM.MINE, [s])
+            a.mm_league_set(MM.ALL_LEAGUES)
+            a.mm_view_set("Mine")
+            a.mm_open("mt|mine")
+            self.pump()
+            a.mm_detail_cv.redraw()
+            self.assertIn("Monsters evolve faster.", a.mm_detail_cv.tips[f"am_{i}_0"], "the opened strat too")
+        finally:
+            os.remove(P("atlasmasters.json"))
+        self.assertNotEqual(MM.master_text(m, ch), "Monsters evolve faster.", "(gone with its file)")
+
+    def test_tracker_new_is_new_strat(self):
+        """Strat Tracker's ＋ New strat opens the same New strat page as Find's (no second way to make one)."""
+        import inspect
+        from soe2.ledger_page import LedgerPage
+        a = self.app
+        self.assertIn('text="＋ New strat", command=self.fl_new_strat', inspect.getsource(LedgerPage.build_ledger))
+        a.mm_page.pick("Strat Tracker", notify=False)
+        a._fl_to_strats = types.MethodType(LedgerPage._fl_to_strats, a)
+        LedgerPage.fl_new_strat(a)
+        self.pump()
+        self.assertTrue(a.mm_new_on, "the New strat page")
+        self.assertEqual(a.mm_page.current(), "Find") if hasattr(a.mm_page, "current") else None
+
     def test_example_strats_render_all_sections(self):
         """Every example strat opens with all its parts - a broken one used to leave the hero empty."""
         from soe2 import buglog

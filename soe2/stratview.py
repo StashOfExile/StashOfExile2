@@ -1074,8 +1074,9 @@ class StratViews:
             cv.lifts[tag] = lift
             if act:
                 cv.acts[tag] = lambda m=tab, ch=ch: act["pick"](m, ch)
+            what = MM.master_text(tab, ch)
             cv.tips[tag] = (f"{MM.MASTER_PICKS} of {MM.MASTER_PICKS} used - untick one first" if full and not on
-                            else ch + (" - picked" if on else ""))
+                            else ch + (" - picked" if on else "")) + (f"\n{what}" if what else "")
         # -- the details
         yy2 = detail_y
         tm = cv.text(dx0, yy2, f"{tab} · {len(mine)} of {MM.MASTER_PICKS} points".upper(), fb,
@@ -1096,11 +1097,18 @@ class StratViews:
         cv.create_line(dx0, yy2, dx0 + dw, yy2, fill=cv.c("border"))
         yy2 += 12
         hn = cv.text(dx0, yy2 + 8, "Hover a choice", ("Segoe UI", 10, "bold"), fill=cv.c("text_strong"), anchor="w")
-        wd = cv.text(dx0, yy2 + 20, "What it does shows here when the game data has it.", f9,
-                     fill=cv.c("text_muted"), anchor="nw", width=dw)
-        for i, ch in enumerate(MM.MASTERS[tab]):           # (the hovered choice's name, without a redraw)
-            cv.lifts[f"am_{names.index(tab)}_{i}"].append((hn, {"text": "Hover a choice"}, {"text": ch}))
-        yy2 = cv.bottom(wd, yy2 + 36) + 12
+        none = "What it does shows here when the game data has it."
+        whats = {ch: MM.master_text(tab, ch) for ch in MM.MASTERS[tab]}
+        room = 0                                          # (the longest one's height: Clear picks stays put)
+        for w_ in [none] + [x_ for x_ in whats.values() if x_]:
+            probe = cv.create_text(dx0, 0, text=w_, font=f9, anchor="nw", width=dw)
+            room = max(room, cv.bbox(probe)[3] - cv.bbox(probe)[1])
+            cv.delete(probe)
+        wd = cv.text(dx0, yy2 + 20, none, f9, fill=cv.c("text_muted"), anchor="nw", width=dw)
+        for i, ch in enumerate(MM.MASTERS[tab]):           # (the hovered choice's name and what it does, no redraw)
+            cv.lifts[f"am_{names.index(tab)}_{i}"] += [(hn, {"text": "Hover a choice"}, {"text": ch}),
+                                                       (wd, {"text": none}, {"text": whats[ch] or none})]
+        yy2 += 20 + room + 12
         if act:
             cv.button(dx0, yy2, "Clear picks", "am_clear", act["clear"], h=36, enabled=bool(picks),
                       tip="Untick the picks" if picks else "Nothing picked yet")
