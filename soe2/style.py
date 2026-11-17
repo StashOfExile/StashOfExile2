@@ -408,6 +408,19 @@ def _place_dialog(w, parent=None):
     w.wm_deiconify()
 
 
+def bind_own_configure(root, fn):
+    """3.0.6 (owner: dragging the Drawer lagged on every page except Dashboard - "what is the issue?!"): a handler
+    for the app window's own size / place. root.bind("<Configure>") runs for EVERY part inside the window too (each
+    part's events pass its window's tag) - five such handlers meant five Python calls for each of the ~1,800 parts
+    of a page, on every step of a drag. Dashboard is one drawing, so it never had that cost. This tag is the root's
+    alone: the handler runs once a step."""
+    tag = "SoE2Root"
+    tags = root.bindtags()
+    if tag not in tags:
+        root.bindtags((tag,) + tuple(tags))
+    root.bind_class(tag, "<Configure>", fn, add="+")
+
+
 LOOP_LIMIT = 150                  # one widget resized this many times within a second = stuck in a layout loop
 _LW = {"t": 0.0, "n": {}, "told": False, "size": {}}
 

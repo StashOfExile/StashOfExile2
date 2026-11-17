@@ -29,6 +29,12 @@ def url():
 
 
 def configured():
+    """3.0.6 (owner: "only like 6 people have soe2 ... why is it telling me 33?"): test and smoke runs start with a
+    fresh data folder - a new random id - and each was counted as a person. SOE2_NO_BOARD=1 (set by the tests and
+    tools/smoke_pages.py) keeps them off the community board."""
+    import os
+    if os.environ.get("SOE2_NO_BOARD") == "1":
+        return False
     return bool(url())
 
 

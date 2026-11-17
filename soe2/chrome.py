@@ -84,13 +84,14 @@ class SectionBar(tk.Canvas):
             self._redraw()
 
     def _redraw(self):
-        self.delete("all")
+        self.delete("fore")                               # (3.0.6: the bar itself is kept - themes._paint_bar)
         w, h = max(self.winfo_width(), 2), self.H
         t = TH.ST.theme
         fg = TH.paint_bar(self, "section", tag="bar")        # (Round 18: the theme's own bar in the Drawer too)
         stops = t.grad(t.part("bars", "section", "fill") or t.part("bars", "title", "fill"))
         mid = TH.grad_at(stops, .5)
-        tid = self.create_text(12, h // 2, text=self.title, anchor="w", fill=fg, font=(TH.head_font(), 11, "bold"))
+        tid = self.create_text(12, h // 2, text=self.title, anchor="w", fill=fg, font=(TH.head_font(), 11, "bold"),
+                               tags="fore")
         lx = (self.bbox(tid) or (0, 0, 12, 0))[2] + 12
         left, right = getattr(self, "_left", []), list(self._right)
         try:                                              # 3.0.6 (owner: Bulk Pricing in the Drawer - the strip's
@@ -126,7 +127,8 @@ class SectionBar(tk.Canvas):
                 wd.lift(self)
             x -= 8
         if self._note:
-            nid = self.create_text(x, h // 2, text=self._note, anchor="e", fill=C["steel"], font=("Segoe UI", 9))
+            nid = self.create_text(x, h // 2, text=self._note, anchor="e", fill=C["steel"], font=("Segoe UI", 9),
+                                   tags="fore")
             if (self.bbox(nid) or (lx, 0, 0, 0))[0] < lx:    # 2.126.0: no room between the two sides - left out
                 self.delete(nid)
 

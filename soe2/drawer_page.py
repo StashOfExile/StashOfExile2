@@ -17,6 +17,7 @@ from tkinter import ttk
 from . import buglog
 from . import drawer as D
 from .config import save_json, SETTINGS
+from .style import bind_own_configure
 
 
 
@@ -102,7 +103,7 @@ class DrawerHost:
         D.SHOWN_DRAWER[0] = self.drawer_st.as_drawer()
         if self._drawer_geom is None:
             self._drawer_geom = "full"
-        self.root.bind("<Configure>", self.drawer_configured, add="+")
+        bind_own_configure(self.root, self.drawer_configured)
         self.root.bind_all("<ButtonPress-1>", lambda e: setattr(self, "_drawer_btn", True), add="+")
         self.root.bind_all("<ButtonRelease-1>", lambda e: setattr(self, "_drawer_btn", False), add="+")
         self.root.after(300, self.drawer_ad.disable_transitions)
@@ -711,8 +712,7 @@ class DrawerHost:
         if not self._drawer_mouse_down():
             self._drawer_note_width()
         elif (e.width, e.height) != getattr(self, "_drawer_last_wh", (e.width, e.height)):
-            self._drawer_freeze(True)                     # (a resize, not a move: the page waits for the release)
-            self._drawer_drag_profile(True)
+            self._drawer_drag_profile(True)               # (a resize, not a move: Debug mode measures it)
         self._drawer_last_wh = (e.width, e.height)
         job = getattr(self, "_drawer_cfg_job", None)
         if job:
@@ -726,8 +726,8 @@ class DrawerHost:
         """3.0.6 (owner: the Drawer still lags while its edge is dragged - not seen here, only on Windows): with Debug
         mode on, one drag is measured - the app's own work (Python, by function) against the time the drag took -
         and written to drawer_drag.txt in the app's data folder. Function names and times only, nothing personal."""
-        if not SETTINGS.get("debug_mode"):
-            return
+        if not SETTINGS.get("debug_mode") or getattr(self, "_drawer_prof_done", False):
+            return                                        # (the first drag of a run only - measuring slows it)
         try:
             import cProfile
             if on:
@@ -795,37 +795,9 @@ class DrawerHost:
             st.sort_stats("tottime").print_stats(20)
             with open(os.path.join(DATA_DIR, "drawer_drag.txt"), "w", encoding="utf-8") as f:
                 f.write(out.getvalue())
+            self._drawer_prof_done = True
         except Exception:
             self._drawer_prof = None
-            buglog.caught()
-
-    def _drawer_freeze(self, on):
-        """3.0.6 (owner: dragging the Drawer's edge "lags in settings and every other page", not on Dashboard; the
-        measured drag: 11 resize steps in 6.7 s - each step laid every page out again, and on Windows every one of
-        its parts is a window of its own to move). While you drag, each page keeps its size and stays in view (a
-        wider Drawer shows a strip beside it, a narrower one cuts it off for the moment); when you let go it is laid
-        out once, at the new size (_drawer_resized). Shell._follow leaves frozen pages alone. (Owner: taking the
-        pages off instead left the Drawer empty while dragging - "not the right fix".)"""
-        sh = getattr(self, "shell", None)
-        try:
-            if on:
-                if getattr(self, "_drawer_frozen", None) or sh is None:
-                    return
-                shown = [w for w in list(getattr(sh, "windows", {}).values())
-                         if getattr(w, "_shown", False) and w.winfo_ismapped()]
-                for w in shown:
-                    tk.Place.place_configure(w, relwidth=0, relheight=0, width=w.winfo_width(),
-                                             height=w.winfo_height())
-                self._drawer_frozen = shown
-            else:
-                shown, self._drawer_frozen = getattr(self, "_drawer_frozen", None) or [], None
-                for w in shown:
-                    if getattr(w, "_shown", False):
-                        w._place_now()
-                if sh is not None:
-                    sh._follow_soon()                         # (and each page sized once, for the new width)
-        except (tk.TclError, AttributeError):
-            self._drawer_frozen = None
             buglog.caught()
 
     def _drawer_maximized(self):
@@ -882,13 +854,11 @@ class DrawerHost:
     def _drawer_resized(self):
         self._drawer_cfg_job = None
         if not self.drawer_shown_as_drawer():
-            self._drawer_drag_profile(False)
-            return self._drawer_freeze(False)
+            return self._drawer_drag_profile(False)
         if self._drawer_mouse_down():                     # still dragging: wait for the release
             self._drawer_cfg_job = self.root.after(400, self._drawer_resized)
             return
-        self._drawer_drag_profile(False)                 # (measured before the pages come back)
-        self._drawer_freeze(False)
+        self._drawer_drag_profile(False)
         self._drawer_note_width()
         if getattr(self, "_drawer_share_dirty", False):
             self._drawer_share_dirty = False

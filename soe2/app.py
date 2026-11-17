@@ -46,7 +46,7 @@ from .wealth import WEALTH, parse_stack, WPRICES
 from .engine import Engine
 from . import gear, waystone
 from .toasts import Toasts
-from .style import C, MOD_COL, FLAG_COLORS, FONT_TITLE, hotkey_blocked, MONO, Plate, SegBook, SegBar, setup_style, Toast, KeyCapture, TagTip, Tooltip, flowify, trade_icon
+from .style import C, MOD_COL, FLAG_COLORS, FONT_TITLE, hotkey_blocked, MONO, Plate, SegBook, SegBar, setup_style, Toast, KeyCapture, TagTip, Tooltip, flowify, trade_icon, bind_own_configure
 from .chrome import BarNote, SectionBar, Viewport, section as chrome_section
 from .winsys import ICON_B64, KeyWatch, Tray
 from .wealth_page import WealthPage
@@ -316,7 +316,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         else:
             root.geometry(self.saved_geometry() or "1280x800")      # 2.23.1: where you left it last time
             root.minsize(1000, 560)
-        root.bind("<Configure>", self._note_window, add="+")
+        bind_own_configure(root, self._note_window)          # (3.0.6: the window only, not its parts)
         from .style import apply_look                   # 2.0.0: Settings > Appearance (the theme)
         apply_look(look_settings(), root)
         root.configure(bg=C["bg"])
@@ -398,7 +398,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         self.in_tray = False
         root.bind("<Unmap>", self.on_unmap)
         root.bind("<Map>", self.on_map, add="+")          # 1.35: always (also guards against minimizes you didn't ask for)
-        root.bind("<Configure>", self._remember_rect, add="+")   # 1.42: where the title bar was BEFORE a minimize
+        bind_own_configure(root, self._remember_rect)    # 1.42: where the title bar was BEFORE a minimize
         self._last_rect = None
         self.apply_topmost()
         root.after(800, self.apply_topmost)

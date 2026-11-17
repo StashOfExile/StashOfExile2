@@ -14,7 +14,7 @@ import time
 import tkinter as tk
 
 from . import buglog
-from .style import C
+from .style import C, bind_own_configure
 
 TITLE_ON = ("#34508a", "#1a2a4c")
 UTIL_TITLE = ("#3a3020", "#1e1810")
@@ -858,7 +858,7 @@ class Shell:
         self.desk.pack(side="left", fill="both", expand=True)
         self._wall_img, self._wall_job, self._wall_size = None, None, None
         self.desk.bind("<Configure>", self._desk_resized)
-        self.root.bind("<Configure>", lambda e: e.widget is self.root and self._follow_soon(), add="+")
+        bind_own_configure(self.root, lambda e: e.widget is self.root and self._follow_soon())
         self.icons = []
         self.orb = self.task                    # 2.49.0: the Toolkit button is on the taskbar canvas (tag "tkbtn")
         if self.sidebar is not None:            # 2.62.0: ... and in the sidebar now
@@ -877,7 +877,7 @@ class Shell:
         for cls in ("Tk", "Toplevel"):
             self.root.bind_class(cls, "<KeyPress>", self._stray_key, add="+")
         self.root.after(1000, self._tick)
-        self.root.bind("<Configure>", self._compact_now, add="+")
+        bind_own_configure(self.root, self._compact_now)
         for seq in ("<Control-k>", "<Control-K>"):                # UI overhaul: Go to anything
             self.root.bind_all(seq, lambda e: (self.goto(), "break")[1], add="+")
 
@@ -1106,9 +1106,6 @@ class Shell:
 
     def _follow(self):
         self._follow_job = None
-        if getattr(self.app, "_drawer_frozen", None):      # 3.0.6: the Drawer's edge is being dragged - the pages
-            self._last_place = None                        # are off until the release (drawer_page._drawer_freeze),
-            return                                         # then placed once
         org = self.desk_origin()
         size = (self.desk.winfo_width(), self.desk.winfo_height())
         if (org, size) == getattr(self, "_last_place", None):

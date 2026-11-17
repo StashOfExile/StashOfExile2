@@ -246,6 +246,7 @@ def init(C, base):
 def set_theme(theme, accent=None):
     """Make theme the running look: C rewritten, tone() follows it. (style.relook() also repaints the app.)"""
     ST.theme = theme
+    ST.gen = getattr(ST, "gen", 0) + 1                 # (3.0.6: painted bars know a look change from a resize)
     ST.identity = theme.id == IDENTITY and not accent
     pal = dict(ST.base)
     if theme.id != IDENTITY:
@@ -608,10 +609,22 @@ def texture(cv, t, kind, x0, y0, x1, y1, base, glow=None, tag="tex"):
 def _paint_bar(cv, kind="title", tag="grad"):
     """A title bar from the running pack: gradient, texture, top / bottom lines. No icons - every pack keeps the
     app's own icons (2.60.0)."""
-    cv.delete(tag)
     w, h = max(cv.winfo_width(), 2), max(cv.winfo_height(), 2)
-    col = bar_into(cv, ST.theme, kind, 0, 0, w, h, tag)
+    # 3.0.6 (owner: dragging the Drawer lagged on every page but Dashboard; measured: re-texturing every title and
+    # section bar was ~40% of each resize step): a bar is painted once, as wide as the screen, and only cut to the
+    # width it has - a resize paints nothing new unless the look or its height changed.
+    key = (getattr(ST, "gen", 0), kind, tag, h)
+    done = getattr(cv, "_bar_done", None)
+    if done is not None and done[0] == key and done[1] >= w and cv.find_withtag(tag):
+        return done[2]
+    cv.delete(tag)
+    try:
+        wide = max(w, cv.winfo_screenwidth())
+    except Exception:
+        wide = w
+    col = bar_into(cv, ST.theme, kind, 0, 0, wide, h, tag)
     cv.tag_lower(tag)
+    cv._bar_done = (key, wide, col)
     return col
 
 
