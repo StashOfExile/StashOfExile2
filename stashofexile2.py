@@ -2794,7 +2794,7 @@ VERSION HISTORY
        the S and A tier runeshapes for loot (remnant.RUNE_TIERS: S Opulent, Power, Oath; A Time, Death, Soul, Bond -
        mixed reports). It comes and goes with the tags (part of rm_win), left out of captures. Runeshapes are symbols
        in game, so the app can't tell which a remnant has - it's a cheat sheet. Sources (Nov 2026): epoe.io
-       Expedition guide (Larky's priorities), timesaver.gg Aldur's Saga guide, game8 runeshape list. Alerts row:
+       Expedition guide (Larky's priorities), timesaver.gg Aldur's Saga guide, game rune text. Alerts row:
        "Runeshape tips" switch (remnant cfg "tips", on).
        Fix: Stash tab's currency still went back to Divine Orb - the real cause: the box is built before the trade
        site's full currency list arrives, and Mirror isn't in the short built-in list, so a saved "mirror" showed as

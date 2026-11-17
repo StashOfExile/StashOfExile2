@@ -42,6 +42,8 @@ class CardList(tk.Frame):
         self.canvas.bind("<Configure>", self._configure)
         self.canvas.bind("<Button-1>", self._click)
         self.canvas.bind("<Motion>", self._motion)
+        for ev in ("<Button-3>", "<Button-2>", "<Control-Button-1>"):       # right click (Windows / Linux, macOS)
+            self.canvas.bind(ev, self._menu)
         self._hooked = None
         self.bind("<Map>", lambda e: self._hook(), add="+")
         self.after_idle(self._hook)
@@ -235,8 +237,7 @@ class CardList(tk.Frame):
             ops.append(("text", x0, y, f"Source: {r['src']} · " + (f"Game {v}" if v and v != "none" else "no game version in the file"),
                         F["kind"], "muted", "nw", {}))
             y += F["kind"].metrics("linespace") + 1
-            ops.append(("text", x0, y, f"Row id: {r['id']}", F["mono"], "muted", "nw", {}))
-            y += F["mono"].metrics("linespace") + 2
+            y += 2                                            # (the row id is in the right-click menu, not on the card)
         expandable = cut or opened or len(c["chips"]) > 6 or (r.get("db") and bool(c["chips"]))
         if expandable:
             label = "less ‹" if opened else "more ›"
@@ -318,6 +319,30 @@ class CardList(tk.Frame):
             if x1 <= x <= x2 and y1 <= y <= y2:
                 return act
         return None
+
+    def row_at(self, e):
+        """The row under a mouse event (canvas coordinates), or None."""
+        y = self.canvas.canvasy(e.y)
+        i = bisect.bisect_right(self.tops, y) - 1
+        if 0 <= i < len(self.rows) and y < self.tops[i] + self._layout(self.rows[i])["h"]:
+            return self.rows[i]
+        return None
+
+    def _menu(self, e):
+        """Right click on a database card: copy its row id (for gamedb_hide.json). Only writes to the clipboard."""
+        r = self.row_at(e)
+        if not r or not r.get("db") or not r.get("id"):
+            return
+        m = tk.Menu(self.canvas, tearoff=0)
+        m.add_command(label="Copy id for the hide list", command=lambda: self.copy_id(r["id"]))
+        try:
+            m.tk_popup(e.x_root, e.y_root)
+        finally:
+            m.grab_release()
+
+    def copy_id(self, rid):
+        self.clipboard_clear()
+        self.clipboard_append(rid)
 
     def _click(self, e):
         act = self._at(e)

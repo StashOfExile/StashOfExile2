@@ -1,6 +1,6 @@
 """Build gamedb.json - the offline game database inside Game Search (tablets, waystones, Atlas masters, Vaal Temple,
-pinnacles and areas, Trial of the Sekhemas, Ritual altars, leagues). Only facts from the game's own files: the RePoE
-exports already in the repo (modlists.json, regexdata.json, mapdata.json), gamedata.json, searchdata.json (the game's
+pinnacles and areas, Trial of the Sekhemas, Trial of Chaos, Ritual altars, leagues). Only facts from the game's own files: the RePoE
+exports already in the repo (modlists.json, regexdata.json, mapdata.json, trialdata.json), gamedata.json, searchdata.json (the game's
 text), and a few names that live in the app's code (soe2/ritualid.py, medallions.py, vaallens_plan.py, moneymakers.py,
 waystone.py). No community opinions (ratings, tier lists, "why" lines) and nothing is looked up when the app runs.
 
@@ -45,6 +45,8 @@ from soe2 import gamedata, mods, names                                # noqa: E4
 SCHEMA = 1
 GROUPS = names.GAME_SEARCH_GROUPS                                     # (one name per feature: soe2/names.py)
 NOT_IN_DATA = "Effect not in the game data yet"
+# permanent owner rule: game8 and fextralife are AI-generated and wrong - never a data source (see tools/README.txt)
+BLACKLIST = re.compile(r"game8|fextralife", re.I)
 SAMPLES = os.path.join("tests", "fixtures", "gamedb_samples.txt")
 BANDS = {"map_key_low": "T1-5", "map_key_medium": "T6-10", "map_key_high": "T11-15", "map_key_highest": "T16"}
 BAND_TIERS = {"T1-5": range(1, 6), "T6-10": range(6, 11), "T11-15": range(11, 16), "T16": range(16, 17)}
@@ -162,6 +164,7 @@ class Build:
         self.temple()
         self.areas()
         self.sekhemas()
+        self.trialofchaos()
         self.altars()
         self.leagues()
         self.samples_check()
@@ -416,6 +419,51 @@ class Build:
                          f"trial of the sekhemas, {kind.lower()}, {e['tier']}", [NOT_IN_DATA],
                          f"soe2/sekhemas.json {key}", ver)
 
+    # ---------------------------------------------------------------- Trial of Chaos
+    def trialofchaos(self):
+        """From trialdata.json (tools/build_trialdata.py: the RePoE poe2 export). Only what the export holds; the checks:
+        the export's version is on every row, each modifier has its stat ids and text, each item / keyword is also in
+        searchdata.json with the same text, and every id is an export id."""
+        G = "Trial of Chaos"
+        d = read_json(self.root, "trialdata.json")
+        ver, src = d["game_version"], "trialdata.json (RePoE poe2 export)"
+        self.versions["trialdata.json"] = ver
+        norm = lambda t: re.sub(r"\s+", " ", t or "").strip()                 # noqa: E731
+        for kind, key, label in (("modifier", "modifiers", "Trial Modifier"), ("wager", "wagers", "Wager")):
+            for m in d[key]:
+                if not (m["id"].startswith(("Ultimatum")) and m["stats"] and m["text"] and m["name"]):
+                    self.bad(f"trialdata {m.get('id')}: not a complete {kind} from the export")
+                    continue
+                if kind == "modifier":
+                    name, cls, tags = f"Trial Modifier: {m['name']}", "Trial Modifier", "Trial of Chaos, ultimatum, modifier, suffix"
+                else:
+                    name, cls, tags = f"{m['name']} Wager", "Wager", "Trial of Chaos, ultimatum, wager, prefix"
+                self.add(f"trial-of-chaos/{kind}/{slug(m['id'])}", name, G, cls, tags,
+                         [("Required level", str(m["level"]))] + m["text"].split("\n"), src, ver)
+        for it in d["items"]:
+            if not it["id"].startswith("Metadata/Items/"):
+                self.bad(f"trialdata item {it['name']}: not an export id")
+            hit = self.sd_rows.get((it["name"], "Endgame Items"))
+            if hit and norm(hit[4]) != norm(it["directions"]):
+                self.bad(f"{it['name']}: the export's text differs from searchdata.json")
+            parts = [("Drop level", str(it["drop_level"])), ("Stack size", str(it["stack_size"] or ""))]
+            if it["directions"]:
+                parts.append(it["directions"])
+            self.add(f"trial-of-chaos/item/{slug(it['id'].split('/')[-1])}", it["name"], G, "Trial Item",
+                     ", ".join(["Trial of Chaos"] + it["tags"]), parts, src, ver)
+        for k in d["keywords"]:
+            hit = self.sd_rows.get((k["term"], "Keywords & Mechanics"))
+            if hit and norm(hit[4]) != norm(k["text"]):
+                self.bad(f"keyword {k['term']}: the export's text differs from searchdata.json")
+            self.add(f"trial-of-chaos/keyword/{slug(k['id'])}", k["term"], G, "Keyword", "Trial of Chaos, ruin, keyword",
+                     [k["text"].split("\n")[0], *[t for t in k["text"].split("\n")[1:] if t]], src, ver)
+        for a in d["areas"]:
+            self.add(f"trial-of-chaos/area/{slug(a['id'])}", a["name"], G, "Area", "Trial of Chaos, area",
+                     [("Area level", str(a["level"])), ("Act", str(a["act"])), ("Waypoint", "yes" if a["waypoint"] else "no"),
+                      ("Area id", a["id"])], src, ver)
+        self.notes.append(f"trial of chaos: {d['left_out']['wagers_without_item_name']} wagers left out "
+                          "(the export prints no item name for them)")
+
     # ---------------------------------------------------------------- Ritual altars
     def altars(self):
         G = "Ritual Altars"
@@ -533,6 +581,8 @@ class Build:
             for f in ("id", "name", "group", "class", "text", "source", "version"):
                 if not r.get(f):
                     self.bad(f"row {r.get('id')}: empty {f}")
+            if BLACKLIST.search(" ".join(str(r.get(f, "")) for f in ("source", "text", "tags"))):
+                self.bad(f"row {r['id']}: source is on the blacklist (game8 / fextralife are AI-written and wrong)")
             if r["group"] not in GROUPS:
                 self.bad(f"row {r['id']}: unknown group {r['group']}")
         for h in self.hide:

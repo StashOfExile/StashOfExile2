@@ -71,7 +71,12 @@ app.gs_toggle(r["n"] + "|" + r["g"])
 pump()
 t = drawn()
 assert "Source: regexdata.json waystone · Game 0.5.5" in t, t
-assert "Row id: waystone/mod/increased-monster-damage" in t, t
+assert "Row id" not in t and "Trade stat" not in t and "explicit.stat_" not in t, t     # (not drawn: right-click copies the id)
+rid = r["id"]
+assert rid == "waystone/mod/increased-monster-damage" and app.gs_cards.row_at(type("E", (), {"y": 5})) is not None
+app.gs_cards.copy_id(rid)
+assert root.clipboard_get() == rid
+assert "explicit.stat_" in r["t"] or "trade stat" in r["t"].lower()                    # (still searchable)
 # an item row from the export: kind, properties with the unit fixed, "Requires Level 1", and a wiki link
 app.gs_active = "Armour"
 app.gs_q.set("rusted cuirass")

@@ -22,6 +22,7 @@ WORDS = {"onehand": "One-Handed", "twohand": "Two-Handed", "ranged": "Ranged", "
          "sanctum_relic": "Relic", "small_sanctum_relic": "Small Relic", "medium_sanctum_relic": "Medium Relic",
          "large_sanctum_relic": "Large Relic"}
 # internal tags nobody reads: a card never shows them (they stay searchable)
+NOT_SHOWN = ("Trade stat", "Implicit trade stat", "Trade filter")     # trade ids: not for reading
 _HIDDEN = re.compile(r"(_basetype$|^default$|^not_for_sale$|^demigods$|^no_\w+_mods$|^armour$|^weapon$|^one_hand_weapon$|"
                      r"^two_hand_weapon$|^tower_augment|^currency$|^str_shield$|^dex_shield$|^int_shield$|^metadata|"
                      r"_armour$|^all_sentinels$|^sentinel_drone$|^ezomyte|^expedition_logbook$)")
@@ -124,7 +125,7 @@ def card(it):
     tags = [x.strip() for x in (it.get("k") or "").split(",")]
     cls = it.get("c") or ""
     if it.get("db"):
-        props = [tuple(p) for p in it.get("props") or []]
+        props = [tuple(p) for p in it.get("props") or [] if p[0] not in NOT_SHOWN]    # (they stay in the row's text: searchable)
         c = {"kind": cls, "props": props, "req": "", "lines": list(it.get("lines") or []), "muted": [],
              "chips": [humanize(w) if "_" in w else w[:1].upper() + w[1:]
                        for w in dict.fromkeys(x.strip() for x in (it.get("k") or "").split(","))

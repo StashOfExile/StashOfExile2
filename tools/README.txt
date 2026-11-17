@@ -23,8 +23,8 @@ Bases and uniques newer than gamedata.json don't need a rebuild to work: the app
 list once a day (trade_items.json in the data folder) and uses it where the game data has nothing.
 
 tools/build_gamedb.py rebuilds gamedb.json (Game Search's offline game database: Tablets, Waystones, Atlas Masters, Vaal
-Temple, Pinnacles & Areas, Trial of the Sekhemas, Ritual Altars, Leagues). Only facts from the game's own files: it reads
-modlists.json, regexdata.json, mapdata.json, gamedata.json, searchdata.json and a few names in the app's code - no
+Temple, Pinnacles & Areas, Trial of the Sekhemas, Trial of Chaos, Ritual Altars, Leagues). Only facts from the game's own
+files: it reads modlists.json, regexdata.json, mapdata.json, trialdata.json, gamedata.json, searchdata.json and a few names in the app's code - no
 community ratings, nothing looked up when the app runs. Run it after any of those files changes:
 
   py tools/build_gamedb.py            build, verify, write gamedb.json
@@ -36,6 +36,14 @@ type's mods and ranges, and every mod line on the real copies in tests/fixtures/
 refresh those copies from the test build's data folder (session.json and unpriced_items.txt; only item text is kept):
 
   py tools/build_gamedb.py --refresh-samples C:\path\to\Builds\soe2\testdata
+
+trialdata.json (the Trial of Chaos facts) comes from the RePoE poe2 export: py tools/build_trialdata.py path\to\repoe2\data
+It is a build input only (not shipped). Anything the export doesn't hold is left out, never filled from a website.
+
+SOURCE BLACKLIST (permanent owner rule): never use game8 or fextralife (game8.co, poe2.game8.co, any fextralife wiki) as
+a data source - their pages are AI-written and wrong. build_gamedb.py fails any row whose source, text or tags mention
+them, and the name must not appear in the code or data credits either. Allowed: the game's own files (RePoE export,
+gamedata.json, searchdata.json, trade site lists) and the owner's own real item copies.
 
 After a rebuild raise "gamedb.json" in BUNDLED_DATA (soe2/config.py) by 1.
 

@@ -369,7 +369,7 @@ class SearchPage:
                 t.insert("end", "\n")
             v = it.get("v")
             t.insert("end", f"Source: {it['src']} · " + (f"Game {v}" if v and v != "none" else "no game version in the file")
-                     + f"\nRow id: {it['id']}\n", ("tag",))
+                     + "\n", ("tag",))
 
     def _gs_anoint(self, it, terms):
         """The three Liquid Emotions, each with its poe.ninja price, and the total."""

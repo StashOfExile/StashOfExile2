@@ -26,7 +26,7 @@ import build_gamedb as BG                                  # noqa: E402
 import build_searchdata as BS                              # noqa: E402
 from soe2 import config, gamesearch, names                 # noqa: E402
 
-FILES = ("gamedata.json", "searchdata.json", "modlists.json", "regexdata.json", "mapdata.json", "anointdata.json",
+FILES = ("gamedata.json", "searchdata.json", "modlists.json", "regexdata.json", "mapdata.json", "trialdata.json", "anointdata.json",
          "campaign.json", "crafthelper.json", "soe2/moneymakers.py", "soe2/waystone.py", "soe2/vaallens_plan.py",
          "soe2/medallions.py", "soe2/ritualid.py", "soe2/sekhemas.json", "tests/fixtures/gamedb_samples.txt")
 
@@ -57,6 +57,7 @@ class BuildChecks(unittest.TestCase):
         self.assertEqual(n["Waystones"], 6 + 16 + 32)                # header numbers, tiers, mods
         self.assertEqual(n["Atlas Masters"], 3 + 36)
         self.assertEqual(n["Ritual Altars"], 10)
+        self.assertEqual(n["Trial of Chaos"], 11 + 8 + 5 + 1 + 2)    # modifiers, wagers, items, Ruin, areas
         self.assertTrue(all(n[g] for g in BG.GROUPS), n)
         for r in b.rows:                                             # every row has what Game Search shows
             for f in ("id", "name", "group", "class", "text", "source", "version"):
@@ -79,6 +80,41 @@ class BuildChecks(unittest.TestCase):
         sk = [r for r in b.rows if r["group"] == "Trial of the Sekhemas"]
         self.assertEqual(len(sk), 85)
         self.assertTrue(all(r["text"] == BG.NOT_IN_DATA for r in sk))    # no ratings, no "why"
+
+    def test_trial_of_chaos_comes_only_from_the_export(self):
+        b = BG.Build().run()
+        tc = [r for r in b.rows if r["group"] == "Trial of Chaos"]
+        self.assertTrue(all(r["version"] == "0.5.5.9" and "RePoE" in r["source"] for r in tc))
+        names_ = {r["name"] for r in tc}
+        for n in ("Cowardly Fate", "Deadly Fate", "Victorious Fate", "Inscribed Ultimatum", "Ruin",
+                  "The Trialmaster's Reliquary Key", "The Trial of Chaos", "Trial Modifier: of Exposure"):
+            self.assertIn(n, names_)
+        exp = next(r for r in tc if r["name"] == "Trial Modifier: of Exposure")
+        self.assertIn("(20-30)% maximum Player Resistances", exp["text"])       # a reversed range is printed low-high
+        self.assertFalse(any("[]" in r["text"] or "[" in r["text"] for r in tc))   # no markup left
+        self.assertTrue(any("12 wagers left out" in n for n in b.notes))
+
+    def test_trial_row_not_in_the_export_fails(self):
+        root = copy_root()
+        edit_json(root, "trialdata.json", lambda d: d["items"][1].update(directions="Invented text"))
+        b = BG.Build(root=root).run()
+        self.assertTrue(any("differs from searchdata.json" in f for f in b.fail), b.fail)
+        root = copy_root()
+        edit_json(root, "trialdata.json", lambda d: d["modifiers"][0].update(stats=[]))
+        self.assertTrue(BG.Build(root=root).run().fail)
+
+    def test_blacklisted_source_fails_the_build(self):
+        for bad in ("game8.co runeshapes", "Fextralife wiki", "poe2.game8.co"):
+            b = BG.Build()
+            b.run()
+            b.fail = []
+            b.rows[0]["source"] = bad
+            b.finish()
+            self.assertTrue(any("blacklist" in f for f in b.fail), (bad, b.fail))
+        for f in ("soe2/remnant.py", "stashofexile2.py", "tools/README.txt"):    # and no credit to them in the code
+            with open(os.path.join(ROOT, f), encoding="utf-8") as fh:
+                t = fh.read().lower()
+            self.assertEqual([w for w in ("game8", "fextralife") if w in t and f != "tools/README.txt"], [], f)
 
     def test_bad_mod_fails_the_build_and_writes_nothing(self):
         root = copy_root()
@@ -290,7 +326,7 @@ class PoE1Filter(unittest.TestCase):
 
 class Shipped(unittest.TestCase):
     def test_bundled_and_built_everywhere(self):
-        self.assertEqual(config.BUNDLED_DATA["gamedb.json"], 1)
+        self.assertEqual(config.BUNDLED_DATA["gamedb.json"], 2)
         self.assertEqual(config.BUNDLED_DATA["gamedb_hide.json"], 1)
         self.assertGreaterEqual(config.BUNDLED_DATA["searchdata.json"], 2)         # (the PoE1 rows left it)
         for f in ("build_exe.bat", "build_linux.sh", os.path.join(".github", "workflows", "release.yml")):
