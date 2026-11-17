@@ -732,6 +732,16 @@ class DrawerHost:
             import cProfile
             if on:
                 if getattr(self, "_drawer_prof", None) is None:
+                    import collections
+                    seen = collections.Counter()           # which parts still change size while you drag
+
+                    def count(e):
+                        try:
+                            parts = str(e.widget).split(".")
+                            seen[".".join(parts[:4])] += 1
+                        except Exception:
+                            pass
+                    self._drawer_cfg_count = (seen, self.root.bind_all("<Configure>", count, add="+"))
                     self._drawer_prof = (cProfile.Profile(), time.perf_counter(), [0])
                     self._drawer_prof[0].enable()
                 self._drawer_prof[2][0] += 1
@@ -752,6 +762,35 @@ class DrawerHost:
             out.write(f"Drawer drag: {secs:.2f} s, {n[0]} resize events, app's own Python {tot:.2f} s "
                       f"({tot / secs * 100 if secs else 0:.0f}% - the rest is Tk drawing and Windows)\n"
                       f"page open: {getattr(getattr(self, 'shell', None), 'active', '?')}\n\n")
+            seen, fid = getattr(self, "_drawer_cfg_count", (None, None))
+            self._drawer_cfg_count = (None, None)
+            if fid:
+                try:
+                    self.root.unbind_all("<Configure>")       # (only the counter's; the app's own are put back)
+                    from .style import _layout_watch
+                    self.root.bind_all("<Configure>", _layout_watch, add="+")
+                except Exception:
+                    buglog.caught()
+            if seen:
+                out.write(f"Parts that changed size while dragging: {sum(seen.values())}\n")
+                for k, v in seen.most_common(25):
+                    out.write(f"  {v:6d}  {k}\n")
+            sh = getattr(self, "shell", None)
+            if sh is not None:
+                out.write("Pages: " + ", ".join(f"{k}={'shown' if getattr(w, '_shown', False) else 'hidden'}"
+                                                 for k, w in getattr(sh, "windows", {}).items()) + "\n")
+            n_map = [0]
+
+            def walk(w):
+                for c in w.winfo_children():
+                    try:
+                        if c.winfo_ismapped():
+                            n_map[0] += 1
+                            walk(c)
+                    except tk.TclError:
+                        pass
+            walk(self.root)
+            out.write(f"Parts on screen while dragging: {n_map[0]}\n\n")
             st.sort_stats("cumulative").print_stats(30)
             st.sort_stats("tottime").print_stats(20)
             with open(os.path.join(DATA_DIR, "drawer_drag.txt"), "w", encoding="utf-8") as f:
@@ -780,6 +819,8 @@ class DrawerHost:
                 for w in shown:
                     if getattr(w, "_shown", False):           # (the order they lie in is kept: Settings on top)
                         w._place_now()
+                if sh is not None:
+                    sh._follow_soon()                         # (and each page sized once, for the new width)
         except (tk.TclError, AttributeError):
             buglog.caught()
 
@@ -842,8 +883,8 @@ class DrawerHost:
         if self._drawer_mouse_down():                     # still dragging: wait for the release
             self._drawer_cfg_job = self.root.after(400, self._drawer_resized)
             return
+        self._drawer_drag_profile(False)                 # (measured before the pages come back)
         self._drawer_freeze(False)
-        self._drawer_drag_profile(False)
         self._drawer_note_width()
         if getattr(self, "_drawer_share_dirty", False):
             self._drawer_share_dirty = False

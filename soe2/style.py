@@ -1010,6 +1010,7 @@ class TagTip(Tooltip):
 
     def __init__(self, canvas, tag, text, delay=450):
         self.w, self.text, self.delay, self.win, self.job = canvas, text, delay, None, None
+        self.at = None                                  # (3.0.6, error log: Tooltip.show reads it)
         canvas.tag_bind(tag, "<Enter>", self._enter, add="+")
         canvas.tag_bind(tag, "<Leave>", self._leave, add="+")
         canvas.tag_bind(tag, "<ButtonPress>", self._leave, add="+")

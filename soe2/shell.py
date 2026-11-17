@@ -1106,6 +1106,9 @@ class Shell:
 
     def _follow(self):
         self._follow_job = None
+        if getattr(self.app, "_drawer_frozen", None):      # 3.0.6: the Drawer's edge is being dragged - the pages
+            self._last_place = None                        # are off until the release (drawer_page._drawer_freeze),
+            return                                         # then placed once
         org = self.desk_origin()
         size = (self.desk.winfo_width(), self.desk.winfo_height())
         if (org, size) == getattr(self, "_last_place", None):
