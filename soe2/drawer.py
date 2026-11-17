@@ -291,18 +291,6 @@ def pin_ui_dpi():
     pixels (screenread.game_real - this thread per-monitor for the two reads, then back), the picture is taken the
     same way (screenread._grab), and a helper's tags are placed in the app's pixels (screenread.to_ui)."""
     mode = UI_DPI
-    try:                                       # 3.0.6: the Drawer-drag test - ui_dpi.txt in the data folder (or
-        from .config import SETTINGS, DATA_DIR  # settings "ui_dpi") picks the mode
-        want = SETTINGS.get("ui_dpi")
-        try:
-            with open(os.path.join(DATA_DIR, "ui_dpi.txt"), encoding="utf-8") as f:
-                want = f.read().strip() or want
-        except OSError:
-            pass
-        if want in ("gdiscaled", "unaware", "off"):
-            mode = want
-    except Exception:
-        pass
     if not WIN or mode == "off":
         UI_DPI_SET[0] = "off"
         return None
