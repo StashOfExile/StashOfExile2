@@ -25,6 +25,8 @@ DOCS = ("README.md", "TOS.md", "linux/README.md", "themes/README.md", "strats/RE
 
 # (version, what it was, words a person read, names in the code / settings keys[, pending])
 REMOVED = [
+    ("3.0.6", "Farming Strategies › Find: the Best for you right now card (owner: one list, best per hour first)",
+     ("Best for you right now", "BEST FOR YOU RIGHT NOW", "MORE STRATS"), ("_mm_best_card", "run_best")),
     ("3.0.6", "Farming Strategies to the approved mockups: the Lucrative Strats tab (its one-liners are Quick tips, "
               "folded at the bottom of Find - Add, Copy, Upvote, Post, Tags… inside), the Strats tab's name (Find), "
               "the Cards | List switch and its sortable table (a row per strat; Sort orders them), the filter chip "

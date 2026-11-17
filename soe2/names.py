@@ -99,12 +99,10 @@ FEATURES = (
     "Price check overlay",      # the price card over the game (pcpop.py) - "Where the price shows"
     "NEW chip",                 # 3.0.0 (newchip.py): the word NEW on a new feature's row and its page's rail icon,
                                 # until you open or use it
-    # 3.0.6 Farming Strategies (the approved mockups): Find (the tab: was Strats) - the search, the filters, Best for
-    # you right now (the strat that makes the most an hour of those shown: its one orange button, Run this strat,
-    # opens the Strat Tracker on it), a row per strat and Quick tips folded at the bottom (was the Lucrative Strats
+    # 3.0.6 Farming Strategies (the approved mockups): Find (the tab: was Strats) - the search, the filters, a row per
+    # strat (best per hour first; no "Best for you right now" card - owner, 2026-11-17) and Quick tips folded at the bottom (was the Lucrative Strats
     # tab). An opened strat: You need (its items), How it goes (its steps), Your numbers, Where your money came from
     "Find",
-    "Best for you right now",
     "Run this strat",
     "Quick tips",
     "You need",

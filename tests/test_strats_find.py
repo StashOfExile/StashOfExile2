@@ -219,17 +219,12 @@ class Page(unittest.TestCase):
         lefts = self.app.mm_bar._flow_lefts
         self.assertIs(lefts[0]["w"], self.app.mm_sbox, "the search box is first, top left")
 
-    def test_find_best_and_rows(self):
+    def test_find_rows(self):
         cv = self.app.mm_find_cv
         rows = self.app.mm_find_rows
-        self.assertEqual(rows[0]["s"]["id"], "breach-t15", "best for you: the most an hour")
-        self.assertEqual(cv.primaries, ["Run this strat"], "one orange button on Find")
-        self.assertIn("best", cv.acts)
+        self.assertEqual(rows[0]["s"]["id"], "breach-t15", "the most an hour first")
+        self.assertNotIn("best", cv.acts, "no Best for you right now card (owner)")
         self.assertIn("row0", cv.acts)
-        self.assertTrue(cv.tips.get("best_i2"), "the per hour's ⓘ says how")
-        cv.acts["run_best"]()
-        self.assertEqual(self.app.tracked, ["breach-t15"], "Run this strat opens the Strat Tracker on it")
-        self.assertEqual(self.app.mm_page.value, "Strat Tracker")
 
     def test_filters(self):
         self.app.mm_budget.set("League start")
@@ -260,7 +255,7 @@ class Page(unittest.TestCase):
         self.assertIn("t_copy", cv.acts)
         self.app.mm_one_copy()
         self.assertEqual(self.root.clipboard_get(), "Sell splinters in 100s.")
-        self.assertEqual(cv.primaries, ["Run this strat"], "still one orange button")
+        self.assertLessEqual(len(cv.primaries), 1, "at most one orange button")
 
     def test_open_and_back(self):
         self.app.mm_open("breach-t15|community")
@@ -284,7 +279,7 @@ class Page(unittest.TestCase):
         self.assertFalse(kids[self.app.mm_drops["filters"]]["hidden"], "Filters ▾ in the Drawer")
         for key in ("budget", "effort", "type", "sort"):
             self.assertTrue(kids[self.app.mm_drops[key]]["hidden"], key)
-        self.assertEqual(self.app.mm_find_cv.primaries, ["Run this strat"])
+        self.assertLessEqual(len(self.app.mm_find_cv.primaries), 1)
         m = self.app.mm_drop_menu("filters")
         self.assertGreaterEqual(m.index("end"), 6)
 

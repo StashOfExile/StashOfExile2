@@ -358,12 +358,10 @@ class StratViews:
         if not rows:
             y = self._mm_empty_card(cv, pad, y, W, bool(total))
         else:
-            best = rows[0]
-            y = self._mm_best_card(cv, best, pad, y, W, narrow) + 24
-            more = rows[1:]
+            more = rows                                  # (owner: no "Best for you right now" card - one list)
             on = self.mm_filters_on()
-            line = f"MORE STRATS · {len(more)} OF {max(0, total - 1)}" + (f" · {self.mm_filter_words().upper()}"
-                                                                         if on and not narrow else "")
+            line = f"STRATS · {len(more)} OF {total}" + (f" · {self.mm_filter_words().upper()}"
+                                                        if on and not narrow else "")
             cv.text(pad, y, line, ("Segoe UI", 9, "bold"), fill=cv.c("text_muted"), anchor="w")
             if on:
                 i = cv.text(W - pad, y, "Clear filters", ("Segoe UI", 9), fill=cv.c("link"), anchor="e",
@@ -373,7 +371,7 @@ class StratViews:
             y += 16
             vmax = max([r["ph"]["value"] for r in rows if r["ph"]] or [1]) or 1
             if not more:
-                cv.text(pad, y + 8, "No other strats match.", ("Segoe UI", 9), fill=cv.c("text_muted"))
+                cv.text(pad, y + 8, "No strats match.", ("Segoe UI", 9), fill=cv.c("text_muted"))
                 y += 28
             for i, r in enumerate(more):
                 y = (self._mm_row_narrow if narrow else self._mm_row)(cv, r, i, pad, y, W, vmax) + 8
@@ -419,92 +417,6 @@ class StratViews:
         word, why = MM.THINKING.get(n, ("?", ""))
         cv.text(x + 6, y, word, ("Segoe UI", 9), fill=cv.c("text"), anchor="w", tags=tags)
         return x + 6 + cv.tw(word, ("Segoe UI", 9))
-
-    def _mm_best_card(self, cv, r, pad, y, W, narrow):
-        s, ph, key = r["s"], r["ph"], r["key"]
-        tag = "best"
-        x0, x1 = pad, W - pad
-        acc = cv.c("accent")
-        fill = TH.mix(cv.c("surface_raised"), acc, .05)
-        h = 160 if narrow else 172
-        cv.card(x0, y, x1, y + h, tag, fill=fill, outline=TH.mix(acc, cv.c("border"), .55))
-        cv.acts[tag] = lambda k=key: self.mm_open(k)
-        cv.menus[tag] = lambda X, Y, k=key: self.mm_row_menu(k, X, Y)
-        ip = 16 if narrow else 24
-        isz = 40 if narrow else 64
-        got = cv.icon(MM.tablet_of(s), x0 + ip, y + (18 if narrow else 40), isz, tags=(tag,))
-        tx = x0 + ip + (isz + (12 if narrow else 20) if got is not None else 0)   # (no picture: the tag has the word)
-        ey = y + (22 if narrow else 30)
-        e = cv.text(tx, ey, "BEST FOR YOU RIGHT NOW", ("Segoe UI", 9, "bold"), fill=acc, anchor="w", tags=(tag,))
-        cv.info(cv.bbox(e)[2] + 6, ey, "best_i", tags=(tag,), how="The strat that makes the most an hour of those your search and "
-                "filters show (the author's estimate, its middle).")
-        num_f = (TH.head_font(None, "num"), 22 if narrow else 30)
-        val = MM.short_div(ph["value"]) + ("" if narrow else " div") if ph else "-"
-        right = x1 - ip
-        if narrow:
-            cv.text(right, y + 16, val, num_f, fill=cv.c("money"), anchor="ne", tags=(tag, "best_v"))
-            cv.text(right, y + 50, "div / hour", ("Segoe UI", 9), fill=cv.c("text_muted"), anchor="ne", tags=(tag,))
-            if ph:
-                cv.tips["best_v"] = ph["how"]
-            tw = right - tx - 80
-            cv.text(tx, y + 46, cv.fit(s["name"], ("Segoe UI", 12, "bold"), tw), ("Segoe UI", 12, "bold"),
-                    fill=cv.c("text_strong"), anchor="w", tags=(tag,))
-            by = y + 84
-            if ph:
-                cv.range_bar(tx, x1 - ip - 70, by, ph, tags=(tag,))
-            cv.button(x0 + ip, y + h - 56, "Run this strat", "run_best", lambda k=key: self.mm_run(k), "primary",
-                      w=x1 - x0 - 2 * ip, h=40, tip="Opens the Strat Tracker on this strat: log your runs, see what "
-                      "it really made.")
-            return y + h
-        # -- full width
-        ib = cv.info(right, y + 30, "best_i2", ph["how"] if ph else "No estimate given.", anchor="e", tags=(tag,))
-        del ib
-        cv.text(right - 18, y + 30, "PER HOUR", ("Segoe UI", 9, "bold"), fill=cv.c("text_muted"), anchor="e",
-                tags=(tag,))
-        v = cv.text(right, y + 46, val, num_f, fill=cv.c("money"), anchor="ne", tags=(tag, "best_v"))
-        if ph:
-            cv.tips["best_v"] = ph["how"]
-        vb = cv.bbox(v)
-        foot = ph["count"] if ph else ""
-        if r.get("mine") and r["mine"].get("per_hour") is not None:
-            foot = f"◆ you {MM.short_div(r['mine']['per_hour'])} · " + foot
-        cv.text(right, vb[3] + 6, foot, ("Segoe UI", 9), fill=cv.c("text_muted"), anchor="ne", tags=(tag,))
-        bx0, _bx1 = cv.button(right, y + h - 56, "Run this strat", "run_best", lambda k=key: self.mm_run(k), "primary",
-                              anchor="e", h=40, tip="Opens the Strat Tracker on this strat: log your runs, see what it "
-                              "really made.")
-        tw = max(120, min(vb[0], bx0) - tx - 24)
-        cv.text(tx, y + 58, cv.fit(s["name"], ("Segoe UI", 16, "bold"), tw), ("Segoe UI", 16, "bold"),
-                fill=cv.c("text_strong"), anchor="w", tags=(tag,))
-        cy = y + 84
-        x = self._mm_mech_chip(cv, tx, cy, s, tags=(tag,))
-        b = MM.budget_of(s)
-        if b:
-            x = cv.chip(x + 8, cy, b, tags=(tag,))
-        x = self._mm_effort(cv, x + 12, cy + 11, s, tags=(tag,))
-        cost = r.get("cost")
-        if cost and x + 120 < tw + tx:
-            cv.text(x + 10, cy + 11, f"·  {MM.short_div(cost['value'])} div a run", ("Segoe UI", 9),
-                    fill=cv.c("text_muted"), anchor="w", tags=(tag, "best_c"))
-            cv.tips["best_c"] = f"{cost['sum']}. {cost['how']}"
-        if ph:
-            ry = y + 128
-            rx1 = min(tx + 300, tx + tw)
-            cv.range_bar(tx, rx1, ry, ph, tags=(tag,))
-            parts = [("|", f"middle {MM.short_div(ph['value'])}")]
-            if ph["high"] > ph["low"]:
-                parts.append(("—", f"range {MM.short_div(ph['low'])}–{MM.short_div(ph['high'])}"))
-            if ph.get("you") is not None:
-                parts.append(("◆", f"you {MM.short_div(ph['you'])}"))
-            lx = tx
-            for mark, word in parts:
-                if lx + cv.tw(mark + " " + word, ("Segoe UI", 9)) > tx + tw:
-                    break
-                m = cv.text(lx, ry + 20, mark, ("Segoe UI", 9, "bold"),
-                            fill=cv.c("link") if mark == "◆" else cv.c("money"), anchor="w", tags=(tag,))
-                wi = cv.text(cv.bbox(m)[2] + 5, ry + 20, word, ("Segoe UI", 9), fill=cv.c("text_muted"), anchor="w",
-                             tags=(tag,))
-                lx = cv.bbox(wi)[2] + 16
-        return y + h
 
     def _mm_row(self, cv, r, i, pad, y, W, vmax):
         s, ph, key = r["s"], r["ph"], r["key"]
