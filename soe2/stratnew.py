@@ -40,6 +40,7 @@ URL = re.compile(r"https?://\S+")
 ROWS = (("p1", "Prefix 1"), ("p2", "Prefix 2"), ("s1", "Suffix 1"), ("s2", "Suffix 2"))
 ROWS = dict(ROWS)
 PICKER_BUSY = "Finish or cancel the picker first"
+HAND_W = 650                                             # the by-hand pickers' width at most
 
 
 def _map_content():
@@ -1053,7 +1054,7 @@ class StratNewPage:
                     anchor="w")
             y += 26
         if d.get("hand"):                                # the by-hand picker, under the slots
-            y = self._nw_hand_panel(cv, d, cx, cr, y) + 12
+            y = self._nw_hand_panel(cv, d, cx, min(cr, cx + HAND_W), y) + 12   # (left, at most 650 px: the mockup)
         which, c = self._mm_new_selected()
         if c is not None:
             if not d.get("hand"):
@@ -1132,7 +1133,9 @@ class StratNewPage:
             chips = [(b.replace(" Tablet", ""), f"nw_htt_{i}", h.get("ttype") == b and not h.get("unique"),
                       lambda b=b: self.mm_new_hand_set("ttype", b)) for i, b in enumerate(MM.hand_tablet_types())]
             chips.append((("★ " + h["unique"]) if h.get("unique") else "★ Unique ▾", "nw_huniq", bool(h.get("unique")),
-                          lambda: self.mm_new_hand_dropdown("unique"), "Every unique tablet, with its picture"))
+                          lambda: self.mm_new_hand_dropdown("unique"),
+                          "Every unique tablet, with its picture. A unique has fixed mods, so it's added by name - "
+                          "no affix rows."))
             yy = self._nw_chips(cv, lx, cr, yy, chips) + 14
             if h.get("open") == "unique":
                 yy = self._nw_hand_list(cv, "unique", lx, cr, yy) + 10
@@ -1165,9 +1168,7 @@ class StratNewPage:
                     yy += 42
                     if h.get("open") == r:
                         yy = self._nw_hand_list(cv, r, bx0, bx1, yy) + 8
-            yy = cv.bottom(cv.text(lx, yy + 4, "★ Unique ▾ lists every unique tablet (with its picture); a unique has "
-                                               "fixed mods, so it's added by name - no affix rows.", F9,
-                                   fill=cv.c("text_muted"), width=cr - lx), yy + 16) + 12
+            yy += 4
         cv.create_line(lx, yy, cr, yy, fill=cv.c("border"))
         yy += 12
         ready = self.mm_new_hand_ready()
@@ -1283,6 +1284,7 @@ class StratNewPage:
         self._nw_head(cv, n, bool(picks), "Atlas master", x0, x1, y,
                       note=f"optional · one master, up to {MM.MASTER_PICKS} picks")
         cx, cr = x0 + 72, x1 - 24
+        px0 = x0 + 24                                    # (the panel spans the part, as the mockup: list | grid | details)
         y += 46
         tab = d.get("mtab") or cur or next(iter(MM.MASTERS))
         if cur and cur != tab and picks:                 # ticking here switches the strat's master: said first
@@ -1290,7 +1292,7 @@ class StratNewPage:
                     f"switches it to {tab} and clears those.")
             y = cv.bottom(cv.text(cx, y, "! " + note, F9, fill=cv.c("warn", "text"), width=cr - cx,
                                   tags=("nw_mswitch",)), y + 16) + 10
-        return self._mm_atlas_panel(cv, cx, cr, y, cur, picks, tab,
+        return self._mm_atlas_panel(cv, px0, cr, y, cur, picks, tab,
                                     {"tab": self.mm_new_master_tab, "pick": self.mm_new_master,
                                      "clear": self.mm_new_masters_clear})
 

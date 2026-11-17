@@ -680,6 +680,10 @@ class Page(unittest.TestCase):
         for x in ("PREFIX 1", "PREFIX 2", "SUFFIX 1", "SUFFIX 2", "Pick a prefix…", "Pick a suffix…"):
             self.assertIn(x, w_, x)
         self.assertNotIn("(any value)", " ".join(w_))
+        self.assertIn("added by name", cv.tips.get("nw_huniq", ""), "the unique note: the button's tooltip")
+        self.assertFalse([x for x in w_ if "lists every unique tablet" in x], "no mockup annotation on the page")
+        b = cv.bbox("nw_hand_done")
+        self.assertLess(b[2] - cv.bbox("nw_slot_way")[0], 660, "the picker: at most 650 px, under the slots")
         pre, suf = MM.hand_tablet_affixes("Breach Tablet")
         cv.acts["nw_hrow_p1"]()
         self.pump()

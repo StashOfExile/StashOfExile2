@@ -997,13 +997,17 @@ class StratViews:
         frame = TH.round_rect(cv, x0, y, x1, y + 10, 8, fill=cv.c("surface"), outline=cv.c("border"))
         ix0, ix1 = x0 + pad, x1 - pad
         iw = ix1 - ix0
-        tile, gap = 92, 8
-        grid_w = 3 * tile + 2 * gap
-        list_w = 190 if iw >= 190 + 16 + grid_w + 16 + 200 else 150
-        stacked = iw < list_w + 16 + grid_w               # (narrow: the masters as a row; the details go under)
+        tile, gap, side = 92, 8, 190                     # side: the details column at least
+        # list | grid | details when they fit (the list narrows first, then the tiles to 86 - a choice's longest
+        # word still fits); else the details under the grid; narrow: the masters as a row too
+        list_w = next((w for w in (190, 150) if iw >= w + 16 + 3 * tile + 2 * gap + 16 + side + 60), 130)
+        fit = (iw - list_w - 16 - 16 - side - 2 * gap) / 3
+        if fit >= 86:
+            tile = min(92, fit)
+        stacked = iw < list_w + 16 + 3 * 76 + 2 * gap
         if stacked:
             tile = max(70, min(92, (iw - 2 * gap) / 3))
-            grid_w = 3 * tile + 2 * gap
+        grid_w = 3 * tile + 2 * gap
         yy = y + pad
         # -- the masters
         cv.text(ix0, yy + 6, "MASTER", fb, fill=cv.c("text_muted"), anchor="w")
@@ -1048,7 +1052,7 @@ class StratViews:
         full = tab == cur and len(picks) >= MM.MASTER_PICKS
         dx0 = gx0 + grid_w + 16                          # the details column (stacked: under the grid)
         dw = ix1 - dx0
-        under = dw < 180                                 # (no room on the right: the details go under the grid)
+        under = dw < side - 20                           # (no room on the right: the details go under the grid)
         if under:
             dx0, dw = gx0, ix1 - gx0
         detail_y = gy0 + 4 * (tile + gap) + 6 if under else gy0
@@ -1074,10 +1078,9 @@ class StratViews:
                             else ch + (" - picked" if on else ""))
         # -- the details
         yy2 = detail_y
-        tm = cv.text(dx0, yy2 + 6, f"{tab} · {len(mine)} of {MM.MASTER_PICKS} points".upper(), fb,
-                     fill=cv.c("text_muted"), anchor="w")
-        _ = tm
-        yy2 += 22
+        tm = cv.text(dx0, yy2, f"{tab} · {len(mine)} of {MM.MASTER_PICKS} points".upper(), fb,
+                     fill=cv.c("text_muted"), anchor="nw", width=dw)
+        yy2 = cv.bottom(tm, yy2 + 12) + 8
         for n in range(MM.MASTER_PICKS):
             have = n < len(mine)
             cv.create_oval(dx0, yy2 + 2, dx0 + 18, yy2 + 20, outline="",
@@ -1093,11 +1096,11 @@ class StratViews:
         cv.create_line(dx0, yy2, dx0 + dw, yy2, fill=cv.c("border"))
         yy2 += 12
         hn = cv.text(dx0, yy2 + 8, "Hover a choice", ("Segoe UI", 10, "bold"), fill=cv.c("text_strong"), anchor="w")
-        cv.text(dx0, yy2 + 28, cv.fit("What it does shows here when the game data has it.", f9, dw), f9,
-                fill=cv.c("text_muted"), anchor="w")
+        wd = cv.text(dx0, yy2 + 20, "What it does shows here when the game data has it.", f9,
+                     fill=cv.c("text_muted"), anchor="nw", width=dw)
         for i, ch in enumerate(MM.MASTERS[tab]):           # (the hovered choice's name, without a redraw)
             cv.lifts[f"am_{names.index(tab)}_{i}"].append((hn, {"text": "Hover a choice"}, {"text": ch}))
-        yy2 += 46
+        yy2 = cv.bottom(wd, yy2 + 36) + 12
         if act:
             cv.button(dx0, yy2, "Clear picks", "am_clear", act["clear"], h=36, enabled=bool(picks),
                       tip="Untick the picks" if picks else "Nothing picked yet")
