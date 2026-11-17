@@ -137,7 +137,8 @@ HELPER_BLURBS = {"breach": "An alert card when your Hiveblood is almost full, an
                  "topup": f"Back from a map, open your inventory and press {LOOK}: says what's running low.",
                  "breaks": "An alert card after a long stretch of play, in a hideout or town.",
                  "mapprofit": f"What each map earned: back from a map, open your inventory and press {LOOK}.",
-                 "temple": f"Press {LOOK} with the Temple Console open in Vaal Ruins: reads your crystals once.",
+                 "temple": f"Press {LOOK} with the Temple Console open in Vaal Ruins: reads the board and your crystals "
+                           f"once, and marks the best rooms.",
                  "music": "Previous, play / pause and next for any music player, in a small window.",   # 2.134.0
                  "sekhemas": f"Press {LOOK} on the trial map: shows what to avoid and what to take."}
 
