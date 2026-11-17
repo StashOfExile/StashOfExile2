@@ -25,6 +25,8 @@ DOCS = ("README.md", "TOS.md", "linux/README.md", "themes/README.md", "strats/RE
 
 # (version, what it was, words a person read, names in the code / settings keys[, pending])
 REMOVED = [
+    ("3.0.6", "Farming Strategies' Sort words (owner: \"upvotes per hour?\"): Per hour / Upvotes / Easiest / Name",
+     ("Sort: Per hour",), ()),
     ("3.0.6", "Farming Strategies to the approved mockups v2 (owner: the opened strat was \"a wall of text\", \"More "
               "details is confusing\", \"Sacred Bloom farm isn't a real thing\"): New strat's More details and its "
               "inputs (stash regex, waystone tiers, requirements, craft steps, other setup - older strats keep them, "

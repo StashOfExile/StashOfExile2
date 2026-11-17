@@ -20,8 +20,12 @@ from .stratnew import StratNewPage
 
 ORIGIN = {"community": "Official", "mine": "Mine", "example": "Example", "board": "Community"}
 VIEWS = ("All", "Official", "Community", "Mine")             # 3.0.6: All by default (yours show with the rest)
-CARD_SORT = {"Per hour": ("profit", True), "Upvotes": ("score", True), "Easiest": ("thoughts_per_click", False),
-             "Name": ("name", False)}                         # 2.71.0: the Sort (3.0.6: Profit is Per hour)
+CARD_SORT = {"Most profit per hour": ("profit", True), "Most upvoted": ("score", True),
+             "Easiest first": ("thoughts_per_click", False), "Name, A to Z": ("name", False)}
+# 2.71.0: the Sort. 3.0.6 (owner: "wtf is upvotes per hour? name per hour?"): each choice says what it orders by,
+# and the button reads "Sort by: <choice>"
+SORT_OLD = {"Per hour": "Most profit per hour", "Profit": "Most profit per hour", "Upvotes": "Most upvoted",
+            "Easiest": "Easiest first", "Name": "Name, A to Z"}
 TABS = ("Find", "Strat Tracker")                              # 3.0.6: Find (was Strats); Quick tips fold into it
 
 
@@ -77,7 +81,7 @@ class MoneyMakersPage(StratViews, StratNewPage):
         self.mm_max, self.mm_cmax = tk.StringVar(value="Any"), tk.StringVar(value="Any")
         self.mm_cat, self.mm_type = tk.StringVar(value=""), tk.StringVar(value="")        # "" = all
         self.mm_content = set()                              # 2.78.0: the Content tags (pinnacles, map content)
-        self.mm_csort = tk.StringVar(value="Per hour")
+        self.mm_csort = tk.StringVar(value="Most profit per hour")
         self.mm_bsort = tk.StringVar(value="Top")            # the community board's order
         self.mm_board, self.mm_board_ones, self.mm_official = [], [], self._mm_official_cache()
         self.mm_tips_open, self.mm_one_sel = False, None
@@ -178,8 +182,9 @@ class MoneyMakersPage(StratViews, StratNewPage):
         from .style import flow_show
         for key, w in self.mm_drops.items():
             flow_show(bar, w, (key == "filters") == narrow)
-        for w in (self.mm_dots, self.mm_add_btn, self.mm_live_lbl):
+        for w in (self.mm_dots, self.mm_live_lbl):
             flow_show(bar, w, not narrow)
+        flow_show(bar, self.mm_add_btn, True)            # 3.0.6 (owner): New strat stays its own button in the Drawer
         for k in getattr(bar, "_flow_kids", ()):
             if k["w"] is self.mm_sbox:
                 k["grow"] = narrow                       # the Drawer: the search takes the line
@@ -250,7 +255,7 @@ class MoneyMakersPage(StratViews, StratNewPage):
                  "from": ("From", self.mm_view.get(), self.mm_view.get() != "All"),
                  "more": ("More", f"{n_more} on" if n_more else "", bool(n_more)),
                  "filters": ("Filters", f"· {n_on}" if n_on else "", bool(n_on)),
-                 "sort": ("Sort", self.mm_csort.get(), False)}
+                 "sort": ("Sort by", self.mm_csort.get(), False)}
         for key, (name, val, on) in texts.items():
             b = d.get(key)
             if b is None:
@@ -371,14 +376,13 @@ class MoneyMakersPage(StratViews, StratNewPage):
                             ("budget", f"Budget: {self.mm_budget.get()}"), ("effort", f"Effort: {self.mm_max.get()}"),
                             ("type", f"Type: {self.mm_type_word()}"), ("from", f"From: {self.mm_view.get()}"),
                             ("more", "More" + (f": {self.mm_more_count()} on" if self.mm_more_count() else "")),
-                            ("sort", f"Sort: {self.mm_csort.get()}")):
+                            ("sort", f"Sort by: {self.mm_csort.get()}")):
                 sub = self._mm_menu()
                 self._mm_fill_menu(sub, k)
                 m.add_cascade(label=name, menu=sub)
             m.add_separator()
             if self.mm_filters_on():
                 m.add_command(label="Clear filters", command=self.mm_clear_filters)
-            m.add_command(label="＋ New strat", command=self.mm_add)
             m.add_command(label="↻ Refresh", command=self.mm_refresh)
             m.add_command(label="Import file…", command=self.mm_import)
         return m
@@ -413,7 +417,7 @@ class MoneyMakersPage(StratViews, StratNewPage):
         self.mm_filters_changed()
 
     def mm_sort_card(self):
-        key, rev = CARD_SORT.get(self.mm_csort.get(), ("profit", True))
+        key, rev = CARD_SORT.get(SORT_OLD.get(self.mm_csort.get(), self.mm_csort.get()), ("profit", True))
         self.mm_sort = (key, rev)
         self.mm_filters_changed()
 

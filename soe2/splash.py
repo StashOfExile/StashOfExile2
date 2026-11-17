@@ -20,7 +20,22 @@ def _accent():
 STEPS = ["Loading your settings", "Building your windows", "Restoring your windows", "Trade site mod list", "Ready"]
 
 
-def _frames(icon_b64, n=8):
+def _theme():
+    """3.0.6 (owner: "the splash screen has a color mismatched background"): the theme's own colors (apply_look runs
+    before the splash), so the box, the chest's picture and the bar match the app."""
+    try:
+        from .style import C
+        return C.get("bg", BG), C.get("panel", PANEL), C.get("line", LINE), C.get("text", TEXT), C.get("muted", MUTED)
+    except Exception:
+        return BG, PANEL, LINE, TEXT, MUTED
+
+
+def _hex_rgba(h):
+    h = str(h).lstrip("#")
+    return (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16), 255) if len(h) == 6 else (14, 21, 34, 255)
+
+
+def _frames(icon_b64, n=8, panel=PANEL):
     """The chest with a glow behind it that breathes in and out: a few frames made once with Pillow."""
     try:
         from PIL import Image, ImageDraw, ImageFilter, ImageTk
@@ -31,7 +46,7 @@ def _frames(icon_b64, n=8):
     out = []
     for i in range(n):
         k = 0.5 - 0.5 * __import__("math").cos(2 * 3.14159 * i / n)          # 0 .. 1 .. 0
-        im = Image.new("RGBA", (180, 160), PANEL)
+        im = Image.new("RGBA", (180, 160), _hex_rgba(panel))
         glow = Image.new("RGBA", (180, 160), (0, 0, 0, 0))
         r = 46 + 14 * k
         ImageDraw.Draw(glow).ellipse((90 - r, 72 - r * 0.8, 90 + r, 72 + r * 0.8),
@@ -46,7 +61,8 @@ class Splash:
     def __init__(self, root, icon_b64, version, league=""):
         self.root, self.closed, self.step_i = root, False, 0
         self.started = time.time()
-        w = tk.Toplevel(root, bg=LINE)
+        bg, panel, line, text, muted = _theme()
+        w = tk.Toplevel(root, bg=line)
         w.overrideredirect(True)
         try:
             w.attributes("-topmost", True)
@@ -65,18 +81,18 @@ class Splash:
         except Exception:
             cx, cy = root.winfo_screenwidth() // 2, root.winfo_screenheight() // 2
         w.geometry(f"{W}x{H}+{cx - W // 2}+{cy - H // 2}")
-        inner = tk.Frame(w, bg=PANEL)
+        inner = tk.Frame(w, bg=panel)
         inner.pack(fill="both", expand=True, padx=1, pady=1)
         tk.Frame(inner, bg=_accent(), height=2).pack(fill="x")
-        self.frames = _frames(icon_b64)
-        self.pic = tk.Label(inner, bg=PANEL, image=self.frames[0] if self.frames else "")
+        self.frames = _frames(icon_b64, panel=panel)
+        self.pic = tk.Label(inner, bg=panel, image=self.frames[0] if self.frames else "")
         self.pic.pack(pady=(8, 0))
-        tk.Label(inner, text="StashOfExile2", bg=PANEL, fg="#ffffff", font=("Palatino Linotype", 20, "bold")).pack()
-        tk.Label(inner, text=f"version {version}" + (f"   ·   {league}" if league else ""), bg=PANEL, fg=MUTED,
+        tk.Label(inner, text="StashOfExile2", bg=panel, fg=text, font=("Palatino Linotype", 20, "bold")).pack()
+        tk.Label(inner, text=f"version {version}" + (f"   ·   {league}" if league else ""), bg=panel, fg=muted,
                  font=("Segoe UI", 9)).pack()
-        self.msg = tk.Label(inner, text=STEPS[0] + "…", bg=PANEL, fg=TEXT, font=("Segoe UI", 9))
+        self.msg = tk.Label(inner, text=STEPS[0] + "…", bg=panel, fg=text, font=("Segoe UI", 9))
         self.msg.pack(pady=(8, 4))
-        self.bar = tk.Canvas(inner, width=W - 80, height=6, bg=BG, highlightthickness=0)
+        self.bar = tk.Canvas(inner, width=W - 80, height=6, bg=bg, highlightthickness=0)
         self.bar.pack()
         self.fill = self.bar.create_rectangle(0, 0, 0, 6, fill=_accent(), outline="")
         for wid in (w, inner, self.pic, self.msg, self.bar):

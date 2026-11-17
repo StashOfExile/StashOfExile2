@@ -3154,6 +3154,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         if s is not None:
             SPLASH[0] = None
             s.close()
+        _show_ready(self.root)                               # 3.0.6: the window comes up as the start-up screen goes
         self.root.after(200, self.drawer_startup)            # drawer build: the Drawer shape starts put away
 
     def ev_ready(self):
@@ -6172,6 +6173,30 @@ def look_settings():
     return _th.pick_id(SETTINGS.get("theme"))
 
 
+def _hide_until_ready(root):
+    """The main window is see-through (alpha 0) while the start-up screen shows: it is built and laid out as usual, so
+    nothing changes about where or how it opens, but you only see it once it's ready. A safety net shows it after 15 s."""
+    try:
+        root.attributes("-alpha", 0.0)
+        HIDDEN[0] = True
+        root.after(15000, lambda: _show_ready(root))
+    except Exception:
+        buglog.caught()
+
+
+def _show_ready(root):
+    if not HIDDEN[0]:
+        return
+    HIDDEN[0] = False
+    try:
+        root.attributes("-alpha", 1.0)
+    except Exception:
+        buglog.caught()
+
+
+HIDDEN = [False]
+
+
 def _splash_step(text=None, i=None):
     s = SPLASH[0]
     if s is not None:
@@ -6218,6 +6243,8 @@ def main():
         SPLASH[0] = Splash(root, ICON_B64, pretty_version(), SETTINGS.get("league") or "")
     except Exception:
         SPLASH[0] = None
+    if SPLASH[0] is not None:          # 3.0.6 (owner: "the app loads behind it"): the window is built unseen while
+        _hide_until_ready(root)        # the start-up screen shows, then comes up whole when it closes
     app = App(root)
     if CRASHED[0]:                     # 2.115.0: Report it - the form, filled in, with the crash in the app's log
         root.after(6000, lambda: app.app_toast(
