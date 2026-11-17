@@ -228,9 +228,28 @@ class FeedbackPage:
         v = self.bug_vars[key]
         return v.get("1.0", "end-1c") if isinstance(v, tk.Text) else v.get()
 
+    def _bug_ready(self):
+        """3.0.6 (owner: Send "did nothing" - the title or the text was too short and the red line went unseen):
+        Send stays gray, and the line under it says what's still needed, until both are long enough."""
+        need = []
+        if len(self._bug_val("title").strip()) < 4:
+            need.append("a title (4+ letters)")
+        if len(self._bug_val("what").strip()) < 10:
+            need.append("what happened (10+ letters)")
+        try:
+            if getattr(self, "bug_send_btn", None) is not None and str(self.bug_send_btn.cget("text")) == "Send":
+                self.bug_send_btn.config(state="disabled" if need else "normal")
+            if getattr(self, "bug_msg", None) is not None and self.bug_msg.cget("fg") != C["orange"]:
+                self.bug_msg.config(text=("Still needed: " + " and ".join(need) + ".") if need else "",
+                                    fg=C["muted"])
+        except tk.TclError:
+            pass
+        return not need
+
     def _bug_preview(self):
         if getattr(self, "bug_win", None) is None:
             return
+        self._bug_ready()
         text = self.bug_report_text(self._bug_val("what"), self._bug_val("steps"), self._bug_val("expected"), "",
                                     self.bug_log.get())
         self.bug_prev.config(state="normal")
