@@ -470,8 +470,8 @@ class MoneyMakersPage(StratViews, StratNewPage):
         if view == "Mine":
             return [s for s in local if s["origin"] == "mine"]
         have = {s["id"] for s in local}
-        promoted = [dict(s, origin="community") for s in self.mm_official.get("strats") or []
-                    if not MM.validate(s) and s.get("id") not in have]
+        promoted = [dict(MM.migrate(s), origin="community") for s in self.mm_official.get("strats") or []
+                    if not MM.validate(MM.migrate(s)) and s.get("id") not in have]
         official = [s for s in local if s["origin"] != "mine"] + promoted
         if view != "All":
             return official
@@ -622,7 +622,7 @@ class MoneyMakersPage(StratViews, StratNewPage):
         return self.mm_menu(None, x, y)
 
     def mm_item_menu(self, it, tag):
-        """A You need slot: copy its stash search, or open the Trade Site on it."""
+        """An In your map device slot: copy its stash search, or open the Trade Site on it."""
         rx = MM.item_regex([it])
         m = self._mm_menu()
         name = it.get("name") or it.get("base")
@@ -780,8 +780,8 @@ class MoneyMakersPage(StratViews, StratNewPage):
             self.mm_live_lbl.config(text=d, fg=C["red"])
             return
         # 2.85.0: a post that doesn't follow the layout (an older board let odd numbers in) isn't shown
-        self.mm_board = [dict(p["data"], origin="board", _post=p) for p in d["posts"] if p["kind"] == "strat"
-                         and not MM.validate(dict(p["data"]))]
+        self.mm_board = [dict(MM.migrate(dict(p["data"])), origin="board", _post=p) for p in d["posts"]
+                         if p["kind"] == "strat" and not MM.validate(MM.migrate(dict(p["data"])))]
         self.mm_board_ones = [dict(p["data"], origin="board", _post=p) for p in (d1 or {}).get("posts", [])] if ok1 else []
         self.mm_live_lbl.config(text=f"Community: {d['total']} strat{'s' if d['total'] != 1 else ''}", fg=C["muted"])
         if self.mm_view.get() in ("Community", "All"):
@@ -1133,7 +1133,7 @@ class MoneyMakersPage(StratViews, StratNewPage):
         added, bad = 0, []
         for s in items:
             if isinstance(s, dict):
-                s = {k: v for k, v in s.items() if k != "origin"}
+                s = MM.migrate({k: v for k, v in s.items() if k != "origin"})
             probs = MM.validate(s)
             if probs:
                 bad.append(f"{(s or {}).get('name', '?') if isinstance(s, dict) else '?'}: {probs[0]}")

@@ -36,8 +36,7 @@
   "Shrines",
   "Overseer",
   "Temple",
-  "City area farm",
-  "Sacred Bloom farm",
+  "City",
   "Juiced maps",
   "Low-tier maps",
   "Campaign zones",
@@ -81,9 +80,8 @@
    "Overseer",
    "Temple"
   ],
-  "Farm type": [
-   "City area farm",
-   "Sacred Bloom farm",
+  "Map type": [
+   "City",
    "Juiced maps",
    "Low-tier maps",
    "Campaign zones"

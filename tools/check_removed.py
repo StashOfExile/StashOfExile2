@@ -25,6 +25,13 @@ DOCS = ("README.md", "TOS.md", "linux/README.md", "themes/README.md", "strats/RE
 
 # (version, what it was, words a person read, names in the code / settings keys[, pending])
 REMOVED = [
+    ("3.0.6", "Farming Strategies to the approved mockups v2 (owner: the opened strat was \"a wall of text\", \"More "
+              "details is confusing\", \"Sacred Bloom farm isn't a real thing\"): New strat's More details and its "
+              "inputs (stash regex, waystone tiers, requirements, craft steps, other setup - older strats keep them, "
+              "shown under From the author), Farm type (Map type: City, Juiced maps, Low-tier maps, Campaign zones), "
+              "the opened strat's Your numbers card (Per hour fills in from your runs) and The guide card",
+     ("More details", "Sacred Bloom farm", "Farm type", "Your numbers"),
+     ("mm_new_more", "_mm_yours_card", "_mm_guide_card", "_mm_need_card", "MORE_LISTS", "OLD_LISTS")),
     ("3.0.6", "Farming Strategies' Crafting, Trading and Other categories and their types (owner: \"this is for "
               "farming strategies, not crafting, not trading, not flipping, not vendor recipes\" - Mapping and "
               "Bossing; a strat of a dropped category stays on disk, out of Find); New strat's Also uses row in "

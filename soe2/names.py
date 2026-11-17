@@ -101,11 +101,11 @@ FEATURES = (
                                 # until you open or use it
     # 3.0.6 Farming Strategies (the approved mockups): Find (the tab: was Strats) - the search, the filters, a row per
     # strat (best per hour first; no "Best for you right now" card - owner, 2026-11-17) and Quick tips folded at the bottom (was the Lucrative Strats
-    # tab). An opened strat: You need (its items), How it goes (its steps), Your numbers, Where your money came from
+    # tab). An opened strat (3.0.6, mockup v2): In your map device (its slots), How it goes (its steps), Atlas master,
+    # Content, Loot to sell, From the author (older text, folded); Where your money came from (your logs)
     "Find",
     "Run this strat",
     "Quick tips",
-    "You need",
     "How it goes",
     "Where your money came from",
     # 3.0.6 New strat (was the Add my own form): one page in five parts - What it is, Your tablets, Your waystone,
@@ -119,6 +119,10 @@ FEATURES = (
     "All leagues",
     "In your map device",
     "All",                      # 3.0.6 Find › From: Official, Community and Mine together (the default)
+    "Map type",                 # 3.0.6 New strat › What you farm (was Farm type): City, Juiced maps ...
+    "Pick by hand",             # 3.0.6 New strat › In your map device: a slot filled without a copy
+    "From the author",          # 3.0.6 an opened strat: its older free text, folded at the bottom
+    "Parts",                    # 3.0.6 New strat's side panel: what's done
     "Linux check",              # Linux build: Settings › Advanced and  StashOfExile2 --check-linux  - session, keys,
                                 # screen picture, clipboard, key sending, OCR, Client.txt, each with its fix
 )
@@ -180,6 +184,7 @@ OLD = {
     "Lucrative Strats": "Quick tips",   # 3.0.6 Farming Strategies: the tab folded into Find
     "Lucrative strats": "Quick tips",
     "Track in Strat Tracker": "Run this strat",
+    "You need": "In your map device",                # 3.0.6 an opened strat's slots (mockup v2)
     "Session Configuration": "In your map device",     # 3.0.6: other tools' words - never ours
     "Active Loadout": "In your map device",
     "Loadout": "In your map device",

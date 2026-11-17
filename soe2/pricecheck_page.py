@@ -146,6 +146,7 @@ def mod_rows(item):
 
 # 3.0.6: the Precursor Tablets' pictures (the trade site's art), shipped so Farming Strategies shows each strat's
 # tablet before you price-check one. A picture learned from a listing wins (icons()).
+_ART_LOCK = threading.Lock()
 TABLET_ICONS = {
     "Breach Tablet": (
         "https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvUHJlY3Vyc29yVGFibGV0cy9QcmVjdXJzb3JUYWJsZXRCcmVhY2giLCJ3IjoxLCJoIjoxLCJzY2FsZSI6MSwicmVhbG0iOiJwb2UyIn1d/b45b6e660e/PrecursorTabletBreach.png"),
@@ -165,7 +166,19 @@ TABLET_ICONS = {
         "https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvUHJlY3Vyc29yVGFibGV0cy9QcmVjdXJzb3JUYWJsZXRCb3NzIiwidyI6MSwiaCI6MSwic2NhbGUiOjEsInJlYWxtIjoicG9lMiJ9XQ/6a422fabb8/PrecursorTabletBoss.png"),
 }
 
+# 3.0.6 (owner: the waystone had no picture): the T15 waystone's art, the "Waystone" picture for every tier (a tier's
+# own, learned from a listing, wins - art_url)
+WAYSTONE_ICON = ("https://web.poecdn.com/gen/image/WzI4LDE0LHsiZiI6IjJESXRlbXMvTWFwcy9FbmRnYW1lTWFwcy9FbmRnYW1lTWFwMTUi"
+                 "LCJ3IjoxLCJoIjoxLCJzY2FsZSI6MSwicmVhbG0iOiJwb2UyIn1d/17149586aa/EndgameMap15.png")
+BUNDLED_ICONS = {**TABLET_ICONS, "Waystone": WAYSTONE_ICON}
 _ICONS = None
+
+
+def art_url(base):
+    """The picture for an item base: its own, else (a waystone of any tier) the shipped waystone's."""
+    ic = icons()
+    base = str(base or "")
+    return ic.get(base) or (ic.get("Waystone") if base.startswith("Waystone") else None)
 
 
 def icons():
@@ -179,7 +192,7 @@ def icons():
             learned = learned if isinstance(learned, dict) else {}
         except Exception:
             learned = {}
-        _ICONS = {**TABLET_ICONS, **learned}
+        _ICONS = {**BUNDLED_ICONS, **learned}
     return _ICONS
 
 
@@ -191,7 +204,7 @@ def icon_learn(base, url):
         ic[base] = url
         try:
             from .config import save_json
-            save_json("icons.json", {k: v for k, v in ic.items() if TABLET_ICONS.get(k) != v})   # (only what was learned)
+            save_json("icons.json", {k: v for k, v in ic.items() if BUNDLED_ICONS.get(k) != v})  # (only what was learned)
         except Exception:
             buglog.caught()
 
@@ -1690,15 +1703,17 @@ class PriceCheckPage:
         except Exception:
             buglog.caught()
         finally:
-            self._pc_art_done = getattr(self, "_pc_art_done", set()) | {url}
+            with _ART_LOCK:                              # 3.0.6: the window thread swaps the set - no lost picture
+                self._pc_art_done = getattr(self, "_pc_art_done", set()) | {url}
 
     def _pc_art_poll(self):
-        done = getattr(self, "_pc_art_done", set())
+        with _ART_LOCK:
+            done = getattr(self, "_pc_art_done", set())
+            self._pc_art_done = set()
         if not done:
             if self._pc_art_wait:
                 self.root.after(500, self._pc_art_poll)
             return
-        self._pc_art_done = set()
         self._pc_art_wait -= done
         got = {u for u in done if os.path.exists(self._pc_art_path(u))}
         self._pc_art_failed = {**getattr(self, "_pc_art_failed", {}), **{u: time.time() for u in done - got}}

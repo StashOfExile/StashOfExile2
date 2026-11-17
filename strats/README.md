@@ -28,7 +28,7 @@ is kept as it is but doesn't show in Find; one-liners about them are kept in `_n
 | Tag group | Tags (any number) |
 |---|---|
 | Also uses | Abyss, Breach, Delirium, Ritual, Expedition, Essence, Strongbox, Rogue Exiles, Shrines, Overseer, Temple |
-| Farm type | City area farm, Sacred Bloom farm, Juiced maps, Low-tier maps, Campaign zones |
+| Map type | City, Juiced maps, Low-tier maps, Campaign zones (older files: City area farm reads as City) |
 | Budget | League start, Low budget, Mid budget, High budget |
 | Play style | SSF friendly, Trade league, Party play, Hardcore safe |
 

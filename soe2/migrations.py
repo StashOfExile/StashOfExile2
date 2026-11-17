@@ -366,3 +366,8 @@ def run(S, stage, save=None):
         except Exception:
             buglog.record("error", "migrations: saving settings", exc=True)
     return done_now
+
+
+# 3.0.6 (owner): a strat's Farm type tags are Map type now - City area farm is City; Sacred Bloom farm isn't a real
+# thing (dropped). moneymakers.retag uses this when a strat is read (the shared file, yours, the board, an import).
+STRAT_OLD_TAGS = {"City area farm": "City", "Sacred Bloom farm": None}

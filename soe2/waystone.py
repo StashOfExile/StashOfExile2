@@ -23,6 +23,10 @@ PROPS = {
     "gold found": ("map_gold", "Gold Found", "normal"),
     "revives available": ("map_revives", "Revives Available", "normal"),
 }
+# The numbers a waystone shows at its top (its header) - the by-hand picker (Farming Strategies › New strat) offers these.
+# Experience and Gold Found are in PROPS for copies that carry them, but they aren't waystone header numbers (owner).
+WAYSTONE_HEADERS = ("waystone drop chance", "pack size", "item rarity", "monster rarity", "monster effectiveness",
+                    "revives available")
 _PROP = re.compile(r"^([A-Za-z ]+):\s*([+-]?\d+(?:\.\d+)?)%?")
 SHOWN_ONLY = ("waystone tier", "quality")       # numbers at the top the card already shows another way
 _TIER = re.compile(r"Waystone \(Tier (\d+)\)")

@@ -109,8 +109,8 @@ class Numbers(unittest.TestCase):
         costs = {"breach-t15": {"prices": {"0": 0.2, "1": 0.1}, "at": time.time()}}
         c = MM.run_cost(STRATS[0], costs)
         self.assertAlmostEqual(c["value"], 0.6)
-        self.assertEqual(c["sum"], "waystone 0.2 + 4 tablets × 0.1")
-        self.assertIn("Trade site", c["how"])
+        self.assertEqual(c["sum"], "0.2 + 4 × 0.1", "the mockup's sum")
+        self.assertTrue(c["how"].startswith("Waystone 0.2 + 4 Breach tablets 0.1, at today's prices"), c["how"])
         est = MM.run_cost(STRATS[0], {})
         self.assertEqual((est["value"], est["sum"]), (0.5, "the author's estimate"))
 
@@ -266,9 +266,11 @@ class Page(unittest.TestCase):
         dv = self.app.mm_detail_cv
         self.assertTrue(self.app.mm_detail_on)
         self.assertEqual(dv.primaries, ["Run this strat"], "one orange button on an opened strat")
-        for tag in ("tile_ph_i", "tile_cost_i", "tile_prof_i", "tile_time_i"):
+        for tag in ("tile_ph_i", "tile_cost_i"):
             self.assertTrue(dv.tips.get(tag), f"{tag}: how it was worked out")
-        self.assertIn("need1", dv.acts, "You need: a slot per item")
+        self.assertIn("tile_way", dv.tips, "the Waystone tile")
+        self.assertNotIn("tile_master", dv.tips, "no master: no Atlas master tile")
+        self.assertIn("need1", dv.acts, "In your map device: a slot per item")
         dv.acts["back"]()
         self.pump()
         self.assertFalse(self.app.mm_detail_on)

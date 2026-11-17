@@ -49,7 +49,7 @@ def is_farming(s):
 TAG_GROUPS = {
     "Also uses": ("Abyss", "Breach", "Delirium", "Ritual", "Expedition", "Essence", "Strongbox", "Rogue Exiles",
                   "Shrines", "Overseer", "Temple"),
-    "Farm type": ("City area farm", "Sacred Bloom farm", "Juiced maps", "Low-tier maps", "Campaign zones"),
+    "Map type": ("City", "Juiced maps", "Low-tier maps", "Campaign zones"),     # 3.0.6 (owner)
     "Budget": ("League start", "Low budget", "Mid budget", "High budget"),
     "Play style": ("SSF friendly", "Trade league", "Party play", "Hardcore safe"),
 }
@@ -268,17 +268,28 @@ def shared():
 
 # ---- 2.28.0 (schema 1) -> 2.29.0
 _OLD_MECH_CATS = ("Breach", "Delirium", "Ritual", "Expedition", "Abyss")
-_OLD_FARM = {"City area farm": "City area farm", "Sacred Bloom farm": "Sacred Bloom farm", "League start": "League start",
+_OLD_FARM = {"League start": "League start",
              "Juiced mapping": "Juiced maps", "Low-tier mapping": "Low-tier maps"}
+def retag(s):
+    """Tags from before 3.0.6 -> today's (migrations.STRAT_OLD_TAGS: Map type was Farm type; a dropped one goes;
+    nothing else changes)."""
+    from .migrations import STRAT_OLD_TAGS as OLD_TAGS
+    tags = s.get("tags") if isinstance(s, dict) else None
+    if not isinstance(tags, list) or not any(t in OLD_TAGS for t in tags):
+        return s
+    new = [OLD_TAGS.get(t, t) for t in tags]
+    return dict(s, tags=list(dict.fromkeys(t for t in new if t)))
 
 
 def migrate(s):
     """A strat written by 2.28.0 -> the 2.29.0 layout: a mechanic category becomes Mapping > that mechanic,
     typed clicks become a band, profit / investment get their new names, free tags that match the tag list stay
     (others move into Tips so nothing is lost)."""
-    if not isinstance(s, dict) or ("type" in s and isinstance(s.get("clicks_per_hour"), str)):
+    if not isinstance(s, dict):
         return s
-    s = dict(s)
+    if "type" in s and isinstance(s.get("clicks_per_hour"), str):
+        return retag(s)
+    s = dict(retag(s))
     cat = s.get("category")
     if cat in _OLD_MECH_CATS:
         s["category"], s["type"] = "Mapping", cat
@@ -293,7 +304,9 @@ def migrate(s):
     tags, extra = [], []
     for t in list(s.get("tags") or []) + list(s.pop("mechanics", None) or []):
         (tags if t in all_tags() else extra).append(t)
-    tags += [_OLD_FARM[f] for f in s.pop("farm_types", None) or [] if f in _OLD_FARM]
+    tags += [_OLD_FARM.get(f) or (retag({"tags": [f]})["tags"] or [None])[0]
+             for f in s.pop("farm_types", None) or [] if f in _OLD_FARM or retag({"tags": [f]})["tags"] != [f]]
+    tags = [t for t in tags if t]
     if s.pop("league_start", False):
         tags.append("League start")
     s["tags"] = list(dict.fromkeys(t for t in tags if t != s.get("type") or t == "example"))
@@ -314,6 +327,7 @@ def save_mine(items):
 def all_strats():
     out = []
     for s in shared()["strats"]:
+        s = migrate(s)                                    # (3.0.6: older tags - Map type)
         if not validate(s):
             out.append(dict(s, origin="example" if "example" in (s.get("tags") or []) else "community"))
     for s in mine():
@@ -674,6 +688,125 @@ def item_card(it):
             "mods": mods, "ticked": keys, "count": int(it.get("count") or 1)}
 
 
+# New strat (3.0.6, mockup v2): the Map type chips (City adds a tablet slot) and the Bosses chips -> their tags
+MAP_TYPE_CHIPS = (("City (+1 tablet slot)", "City"), ("Juiced maps", "Juiced maps"), ("Low-tier maps", "Low-tier maps"),
+                  ("Campaign zones", "Campaign zones"))
+BOSS_CHIPS = (("Map bosses", "Map bosses"), ("Simulacrum", "Simulacrum"), ("Citadel bosses", "Citadel bosses"),
+              ("Xesht", "Xesht (Breach)"), ("King in the Mists", "King in the Mists / Bodach"),
+              ("Olroth", "Olroth (Expedition)"), ("Arbiter of Ash", "Arbiter of Ash"),
+              ("Vessel of Kulemak", "Vessel of Kulemak"), ("Atziri", "Atziri (Vaal Temple)"))
+BOSS_TYPE = {"Map bosses": "Map bosses", "Simulacrum": "Simulacrum"}      # Bossing's type from its first boss
+DEVICE_TABLETS = 3                                # tablets in your map device - a City has a 4th slot
+_TABLET_TEXT = re.compile(r"(?:(\d+)\s*[×x]?\s+)?(" + "|".join(MECH_TABLET) + r")\b[^.,;]*?\btablets?\b", re.I)
+
+
+def short_tag(t):
+    """"Xesht (Breach)" -> "Xesht" (the Bosses chips' words), else the tag."""
+    return next((w for w, tag in BOSS_CHIPS if tag == t), t)
+
+
+def device_slots(s):
+    """What goes in your map device, as slots -> [{"kind", "base", "word", "sub", "count", "item"}]: the waystone and
+    one slot per tablet base (×N). From the strat's items; a strat with only text: its tablet lines ("3× Breach
+    tablets", "Breach tablets") and its waystone tiers."""
+    out, items = [], s.get("items") or []
+    ways = [i for i in items if i.get("kind") == "waystone"]
+    if ways:
+        w = ways[0]
+        m = re.search(r"Tier (\d+)", str(w.get("base") or ""))
+        out.append({"kind": "waystone", "base": w.get("base") or "Waystone", "word": "Waystone",
+                    "sub": f"Tier {m.group(1)}" if m else (tiers_text(s.get("waystone_tiers")) or "any tier"),
+                    "count": 1, "item": w})
+    elif isinstance(s.get("waystone_tiers"), dict):
+        wt = s["waystone_tiers"]
+        out.append({"kind": "waystone", "base": f"Waystone (Tier {wt['max']})", "word": "Waystone",
+                    "sub": f"Tier {wt['min']}" if wt["min"] == wt["max"] else f"Tier {wt['min']}-{wt['max']}",
+                    "count": 1, "item": None})
+    tabs = [i for i in items if i.get("kind") == "tablet"]
+    if tabs:
+        by = {}
+        for it in tabs:
+            by.setdefault(it.get("base") or "Tablet", []).append(it)
+        for base, its in by.items():
+            n = sum(max(1, int(i.get("count") or 1)) for i in its)
+            out.append({"kind": "tablet", "base": base, "word": base.replace(" Tablet", "") or "Tablet",
+                        "sub": f"{n} needed", "count": n, "item": its[0]})
+    else:
+        for line in s.get("tablets") or []:
+            for m in _TABLET_TEXT.finditer(str(line)):
+                mech = next(k for k in MECH_TABLET if k.lower() == m.group(2).lower())
+                if any(o["word"] == mech for o in out):
+                    continue
+                n = int(m.group(1)) if m.group(1) else 1
+                out.append({"kind": "tablet", "base": MECH_TABLET[mech], "word": mech, "sub": f"{n} needed",
+                            "count": n, "item": None})
+    return out
+
+
+# 3.0.6 (owner): no waystone or tablet to copy? Fill a slot by hand - a waystone's tier and top numbers (the names the
+# waystone parser reads, waystone.PROPS) and its mods (the Regex tool's waystone list); a tablet's type and mods (its
+# Prefix / Suffix lists in modlists.json), each with an optional minimum. They feed Made for you and Cost per map
+# like a copy.
+def hand_props():
+    """The waystone header numbers (waystone.WAYSTONE_HEADERS, named and searched as waystone.PROPS has them):
+    Waystone Drop Chance, Pack Size, Item Rarity ... - each by its Endgame filter, at least your number."""
+    from .waystone import PROPS, WAYSTONE_HEADERS
+    return tuple(PROPS[k][1] for k in WAYSTONE_HEADERS if k in PROPS)
+
+
+def _prop_line(name, v):
+    """"Item Rarity", "30" -> "Item Rarity: +30%" (a count - Revives Available - has no %)."""
+    return f"{name}: {v}" if name.lower().startswith("revives") else f"{name}: +{str(v).lstrip('+')}%"
+_RANGE_TXT = re.compile(r"\((-?\d+(?:\.\d+)?)\s*[—–-]+\s*(-?\d+(?:\.\d+)?)\)")
+
+
+def hand_tablet_types():
+    """-> {"Breach Tablet": [mod line templates, prefixes then suffixes]} from modlists.json."""
+    from .config import P
+    try:
+        with open(P("modlists.json"), encoding="utf-8-sig") as f:
+            d = json.load(f).get("tablets") or {}
+    except Exception:
+        d = {}
+    return {base: list(dict.fromkeys((secs or {}).get("Prefix", []) + (secs or {}).get("Suffix", [])))
+            for base, secs in d.items()}
+
+
+def hand_waystone_mods():
+    """-> the waystone mod templates the app knows (the Regex tool's list), "#" where the number goes."""
+    try:
+        from . import regex as R
+        R.load()
+        return [m["text"][:1].upper() + m["text"][1:] for m in R.mods("waystone")]
+    except Exception:
+        return []
+
+
+def hand_line(template, minimum=None):
+    """A mod template ("(10—15)% increased Rarity", "#% more monster life") with your minimum (else its lowest)."""
+    v = str(minimum).strip() if minimum not in (None, "") else None
+    m = _RANGE_TXT.search(template)
+    if m:
+        return template[:m.start()] + (v or m.group(1)) + template[m.end():]
+    return template.replace("#", v, 1) if v else template
+
+
+def hand_card(kind, base=None, tier=None, props=None, mods=(), uses=10):
+    """A slot filled by hand -> a card like a copy's (every line ticked: they're what matters)."""
+    if kind == "waystone":
+        lines = []
+        for name in hand_props():
+            v = str((props or {}).get(name) or "").strip()
+            if v:
+                lines.append(_prop_line(name, v))
+        lines += [hand_line(t, v) for t, v in mods]
+        return {"kind": "waystone", "base": f"Waystone (Tier {tier})", "name": f"Waystone (Tier {tier})",
+                "rarity": "", "uses": None, "tier": tier, "mods": lines, "ticked": list(lines), "hand": True}
+    lines = [hand_line(t, v) for t, v in mods]
+    return {"kind": "tablet", "base": base, "name": base, "rarity": "", "uses": uses, "tier": None, "mods": lines,
+            "ticked": list(lines), "hand": True}
+
+
 def board_compat(data):
     """A strat for a community board from before 3.0.6: without the league, the Atlas masters and the copies' other
     lines (it refuses fields it doesn't know)."""
@@ -703,7 +836,7 @@ def made_for_you(kind, cards, league, sid_of=None, uses_sid=None):
     bases = [c["base"] for c in cards]
     base = max(dict.fromkeys(bases), key=bases.count)
     lines = [m for i in items if i["base"] == base for m in i.get("key_mods") or []]
-    sids = []
+    sids, mins = [], {}
     for line in lines:
         try:
             sid = (sid_of or stat_id)(line)
@@ -711,12 +844,16 @@ def made_for_you(kind, cards, league, sid_of=None, uses_sid=None):
             sid = None
         if sid and sid not in sids:
             sids.append(sid)
+            n = re.search(r"\d+(?:\.\d+)?", str(line))            # (its number: the search's minimum)
+            if n:
+                mins[sid] = float(n.group(0)) if "." in n.group(0) else int(n.group(0))
     q = {"query": {"status": {"option": _status()}, "type": base}, "sort": {"price": "asc"}}
     groups = []
     if sids:
         several = len([i for i in items if i["base"] == base and i.get("key_mods")]) > 1
-        groups.append({"type": "count", "value": {"min": 1}, "filters": [{"id": s} for s in sids]} if several
-                      else {"type": "and", "filters": [{"id": s} for s in sids]})
+        flt = [dict({"id": s}, **({"value": {"min": mins[s]}} if s in mins else {})) for s in sids]
+        groups.append({"type": "count", "value": {"min": 1}, "filters": flt} if several
+                      else {"type": "and", "filters": flt})
     if uses_sid:
         groups.append({"type": "and", "filters": [{"id": uses_sid, "value": {"min": TABLET_USES}}]})
     if groups:
@@ -768,11 +905,12 @@ def _item_label(it):
 
 
 def run_cost(s, costs=None):
-    """What one run costs -> {"value", "sum", "how"} or None. The trade site's prices (the daily check) when an item
-    has one: their sum, written out ("waystone 0.2 + 4 tablets × 0.1"); else the author's estimate."""
+    """What one map costs -> {"value", "sum", "how"} or None. The trade site's prices (the daily check) when an item has
+    one, as a sum: "0.2 + 3 × 0.1 ÷ 10 uses" (the same tablets at the same price together; how says what each part is:
+    "Waystone 0.2 + 3 Breach tablets 0.1 ÷ 10 uses, at today's prices."); else the author's estimate."""
     c = (costs or {}).get(s.get("id")) or {}
     prices = c.get("prices") or {}
-    parts, total = [], 0.0
+    groups, total = [], 0.0                        # [(label, price, lasts, count)]
     for i, it in enumerate(s.get("items") or []):
         p = prices.get(str(i))
         if p is None:
@@ -780,13 +918,26 @@ def run_cost(s, costs=None):
         n, lasts = max(1, int(it.get("count") or 1)), max(1, int(it.get("lasts") or 1))
         total += p * n / lasts
         lab = _item_label(it)
-        part = f"{lab} {short_div(p)}" if n == 1 else f"{n} {lab}{'s' if lab in ('waystone', 'tablet') else ''} × {short_div(p)}"
-        parts.append(part + (f" ÷ {lasts} runs" if lasts > 1 else ""))
-    if parts:
+        if lab == "tablet":
+            mech = str(it.get("base") or "").replace(" Tablet", "").strip()
+            lab = f"{mech} tablet" if mech and mech != "Tablet" else "tablet"
+        g = next((g for g in groups if g[0] == lab and g[1] == p and g[2] == lasts), None)
+        if g:
+            g[3] += n
+        else:
+            groups.append([lab, p, lasts, n])
+    if groups:
+        short, long_ = [], []
+        for lab, p, lasts, n in groups:
+            per = f" ÷ {lasts} uses" if lasts > 1 else ""
+            short.append((f"{n} × " if n > 1 else "") + short_div(p) + per)
+            word = lab if n == 1 else (lab + "s" if lab.endswith("tablet") or lab == "waystone" else lab)
+            long_.append((f"{n} {word}" if n > 1 else word[:1].upper() + word[1:]) + f" {short_div(p)}" + per)
         ago = max(0, time.time() - (c.get("at") or time.time()))
-        when = "today" if ago < 86400 else f"{int(ago // 86400)} days ago"
-        return {"value": total, "sum": " + ".join(parts),
-                "how": f"Trade site, checked {when}: the cheapest real offer of each item, times how many a run uses."}
+        when = "today's prices" if ago < 86400 else f"prices from {int(ago // 86400)} days ago"
+        long_[0] = long_[0][:1].upper() + long_[0][1:]
+        return {"value": total, "sum": " + ".join(short),
+                "how": " + ".join(long_) + f", at {when} (the trade site's cheapest real offer of each)."}
     v = div_value(s.get("est_cost"))
     if v is None:
         return None
@@ -1152,7 +1303,8 @@ def waystone_props(item):
         mm = re.match(r"^\s*([A-Za-z ]+?)\s*:?\s*([+-]?\d+(?:\.\d+)?)%?", str(line).replace("★", "").strip())
         if not mm:
             continue
-        hit = PROPS.get(mm.group(1).strip().lower())
+        key = mm.group(1).strip().lower()           # (the line's own words, or the short name it is shown by -
+        hit = PROPS.get(key) or next((v for v in PROPS.values() if v[1].lower() == key), None)   # "Experience")
         if hit:
             v = float(mm.group(2))
             out.append((hit[0], WAYSTONE_REGEX.get(hit[0]), int(v) if v.is_integer() else v))

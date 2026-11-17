@@ -6,6 +6,7 @@ Every number has an ⓘ (or its own hover) saying how it was worked out. State i
 (▲ / ▼, ✓ Picked, ◆ you). Data: moneymakers.py (per_hour, run_cost, run_profit, run_time); the pictures:
 pricecheck_page.icons() / pc_art (the game's tablet for each strat's mechanic; none -> the word alone).
 GGG ToS: looks only - nothing here reads the screen or the clipboard."""
+import re
 import time
 import tkinter as tk
 from tkinter import ttk
@@ -13,6 +14,7 @@ from tkinter import ttk
 from . import buglog
 from . import themes as TH
 from . import moneymakers as MM
+from .config import SETTINGS
 
 R = 10                                  # card corner
 NARROW = 760                            # below this width (or in the Drawer): the compact rows
@@ -245,8 +247,8 @@ class StratCanvas(tk.Canvas):
         """The trade site's picture of an item (base) at x, y - or None when there is none (yet): the caller shows
         the word alone."""
         try:
-            from .pricecheck_page import icons
-            url = icons().get(base)
+            from .pricecheck_page import art_url
+            url = art_url(base)
             img = self.app.pc_art(url, px) if url and hasattr(self.app, "pc_art") else None
         except Exception:
             buglog.caught()
@@ -466,7 +468,7 @@ class StratViews:
             cv.text(px1, y + 56, ph["count"], ("Segoe UI", 9), fill=cv.c("text_muted"), anchor="e", tags=(tag,))
         cx1 = px0 - 28
         cost = r.get("cost")
-        cv.text(cx1, y + 26, "COST / RUN", ("Segoe UI", 9, "bold"), fill=cv.c("text_muted"), anchor="e", tags=(tag,))
+        cv.text(cx1, y + 26, "COST / MAP", ("Segoe UI", 9, "bold"), fill=cv.c("text_muted"), anchor="e", tags=(tag,))
         cv.text(cx1, y + 48, f"{MM.short_div(cost['value'])} div" if cost else "-", ("Segoe UI", 10),
                 fill=cv.c("text"), anchor="e", tags=(tag, f"{tag}_c"))
         if cost:
@@ -622,7 +624,10 @@ class StratViews:
         cv.tag_lower(card_id)
         return y
 
-    # ------------------------------------------------------------------ an opened strat
+    # ------------------------------------------------------------------ an opened strat (3.0.6: the approved mockup v2)
+    # The hero card (its tablet, BOSSING › SIMULACRUM + league, name, one line, tags, Run this strat), four tiles (Per
+    # hour, Cost per map, Waystone, Atlas master), then two columns: In your map device and How it goes | Atlas master,
+    # Content, Loot to sell, Tips, Risks, Sources. Older free text only in "From the author", folded, at the bottom.
     def _mm_draw_detail(self, cv):
         s = self.mm_current()
         W = max(cv.winfo_width(), 300)
@@ -639,242 +644,307 @@ class StratViews:
         mine = self._mm_my_numbers_all().get(s["id"])
         y = self._mm_head_card(cv, s, pad, y, W, narrow) + 16
         y = self._mm_tiles(cv, s, mine, pad, y, W, narrow) + 16
+        left = (self._mm_device_card, self._mm_steps_card, self._mm_money_card)
+        right = (self._mm_master_card, self._mm_content_card, self._mm_loot_card, self._mm_tips_card,
+                 self._mm_risks_card, self._mm_sources_card, self._mm_author_card)
         if narrow or W < 900:
-            for part in (self._mm_need_card, self._mm_steps_card, self._mm_masters_card, self._mm_yours_card,
-                         self._mm_money_card, self._mm_guide_card):
+            for part in left + right:
                 y2 = part(cv, s, mine, pad, W - pad, y)
                 y = y2 + 16 if y2 > y else y
             return y
         mid = pad + (W - 2 * pad - 16) * 0.55
         yl = yr = y
-        for part in (self._mm_yours_card, self._mm_money_card, self._mm_guide_card):
+        for part in left:
             y2 = part(cv, s, mine, pad, mid, yl)
             yl = y2 + 16 if y2 > yl else yl
-        for part in (self._mm_need_card, self._mm_steps_card, self._mm_masters_card):
+        for part in right:
             y2 = part(cv, s, mine, mid + 16, W - pad, yr)
             yr = y2 + 16 if y2 > yr else yr
         return max(yl, yr)
 
     def _mm_head_card(self, cv, s, pad, y, W, narrow):
+        """The hero: the main mechanic's tablet, BOSSING › SIMULACRUM and the league, the name, one line, its tags
+        (mechanics with their pictures, budget, effort, by whom), More ▾ and Run this strat (the one orange button)."""
         x0, x1 = pad, W - pad
         acc = cv.c("accent")
         post = s.get("_post") or {}
         ip = 16 if narrow else 24
         isz = 48 if narrow else 64
         top = y
-        card = cv.card(x0, y, x1, y + 10, None, fill=TH.mix(cv.c("surface_raised"), acc, .05),
-                       outline=TH.mix(acc, cv.c("border"), .55), lift=False)
-        got = cv.icon(MM.tablet_of(s), x0 + ip, y + ip + 6, isz)
-        tx = x0 + ip + (isz + (14 if narrow else 20) if got is not None else 0)
-        # the buttons (right; in the Drawer: under the words)
+        card = cv.card(x0, y, x1, y + 10, None, fill=TH.mix(cv.c("surface_raised"), acc, .06),
+                       outline=TH.mix(acc, cv.c("border"), .45), lift=False)
+        tx = x0 + ip + isz + (14 if narrow else 20)
         btns = self._mm_head_buttons(s, post)
         bw_all = sum(cv.tw(b[0], ("Segoe UI", 10, "bold" if b[3] == "primary" else "normal")) + 32 + 8 for b in btns)
-        side = not narrow and W - tx - bw_all > 420
+        side = not narrow and W - tx - bw_all > 460
         wr = (x1 - ip - bw_all - 16) if side else (x1 - ip)
-        cy = y + ip + 4
-        x = self._mm_mech_chip(cv, tx, cy, s)
         f9 = ("Segoe UI", 9)
-        if s.get("category") and s.get("category") != s.get("type") and x + 70 < wr:
-            x = cv.bbox(cv.text(x + 8, cy + 11, s["category"], f9, fill=cv.c("text_muted"), anchor="w"))[2]
-        b = MM.budget_of(s)
-        if b and x + 90 < wr:
-            x = cv.chip(x + 8, cy, b)
-        if x + 120 < wr:
-            self._mm_effort(cv, x + 12, cy + 11, s, tags=("h_eff",))
-            cv.tips["h_eff"] = "Effort: " + MM.THINKING.get(s.get("thoughts_per_click"), ("", "?"))[1]
-        ty = cy + 34
-        tt = cv.text(tx, ty, ("✔ " if post.get("voted") else "") + s["name"],
-                     ("Segoe UI", 16 if narrow else 18, "bold"), fill=cv.c("text_strong"), width=wr - tx)
+        ty = y + 22
+        kick = f"{s.get('category', '')} › {s.get('type', '')}".upper() if s.get("type") else s.get("category", "").upper()
+        k = cv.text(tx, ty + 6, kick, ("Segoe UI", 9, "bold"), fill=acc, anchor="w")
+        lg = MM.league_of(s)
+        lt = MM.league_text(lg) if not lg.startswith(("Game ", "Unknown")) else lg
+        lx = cv.bbox(k)[2] + 8
+        lw = cv.tw(lt, f9) + 12
+        TH.round_rect(cv, lx, ty - 4, lx + lw, ty + 16, 3, fill=cv.c("surface_sunken"), outline=cv.c("border_light"))
+        cv.text(lx + 6, ty + 6, lt, f9, fill=cv.c("text_muted"), anchor="w")
+        ty += 22
+        tt = cv.text(tx, ty, ("✔ " if post.get("voted") else "") + s["name"], ("Segoe UI", 16 if narrow else 18, "bold"),
+                     fill=cv.c("text_strong"), width=wr - tx)
         ty = cv.bottom(tt, ty + 28) + 6
         if s.get("summary"):
-            ty = cv.bottom(cv.text(tx, ty, s["summary"], ("Segoe UI", 10), fill=cv.c("text"), width=wr - tx), ty) + 6
+            ty = cv.bottom(cv.text(tx, ty, s["summary"], ("Segoe UI", 10), fill=cv.c("text"), width=wr - tx), ty) + 8
+        x = tx
+        for m in self._mm_mechs_of(s):
+            if x + 70 > wr:
+                break
+            x = cv.chip(x, ty, m, MECH_COL.get(m, "money"), MM.MECH_TABLET.get(m)) + 6
+        b = MM.budget_of(s)
+        if b and x + cv.tw(b, f9) + 20 < wr:
+            x = cv.chip(x, ty, b) + 8
+        if x + 90 < wr:
+            x = self._mm_effort(cv, x + 4, ty + 11, s, tags=("h_eff",))
+            cv.tips["h_eff"] = "Effort: " + MM.THINKING.get(s.get("thoughts_per_click"), ("", "?"))[1]
         by = post.get("author", {}).get("name") or s.get("author") or "?"
-        lg = MM.league_of(s)
-        meta = [f"By {by}", f"updated {_ago_day(s.get('updated'))}",
-                lg if lg.startswith(("Game ", "Unknown")) else f"{lg} · game {s.get('patch', '?')}",
-                {"community": "Official", "mine": "Mine", "example": "Example", "board": "Community"}.get(s["origin"], "")]
-        if post:
-            meta.append(f"▲ {post.get('score', 0)} found it useful")
-        if post.get("hidden"):
-            meta.append("⊘ HIDDEN")
-        if (post.get("based_on") or {}).get("id"):
-            meta.append(f"based on “{post['based_on'].get('name') or 'another strat'}”")
-        if post.get("pending"):
-            meta.append(f"{post['pending']} change waiting for reviewers")
-        if post.get("mine") and post.get("suggestions"):
-            n = post["suggestions"]
-            meta.append(f"{n} suggested edit{'s' if n != 1 else ''} for you (More ▾ › Suggestions)")
-        ty = cv.bottom(cv.text(tx, ty, " · ".join(m for m in meta if m), f9, fill=cv.c("text_muted"),
-                               width=wr - tx), ty) + 4
-        bottom = max(ty, y + ip + isz + 12)
+        src = next((x_.get("title") for x_ in s.get("sources") or [] if x_.get("title") and x_["title"] != x_.get("url")),
+                   None)
+        meta = " · ".join(m for m in ([f"By {by}", src] + ([f"▲ {post.get('score', 0)}"] if post else [])
+                                       + (["⊘ HIDDEN"] if post.get("hidden") else [])) if m)
+        if x + 60 < wr:
+            cv.text(x + 8, ty + 11, cv.fit("· " + meta, f9, wr - x - 8), f9, fill=cv.c("text_muted"), anchor="w",
+                    tags=("h_meta",))
+            cv.tips["h_meta"] = meta
+        ty += 22
+        if post.get("pending") or (post.get("mine") and post.get("suggestions")):
+            extra = [f"{post['pending']} change waiting for reviewers"] if post.get("pending") else []
+            if post.get("mine") and post.get("suggestions"):
+                extra.append(f"{post['suggestions']} suggested edit(s) for you (More ▾ › Suggestions)")
+            ty = cv.bottom(cv.text(tx, ty + 4, " · ".join(extra), f9, fill=cv.c("text_muted"), width=wr - tx), ty) + 4
+        bottom = max(ty + ip - 8, y + ip + isz + ip)
+        got = cv.icon(MM.tablet_of(s), x0 + ip, (y + bottom) / 2, isz, anchor="w")
+        if got is not None:
+            bb = cv.bbox(got)
+            cv.tag_lower(TH.round_rect(cv, bb[0] - 3, bb[1] - 3, bb[2] + 3, bb[3] + 3, 6, fill=cv.c("surface_sunken"),
+                                       outline=cv.c("border_light")), got)
         if side:
-            by0 = y + (bottom - y) / 2 - 18 + 4
+            by0 = (y + bottom) / 2 - 22
             bx = x1 - ip
             for text, tg, fn, kind, tip in reversed(btns):
-                bx0, _ = cv.button(bx, by0, text, tg, fn, kind, anchor="e", h=38, tip=tip)
+                bx0, _ = cv.button(bx, by0, text, tg, fn, kind, anchor="e", h=44 if kind == "primary" else 44, tip=tip)
                 bx = bx0 - 8
         else:
-            bx, by0 = tx if not narrow else x0 + ip, bottom + 8
+            bx, by0 = x0 + ip, bottom
             for text, tg, fn, kind, tip in btns:
                 bwid = cv.tw(text, ("Segoe UI", 10, "bold" if kind == "primary" else "normal")) + 32
                 if bx + bwid > x1 - ip:
-                    bx, by0 = (tx if not narrow else x0 + ip), by0 + 46
+                    bx, by0 = x0 + ip, by0 + 46
                 _, bx = cv.button(bx, by0, text, tg, fn, kind, h=38, tip=tip)
                 bx += 8
-            bottom = by0 + 38 + 4
-        bottom += ip - 4
+            bottom = by0 + 38 + ip
         cv.coords(card, *_rr_points(x0, top, x1, bottom, R))
+        cv.tag_lower(card)
         return bottom
 
+    def _mm_mechs_of(self, s):
+        """The mechanics a strat farms: its type when it is one, then the ones it also uses."""
+        out = [s["type"]] if s.get("type") in MM.MECH_TABLET else []
+        return out + [t for t in s.get("tags") or [] if t in MM.TAG_GROUPS["Also uses"] and t not in out]
+
     def _mm_head_buttons(self, s, post):
-        """(text, tag, command, kind, tip) - the one orange button last (rightmost)."""
-        out = [("More ▾", "h_more", lambda: self.mm_more_at("h_more"), "ghost",
-                "Everything you can do with this strat: copy it, export it, suggest an edit, report it…")]
-        if post:
-            out.insert(0, (f"{'▲ Upvoted' if post.get('voted') else '▲ Upvote'} ({post.get('score', 0)})", "h_vote",
-                           self.mm_vote, "ghost", "Remove your upvote" if post.get("voted") else
-                           "Upvote it: the best rise to the top"))
-        if s["origin"] == "mine":
-            out.insert(0, ("📤 Post to Community", "h_post", self.mm_post, "ghost", "Share it on the community board"))
-        if s.get("regex"):
-            out.insert(0, ("Copy regex", "h_regex", self.mm_copy_regex, "ghost",
-                           "Copy the strat's stash search. In game: Ctrl+V in the stash search."))
-        out.append(("Run this strat", "h_run", lambda: self.mm_run(self.mm_sel), "primary",
-                    "Opens the Strat Tracker on this strat: log your runs, see what it really made."))
-        return out
+        """(text, tag, command, kind, tip) - More ▾ (every action: edit, export, post, upvote ...), then the one
+        orange button."""
+        return [("More ▾", "h_more", lambda: self.mm_more_at("h_more"), "ghost",
+                 "Everything you can do with this strat: edit, export, post, upvote, suggest an edit, report…"),
+                ("Run this strat", "h_run", lambda: self.mm_run(self.mm_sel), "primary",
+                 "Opens the Strat Tracker on this strat: log your runs, see what it really made.")]
 
     def _mm_tiles(self, cv, s, mine, pad, y, W, narrow):
+        """Per hour, Cost per map, Waystone, Atlas master - each says how its number came (ⓘ). A tile with nothing
+        to say isn't drawn (no waystone, no master)."""
         ph = MM.per_hour(s, mine)
         cost = MM.run_cost(s, self.mm_costs())
-        prof, rt = MM.run_profit(s), MM.run_time(s)
         busy = s["id"] in getattr(self, "_mm_cost_busy", set())
-        tiles = [("PER HOUR", ph, "ph")]
-        tiles.append(("COST PER RUN", cost or {"value": None, "sum": "checking the trade site…" if busy else
-                                               "not given", "how": "The author gave no cost."}, "cost"))
-        if prof:
-            tiles.append(("PROFIT PER RUN", prof, "prof"))
-        if rt:
-            tiles.append(("RUN TIME", rt, "time"))
+        slots = MM.device_slots(s)
+        way = next((x for x in slots if x["kind"] == "waystone"), None)
+        master, picks = MM.master_of(s.get("masters"))
+        tiles = ["ph"]
+        if cost or s.get("items"):
+            tiles.append("cost")
+        if way:
+            tiles.append("way")
+        if master:
+            tiles.append("master")
         cols = 2 if narrow or W < 900 else len(tiles)
-        gap = 12
+        gap = 16
         tw = (W - 2 * pad - (cols - 1) * gap) / cols
-        th = 128 if any(k == "ph" and v and (v["high"] > v["low"] or v.get("you") is not None) for _l, v, k in tiles) \
-            else 104
-        num = (TH.head_font(None, "num"), 20 if narrow else 24)
-        if ph and th == 128:
-            legend = " · ".join([f"lowest {MM.short_div(ph['low'])}", f"middle {MM.short_div(ph['value'])}",
-                                 f"highest {MM.short_div(ph['high'])}"] + ([f"◆ you {MM.short_div(ph['you'])}"]
-                                                                          if ph.get("you") is not None else []))
-            if cv.tw(legend, ("Segoe UI", 9)) > tw - 32:
-                th += 18                                      # (it wraps onto a second line)
-        for i, (label, v, kind) in enumerate(tiles):
+        th = 120
+        num = (TH.head_font(None, "num"), 20 if narrow else 22)
+        f9, lab = ("Segoe UI", 9), ("Segoe UI", 9, "bold")
+        for i, kind in enumerate(tiles):
             x0 = pad + (i % cols) * (tw + gap)
             ty = y + (i // cols) * (th + gap)
             tag = f"tile_{kind}"
             cv.card(x0, ty, x0 + tw, ty + th, None, lift=False)
-            lab = cv.text(x0 + 16, ty + 22, label, ("Segoe UI", 9, "bold"), fill=cv.c("text_muted"), anchor="w")
-            how = (v or {}).get("how") or "No estimate given."
-            cv.info(cv.bbox(lab)[2] + 6, ty + 22, f"{tag}_i", how)
             if kind == "ph":
-                big = (MM.short_div(v["value"]) + " div") if v else "-"
-                cv.text(x0 + 16, ty + 36, big, num, fill=cv.c("money"), tags=(tag,))
-                if not v:                                # 3.0.6 (New strat): it comes from runs, not a guess
-                    how = ("Comes from runs, not a guess: Run this strat and log your runs in the Strat Tracker - "
-                           "Your numbers show what it made an hour.")
-                    cv.tips[f"{tag}_i"] = how
-                    cv.text(x0 + 16, ty + 78, "comes from runs: Run this strat", ("Segoe UI", 9),
-                            fill=cv.c("text_muted"), width=tw - 32)
+                l_ = cv.text(x0 + 20, ty + 26, "PER HOUR", lab, fill=cv.c("text_muted"), anchor="w")
+                you = (mine or {}).get("per_hour")
+                if you is not None:
+                    big, line = f"{MM.short_div(you)} div", f"from your {mine.get('runs', 0)} runs"
+                    how = f"Your Strat Tracker: {MM.short_div(you)} div an hour over {mine.get('runs', 0)} runs."
+                elif ph:
+                    big, line, how = f"{MM.short_div(ph['value'])} div", "the author's estimate", ph["how"]
+                else:
+                    big, line = "—", "fills in from your runs"
+                    how = "Comes from your counted maps once you run it."
+                cv.info(cv.bbox(l_)[2] + 6, ty + 26, f"{tag}_i", how)
+                cv.text(x0 + 20, ty + 42, big, num, fill=cv.c("money") if big != "—" else cv.c("text_muted"),
+                        tags=(tag,))
                 cv.tips[tag] = how
-                if v and (v["high"] > v["low"] or v.get("you") is not None) and tw > 180:
-                    cv.range_bar(x0 + 24, x0 + tw - 24, ty + 84, v)
-                    bits = [f"lowest {MM.short_div(v['low'])}", f"middle {MM.short_div(v['value'])}",
-                            f"highest {MM.short_div(v['high'])}"] + ([f"◆ you {MM.short_div(v['you'])}"]
-                                                                    if v.get("you") is not None else [])
-                    cv.text(x0 + 16, ty + 104, " · ".join(bits), ("Segoe UI", 9), fill=cv.c("text_muted"),
-                            width=tw - 32)
-                elif v:
-                    cv.text(x0 + 16, ty + 78, v["count"], ("Segoe UI", 9), fill=cv.c("text_muted"), width=tw - 32)
-            elif kind == "prof":
-                val = v["value"]
-                up = val >= 0
-                cv.text(x0 + 16, ty + 36, f"{'▲' if up else '▼'} {MM.short_div(abs(val))} div", num,
-                        fill=cv.c("good") if up else cv.c("bad"), tags=(tag,))
-                cv.text(x0 + 16, ty + 78, ("profit · " if up else "loss · ") + v["sum"], ("Segoe UI", 9),
-                        fill=cv.c("text_muted"), width=tw - 32)
+                cv.text(x0 + 20, ty + 86, line, f9, fill=cv.c("text_muted"), width=tw - 40)
+            elif kind == "cost":
+                l_ = cv.text(x0 + 20, ty + 26, "COST PER MAP", lab, fill=cv.c("text_muted"), anchor="w")
+                how = cost["how"] if cost else "The trade site's price of what goes in your map device - checked " \
+                                               "once a day while Farming Strategies is open."
+                cv.info(cv.bbox(l_)[2] + 6, ty + 26, f"{tag}_i", how)
+                cv.text(x0 + 20, ty + 42, f"{MM.short_div(cost['value'])} div" if cost else "—", num,
+                        fill=cv.c("text_strong"), tags=(tag,))
                 cv.tips[tag] = how
-            elif kind == "time":
-                cv.text(x0 + 16, ty + 36, MM.mins_text(v["secs"]), num, fill=cv.c("text_strong"), tags=(tag,))
-                cv.text(x0 + 16, ty + 78, v["sum"], ("Segoe UI", 9), fill=cv.c("text_muted"), width=tw - 32)
-                cv.tips[tag] = how
+                line = cost["sum"] if cost else ("checking the trade site…" if busy else "not checked yet")
+                cv.text(x0 + 20, ty + 86, cv.fit(line, f9, tw - 40), f9, fill=cv.c("text_muted"))
+            elif kind == "way":
+                cv.text(x0 + 20, ty + 26, "WAYSTONE", lab, fill=cv.c("text_muted"), anchor="w")
+                got = cv.icon(way["base"], x0 + 20, ty + 46, 36, tags=(tag,))
+                wx = x0 + 20 + (46 if got is not None else 0)
+                cv.text(wx, ty + 50, way["sub"], ("Segoe UI", 12, "bold"), fill=cv.c("text_strong"), anchor="w")
+                it = way.get("item") or {}
+                n = len(it.get("mods") or it.get("key_mods") or [])
+                line = (f"{n} mod{'s' if n != 1 else ''}" + (f", {it['rarity'].lower()}" if it.get("rarity") else "")
+                        if n else ("its tier" if not it else "no mods"))
+                cv.text(wx, ty + 70, cv.fit(line, f9, x0 + tw - wx - 16), f9, fill=cv.c("text_muted"), anchor="w")
+                cv.tips[tag] = (it.get("name") or way["base"]) + "".join("\n★ " + m for m in it.get("key_mods") or [])
             else:
-                cv.text(x0 + 16, ty + 36, f"{MM.short_div(v['value'])} div" if v.get("value") is not None else "-",
-                        num, fill=cv.c("text_strong"), tags=(tag,))
-                cv.text(x0 + 16, ty + 78, v["sum"], ("Segoe UI", 9), fill=cv.c("text_muted"), width=tw - 32)
-                cv.tips[tag] = how
+                cv.text(x0 + 20, ty + 26, "ATLAS MASTER", lab, fill=cv.c("text_muted"), anchor="w")
+                gx, gy, cs = x0 + 20, ty + 42, 22
+                for c_i, ch in enumerate(MM.MASTERS[master]):
+                    cx_ = gx + (c_i % MM.MASTER_COLS) * (cs + 3)
+                    cy_ = gy + (c_i // MM.MASTER_COLS) * (16 + 3)
+                    on = ch in picks
+                    cv.create_rectangle(cx_, cy_, cx_ + cs, cy_ + 16, outline=cv.c("border") if not on else "",
+                                        fill=cv.c("accent") if on else cv.c("surface_sunken"), tags=(tag,))
+                mx = gx + MM.MASTER_COLS * (cs + 3) + 10
+                cv.text(mx, ty + 66, cv.fit(master, ("Segoe UI", 10, "bold"), x0 + tw - mx - 12),
+                        ("Segoe UI", 10, "bold"), fill=cv.c("text_strong"), anchor="w")
+                cv.text(mx, ty + 86, f"{len(picks)} of {MM.MASTER_PICKS} picked", f9, fill=cv.c("text_muted"),
+                        anchor="w")
+                cv.tips[tag] = master + ": " + ", ".join(picks)
         rows = -(-len(tiles) // cols)
         return y + rows * th + (rows - 1) * gap
 
-    def _mm_box(self, cv, x0, x1, y, title, tag=None, how=None):
-        """A card with a title -> (card item, y under the title)."""
+    def _mm_box(self, cv, x0, x1, y, title, tag=None, how=None, note=None, fold=None):
+        """A card with a title (and a muted note beside it; fold: (open?, command) - a ▾ / ▸ to fold it) ->
+        (card item, y under the title)."""
         card = cv.card(x0, y, x1, y + 10, None, lift=False)
-        t = cv.text(x0 + 18, y + 26, title, ("Segoe UI", 12, "bold"), fill=cv.c("text_strong"), anchor="w")
+        tx = x0 + 20
+        tags = ()
+        if fold is not None:                             # (Tips / Risks: the title folds it - the mockup's look;
+            ftag = f"fold_{title}"                       # From the author shows its ▸ / ▾)
+            tags = (ftag,)
+            cv.acts[ftag] = fold[1]
+            cv.tips[ftag] = "Click to fold" if fold[0] else "Click to open"
+            if title == "From the author":
+                cv.text(tx, y + 28, "▾" if fold[0] else "▸", ("Segoe UI", 10), fill=cv.c("text_muted"), anchor="w",
+                        tags=tags)
+                tx += 16
+        t = cv.text(tx, y + 28, title, ("Segoe UI", 12, "bold"), fill=cv.c("text_strong"), anchor="w", tags=tags)
+        x = cv.bbox(t)[2]
+        if note:
+            x = cv.bbox(cv.text(x + 8, y + 29, note, ("Segoe UI", 9), fill=cv.c("text_muted"), anchor="w",
+                                tags=tags))[2]
         if how:
-            cv.info(cv.bbox(t)[2] + 8, y + 26, tag or "box_i", how)
-        return card, y + 50
+            cv.info(x + 8, y + 28, tag or "box_i", how)
+        return card, y + 52
 
-    def _mm_need_card(self, cv, s, mine, x0, x1, y):
-        """You need: the items a run takes, as slots (the tablet's picture; no picture - its word). Hover: what it
-        is and its price today; click: copy its stash search or open the Trade Site."""
-        items = s.get("items") or []
-        if not items:
+    def _mm_device_card(self, cv, s, mine, x0, x1, y):
+        """In your map device: the waystone and tablet slots (their pictures, ×N, what they are), a free slot, the
+        tablet mods that matter, and Copy regex / Trade Site ↗ for them."""
+        slots = MM.device_slots(s)
+        if not slots:
             return y
-        card, yy = self._mm_box(cv, x0, x1, y, "You need")
+        card, yy = self._mm_box(cv, x0, x1, y, "In your map device")
+        tabs = [it for it in s.get("items") or [] if it.get("kind") == "tablet"]
+        cards = [MM.item_card(it) for it in tabs if it.get("key_mods")]
+        rx = s.get("regex") or (MM.item_regex([MM.card_item(c) for c in cards]) if cards else "")
+        made = MM.made_for_you("tablet", cards, SETTINGS.get("league")) if cards else {"url": None}
+        bx = x1 - 20
+        bx0, _ = cv.button(bx, y + 12, "Trade Site ↗", "dev_trade",
+                           lambda: (__import__("webbrowser").open(made["url"]) if made.get("url") else None),
+                           enabled=bool(made.get("url")), anchor="e", h=34,
+                           tip=("Opens the trade site in your browser: " + made["caption"]) if made.get("url")
+                           else "No tablet mods to search")
+        cv.button(bx0 - 8, y + 12, "Copy regex", "dev_regex", lambda: self.mm_item_copy(rx, "the tablets"),
+                  enabled=bool(rx), anchor="e", h=34,
+                  tip="Copy the stash search. In game: Ctrl+V in the stash search." if rx else "No stash search")
+        yy += 6
+        sz, gap, x = 74, 32, x0 + 30
+        n_tabs = sum(sl["count"] for sl in slots if sl["kind"] == "tablet")
+        cap = MM.DEVICE_TABLETS + (1 if "City" in (s.get("tags") or []) else 0)
+        shown = slots + ([{"kind": "free"}] if n_tabs < max(cap, 4) else [])     # (a slot nothing is in yet)
         c = (self.mm_costs() or {}).get(s.get("id")) or {}
         prices = c.get("prices") or {}
-        sz, gap = 64, 10
-        x = x0 + 18
-        for i, it in enumerate(items):
-            if x + sz > x1 - 18:
-                x, yy = x0 + 18, yy + sz + gap
+        for i, sl in enumerate(shown):
+            if x + sz > x1 - 10:
+                x, yy = x0 + 30, yy + sz + 58
             tag = f"need{i}"
-            sl = TH.round_rect(cv, x, yy, x + sz, yy + sz, 6, fill=cv.c("surface_sunken"), outline=cv.c("border"),
-                               tags=(tag,))
-            cv.lifts[tag] = [(sl, {"outline": cv.c("border")}, {"outline": cv.c("border_light")})]
-            base = it.get("base") or ""
-            if cv.icon(base, x + sz / 2, yy + sz / 2 - 4, 40, anchor="center", tags=(tag,)) is None:
-                word = "Waystone" if it.get("kind") == "waystone" else (base.split()[0] if base else "Item")
-                cv.text(x + sz / 2, yy + sz / 2 - 6, cv.fit(word, ("Segoe UI", 9), sz - 6), ("Segoe UI", 9),
+            if sl["kind"] == "free":
+                TH.round_rect(cv, x, yy, x + sz, yy + sz, 6, fill=cv.c("surface_sunken"), outline=cv.c("border_light"),
+                              dash=(3, 3), tags=(tag,))
+                cv.text(x + sz / 2, yy + sz / 2, "·", ("Segoe UI", 10), fill=cv.c("text_muted"), anchor="center")
+                cv.text(x + sz / 2, yy + sz + 14, "Free slot", ("Segoe UI", 9), fill=cv.c("text"), anchor="center")
+                cv.text(x + sz / 2, yy + sz + 34, "any tablet", ("Segoe UI", 9), fill=cv.c("text_muted"),
+                        anchor="center")
+                cv.tips[tag] = "Any tablet"
+                x += sz + gap
+                continue
+            sl_ = TH.round_rect(cv, x, yy, x + sz, yy + sz, 6, fill=cv.c("surface_sunken"), outline=cv.c("border_light"),
+                                tags=(tag,))
+            cv.lifts[tag] = [(sl_, {"outline": cv.c("border_light")}, {"outline": cv.c("text_muted")})]
+            if cv.icon(sl["base"], x + sz / 2, yy + sz / 2, 60, anchor="center", tags=(tag,)) is None:
+                cv.text(x + sz / 2, yy + sz / 2, cv.fit(sl["word"], ("Segoe UI", 9), sz - 8), ("Segoe UI", 9),
                         fill=cv.c("text_muted"), anchor="center", tags=(tag,))
-            m = MM.waystone_props(it)
-            badge = f"T{m[0]}" if m and m[0] else f"×{it.get('count', 1)}"
-            bi = cv.text(x + sz - 5, yy + sz - 4, badge, ("Segoe UI", 9, "bold"), fill=cv.c("text"), anchor="se",
-                         tags=(tag,))
-            bb = cv.bbox(bi)
-            cv.tag_lower(TH.round_rect(cv, bb[0] - 4, bb[1] - 1, bb[2] + 4, bb[3] + 1, 3, fill=cv.c("surface_raised"),
-                                       outline=cv.c("border"), tags=(tag,)), bi)
-            p = prices.get(str(i))
-            last = f" · lasts {it.get('lasts')} runs" if int(it.get("lasts") or 1) > 1 else ""
-            tip = (f"{it.get('name') or base} ×{it.get('count', 1)}{last}" +
-                   ("".join("\n★ " + km for km in it.get("key_mods") or [])) +
-                   (f"\n~{p:.2f} div today (trade site)" if p is not None else "\nno price checked yet") +
-                   "\nClick: copy its stash search, or open the Trade Site")
-            cv.tips[tag] = tip
-            cv.acts[tag] = lambda it=it, tg=tag: self.mm_item_menu(it, tg)
+            if sl["count"] > 1:
+                bi = cv.text(x + sz - 4, yy + sz - 3, f"×{sl['count']}", ("Segoe UI", 9, "bold"), fill=cv.c("text"),
+                             anchor="se", tags=(tag,))
+                bb = cv.bbox(bi)
+                cv.tag_lower(TH.round_rect(cv, bb[0] - 4, bb[1] - 1, bb[2] + 3, bb[3] + 1, 3,
+                                           fill=cv.c("surface_raised"), outline=cv.c("border"), tags=(tag,)), bi)
+            cv.text(x + sz / 2, yy + sz + 14, sl["word"], ("Segoe UI", 9), fill=cv.c("text"), anchor="center",
+                    tags=(tag,))
+            cv.text(x + sz / 2, yy + sz + 34, sl["sub"], ("Segoe UI", 9), fill=cv.c("text_muted"), anchor="center",
+                    tags=(tag,))
+            it = sl.get("item")
+            if it is not None:
+                idx = (s.get("items") or []).index(it)
+                p = prices.get(str(idx))
+                cv.tips[tag] = (f"{it.get('name') or sl['base']} ×{sl['count']}" +
+                                ("".join("\n★ " + km for km in it.get("key_mods") or [])) +
+                                (f"\n~{p:.2f} div today (trade site)" if p is not None else "\nno price checked yet") +
+                                "\nClick: copy its stash search, or open the Trade Site")
+                cv.acts[tag] = lambda it=it, tg=tag: self.mm_item_menu(it, tg)
+            else:
+                cv.tips[tag] = f"{sl['word']}: {sl['sub']} (from the author's text)"
             x += sz + gap
-        yy += sz + 12
-        names = [f"{it.get('count', 1)} × {it.get('name') or it.get('base')}" for it in items]
-        cost = MM.run_cost(s, self.mm_costs())
-        line = ", ".join(names) + (f" · {MM.short_div(cost['value'])} div" if cost else "")
-        yy = cv.bottom(cv.text(x0 + 18, yy, line, ("Segoe UI", 9), fill=cv.c("text_muted"), width=x1 - x0 - 36),
-                       yy + 16) + 10
-        tabs = [it for it in items if it.get("kind") != "waystone" and it.get("key_mods")]
-        if len(tabs) > 1:
-            rx = MM.item_regex(tabs)
-            self.mm_all_tabs_rx = rx
-            cv.button(x0 + 18, yy, "Copy one search for all the tablets", "need_all",
-                      lambda: self.mm_item_copy(rx, "all the tablets"), enabled=bool(rx), h=32,
-                      tip="Stash or vendor: Ctrl+V in the search. Trade: the ★ mods, cheapest first.")
-            yy += 40
+        yy += sz + 52
+        keys = list(dict.fromkeys(m for it in tabs for m in it.get("key_mods") or []))
+        if keys:
+            lab = cv.text(x0 + 20, yy + 10, "TABLET MODS THAT MATTER", ("Segoe UI", 9, "bold"), fill=cv.c("text_muted"),
+                          anchor="w")
+            kx, ky = cv.bbox(lab)[2] + 12, yy
+            for m in keys:
+                w = cv.tw(m, ("Segoe UI", 9)) + 16
+                if kx + w > x1 - 20 and kx > x0 + 20:
+                    kx, ky = x0 + 20, ky + 28
+                kx = cv.chip(kx, ky, cv.fit(m, ("Segoe UI", 9), x1 - x0 - 60), "text", h=20) + 6
+            yy = ky + 32
         yy += 8
         cv.coords(card, *_rr_points(x0, y, x1, yy, R))
         return yy
@@ -883,66 +953,174 @@ class StratViews:
         steps = s.get("steps") or []
         if not steps:
             return y
-        card, yy = self._mm_box(cv, x0, x1, y, "How it goes")
+        card, yy = self._mm_box(cv, x0, x1, y, "How it goes", note=f"{len(steps)} step{'s' if len(steps) != 1 else ''}")
         for i, line in enumerate(steps, 1):
-            cx = x0 + 28
-            tid = cv.text(cx + 22, yy, line, ("Segoe UI", 10), fill=cv.c("text"), width=x1 - cx - 40)
+            cx = x0 + 30
+            tid = cv.text(cx + 20, yy, line, ("Segoe UI", 10), fill=cv.c("text"), width=x1 - cx - 40)
             b = cv.bottom(tid, yy + 18)
-            cv.create_oval(cx - 10, yy - 2, cx + 10, yy + 18, fill=cv.c("surface_sunken"), outline=cv.c("border"))
-            cv.text(cx, yy + 8, str(i), ("Segoe UI", 9, "bold"), fill=cv.c("text_muted"), anchor="center")
+            cv.create_oval(cx - 9, yy - 1, cx + 9, yy + 17, fill=cv.c("surface_sunken"), outline=cv.c("border"))
+            cv.text(cx, yy + 8, str(i), ("Segoe UI", 8), fill=cv.c("text_muted"), anchor="center")  # token-ok
             if i < len(steps):
-                cv.create_line(cx, yy + 20, cx, b + 10, fill=cv.c("border"))
+                cv.create_line(cx, yy + 19, cx, b + 12, fill=cv.c("border"))
             yy = b + 14
-        yy += 6
+        yy += 8
         cv.coords(card, *_rr_points(x0, y, x1, yy, R))
         return yy
 
-    def _mm_masters_card(self, cv, s, mine, x0, x1, y):
-        """Atlas masters: the strat's master - its name, "N of 4" and the picks."""
-        ms = {m: v for m, v in (s.get("masters") or {}).items() if v and m in MM.MASTERS}
-        if not ms:
+    def _mm_master_card(self, cv, s, mine, x0, x1, y):
+        """Atlas master: the strat's master, its 12 choices as in the game (3 × 4), the picked ones marked ✓."""
+        master, picks = MM.master_of(s.get("masters"))
+        if not master:
             return y
-        card, yy = self._mm_box(cv, x0, x1, y, "Atlas masters", "masters_i",
-                                f"The author's master and up to {MM.MASTER_PICKS} of its choices.")
-        for m, picks in ms.items():
-            t = cv.text(x0 + 18, yy + 7, m, ("Segoe UI", 10, "bold"), fill=cv.c("text_strong"), anchor="w")
-            full = len(picks) >= MM.MASTER_PICKS
-            cv.text(cv.bbox(t)[2] + 8, yy + 7, f"{'✓ ' if full else ''}{len(picks)} of {MM.MASTER_PICKS}",
-                    ("Segoe UI", 9), fill=cv.c("good") if full else cv.c("text_muted"), anchor="w")
-            yy += 20
-            x = x0 + 18
-            for p in picks:
-                w = cv.tw(p, ("Segoe UI", 9)) + 16
-                if x > x0 + 18 and x + w > x1 - 18:
-                    x, yy = x0 + 18, yy + 28
-                x = cv.chip(x, yy, p) + 6
-            yy += 22 + 12
-        yy += 4
+        card, yy = self._mm_box(cv, x0, x1, y, "Atlas master", note=f"{master} · {len(picks)} of {MM.MASTER_PICKS}")
+        yy -= 6
+        cols, gap = MM.MASTER_COLS, 7
+        cw = (x1 - x0 - 40 - (cols - 1) * gap) / cols
+        chh = 88
+        for i, ch in enumerate(MM.MASTERS[master]):
+            gx = x0 + 20 + (i % cols) * (cw + gap)
+            gy = yy + (i // cols) * (chh + gap)
+            on = ch in picks
+            acc = cv.c("accent")
+            tag = f"mt_{i}"
+            TH.round_rect(cv, gx, gy, gx + cw, gy + chh, 6, fill=TH.mix(cv.c("surface_raised"), acc, .16) if on
+                          else cv.c("surface"), outline=acc if on else cv.c("border"), tags=(tag,))
+            cv.create_text(gx + cw / 2, gy + chh / 2, text=ch, font=("Segoe UI", 9), width=cw - 12, justify="center",
+                           fill=cv.c("text_strong") if on else cv.c("text"), tags=(tag,))
+            if on:
+                cv.text(gx + cw - 10, gy + 12, "✓", ("Segoe UI Symbol", 9, "bold"), fill=acc, anchor="center",
+                        tags=(tag,))
+            cv.tips[tag] = ch + (" - picked" if on else "")
+        yy += 4 * (chh + gap) - gap + 20
         cv.coords(card, *_rr_points(x0, y, x1, yy, R))
         return yy
 
-    def _mm_yours_card(self, cv, s, mine, x0, x1, y):
-        """Your numbers: what your Strat Tracker logged for this strat, or how to start."""
-        card, yy = self._mm_box(cv, x0, x1, y, "Your numbers", "yours_i",
-                                "From your own Strat Tracker logs for this strat (every setup that follows it).")
-        if not mine or not mine.get("runs"):
-            yy = cv.bottom(cv.text(x0 + 18, yy, "Not run yet. Run this strat makes a setup for it in the Strat "
-                                   "Tracker - your real cost, loot and profit an hour show here.", ("Segoe UI", 9),
-                                   fill=cv.c("text_muted"), width=x1 - x0 - 36), yy + 16) + 16
-        else:
-            from .moneymakers_page import _hms
-            parts = ((f"{mine['runs']}", "runs"),
-                     (MM.short_div(mine["per_hour"]) if mine.get("per_hour") is not None else "-", "div / hour"),
-                     (f"{mine['profit_run']:+.2f}" if mine.get("profit_run") is not None else "-", "div a run"),
-                     (_hms(mine["avg_run"]) if mine.get("avg_run") else "-", "a run"))
-            cw = (x1 - x0 - 36) / 4
-            for i, (big, small) in enumerate(parts):
-                x = x0 + 18 + i * cw
-                cv.text(x, yy, big, (TH.head_font(None, "num"), 16), fill=cv.c("link") if i == 1 else cv.c("text_strong"))
-                cv.text(x, yy + 30, small, ("Segoe UI", 9), fill=cv.c("text_muted"))
-            yy += 58
+    def _mm_content_card(self, cv, s, mine, x0, x1, y):
+        """Content: the mechanics (with their pictures), bosses, map content and map type it farms."""
+        mechs = self._mm_mechs_of(s)
+        tags = s.get("tags") or []
+        groups = MM.content_groups()
+        rest = [MM.short_tag(t) for g in groups.values() for t in g if t in tags] + \
+               [t for t in MM.TAG_GROUPS["Map type"] if t in tags]
+        if s.get("category") == "Bossing" and s.get("type") and MM.short_tag(s["type"]) not in rest:
+            rest.insert(0, s["type"])
+        if not mechs and not rest:
+            return y
+        card, yy = self._mm_box(cv, x0, x1, y, "Content")
+        x = x0 + 20
+        for word, base, role in [(m, MM.MECH_TABLET.get(m), MECH_COL.get(m, "money")) for m in mechs] + \
+                                [(r, None, "text_muted") for r in rest]:
+            w = cv.tw(word, ("Segoe UI", 9)) + 16 + (18 if base else 0)
+            if x + w > x1 - 20 and x > x0 + 20:
+                x, yy = x0 + 20, yy + 28
+            x = cv.chip(x, yy, word, role, base) + 6
+        yy += 22 + 20
         cv.coords(card, *_rr_points(x0, y, x1, yy, R))
         return yy
+
+    def _mm_loot_card(self, cv, s, mine, x0, x1, y):
+        """Loot to sell: a pill per item with its picture from the trade site (when known), else a dot."""
+        loot = s.get("loot") or []
+        if not loot:
+            return y
+        card, yy = self._mm_box(cv, x0, x1, y, "Loot to sell")
+        x, h = x0 + 20, 30
+        for i, line in enumerate(loot):
+            name, note = _loot_parts(line)
+            f, fn = ("Segoe UI", 10), ("Segoe UI", 9)
+            w = 34 + cv.tw(name, f) + (cv.tw(note, fn) + 8 if note else 0) + 14
+            if x + w > x1 - 20 and x > x0 + 20:
+                x, yy = x0 + 20, yy + h + 6
+            tag = f"loot_{i}"
+            TH.round_rect(cv, x, yy, x + w, yy + h, h // 2 - 1, fill=cv.c("surface"), outline=cv.c("border_light"),
+                          tags=(tag,))
+            if cv.icon(name, x + 6, yy + h / 2, 20, anchor="w", tags=(tag,)) is None:
+                cv.create_oval(x + 6, yy + 5, x + 26, yy + 25, fill=cv.c("surface_high"), outline="", tags=(tag,))
+            t_ = cv.text(x + 34, yy + h / 2, name, f, fill=cv.c("text"), anchor="w", tags=(tag,))
+            if note:
+                cv.text(cv.bbox(t_)[2] + 8, yy + h / 2 + 1, note, fn, fill=cv.c("text_muted"), anchor="w", tags=(tag,))
+            cv.tips[tag] = line
+            x += w + 6
+        yy += h + 16
+        yy = cv.bottom(cv.text(x0 + 20, yy, "Item pictures come from the trade site, like Price Checks.",
+                               ("Segoe UI", 9), fill=cv.c("text_muted")), yy + 14) + 18
+        cv.coords(card, *_rr_points(x0, y, x1, yy, R))
+        return yy
+
+    def _mm_fold_toggle(self, key):
+        st = self.__dict__.setdefault("mm_folds", {})
+        st[key] = not st.get(key, key != "author")
+        self.mm_detail_cv.later(1)
+
+    def _mm_list_card(self, cv, x0, x1, y, title, lines, key):
+        if not lines:
+            return y
+        on = getattr(self, "mm_folds", {}).get(key, key != "author")
+        card, yy = self._mm_box(cv, x0, x1, y, title, note=str(len(lines)),
+                                fold=(on, lambda k=key: self._mm_fold_toggle(k)))
+        if on:
+            for line in lines:
+                yy = cv.bottom(cv.text(x0 + 20, yy, "• " + line, ("Segoe UI", 9), fill=cv.c("text"),
+                                       width=x1 - x0 - 40), yy + 14) + 4
+            yy += 14
+        else:
+            yy -= 8
+        cv.coords(card, *_rr_points(x0, y, x1, yy, R))
+        return yy
+
+    def _mm_tips_card(self, cv, s, mine, x0, x1, y):
+        return self._mm_list_card(cv, x0, x1, y, "Tips", s.get("tips") or [], "tips")
+
+    def _mm_risks_card(self, cv, s, mine, x0, x1, y):
+        return self._mm_list_card(cv, x0, x1, y, "Risks", s.get("risks") or [], "risks")
+
+    def _mm_sources_card(self, cv, s, mine, x0, x1, y):
+        srcs = s.get("sources") or []
+        if not srcs:
+            return y
+        card, yy = self._mm_box(cv, x0, x1, y, "Sources")
+        import webbrowser
+        for i, src in enumerate(srcs):
+            tg = f"src{i}"
+            si = cv.text(x0 + 20, yy, (src.get("title") or src["url"]) + "  ↗", ("Segoe UI", 9), fill=cv.c("link"),
+                         width=x1 - x0 - 40, tags=(tg,))
+            cv.acts[tg] = lambda u=src["url"]: webbrowser.open(u)
+            cv.lifts[tg] = [(si, {"fill": cv.c("link")}, {"fill": cv.c("accent")})]
+            cv.tips[tg] = src["url"]
+            yy = cv.bottom(si, yy + 14) + 6
+        yy += 14
+        cv.coords(card, *_rr_points(x0, y, x1, yy, R))
+        return yy
+
+    def _mm_author_card(self, cv, s, mine, x0, x1, y):
+        """From the author (folded): the older free text only - what nothing above already shows."""
+        lines = []
+        for key, title in (("requirements", "Requirements"), ("setup", "Other setup"), ("craft_steps", "Craft steps")):
+            lines += [f"{title}: {x}" for x in s.get(key) or []]
+        if not s.get("items"):
+            lines += [f"Tablets: {x}" for x in s.get("tablets") or []]
+            lines += [f"Waystones: {x}" for x in s.get("waystones") or []]
+        if not MM.master_of(s.get("masters"))[0]:
+            lines += [f"Atlas: {x}" for x in s.get("atlas") or []]
+        if isinstance(s.get("ledger"), dict) and MM.ledger_text(s["ledger"]):
+            lines.append("Their Strat Tracker: " + MM.ledger_text(s["ledger"]))
+        if s.get("regex"):
+            lines.append("Stash search: " + s["regex"])
+        y2 = self._mm_list_card(cv, x0, x1, y, "From the author", lines, "author")
+        ref = s.get("atlas_image")
+        if ref and getattr(self, "mm_folds", {}).get("author"):
+            from . import stratimg
+            path = stratimg.path_of(ref) if ref.startswith("l:") else self.mm_board_image(ref, s) if \
+                ref.startswith("b:") else None
+            img = self.strat_thumb(path, min(320, int(x1 - x0 - 40)), 180) if path and hasattr(self, "strat_thumb") \
+                else None
+            if img is not None:
+                self.mm_atlas_img = img
+                cv.create_image(x0 + 20, y2 + 8, image=img, anchor="nw", tags=("atlas",))
+                cv.acts["atlas"] = lambda p=path: self.mm_atlas_big(p)
+                cv.tips["atlas"] = "The author's atlas. Click to see it big."
+                y2 += img.height() + 16
+        return y2
 
     def _mm_money_card(self, cv, s, mine, x0, x1, y):
         """Where your money came from: your logs' loot for this strat, each part with a mark and a word."""
@@ -975,92 +1153,17 @@ class StratViews:
         cv.coords(card, *_rr_points(x0, y, x1, yy, R))
         return yy
 
-    def _mm_guide_card(self, cv, s, mine, x0, x1, y):
-        """Everything else the guide says: requirements, tablets, atlas (with the author's picture), tips, risks,
-        the stash regex, tags, sources."""
-        card, yy = self._mm_box(cv, x0, x1, y, "The guide")
-        w = x1 - x0 - 36
-        tx = x0 + 18
-        f, fh, fm = ("Segoe UI", 10), ("Segoe UI", 10, "bold"), ("Segoe UI", 9)
-
-        def head(text):
-            nonlocal yy
-            yy = cv.bottom(cv.text(tx, yy, text, fh, fill=cv.c("accent_2")), yy + 16) + 4
-
-        def lines(items, num=False):
-            nonlocal yy
-            for i, line in enumerate(items, 1):
-                yy = cv.bottom(cv.text(tx + 4, yy, (f"{i}. " if num else "• ") + line, f, fill=cv.c("text"),
-                                       width=w - 4), yy + 16) + 3
-            yy += 8
-        word, why = MM.THINKING.get(s.get("thoughts_per_click"), ("?", ""))
-        cph = s.get("clicks_per_hour", "")
-        head("Effort")
-        lines([f"{word} - {why}", f"Clicks per hour: {cph} - {MM.CLICKS.get(cph, '')}"])
-        if s.get("waystone_tiers"):
-            head("Waystone tiers")
-            lines([MM.tiers_text(s["waystone_tiers"])])
-        tags = s.get("tags") or []
-        got = [(g, [x for x in opts if x in tags]) for g, opts in MM.tag_groups().items()]
-        got = [(g, xs) for g, xs in got if xs]
-        if got:
-            head("Tags")
-            lines([f"{g}: {' · '.join(xs)}" for g, xs in got])
-        if isinstance(s.get("ledger"), dict):
-            head("Author's Strat Tracker")
-            lines([MM.ledger_text(s["ledger"])])
-        if s.get("atlas") or s.get("atlas_image"):
-            head("Atlas / master setup")
-            ref = s.get("atlas_image")
-            if ref:
-                from . import stratimg
-                path = stratimg.path_of(ref) if ref.startswith("l:") else None
-                if ref.startswith("b:"):
-                    path = self.mm_board_image(ref, s)
-                img = self.strat_thumb(path, min(320, int(w)), 180) if path and hasattr(self, "strat_thumb") else None
-                if img is not None:
-                    self.mm_atlas_img = img
-                    cv.create_image(tx, yy, image=img, anchor="nw", tags=("atlas",))
-                    cv.acts["atlas"] = lambda p=path: self.mm_atlas_big(p)
-                    cv.tips["atlas"] = "Click to see it big."
-                    yy += img.height() + 8
-                else:
-                    yy = cv.bottom(cv.text(tx, yy, "loading the author's atlas screenshot…" if ref.startswith("b:")
-                                           else "The atlas screenshot is missing from this PC.", fm,
-                                           fill=cv.c("text_muted")), yy + 14) + 6
-            lines(s.get("atlas") or [])
-        for key, title in (("requirements", "Requirements"), ("tablets", "Tablets"), ("waystones", "Waystones"),
-                           ("craft_steps", "Craft steps"), ("setup", "Other setup"), ("loot", "Loot to sell"),
-                           ("tips", "Tips"), ("risks", "Risks")):
-            if key in ("tablets", "waystones") and s.get("items"):
-                continue                                    # (You need has them)
-            if s.get(key):
-                head(title)
-                lines(s[key])
-        if s.get("regex"):
-            head("Stash regex")
-            rid = cv.text(tx + 4, yy, s["regex"], ("Consolas", 9), fill=cv.c("good"), width=w - 4)
-            yy = cv.bottom(rid, yy + 16) + 8
-        if s.get("sources"):
-            head("Sources")
-            import webbrowser
-            for i, src in enumerate(s["sources"]):
-                tg = f"src{i}"
-                si = cv.text(tx + 4, yy, "• " + (src.get("title") or src["url"]), f, fill=cv.c("link"), width=w - 4,
-                             tags=(tg,))
-                cv.acts[tg] = lambda u=src["url"]: webbrowser.open(u)
-                cv.lifts[tg] = [(si, {"fill": cv.c("link")}, {"fill": cv.c("accent")})]
-                yy = cv.bottom(si, yy + 16) + 3
-            yy += 8
-        yy += 4
-        cv.coords(card, *_rr_points(x0, y, x1, yy, R))
-        return yy
-
-
 def _rr_points(x0, y0, x1, y1, r):
     """The points of TH.round_rect (to resize a card drawn before its height was known)."""
     return [x0 + r, y0, x1 - r, y0, x1, y0, x1, y0 + r, x1, y1 - r, x1, y1, x1 - r, y1, x0 + r, y1, x0, y1,
             x0, y1 - r, x0, y0 + r, x0, y0]
+
+
+def _loot_parts(line):
+    """"Voices (keep unidentified)" / "Voices - keep unidentified" -> ("Voices", "keep unidentified")."""
+    line = str(line).strip()
+    m = re.match(r"^(.+?)\s*\((.+)\)$", line) or re.match(r"^(.+?)\s+[-–]\s+(.+)$", line)
+    return (m.group(1).strip(), m.group(2).strip()) if m else (line, "")
 
 
 def _ago_day(day):
