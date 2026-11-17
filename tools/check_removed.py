@@ -25,6 +25,8 @@ DOCS = ("README.md", "TOS.md", "linux/README.md", "themes/README.md", "strats/RE
 
 # (version, what it was, words a person read, names in the code / settings keys[, pending])
 REMOVED = [
+    ("3.0.6", "Strat Tracker's empty page: Make my first setup (it's ＋ New strat, the same page as Find's)",
+     ("Make my first setup",), ()),
     ("3.0.6", "Farming Strategies' pickers to the approved mockup v3: Waystone by hand's Top numbers (now Waystone "
               "modifiers · at least) and its mod picking (a waystone's mods aren't picked by hand), the tablet "
               "picker's one search list (now Prefix 1 / 2, Suffix 1 / 2) and the old Atlas masters tab row",

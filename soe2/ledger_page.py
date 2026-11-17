@@ -369,7 +369,7 @@ class LedgerPage:
                      anchor="w").pack(fill="x")
         b = tk.Frame(inner, bg=P1)
         b.pack(pady=(16, 0))
-        ttk.Button(b, text="Make my first setup", style="Primary.TButton", command=self.fl_new).pack(side="left")
+        ttk.Button(b, text="＋ New strat", style="Primary.TButton", command=self.fl_new_strat).pack(side="left")   # 3.0.6: one way
         ttk.Button(b, text="Start from a strat", command=self._fl_to_strats).pack(side="left", padx=(8, 0))
         ttk.Button(b, text="Import a CSV…", style="Quiet.TButton", command=self.fl_import_csv).pack(side="left",
                                                                                                  padx=(8, 0))
