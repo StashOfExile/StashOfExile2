@@ -101,7 +101,7 @@ class TabReaderPage:
         if hasattr(self, "empty_lbl") and not any(r.get("src", "manual") == self.list_src() for r in self.records.values()):
             self.empty_lbl.config(text=self.empty_text if self.list_src() == "manual" else self.pctab_empty_text())
         if mode == "Stash tab":
-            self.pc_tabsrow.pack(fill="x", after=self.pc_tabrow_after)
+            self.pc_tabsrow.pack(fill="x", pady=(8, 0), after=self.pc_tabrow_after)   # (3.0.6: room above it)
             self.pctab_bar()
             self.pc_tabrow.pack(fill="x", after=self.pc_tabsrow)
             self.pc_beta.show(fill="x", after=self.pc_tabrow, padx=8, pady=(2, 0))
@@ -178,7 +178,7 @@ class TabReaderPage:
             Tooltip(lab, f"{t['name']}: priced {t.get('amount') or '?'} {t.get('currency_name') or t.get('currency')}"
                          " in game · right-click to rename or delete")
         add = ttk.Button(self.pc_tabsrow, text="＋ Tab", command=self.pctab_new, style="Quiet.TButton")   # 2.47.0
-        add.pack(side="left", padx=(8, 0))
+        add.pack(side="left", padx=(12, 0))
         Tooltip(add, "Another stash tab, with its own price and its own list")
         # 2.87.0: the list follows the tab - down each column (left to right) or across each row (top to bottom)
         ORDERS = (("columns", "Down columns"), ("rows", "Across rows"))

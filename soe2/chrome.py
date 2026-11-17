@@ -37,7 +37,19 @@ class SectionBar(tk.Canvas):
         self.title, self._note, self._right = title, note, []
         TH.self_painted(self)
         TH.subscribe(lambda t: self.redraw(), owner=self)
-        self.bind("<Configure>", lambda e: self.redraw())
+        self.bind("<Configure>", self._resized)
+
+    def _resized(self, _e=None):
+        """3.0.6 (a measured Drawer drag: 84 strip redraws in 11 resize steps): one redraw once the size settles."""
+        if getattr(self, "_redraw_job", None) is None:
+            self._redraw_job = self.after_idle(self._redraw_now)
+
+    def _redraw_now(self):
+        self._redraw_job = None
+        try:
+            self.redraw()
+        except tk.TclError:
+            pass
 
     def set_title(self, title):
         if title != self.title:

@@ -761,25 +761,27 @@ class DrawerHost:
             buglog.caught()
 
     def _drawer_freeze(self, on):
-        """3.0.6 (owner: dragging the Drawer's edge "lags in settings and every other page", not on Dashboard): while
-        you drag, the open page keeps its size (it isn't laid out again for every pixel); it fills the Drawer again
-        once, when you let go (_drawer_resized)."""
+        """3.0.6 (owner: dragging the Drawer's edge "lags in settings and every other page", not on Dashboard; the
+        measured drag: 11 resize steps in 6.7 s - each step drew every page again): while you drag, the pages are
+        taken off (an empty Drawer is cheap to draw); they come back once, at the new size, when you let go
+        (_drawer_resized). Every page shown counts - Settings lies over the page under it."""
         sh = getattr(self, "shell", None)
         try:
             if on:
-                if getattr(self, "_drawer_frozen", None) is not None or sh is None or not sh.active:
+                if getattr(self, "_drawer_frozen", None) or sh is None:
                     return
-                w = sh.windows.get(sh.active)
-                if w is None or not getattr(w, "_shown", False) or not w.winfo_ismapped():
-                    return
-                tk.Place.place_configure(w, relwidth=0, relheight=0, width=w.winfo_width(), height=w.winfo_height())
-                self._drawer_frozen = w
+                shown = [w for w in list(getattr(sh, "windows", {}).values())
+                         if getattr(w, "_shown", False) and w.winfo_ismapped()]
+                for w in shown:
+                    w.place_forget()
+                self._drawer_frozen = shown
             else:
-                w, self._drawer_frozen = getattr(self, "_drawer_frozen", None), None
-                if w is not None and getattr(w, "_shown", False):
-                    w._place_now()
+                shown, self._drawer_frozen = getattr(self, "_drawer_frozen", None) or [], None
+                for w in shown:
+                    if getattr(w, "_shown", False):           # (the order they lie in is kept: Settings on top)
+                        w._place_now()
         except (tk.TclError, AttributeError):
-            self._drawer_frozen = None
+            buglog.caught()
 
     def _drawer_maximized(self):
         """The Drawer was maximized: the Full window, as it is (maximized) - nothing re-docks it or puts its size
