@@ -376,7 +376,7 @@ class LedgerPage:
         return f
 
     def _fl_to_strats(self):
-        self.mm_page.pick("Strats", notify=False)
+        self.mm_page.pick("Find", notify=False)
         self.mm_show_page()
 
     # ================================================================ filling it
@@ -1006,18 +1006,18 @@ class LedgerPage:
         except Exception:
             buglog.caught()
         try:
-            self.mm_page.pick("Strats", notify=False)
+            self.mm_page.pick("Find", notify=False)
             self.mm_show_page()
             self.mm_show_mine(sid)
         except Exception:
             self.log_error("opening the strat in Farming Strategies")
 
     def fl_upload_fill(self, st, probs):
-        """The strat still misses something the board needs -> Money Makers › Strats › Mine with it picked."""
-        self.mm_page.pick("Strats", notify=False)
+        """The strat still misses something the board needs -> Farming Strategies › Find, From: Mine, with it open."""
+        self.mm_page.pick("Find", notify=False)
         self.mm_show_page()
         self.mm_show_mine(st["id"])
-        self.app_toast(f"\"{st['name']}\" is saved in Farming Strategies › Strats › Mine. Before it can go to the community "
+        self.app_toast(f"\"{st['name']}\" is saved in Farming Strategies › Find (From: Mine). Before it can go to the community "
                        f"strats it needs: {', '.join(p.replace('missing ', '') for p in probs[:4])}. Fill those in, "
                        "then press 📤 Post to Community.", "Upload a strat", secs=30)
 

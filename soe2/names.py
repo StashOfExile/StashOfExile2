@@ -99,6 +99,17 @@ FEATURES = (
     "Price check overlay",      # the price card over the game (pcpop.py) - "Where the price shows"
     "NEW chip",                 # 3.0.0 (newchip.py): the word NEW on a new feature's row and its page's rail icon,
                                 # until you open or use it
+    # 3.0.6 Farming Strategies (the approved mockups): Find (the tab: was Strats) - the search, the filters, Best for
+    # you right now (the strat that makes the most an hour of those shown: its one orange button, Run this strat,
+    # opens the Strat Tracker on it), a row per strat and Quick tips folded at the bottom (was the Lucrative Strats
+    # tab). An opened strat: You need (its items), How it goes (its steps), Your numbers, Where your money came from
+    "Find",
+    "Best for you right now",
+    "Run this strat",
+    "Quick tips",
+    "You need",
+    "How it goes",
+    "Where your money came from",
     "Linux check",              # Linux build: Settings › Advanced and  StashOfExile2 --check-linux  - session, keys,
                                 # screen picture, clipboard, key sending, OCR, Client.txt, each with its fix
 )
@@ -157,6 +168,9 @@ OLD = {
     "Read key": "Read Key",             # GGG policy: one name for the key the helpers read on (a name: Title Case)
     "Screen key": "Read Key",
     "Look key": "Read Key",             # 3.0.1 (owner: "ctrl + shift + r = Read. R for Read.")
+    "Lucrative Strats": "Quick tips",   # 3.0.6 Farming Strategies: the tab folded into Find
+    "Lucrative strats": "Quick tips",
+    "Track in Strat Tracker": "Run this strat",
 }
 
 # an old page name that now means another page: before 2.80.0, Bulk Pricing was called "Price checks"

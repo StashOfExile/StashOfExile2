@@ -125,7 +125,7 @@ class CommunityPage:
     # ---------------------------------------------------------------- the name part
     def cy_paint(self):
         """Redraw the name, its buttons and every 👤 chip."""
-        for b in (getattr(self, "mm_acct", None), getattr(self, "lb_acct", None)):
+        for b in (getattr(self, "lb_acct", None),):           # (3.0.6: Farming Strategies' ⋯ menu says the name)
             if b is not None:
                 try:
                     b.config(text=chip_text() + " ▾")

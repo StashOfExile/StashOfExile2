@@ -106,7 +106,7 @@ ORDER = ("id", "name", "author", "updated", "patch", "category", "type", "summar
          "clicks_per_hour", "tags", "waystone_tiers", "est_cost", "est_profit",
          "requirements", "tablets", "waystones", "atlas", "craft_steps", "setup", "steps", "loot", "tips", "risks",
          "regex", "sources", "items", "ledger", "atlas_image")
-# Lucrative Strats: one-liners
+# Quick tips (3.0.6: was the Lucrative Strats tab): one-liners
 ONE_ORDER = ("id", "text", "author", "updated", "category", "type", "tags")
 
 
@@ -361,7 +361,7 @@ def fetch_live(get=None, force=False, now=None):
 
 
 def validate_one(o):
-    """A Lucrative Strats one-liner -> problems."""
+    """A Quick tips one-liner -> problems."""
     if not isinstance(o, dict):
         return ["must be an object"]
     out = [f"missing \"{k}\"" for k in ("id", "text", "author") if not o.get(k)]
@@ -466,6 +466,134 @@ def div_value(d):
     if per is None:
         per = {"ex": 1 / 100, "chaos": 1 / 200}.get(unit, 1)      # (rough, until the rates are in)
     return v * per
+
+
+# ---------------------------------------------------------------- 3.0.6: Find / an opened strat (the numbers and how)
+# Each strat's picture is the game's tablet for its mechanic (the trade site's art: pricecheck_page.TABLET_ICONS);
+# anything else gets the generic tablet. No art (offline, never loaded): the word alone.
+MECH_TABLET = {"Breach": "Breach Tablet", "Ritual": "Ritual Tablet", "Expedition": "Expedition Tablet",
+               "Delirium": "Delirium Tablet", "Abyss": "Abyss Tablet", "Temple": "Temple Tablet",
+               "Overseer": "Overseer Tablet"}
+GENERIC_TABLET = "Irradiated Tablet"
+BUDGETS = TAG_GROUPS["Budget"]
+
+
+def mechanic(s):
+    """The league mechanic a strat farms (its type, else one it also uses) - or None."""
+    if s.get("type") in MECH_TABLET:
+        return s["type"]
+    return next((t for t in s.get("tags") or [] if t in MECH_TABLET), None)
+
+
+def tablet_of(s):
+    """The tablet whose picture stands for this strat."""
+    return MECH_TABLET.get(mechanic(s)) or GENERIC_TABLET
+
+
+def budget_of(s):
+    return next((t for t in s.get("tags") or [] if t in BUDGETS), None)
+
+
+def short_div(v):
+    """2.35 -> "2.4", 0.43 -> "0.43", 12.2 -> "12" (divines, for the big numbers)."""
+    if v is None:
+        return "-"
+    a = abs(v)
+    t = f"{v:.0f}" if a >= 10 else f"{v:.1f}" if a >= 1 else f"{v:.2f}".rstrip("0").rstrip(".")
+    return "0" if t in ("-0", "") else t
+
+
+def per_hour(s, mine=None):
+    """What a strat makes an hour, in divines -> {"value", "low", "high", "how", "count"} or None.
+    value: the middle of the author's estimate; low / high: its ends; mine: your Strat Tracker figures for it
+    (ledger.figures) - only for the how and the "you" mark, never mixed into the value."""
+    est = s.get("est_profit")
+    v = div_value(est)
+    if v is None:
+        return None
+    lo = div_value({"amount": est["low"], "unit": est.get("unit", "div")}) if isinstance(est.get("low"), (int, float)) else v
+    hi = div_value({"amount": est["high"], "unit": est.get("unit", "div")}) if isinstance(est.get("high"), (int, float)) else v
+    how = [f"The author's estimate: {money_text(est, ' an hour')}" + (f"; the middle is {short_div(v)} div." if lo != hi else ".")]
+    lg = s.get("ledger") if isinstance(s.get("ledger"), dict) else {}
+    runs = lg.get("runs")
+    if isinstance(lg.get("div_per_hour"), (int, float)):
+        how.append(f"Their Strat Tracker: {short_div(lg['div_per_hour'])} div an hour"
+                   + (f" over {runs:g} runs." if isinstance(runs, (int, float)) else "."))
+    score = (s.get("_post") or {}).get("score")
+    if isinstance(score, int) and score > 0:
+        how.append(f"▲ {score} found it useful.")
+    you = (mine or {}).get("per_hour")
+    if you is not None:
+        how.append(f"◆ You: {short_div(you)} div an hour over {mine.get('runs', 0)} runs (your Strat Tracker).")
+    count = f"{runs:g} runs" if isinstance(runs, (int, float)) else (f"▲ {score}" if isinstance(score, int) and score > 0
+                                                                       else "estimate")
+    return {"value": v, "low": min(lo, hi), "high": max(lo, hi), "how": " ".join(how), "count": count, "you": you}
+
+
+def _item_label(it):
+    kind = it.get("kind")
+    if kind in ("waystone", "tablet"):
+        return kind
+    return str(it.get("name") or it.get("base") or "item").lower()
+
+
+def run_cost(s, costs=None):
+    """What one run costs -> {"value", "sum", "how"} or None. The trade site's prices (the daily check) when an item
+    has one: their sum, written out ("waystone 0.2 + 4 tablets × 0.1"); else the author's estimate."""
+    c = (costs or {}).get(s.get("id")) or {}
+    prices = c.get("prices") or {}
+    parts, total = [], 0.0
+    for i, it in enumerate(s.get("items") or []):
+        p = prices.get(str(i))
+        if p is None:
+            continue
+        n, lasts = max(1, int(it.get("count") or 1)), max(1, int(it.get("lasts") or 1))
+        total += p * n / lasts
+        lab = _item_label(it)
+        part = f"{lab} {short_div(p)}" if n == 1 else f"{n} {lab}{'s' if lab in ('waystone', 'tablet') else ''} × {short_div(p)}"
+        parts.append(part + (f" ÷ {lasts} runs" if lasts > 1 else ""))
+    if parts:
+        ago = max(0, time.time() - (c.get("at") or time.time()))
+        when = "today" if ago < 86400 else f"{int(ago // 86400)} days ago"
+        return {"value": total, "sum": " + ".join(parts),
+                "how": f"Trade site, checked {when}: the cheapest real offer of each item, times how many a run uses."}
+    v = div_value(s.get("est_cost"))
+    if v is None:
+        return None
+    return {"value": v, "sum": "the author's estimate",
+            "how": "The author's estimate." + (" The items it lists are checked on the trade site once a day while "
+                                               "Farming Strategies is open." if s.get("items") else "")}
+
+
+def run_profit(s):
+    """The author's profit a run (their Strat Tracker) -> {"value", "sum", "how"} or None."""
+    lg = s.get("ledger") if isinstance(s.get("ledger"), dict) else {}
+    p, loot, cost = lg.get("profit_per_run_div"), lg.get("loot_per_run_div"), lg.get("cost_per_run_div")
+    if not isinstance(p, (int, float)) and isinstance(loot, (int, float)) and isinstance(cost, (int, float)):
+        p = loot - cost
+    if not isinstance(p, (int, float)):
+        return None
+    sm = f"loot {short_div(loot)} − cost {short_div(cost)}" if isinstance(loot, (int, float)) and \
+        isinstance(cost, (int, float)) else "the author's Strat Tracker"
+    runs = lg.get("runs")
+    return {"value": p, "sum": sm, "how": "From the author's Strat Tracker" +
+            (f": {runs:g} runs." if isinstance(runs, (int, float)) else ".")}
+
+
+def run_time(s):
+    """The author's average run (their Strat Tracker) -> {"secs", "sum", "how"} or None."""
+    lg = s.get("ledger") if isinstance(s.get("ledger"), dict) else {}
+    runs, mins = lg.get("runs"), lg.get("minutes")
+    if not isinstance(runs, (int, float)) or not isinstance(mins, (int, float)) or runs <= 0:
+        return None
+    return {"secs": mins * 60 / runs, "sum": f"average of {runs:g} runs",
+            "how": f"The author's Strat Tracker: {mins:g} minutes over {runs:g} runs."}
+
+
+def mins_text(secs):
+    secs = int(round(secs or 0))
+    m, s = divmod(secs, 60)
+    return f"{m} min {s} s" if m and s else f"{m} min" if m else f"{s} s"
 
 
 def money_parse(text, single=False):

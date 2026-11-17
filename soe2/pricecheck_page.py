@@ -144,18 +144,42 @@ def mod_rows(item):
     return out
 
 
+# 3.0.6: the Precursor Tablets' pictures (the trade site's art), shipped so Farming Strategies shows each strat's
+# tablet before you price-check one. A picture learned from a listing wins (icons()).
+TABLET_ICONS = {
+    "Breach Tablet": (
+        "https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvUHJlY3Vyc29yVGFibGV0cy9QcmVjdXJzb3JUYWJsZXRCcmVhY2giLCJ3IjoxLCJoIjoxLCJzY2FsZSI6MSwicmVhbG0iOiJwb2UyIn1d/b45b6e660e/PrecursorTabletBreach.png"),
+    "Ritual Tablet": (
+        "https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvUHJlY3Vyc29yVGFibGV0cy9QcmVjdXJzb3JUYWJsZXRSaXR1YWwiLCJ3IjoxLCJoIjoxLCJzY2FsZSI6MSwicmVhbG0iOiJwb2UyIn1d/23c5248469/PrecursorTabletRitual.png"),
+    "Expedition Tablet": (
+        "https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvUHJlY3Vyc29yVGFibGV0cy9QcmVjdXJzb3JUYWJsZXRFeHBlZGl0aW9uIiwidyI6MSwiaCI6MSwic2NhbGUiOjEsInJlYWxtIjoicG9lMiJ9XQ/1f8dc7fd47/PrecursorTabletExpedition.png"),
+    "Irradiated Tablet": (
+        "https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvUHJlY3Vyc29yVGFibGV0cy9QcmVjdXJzb3JUYWJsZXRHZW5lcmljIiwidyI6MSwiaCI6MSwic2NhbGUiOjEsInJlYWxtIjoicG9lMiJ9XQ/4fbc73f060/PrecursorTabletGeneric.png"),
+    "Delirium Tablet": (
+        "https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvUHJlY3Vyc29yVGFibGV0cy9QcmVjdXJzb3JUYWJsZXREZWxpcml1bSIsInciOjEsImgiOjEsInNjYWxlIjoxLCJyZWFsbSI6InBvZTIifV0/8c2fac816e/PrecursorTabletDelirium.png"),
+    "Abyss Tablet": (
+        "https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvUHJlY3Vyc29yVGFibGV0cy9QcmVjdXJzb3JUYWJsZXRBYnlzcyIsInciOjEsImgiOjEsInNjYWxlIjoxLCJyZWFsbSI6InBvZTIifV0/478e9f6ae2/PrecursorTabletAbyss.png"),
+    "Temple Tablet": (
+        "https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvUHJlY3Vyc29yVGFibGV0cy9QcmVjdXJzb3JUYWJsZXRJbmN1cnNpb24iLCJ3IjoxLCJoIjoxLCJzY2FsZSI6MSwicmVhbG0iOiJwb2UyIn1d/9beb68ac5d/PrecursorTabletIncursion.png"),
+    "Overseer Tablet": (
+        "https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvUHJlY3Vyc29yVGFibGV0cy9QcmVjdXJzb3JUYWJsZXRCb3NzIiwidyI6MSwiaCI6MSwic2NhbGUiOjEsInJlYWxtIjoicG9lMiJ9XQ/6a422fabb8/PrecursorTabletBoss.png"),
+}
+
 _ICONS = None
 
 
 def icons():
-    """2.105.0: base -> the trade site's picture of it (learned from listings; Market Insights' cards use it)."""
+    """2.105.0: base -> the trade site's picture of it (learned from listings; Market Insights' cards use it).
+    3.0.6: the tablets' pictures ship with the app (TABLET_ICONS) - a learned one wins."""
     global _ICONS
     if _ICONS is None:
         from .config import load_json
         try:
-            _ICONS = dict(load_json("icons.json", {}) or {})
+            learned = load_json("icons.json", {}) or {}
+            learned = learned if isinstance(learned, dict) else {}
         except Exception:
-            _ICONS = {}
+            learned = {}
+        _ICONS = {**TABLET_ICONS, **learned}
     return _ICONS
 
 
@@ -167,7 +191,7 @@ def icon_learn(base, url):
         ic[base] = url
         try:
             from .config import save_json
-            save_json("icons.json", ic)
+            save_json("icons.json", {k: v for k, v in ic.items() if TABLET_ICONS.get(k) != v})   # (only what was learned)
         except Exception:
             buglog.caught()
 
@@ -340,7 +364,7 @@ class PriceCheckPage:
     def build_pc(self, body):
         self.pc_body = body
         self.pc_rid = None
-        self._pc_art_cache, self._pc_art_wait = {}, set()
+        self._pc_art_init()
         P2 = C["panel2"]
         # UI overhaul: two views, listed under Price Checks in the sidebar - the check itself (home) and History, every
         # item you priced (pclist.py)
@@ -1618,23 +1642,34 @@ class PriceCheckPage:
         os.makedirs(d, exist_ok=True)
         return os.path.join(d, hashlib.sha1(url.encode()).hexdigest()[:20] + ".png")
 
-    def pc_art(self, url):
-        """The item's picture, from the cache or loaded in the background (the cards are redrawn once it's here)."""
+    def _pc_art_init(self):
+        if not hasattr(self, "_pc_art_cache"):          # (3.0.6: Farming Strategies may ask before Price Checks is built)
+            self._pc_art_cache, self._pc_art_wait = {}, set()
+
+    def pc_art(self, url, px=ART_PX):
+        """The item's picture, from the cache or loaded in the background (the cards are redrawn once it's here).
+        px: its size (3.0.6: Farming Strategies' tablets are smaller)."""
         if not url or not url.startswith("https://"):
             return None
-        if url in self._pc_art_cache:
-            return self._pc_art_cache[url]
+        self._pc_art_init()
+        key = url if px == ART_PX else f"{url}#{px}"
+        if key in self._pc_art_cache:
+            return self._pc_art_cache[key]
         path = self._pc_art_path(url)
         if os.path.exists(path):
             try:
                 from PIL import Image, ImageTk
                 im = Image.open(path)
-                im.thumbnail((ART_PX, ART_PX))
+                if px == ART_PX:
+                    im.thumbnail((px, px))
+                else:
+                    im = im.convert("RGBA").resize((px, max(1, round(px * im.height / max(1, im.width)))),
+                                                   Image.LANCZOS)
                 ph = ImageTk.PhotoImage(im, master=self.root)
-                self._pc_art_cache[url] = ph
+                self._pc_art_cache[key] = ph
                 return ph
             except Exception:
-                self._pc_art_cache[url] = None
+                self._pc_art_cache[key] = None
                 return None
         failed = getattr(self, "_pc_art_failed", {})
         if url not in self._pc_art_wait and time.time() - failed.get(url, 0) > 600:   # a failed one: again in 10 min
@@ -1671,6 +1706,11 @@ class PriceCheckPage:
         for v in (getattr(self, "pcv", None), getattr(self, "favv", None)):      # 2.84.0: each view with cards
             if v is not None and v.redraw and any(getattr(c, "_art_url", None) in done for c in v.cards):
                 v.redraw()
+        for fn in getattr(self, "_art_hooks", ()):         # 3.0.6: other pages with pictures (Farming Strategies)
+            try:
+                fn(done)
+            except Exception:
+                buglog.caught()
         card = next(iter(getattr(self, "ins_card", None) and self.ins_card.winfo_children() or []), None)
         if card is not None and getattr(card, "_art_url", None) in done and getattr(self, "ins_pick", None):
             try:                                          # 2.105.0: Market Insights' card gets its picture too

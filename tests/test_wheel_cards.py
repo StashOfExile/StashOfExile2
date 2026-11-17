@@ -1,6 +1,7 @@
 """3.0.1 (owner: the What's new card scrolled only with the mouse over its text - over one of its cards the wheel did
 nothing): cards placed in a Text (window_create) pass the wheel on to it (style.wheel_scrolls) - the What's new card
-(the whole card window) and Farming Strategies' guide (its item cards, the tablets' button, the atlas picture).
+(the whole card window). 3.0.6: Farming Strategies draws an opened strat on one canvas (stratview.py) - nothing
+is placed in a Text there any more, and a card placed in one later must pass the wheel on too.
 
     python3.12 -m unittest tests.test_wheel_cards          (or tests/runall.sh)"""
 import os
@@ -88,11 +89,10 @@ class WheelOverCards(unittest.TestCase):
     def test_the_places_use_it(self):
         app = source("app.py")
         self.assertIn("wheel_scrolls(t, card)", app, "What's new: the whole card")
-        mm = source("moneymakers_page.py")
-        made = re.findall(r't\.window_create\("end", window=(\w+)', mm)
-        self.assertTrue(made)
-        for w in made:
-            self.assertIn(f"wheel_scrolls(t, {w})", mm, f"Farming Strategies: {w} passes the wheel on")
+        for name in ("moneymakers_page.py", "stratview.py"):
+            mm = source(name)
+            for w in re.findall(r't\.window_create\("end", window=(\w+)', mm):
+                self.assertIn(f"wheel_scrolls(t, {w})", mm, f"Farming Strategies: {w} passes the wheel on")
 
 
 if __name__ == "__main__":

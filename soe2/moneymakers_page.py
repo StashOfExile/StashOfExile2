@@ -1,5 +1,7 @@
-"""The Money Makers window (2.28.0): community strats in one standard layout (left: the list, right: the strat) and a
-simple run tracker of its own. Data and the layout check live in moneymakers.py."""
+"""Farming Strategies (2.28.0 Money Makers): community strats in one standard layout and the Strat Tracker.
+3.0.6 (the approved mockups): Find - a search box, one-line filters, the best strat for you right now and a row per
+strat, Quick tips folded at the bottom - and an opened strat (its numbers, what you need, how it goes); both drawn on
+canvases (stratview.py). Data and the layout check live in moneymakers.py."""
 import json
 import time
 import tkinter as tk
@@ -11,13 +13,15 @@ from . import board as B
 from . import moneymakers as MM
 from .config import SETTINGS, save_json
 from .style import over_app
-from .style import C, MONO, SegBar, Tooltip, place_near, autowrap, wheel_scrolls
-from .chrome import SectionBar, Viewport, section as chrome_section
+from .style import C, SegBar, Tooltip, place_near
+from .chrome import section as chrome_section
+from .stratview import StratViews, scroller
 
 ORIGIN = {"community": "Official", "mine": "Mine", "example": "Example", "board": "Community"}
 VIEWS = ("Official", "Community", "Mine")
-CARD_SORT = {"Profit": ("profit", True), "Upvotes": ("score", True), "Easiest": ("thoughts_per_click", False),
-             "Name": ("name", False)}                         # 2.71.0: the cards' Sort
+CARD_SORT = {"Per hour": ("profit", True), "Upvotes": ("score", True), "Easiest": ("thoughts_per_click", False),
+             "Name": ("name", False)}                         # 2.71.0: the Sort (3.0.6: Profit is Per hour)
+TABS = ("Find", "Strat Tracker")                              # 3.0.6: Find (was Strats); Quick tips fold into it
 
 
 def _hms(secs):
@@ -27,21 +31,19 @@ def _hms(secs):
     return f"{h}:{m:02d}:{s:02d}" if h else f"{m}:{s:02d}"
 
 
-class MoneyMakersPage:
+class MoneyMakersPage(StratViews):
     """Mixed into App."""
 
     def build_money_window(self, body):
         P1 = C["panel"]
         self.mm_strats, self.mm_sel, self.mm_sort = [], None, ("profit", True)     # 2.71.0: best first
-        self.mm_page = SegBar(body, ["Strats", "Lucrative Strats", "Strat Tracker"],     # (UI overhaul: Craft Helper is its own page)
-                              command=lambda v: self.mm_show_page(), size=10, pad=(16, 4))
+        self.mm_page = SegBar(body, list(TABS), command=lambda v: self.mm_show_page(), size=10, pad=(16, 4))
         self.mm_page.pack(anchor="w", padx=8, pady=(8, 0))
         if getattr(self, "shell", None) is not None:          # 2.64.0: its tabs are listed in the sidebar
             self.shell.register_tabs("money", self.mm_page)
         self.mm_pages = {name: tk.Frame(body, bg=P1) for name in self.mm_page.btns}
-        self.mm_strat_page, self.mm_run_page = self.mm_pages["Strats"], self.mm_pages["Strat Tracker"]
+        self.mm_strat_page, self.mm_run_page = self.mm_pages["Find"], self.mm_pages["Strat Tracker"]
         self.mm_build_strats(self.mm_strat_page)
-        self.mm_build_oneliners(self.mm_pages["Lucrative Strats"])
         self.build_ledger(self.mm_run_page)                  # 2.45.0: Strat Tracker (was Run tracker: ledger_page.py)
         self.mm_strat_page.pack(fill="both", expand=True)
         self.mm_reload()
@@ -54,25 +56,37 @@ class MoneyMakersPage:
         self.mm_pages[cur].pack(fill="both", expand=True)
         if cur == "Strat Tracker":
             self.fl_refresh()
-        elif cur == "Lucrative Strats":
-            self.mm_one_fill()
 
-    # ---------------- the strats list
+    # ---------------- Find: the toolbar (real widgets: the search box first), the list on a canvas
     def mm_build_strats(self, page):
-        P1, P2 = C["panel"], C["panel2"]
-        bar = tk.Frame(page, bg=P1, padx=8, pady=8)
-        bar.pack(fill="x")
-        # 2.30.0: where the strats come from - the curated Official list, the Community board, or your own
-        # UI overhaul: the search box first, then where the strats come from
+        P1 = C["panel"]
+        self.mm_find_f = tk.Frame(page, bg=P1)
+        self.mm_find_f.pack(fill="both", expand=True)
+        bar = tk.Frame(self.mm_find_f, bg=P1, pady=12)
+        bar.pack(fill="x", padx=24)
+        self.mm_bar = bar
+        # the filters (what they hold is unchanged: 2.71.0 / 2.78.0); 3.0.6: each is one dropdown on one line
         self.mm_q = tk.StringVar()
         self.mm_q.trace_add("write", lambda *_a: self.root.after_idle(self.mm_fill))
+        self.mm_view = tk.StringVar(value="Official")        # where the strats come from (2.30.0)
+        self.mm_budget = tk.StringVar(value="Any")
+        self.mm_tag, self.mm_tier = tk.StringVar(value="Any"), tk.StringVar(value="Any")
+        self.mm_max, self.mm_cmax = tk.StringVar(value="Any"), tk.StringVar(value="Any")
+        self.mm_cat, self.mm_type = tk.StringVar(value=""), tk.StringVar(value="")        # "" = all
+        self.mm_content = set()                              # 2.78.0: the Content tags (pinnacles, map content)
+        self.mm_csort = tk.StringVar(value="Per hour")
+        self.mm_bsort = tk.StringVar(value="Top")            # the community board's order
+        self.mm_board, self.mm_board_ones, self.mm_official = [], [], self._mm_official_cache()
+        self.mm_tips_open, self.mm_one_sel = False, None
         sbox = tk.Frame(bar, bg=C["odd"], highlightthickness=1, highlightbackground=C["line"])
-        sbox.pack(side="left", padx=(0, 16))
+        sbox.pack(side="left", padx=(0, 8), fill="x", expand=True)
+        self.mm_sbox = sbox
         tk.Label(sbox, text="⌕", bg=C["odd"], fg=C["muted"], font=("Segoe UI Symbol", 10)).pack(side="left", padx=(8, 0))
-        se = tk.Entry(sbox, textvariable=self.mm_q, width=26, bg=C["odd"], fg=C["text"], insertbackground=C["text"],
+        se = tk.Entry(sbox, textvariable=self.mm_q, width=38, bg=C["odd"], fg=C["text"], insertbackground=C["text"],
                       relief="flat", highlightthickness=0, bd=0, font=("Segoe UI", 10))
-        se.pack(side="left", padx=8, ipady=8)
-        ph = tk.Label(sbox, text="Search strats", bg=C["odd"], fg=C["muted"], font=("Segoe UI", 10))
+        se.pack(side="left", padx=8, ipady=8, fill="x", expand=True)
+        self.mm_search = se
+        ph = tk.Label(sbox, text="Search strats, e.g. breach", bg=C["odd"], fg=C["muted"], font=("Segoe UI", 10))
         ph.bind("<Button-1>", lambda e: se.focus_set())
 
         def placeholder(*_a):
@@ -86,451 +100,311 @@ class MoneyMakersPage:
         for ev in ("<FocusIn>", "<FocusOut>"):
             se.bind(ev, placeholder, add="+")
         self.mm_q.trace_add("write", placeholder)
-        self.root.after(300, placeholder)
-        self.mm_view = SegBar(bar, list(VIEWS), command=lambda v: self.mm_view_changed(), size=10, pad=(12, 4))
-        self.mm_view.pack(side="left", padx=(0, 16))
-        self.mm_board, self.mm_board_ones, self.mm_official = [], [], self._mm_official_cache()
-        self.mm_acct = ttk.Button(bar, text="", command=self.mm_account_click)
-        self.mm_acct.pack(side="right")
-        ttk.Button(bar, text="↻ Refresh", command=self.mm_refresh).pack(side="right", padx=(0, 8))
+        se.after(300, placeholder)                           # (gone with the box)
+        self.mm_drops = {}
+        for key, tip in (("budget", "What a strat costs to start - a strat's Budget tag."),
+                         ("effort", "Thoughts per click: how much thinking a strat needs - a pick shows that level "
+                                    "and the easier ones."),
+                         ("type", "What a strat is: its category, then its type."),
+                         ("from", "Where strats come from: Official (comes with the app), Community (posted by "
+                                  "players) or Mine (yours, on this PC)."),
+                         ("more", "Clicks per hour, Content, Waystone tier and Tag."),
+                         ("filters", "Every filter, the sort and Add my own.")):
+            self.mm_drops[key] = self._mm_drop(bar, key, tip)
         self.mm_live_lbl = tk.Label(bar, text="", bg=P1, fg=C["muted"], font=("Segoe UI", 9))
-        self.mm_live_lbl.pack(side="right", padx=8)
-        from .style import flowify as _flow
-        _flow(bar)                                           # D3: wraps at Drawer width, search stays first
+        dots = tk.Label(bar, text="⋯", bg=P1, fg=C["text"], font=("Segoe UI", 12, "bold"), padx=8, pady=8,
+                        cursor="hand2", highlightthickness=1, highlightbackground=C["line"])
+        dots.bind("<Button-1>", lambda e: self.mm_more_menu(dots))
+        Tooltip(dots, "Refresh, Import file…, your community name")
+        self.mm_dots = dots
+        self.mm_add_btn = self._mm_ghost(bar, "＋ Add my own", self.mm_add)
+        Tooltip(self.mm_add_btn, "Write down a strat of your own - it stays on this PC until you post it.")
+        self.mm_drops["sort"] = self._mm_drop(bar, "sort", "The order of the strats under the best one.")
+        for w, side, padx in ((self.mm_drops["budget"], "left", (0, 8)), (self.mm_drops["effort"], "left", (0, 8)),
+                              (self.mm_drops["type"], "left", (0, 8)), (self.mm_drops["from"], "left", (0, 8)),
+                              (self.mm_drops["more"], "left", (0, 8)), (self.mm_drops["filters"], "left", (0, 0)),
+                              (dots, "right", (8, 0)), (self.mm_add_btn, "right", (8, 0)),
+                              (self.mm_drops["sort"], "right", (8, 0)), (self.mm_live_lbl, "right", (8, 0))):
+            w.pack(side=side, padx=padx)
+        from .style import flowify
+        flowify(bar)                                         # (wraps in a narrow window, search stays first)
+        cf, self.mm_find_cv = scroller(self.mm_find_f, self, self._mm_draw_find, P1)
+        cf.pack(fill="both", expand=True)
+        # an opened strat: its own canvas (‹ All strats goes back)
+        self.mm_open_f, self.mm_detail_cv = scroller(page, self, self._mm_draw_detail, P1)
+        self.mm_detail_cv.bind("<Escape>", lambda e: self.mm_close())
+        self.mm_detail_on = False
+        self._art_hooks = getattr(self, "_art_hooks", []) + [self._mm_art_came]
+        self._drawer_look_hooks = getattr(self, "_drawer_look_hooks", []) + [self.mm_drawer_look]
+        self.mm_drawer_look(None)
         self.mm_account_paint()
-        # 2.71.0: filter buttons - what it is (category, then its type), how much thinking, how busy the hands
-        self.mm_tag, self.mm_tier = tk.StringVar(value="Any"), tk.StringVar(value="Any")
-        self.mm_max, self.mm_cmax = tk.StringVar(value="Any"), tk.StringVar(value="Any")
-        self.mm_cat = tk.StringVar(value="")                 # "" = all
-        self.mm_type = tk.StringVar(value="")
-        chips = tk.Frame(page, bg=P1, padx=8)
-        chips.pack(fill="x")
-        self.mm_chip_rows = {}
-        self.mm_content = set()                              # 2.78.0: the Content row (pinnacles, map content)
-        for key, label in (("cat", "Strats"), ("type", "Type"), ("think", "🧠 Thoughts per click"), ("clicks", "🖱 Clicks per hour"),
-                           ("content", "◆ Content")):
-            r = tk.Frame(chips, bg=P1)
-            tk.Label(r, text=label, bg=P1, fg=C["muted"], font=("Segoe UI", 9), width=19, anchor="w").pack(  # 2.85.1: 19 (cut off)
-                side="left", anchor="n", pady=(4, 0))
-            r.chips = tk.Frame(r, bg=P1)
-            r.chips.pack(side="left", fill="x", expand=True)
-            r.chips.bind("<Configure>", lambda e, f=r.chips: self._mm_flow(f, e.width))
-            self.mm_chip_rows[key] = r
-        # UI overhaul: the kind of strat always shows; effort and content fold under More filters (with how many are on)
-        self.mm_chip_rows["cat"].pack(fill="x")
-        self.mm_more_on = bool(SETTINGS.get("mm_more_filters"))
-        self.mm_more_lbl = tk.Label(self.mm_chip_rows["cat"], text="", bg=P1, fg=C["accent"], cursor="hand2",
-                                    font=("Segoe UI", 9, "bold"), padx=8)
-        self.mm_more_lbl.pack(side="right", anchor="n", pady=(4, 0))
-        self.mm_more_lbl.bind("<Button-1>", lambda e: self.mm_more_filters(not self.mm_more_on))
-        Tooltip(self.mm_more_lbl, "Thoughts per click, Clicks per hour and Content")
-        self.mm_more_filters(self.mm_more_on, save=False)
-        Tooltip(self.mm_chip_rows["content"], "What a strat farms - pick any: strats with one of them show.")
-        Tooltip(self.mm_chip_rows["think"], "How much thinking a strat needs - a pick shows that level and the easier ones.")
-        Tooltip(self.mm_chip_rows["clicks"], "How busy your hands are - a pick shows that pace and the calmer ones.")
-        for var in (self.mm_max, self.mm_cmax):
-            var.trace_add("write", lambda *_a: self.root.after_idle(self.mm_chips_paint))
-        fbar = tk.Frame(page, bg=P1, padx=8)
-        fbar.pack(fill="x", pady=(4, 8))
 
-        def pick(label, var, values, width, first=False):
-            tk.Label(fbar, text=label, bg=P1, fg=C["muted"]).pack(side="left", padx=(0 if first else 12, 6))
-            cb = ttk.Combobox(fbar, textvariable=var, values=values, state="readonly", width=width)
-            cb.pack(side="left")
-            cb.bind("<<ComboboxSelected>>", lambda e: (self.mm_fill(), self.root.after(20, self.root.focus_set)))
-            return cb
-        tag_values = ["Any"] + [t for g in MM.tag_groups().values() for t in g]
-        pick("Tag", self.mm_tag, tag_values, 15, first=True)
-        pick("Waystone tier", self.mm_tier, ("Any",) + tuple(str(i) for i in range(1, 17)), 4)
-        self.mm_csort = tk.StringVar(value="Profit")
-        pick("Sort", self.mm_csort, tuple(CARD_SORT), 9).bind(
-            "<<ComboboxSelected>>", lambda e: (self.mm_sort_card(), self.root.after(20, self.root.focus_set)))
-        self.mm_bsort = tk.StringVar(value="Top")
-        self.mm_bsort_lab = tk.Label(fbar, text="Board", bg=P1, fg=C["muted"])
-        self.mm_bsort_box = ttk.Combobox(fbar, textvariable=self.mm_bsort, values=("Top", "New"), state="readonly", width=5)
-        self.mm_bsort_box.bind("<<ComboboxSelected>>", lambda e: (self.mm_board_fetch(), self.root.after(20, self.root.focus_set)))
-        # P6 (2.108.0): + Add my own, and a ⋯ menu for Import file…
-        more = ttk.Button(fbar, text="⋯", width=3, command=lambda: self.mm_more_menu(more))
-        more.pack(side="right", padx=(8, 0))
-        Tooltip(more, "Import file…")
-        ttk.Button(fbar, text="+ Add my own", command=self.mm_add).pack(side="right", padx=(8, 0))
-        from .style import flowify, flow_add
-        flowify(fbar)                                        # 2.98.0: wraps in a narrow window
-        flow_add(fbar, self.mm_bsort_lab, (12, 8), shown=False)
-        flow_add(fbar, self.mm_bsort_box, shown=False)
-        self.mm_fbar = fbar
-
-        pane = ttk.PanedWindow(page, orient="horizontal")
-        pane.pack(fill="both", expand=True, padx=8, pady=(0, 8))
-        lfo = tk.Frame(pane, bg=P1)
-        pane.add(lfo, weight=3)
-        self.mm_list_head = SectionBar(lfo, "Strats")
-        self.mm_list_head.pack(fill="x")
-        self.mm_layout = SegBar(self.mm_list_head, ["Cards", "List"], command=lambda v: self.mm_layout_changed(),
-                                size=9, pad=(8, 2))
-        self.mm_list_head.add_right(self.mm_layout)
-        lvp = Viewport(lfo)
-        lvp.pack(fill="both", expand=True)
-        left = lvp.body
-        self.mm_pane = pane
-        # 2.71.0: strats as cards (the default); the List is the sortable table - it also keeps the selection
-        from .style import ScrollArea
-        self.mm_cards = ScrollArea(left, bg=C["panel2"])
-        self.mm_cards.inner.configure(padx=8, pady=8)
-        self.mm_cards.bind("<Configure>", lambda e: self.root.after_idle(self.mm_cards_reflow))
-        self.mm_card_w = {}
-        self.mm_listf = tk.Frame(left, bg=C["panel2"])
-        cols = (("name", "Strat", 170, "w"), ("type", "Type", 110, "w"),
-                ("thoughts_per_click", "🧠 Thoughts/click", 104, "center"), ("clicks_per_hour", "🖱 Clicks/h", 80, "center"),
-                ("profit", "Est. profit/h", 92, "center"), ("score", "▲", 44, "center"), ("origin", "By", 90, "w"))
-        self.mm_tree = ttk.Treeview(self.mm_listf, columns=[c[0] for c in cols], show="headings", selectmode="browse")
-        for cid, title, w, anchor in cols:
-            self.mm_tree.heading(cid, text=title, command=lambda c=cid: self.mm_sort_by(c))
-            self.mm_tree.column(cid, width=w, minwidth=56, anchor=anchor, stretch=cid == "name")
-        self.mm_tree.tag_configure("mine", foreground=C["green"])
-        self.mm_tree.tag_configure("example", foreground=C["muted"])
-        self.mm_tree.tag_configure("hidden", foreground=C["red"])
-        sb = ttk.Scrollbar(self.mm_listf, orient="vertical", command=self.mm_tree.yview)
-        self.mm_tree.configure(yscrollcommand=sb.set)
-        sb.pack(side="right", fill="y")
-        self.mm_tree.pack(side="left", fill="both", expand=True)
-        self.mm_tree.bind("<<TreeviewSelect>>", lambda e: self.mm_pick())
-        self.mm_tree.bind("<Button-3>", self.mm_menu)
-        self.mm_empty = tk.Label(left, text="", bg=C["panel2"], fg=C["muted"], font=("Segoe UI", 10))
-        self.mm_layout.pick(SETTINGS.get("mm_layout", "Cards") if SETTINGS.get("mm_layout") in ("Cards", "List")
-                            else "Cards", notify=False)
-        self.mm_layout_changed(save=False)
-
-        rgo, right = chrome_section(pane, "Strat", padx=0, pady=0)              # 2.69.0
-        pane.add(rgo, weight=2)
-        acts = tk.Frame(right, bg=P2, padx=8, pady=8)
-        acts.pack(fill="x")
-        self.mm_btns = {}
-        for key, text, cmd, style in (("track", "▶ Track in Strat Tracker", self.mm_track, "Primary.TButton"),
-                                      ("vote", "▲ Upvote", self.mm_vote, "TButton"),
-                                      ("post", "📤 Post to Community", self.mm_post, "TButton"),
-                                      ("regex", "Copy regex", self.mm_copy_regex, "TButton"),
-                                      ("more", "More ▾", self.mm_more, "TButton")):
-            self.mm_btns[key] = ttk.Button(acts, text=text, command=cmd, style=style)
-        # 2.71.0: your own numbers for this strat (from the Strat Tracker), always on top of its text
-        self.mm_mine_box = tk.Frame(right, bg=P1, padx=12, pady=8, highlightthickness=1,
-                                    highlightbackground=C["line"])
-        self.mm_mine_box.pack(fill="x", padx=8, pady=(0, 8))
-        self.mm_detail = tk.Text(right, bg=P2, fg=C["text"], relief="flat", wrap="word", padx=12, pady=8,
-                                 font=("Segoe UI", 10), highlightthickness=0, cursor="arrow")
-        dsb = ttk.Scrollbar(right, orient="vertical", command=self.mm_detail.yview)
-        self.mm_detail.configure(yscrollcommand=dsb.set)
-        dsb.pack(side="right", fill="y")
-        self.mm_detail.pack(fill="both", expand=True)
-        t = self.mm_detail
-        t.tag_configure("title", font=("Segoe UI", 16, "bold"), foreground=C["text"], spacing3=2)
-        t.tag_configure("meta", foreground=C["muted"], font=("Segoe UI", 9))
-        t.tag_configure("summary", font=("Segoe UI", 10, "italic"), spacing1=6, spacing3=6)
-        t.tag_configure("h", font=("Segoe UI", 10, "bold"), foreground=C["accent"], spacing1=10, spacing3=2)
-        t.tag_configure("stat", font=("Segoe UI", 10, "bold"), foreground="#ffd9a8")
-        t.tag_configure("li", lmargin1=10, lmargin2=26)
-        t.tag_configure("mono", font=(MONO, 9), foreground=C["good"])
-        t.tag_configure("chip", font=("Segoe UI", 10, "bold"), foreground="#8fc4ff")
-        t.tag_configure("kicker", font=("Segoe UI", 9, "bold"), foreground=C["steel"])
-        t.tag_configure("link", foreground="#8fc4ff", underline=True)
-        t.tag_bind("link", "<Enter>", lambda e: t.config(cursor="hand2"))
-        t.tag_bind("link", "<Leave>", lambda e: t.config(cursor="arrow"))
-        self.mm_show_detail(None)
-        pane.bind("<Map>", lambda e: self.root.after(50, self.mm_sash), add="+")
-
-    def mm_sash(self):
-        try:
-            w = self.mm_pane.winfo_width()
-            if w > 200 and not getattr(self, "_mm_sash_set", False):
-                self._mm_sash_set = True
-                self.mm_pane.sashpos(0, max(int(w * 0.55), min(720, w - 380)))
-        except tk.TclError:
-            pass
-
-    # ---------------- 2.71.0: filter buttons and strat cards
-    def mm_more_filters(self, on, save=True):
-        """UI overhaul: show / hide the effort and content filters (the choice is kept)."""
-        self.mm_more_on = on
-        rows = self.mm_chip_rows
-        for key in ("think", "clicks", "content"):
-            if on:
-                rows[key].pack(fill="x")
-            else:
-                rows[key].pack_forget()
-        self.mm_more_paint()
-        if save:
-            SETTINGS["mm_more_filters"] = on
-            save_json("settings.json", SETTINGS)
-
-    def mm_more_paint(self):
-        lbl = getattr(self, "mm_more_lbl", None)
-        if lbl is None:
-            return
-        n = (self.mm_max.get() != "Any") + (self.mm_cmax.get() != "Any") + len(getattr(self, "mm_content", ()))
-        lbl.config(text=("Fewer filters ▴" if self.mm_more_on else "More filters ▾") + (f"  ({n} on)" if n else ""))
-
-    def _mm_chip(self, parent, text, on, cmd, empty=False):
-        # UI overhaul: a picked chip is filled and bold with an accent edge - orange stays for the one main button
-        bg = C["key"] if on else C["panel2"]
-        fg = C["text"] if on else (C["muted"] if empty else C["text"])
-        b = tk.Label(parent, text=text, bg=bg, fg=fg, font=("Segoe UI", 9, "bold" if on else "normal"), padx=8, pady=4,
-                     cursor="hand2", highlightthickness=1, highlightbackground=C["accent"] if on else C["line"])
+    def _mm_ghost(self, parent, text, cmd):
+        """A secondary (outlined) button for the toolbar."""
+        b = tk.Label(parent, text=text, bg=C["panel"], fg=C["text"], font=("Segoe UI", 10), padx=12, pady=8,
+                     cursor="hand2", highlightthickness=1, highlightbackground=C["line"])
         b.bind("<Button-1>", lambda e: cmd())
-        if not on:
-            b.bind("<Enter>", lambda e: b.config(bg=C["sel"]))
-            b.bind("<Leave>", lambda e: b.config(bg=C["panel2"]))
+        b.bind("<Enter>", lambda e: b.config(highlightbackground=C["muted"]))
+        b.bind("<Leave>", lambda e: b.config(highlightbackground=C["line"]))
         return b
 
-    def mm_chips_paint(self):
-        """The filter buttons, with how many strats each has (none: grayed)."""
-        rows = getattr(self, "mm_chip_rows", None)
-        if not rows:
+    def _mm_drop(self, parent, key, tip):
+        b = self._mm_ghost(parent, "", lambda: self.mm_drop_menu(key))
+        b._key = key
+        Tooltip(b, tip)
+        return b
+
+    def _mm_art_came(self, done):
+        for cv in (getattr(self, "mm_find_cv", None), getattr(self, "mm_detail_cv", None)):
+            if cv is not None and cv.want & set(done):
+                cv.want -= set(done)
+                cv.later()
+
+    def mm_drawer_look(self, _on):
+        """The Drawer (or a narrow window): the search box and Filters ▾ only; the Full window: every dropdown."""
+        bar = getattr(self, "mm_bar", None)
+        if bar is None:
             return
-        n = {}
-        for s in self.mm_strats:
-            n[s.get("category")] = n.get(s.get("category"), 0) + 1
-            n[(s.get("category"), s.get("type"))] = n.get((s.get("category"), s.get("type")), 0) + 1
-        self.mm_counts = n
-        for r in rows.values():
-            for c in r.chips.winfo_children():
-                c.destroy()
-        cat, typ = self.mm_cat.get(), self.mm_type.get()
-        self._mm_chip(rows["cat"].chips, f"All  {len(self.mm_strats)}", not cat, lambda: self.mm_filter(""))
-        for c in MM.CATEGORIES:
-            self._mm_chip(rows["cat"].chips, f"{c}  {n.get(c, 0)}" if n.get(c) else c, cat == c,
-                          lambda c=c: self.mm_filter(c), empty=not n.get(c))
-        if cat:
-            self._mm_chip(rows["type"].chips, "Any", not typ, lambda: self.mm_filter(cat, ""))
-            for t in MM.TAXONOMY.get(cat, ()):
-                k = n.get((cat, t), 0)
-                self._mm_chip(rows["type"].chips, f"{t}  {k}" if k else t, typ == t,
-                              lambda t=t: self.mm_filter(cat, t), empty=not k)
-            if not rows["type"].winfo_manager():
-                rows["type"].pack(fill="x", after=rows["cat"])
-        else:
-            rows["type"].pack_forget()
-        mx, cm = self.mm_max.get(), self.mm_cmax.get()
-        self.root.after_idle(lambda: [self._mm_flow(r.chips) for r in rows.values()])
-        self._mm_chip(rows["think"].chips, "Any", mx == "Any", lambda: (self.mm_max.set("Any"), self.mm_fill()))
-        for w, _d in MM.THINKING.values():
-            self._mm_chip(rows["think"].chips, w, mx == w, lambda w=w: (self.mm_max.set(w), self.mm_fill()))
-        self._mm_chip(rows["clicks"].chips, "Any", cm == "Any", lambda: (self.mm_cmax.set("Any"), self.mm_fill()))
-        for w in MM.CLICKS:
-            self._mm_chip(rows["clicks"].chips, w, cm == w, lambda w=w: (self.mm_cmax.set(w), self.mm_fill()))
-        self._mm_content_chips(rows["content"].chips)
-        self.mm_more_paint()
+        narrow = self.mm_narrow()
+        from .style import flow_show
+        for key, w in self.mm_drops.items():
+            flow_show(bar, w, (key == "filters") == narrow)
+        for w in (self.mm_dots, self.mm_add_btn, self.mm_live_lbl):
+            flow_show(bar, w, not narrow)
+        for k in getattr(bar, "_flow_kids", ()):
+            if k["w"] is self.mm_sbox:
+                k["grow"] = narrow                       # the Drawer: the search takes the line
+        try:
+            bar.pack_configure(padx=16 if narrow else 24)
+        except tk.TclError:
+            pass
+        self.mm_drops_paint()
+        for cv in (getattr(self, "mm_find_cv", None), getattr(self, "mm_detail_cv", None)):
+            if cv is not None:
+                cv.later()
 
-    def _mm_content_chips(self, box):
-        """2.78.0: the Content row - the first group (pinnacles and bosses) folds into a menu of check boxes, the
-        others are buttons; picked ones show as chips with ×."""
-        groups = list(MM.content_groups().items())
-        picked = self.mm_content
-        self._mm_chip(box, "Any", not picked, lambda: self.mm_content_pick(None))
-        for i, (group, tags) in enumerate(groups):
-            if i == 0:
-                n = len(picked & set(tags))
-                b = self._mm_chip(box, f"{group}{f'  {n}' if n else ''} ▾", bool(n),
-                                  lambda g=group: self.mm_content_menu(g))
-                self.mm_content_btn = b
-                for t in sorted(picked & set(tags)):
-                    self._mm_chip(box, f"{t}  ×", True, lambda t=t: self.mm_content_pick(t))
+    # ---------------- the dropdowns
+    def mm_type_word(self):
+        return self.mm_type.get() or self.mm_cat.get() or "All"
+
+    def mm_more_count(self):
+        return (self.mm_cmax.get() != "Any") + len(self.mm_content) + (self.mm_tier.get() != "Any") + \
+            (self.mm_tag.get() != "Any")
+
+    def mm_filters_on(self):
+        return bool(self.mm_budget.get() != "Any" or self.mm_max.get() != "Any" or self.mm_cat.get()
+                    or self.mm_more_count() or self.mm_q.get().strip())
+
+    def mm_filter_words(self):
+        """What the filters show, in a few words (MORE STRATS · … · MID BUDGET)."""
+        out = [w for w in (self.mm_budget.get(), self.mm_max.get(), self.mm_type.get() or self.mm_cat.get())
+               if w and w != "Any"]
+        n = self.mm_more_count()
+        if n:
+            out.append(f"{n} more")
+        if self.mm_q.get().strip():
+            out.append(f"“{self.mm_q.get().strip()}”")
+        return " · ".join(out)
+
+    def mm_drops_paint(self):
+        """Each dropdown says what it is set to; one that filters has the accent edge and its value in bold."""
+        d = getattr(self, "mm_drops", None)
+        if not d:
+            return
+        n_on = sum((self.mm_budget.get() != "Any", self.mm_max.get() != "Any", bool(self.mm_cat.get()),
+                    self.mm_view.get() != "Official")) + self.mm_more_count()
+        n_more = self.mm_more_count()
+        texts = {"budget": ("Budget", self.mm_budget.get(), self.mm_budget.get() != "Any"),
+                 "effort": ("Effort", self.mm_max.get(), self.mm_max.get() != "Any"),
+                 "type": ("Type", self.mm_type_word(), bool(self.mm_cat.get())),
+                 "from": ("From", self.mm_view.get(), self.mm_view.get() != "Official"),
+                 "more": ("More", f"{n_more} on" if n_more else "", bool(n_more)),
+                 "filters": ("Filters", f"· {n_on}" if n_on else "", bool(n_on)),
+                 "sort": ("Sort", self.mm_csort.get(), False)}
+        for key, (name, val, on) in texts.items():
+            b = d.get(key)
+            if b is None:
                 continue
-            for t in tags:
-                self._mm_chip(box, f"{t}  ×" if t in picked else t, t in picked, lambda t=t: self.mm_content_pick(t))
+            try:
+                b.config(text=f"{name}{':' if val and not val.startswith('·') and key not in ('more',) else ''}"
+                              f"{' ' + val if val else ''}  ▾",
+                         font=("Segoe UI", 10, "bold" if on else "normal"),
+                         highlightbackground=C["accent"] if on else C["line"], fg=C["text"])
+                b.bind("<Leave>", lambda e, b=b, on=on: b.config(highlightbackground=C["accent"] if on else C["line"]))
+            except tk.TclError:
+                pass
 
-    def mm_content_pick(self, tag):
-        """A Content button: on / off (None: Any - all off)."""
-        if tag is None:
-            self.mm_content = set()
-        else:
-            self.mm_content ^= {tag}
-        self.mm_chips_paint()
-        self.mm_fill()
+    def _mm_menu(self):
+        return tk.Menu(self.root, tearoff=0, bg=C["panel2"], fg=C["text"], activebackground="#2c4a84",
+                       selectcolor=C["accent"])
 
-    def mm_content_menu(self, group):
-        m = tk.Menu(self.root, tearoff=0)
-        self.mm_content_vars = {}
-        for t in MM.content_groups().get(group, ()):
-            v = tk.BooleanVar(value=t in self.mm_content)
-            self.mm_content_vars[t] = v
-            m.add_checkbutton(label=t, variable=v, command=lambda t=t: self.mm_content_pick(t))
-        b = getattr(self, "mm_content_btn", None)
+    def mm_drop_menu(self, key, at=None):
+        """A dropdown's menu (radio items: the picked one has its mark)."""
+        m = self._mm_menu()
+        self._mm_fill_menu(m, key)
+        b = at or self.mm_drops.get(key)
         try:
             m.tk_popup(b.winfo_rootx(), b.winfo_rooty() + b.winfo_height())
         except (AttributeError, tk.TclError):
             pass
+        self.mm_last_menu = m
         return m
 
-    def _mm_flow(self, f, width=None):
-        """Lay the buttons out left to right, wrapping onto the next line when the row is full (2.71.0)."""
-        try:
-            width = width or f.winfo_width()
-            kids = f.winfo_children()
-        except tk.TclError:
-            return
-        if width < 50:
-            width = 2000
-        key = (width, tuple(str(k) for k in kids))
-        if getattr(f, "_flow", None) == key:
-            return
-        f._flow = key
-        x = y = 0
-        h = max([k.winfo_reqheight() for k in kids] or [24])
-        for k in kids:
-            w = k.winfo_reqwidth()
-            if x and x + w > width:
-                x, y = 0, y + h + 4
-            k.place(x=x, y=y)
-            x += w + 6
-        f.configure(height=y + h + 4)
+    def _mm_count(self, pred):
+        return sum(1 for s in self.mm_strats if pred(s))
 
-    def mm_filter(self, cat, typ=""):
-        """A category (and type) filter button: "" = all."""
-        self.mm_cat.set(cat)
-        self.mm_type.set(typ if cat else "")
-        self.mm_tree.heading("type", text="Type" if cat else "Category › Type")
-        self.mm_chips_paint()
+    def _mm_fill_menu(self, m, key):
+        go = self.mm_filters_changed
+        if key == "budget":
+            m.add_radiobutton(label="Any", variable=self.mm_budget, value="Any", command=go)
+            for b in MM.BUDGETS:
+                n = self._mm_count(lambda s, b=b: b in (s.get("tags") or []))
+                m.add_radiobutton(label=f"{b}  ({n})", variable=self.mm_budget, value=b, command=go)
+        elif key == "effort":
+            m.add_radiobutton(label="Any", variable=self.mm_max, value="Any", command=go)
+            for k, (w, d) in MM.THINKING.items():
+                m.add_radiobutton(label=f"{w} or easier - {d}", variable=self.mm_max, value=w, command=go)
+        elif key == "type":
+            m.add_command(label=("✓ " if not self.mm_cat.get() else "    ") + f"All  ({len(self.mm_strats)})",
+                          command=lambda: self.mm_filter(""))
+            m.add_separator()
+            for c in MM.CATEGORIES:
+                sub = self._mm_menu()
+                n = self._mm_count(lambda s, c=c: s.get("category") == c)
+                on = self.mm_cat.get() == c and not self.mm_type.get()
+                sub.add_command(label=("✓ " if on else "    ") + f"All {c}  ({n})", command=lambda c=c: self.mm_filter(c))
+                sub.add_separator()
+                for t in MM.TAXONOMY.get(c, ()):
+                    k = self._mm_count(lambda s, c=c, t=t: s.get("category") == c and s.get("type") == t)
+                    sub.add_command(label=("✓ " if self.mm_type.get() == t and self.mm_cat.get() == c else "    ")
+                                    + (f"{t}  ({k})" if k else t), command=lambda c=c, t=t: self.mm_filter(c, t))
+                m.add_cascade(label=("✓ " if self.mm_cat.get() == c else "    ") + (f"{c}  ({n})" if n else c), menu=sub)
+        elif key == "from":
+            for v in VIEWS:
+                m.add_radiobutton(label=v, variable=self.mm_view, value=v, command=self.mm_view_changed)
+            if self.mm_view.get() == "Community":
+                m.add_separator()
+                for v in ("Top", "New"):
+                    m.add_radiobutton(label=f"Board order: {v}", variable=self.mm_bsort, value=v,
+                                      command=self.mm_board_fetch)
+        elif key == "sort":
+            for v in CARD_SORT:
+                m.add_radiobutton(label=v, variable=self.mm_csort, value=v, command=self.mm_sort_card)
+        elif key == "more":
+            cl = self._mm_menu()
+            cl.add_radiobutton(label="Any", variable=self.mm_cmax, value="Any", command=go)
+            for w, d in MM.CLICKS.items():
+                cl.add_radiobutton(label=f"{w} or calmer - {d}", variable=self.mm_cmax, value=w, command=go)
+            m.add_cascade(label="Clicks per hour" + (f": {self.mm_cmax.get()}" if self.mm_cmax.get() != "Any" else ""),
+                          menu=cl)
+            self.mm_content_vars = {}
+            for group, tags in MM.content_groups().items():
+                sub = self._mm_menu()
+                sub.add_command(label="Any (clear)", command=lambda: self.mm_content_pick(None))
+                for t in tags:
+                    v = tk.BooleanVar(value=t in self.mm_content)
+                    self.mm_content_vars[t] = v
+                    sub.add_checkbutton(label=t, variable=v, command=lambda t=t: self.mm_content_pick(t))
+                n = len(self.mm_content & set(tags))
+                m.add_cascade(label=group + (f": {n} picked" if n else ""), menu=sub)
+            ti = self._mm_menu()
+            for v in ("Any",) + tuple(str(i) for i in range(1, 17)):
+                ti.add_radiobutton(label=v if v == "Any" else f"T{v}", variable=self.mm_tier, value=v, command=go)
+            m.add_cascade(label="Waystone tier" + (f": T{self.mm_tier.get()}" if self.mm_tier.get() != "Any" else ""),
+                          menu=ti)
+            tg = self._mm_menu()
+            tg.add_radiobutton(label="Any", variable=self.mm_tag, value="Any", command=go)
+            for group, tags in MM.TAG_GROUPS.items():
+                if group == "Budget":
+                    continue                                 # (Budget is its own dropdown)
+                sub = self._mm_menu()
+                for t in tags:
+                    sub.add_radiobutton(label=t, variable=self.mm_tag, value=t, command=go)
+                tg.add_cascade(label=group, menu=sub)
+            m.add_cascade(label="Tag" + (f": {self.mm_tag.get()}" if self.mm_tag.get() != "Any" else ""), menu=tg)
+        elif key == "filters":                               # the Drawer: everything in one menu
+            for k, name in (("budget", f"Budget: {self.mm_budget.get()}"), ("effort", f"Effort: {self.mm_max.get()}"),
+                            ("type", f"Type: {self.mm_type_word()}"), ("from", f"From: {self.mm_view.get()}"),
+                            ("more", "More" + (f": {self.mm_more_count()} on" if self.mm_more_count() else "")),
+                            ("sort", f"Sort: {self.mm_csort.get()}")):
+                sub = self._mm_menu()
+                self._mm_fill_menu(sub, k)
+                m.add_cascade(label=name, menu=sub)
+            m.add_separator()
+            if self.mm_filters_on():
+                m.add_command(label="Clear filters", command=self.mm_clear_filters)
+            m.add_command(label="＋ Add my own", command=self.mm_add)
+            m.add_command(label="↻ Refresh", command=self.mm_refresh)
+            m.add_command(label="Import file…", command=self.mm_import)
+        return m
+
+    def mm_filters_changed(self):
+        self.mm_drops_paint()
         self.mm_fill()
 
-    def mm_layout_changed(self, save=True):
-        cards = self.mm_layout.get() == "Cards"
-        (self.mm_listf if cards else self.mm_cards).pack_forget()
-        (self.mm_cards if cards else self.mm_listf).pack(fill="both", expand=True)
-        if save:
-            SETTINGS["mm_layout"] = self.mm_layout.get()
-            save_json("settings.json", SETTINGS)
-        if cards:
-            self.mm_cards_fill()
+    def mm_clear_filters(self):
+        for v in (self.mm_budget, self.mm_max, self.mm_cmax, self.mm_tier, self.mm_tag):
+            v.set("Any")
+        self.mm_cat.set("")
+        self.mm_type.set("")
+        self.mm_content = set()
+        self.mm_q.set("")
+        self.mm_filters_changed()
+
+    def mm_content_pick(self, tag):
+        """A Content tag: on / off (None: Any - all off)."""
+        if tag is None:
+            self.mm_content = set()
+        else:
+            self.mm_content ^= {tag}
+        self.mm_filters_changed()
+
+    def mm_filter(self, cat, typ=""):
+        """The Type dropdown: a category (and a type in it); "" = all."""
+        self.mm_cat.set(cat)
+        self.mm_type.set(typ if cat else "")
+        self.mm_filters_changed()
 
     def mm_sort_card(self):
         key, rev = CARD_SORT.get(self.mm_csort.get(), ("profit", True))
         self.mm_sort = (key, rev)
-        self.mm_fill()
+        self.mm_filters_changed()
 
-    def mm_cards_fill(self):
-        """One card per strat in the list (same filters, same order): what it is, its name, the effort, the
-        estimated profit, upvotes and who - and your own numbers when you've tracked it."""
-        box = self.mm_cards.inner
-        for c in box.winfo_children():
-            c.destroy()
-        self.mm_card_w = {}
-        P2, P1 = C["panel2"], C["panel"]
-        mine = self._mm_my_numbers_all()
-        for iid in self.mm_tree.get_children():
-            s = next((x for x in self.mm_strats if x["id"] + "|" + x["origin"] == iid), None)
-            if s is None:
-                continue
-            post = s.get("_post") or {}
-            card = tk.Frame(box, bg=P1, padx=12, pady=8, highlightthickness=1, highlightbackground=C["line"],
-                            cursor="hand2")
-            tk.Label(card, text=MM.type_text(s).upper(), bg=P1, fg=C["steel"], font=("Segoe UI", 9, "bold"),
-                     anchor="w").pack(fill="x")
-            tk.Label(card, text=("✔ " if post.get("voted") else "") + s["name"], bg=P1,
-                     fg=C["green"] if s["origin"] == "mine" else C["text"], font=("Segoe UI", 12, "bold"), anchor="w",
-                     justify="left", wraplength=230).pack(fill="x")
-            tk.Label(card, text=f"🧠 {MM.thinking_word(s.get('thoughts_per_click'))}   🖱 {s.get('clicks_per_hour', '?')}",
-                     bg=P1, fg=C["muted"], font=("Segoe UI", 9), anchor="w").pack(fill="x", pady=(4, 0))
-            content = [t for t in s.get("tags") or [] if t in MM.content_tags()]       # 2.78.0
-            if content:
-                tk.Label(card, text="◆ " + " · ".join(content[:3]) + (f" +{len(content) - 3}" if len(content) > 3 else ""),
-                         bg=P1, fg=C["steel"], font=("Segoe UI", 9, "bold"), anchor="w", justify="left",
-                         wraplength=230).pack(fill="x", pady=(4, 0))
-            tk.Label(card, text=MM.money_text(s.get("est_profit"), " / h"), bg=P1, fg=C["good"],
-                     font=("Segoe UI", 16, "bold"), anchor="w").pack(fill="x", pady=(8, 0))
-            by = post.get("author", {}).get("name") or (s.get("author") if s["origin"] != "mine" else "me")
-            foot = (f"▲ {post.get('score', 0)}   " if post else "") + (f"by {by}" if by else "") + \
-                ("   HIDDEN" if post.get("hidden") else "")
-            tk.Label(card, text=foot, bg=P1, fg=C["red"] if post.get("hidden") else C["muted"], font=("Segoe UI", 9),
-                     anchor="w").pack(fill="x", pady=(4, 0))
-            f = mine.get(s["id"])
-            if f and f["runs"]:
-                tk.Label(card, text=f"Yours: {f['runs']} runs" + (f" · {f['per_hour']:.1f} div / h"
-                                                                    if f["per_hour"] is not None else ""),
-                         bg=P1, fg=C["green"], font=("Segoe UI", 9, "bold"), anchor="w").pack(fill="x", pady=(2, 0))
-            for w in [card] + list(card.winfo_children()):
-                w.bind("<Button-1>", lambda e, i=iid: self.mm_select(i))
-                w.bind("<Button-3>", lambda e, i=iid: (self.mm_select(i), self.mm_menu(None, e.x_root, e.y_root)))
-            self.mm_card_w[iid] = card
-        self._mm_cols = None
-        self.mm_cards_reflow()
-        self.mm_cards_mark()
+    def mm_view_set(self, view):
+        self.mm_view.set(view)
+        self.mm_view_changed()
 
-    def mm_cards_reflow(self):
-        cards = list(self.mm_card_w.values())
-        if not cards:
-            return
-        try:
-            w = self.mm_cards.winfo_width()
-        except tk.TclError:
-            return
-        cols = max(1, min(4, (w - 16) // 270)) if w > 50 else 2
-        if cols == getattr(self, "_mm_cols", None):
-            return
-        self._mm_cols = cols
-        box = self.mm_cards.inner
-        for c in range(4):
-            box.columnconfigure(c, weight=1 if c < cols else 0, uniform="card" if c < cols else "")
-        for i, card in enumerate(cards):
-            card.grid(row=i // cols, column=i % cols, sticky="nsew", padx=(0, 8), pady=(0, 8))
-
-    def mm_cards_mark(self):
-        sel = self.mm_tree.selection()
-        for iid, card in self.mm_card_w.items():
-            on = bool(sel) and iid == sel[0]
-            try:
-                card.config(highlightthickness=2 if on else 1, highlightbackground=C["accent"] if on else C["line"])
-            except tk.TclError:
-                pass
-
-    def mm_select(self, iid):
-        if self.mm_tree.exists(iid):
-            self.mm_tree.selection_set(iid)
-            self.mm_tree.see(iid)
-            self.mm_pick()
-
-    def _mm_my_numbers_all(self):
-        """strat id -> your Strat Tracker figures for it (every setup that follows it)."""
-        from . import ledger as L
+    # ---------------- your Strat Tracker numbers for a strat
+    def _mm_setups_by_strat(self):
         try:
             d = self.fl_data()
         except Exception:
-            return {}
+            return {}, {"logs": []}
         by = {}
         for x in d.get("setups", []):
             if x.get("strat"):
                 by.setdefault(x["strat"], set()).add(x["id"])
+        return by, d
+
+    def _mm_my_numbers_all(self):
+        """strat id -> your Strat Tracker figures for it (every setup that follows it)."""
+        from . import ledger as L
+        by, d = self._mm_setups_by_strat()
         return {sid: L.figures([l for l in d["logs"] if l["setup"] in ids]) for sid, ids in by.items()}
 
-    def mm_mine_paint(self, s):
-        """The detail's "Your numbers" box: what your Strat Tracker logged for this strat, or how to start."""
-        box = getattr(self, "mm_mine_box", None)
-        if box is None:
-            return
-        for c in box.winfo_children():
-            c.destroy()
-        P1 = C["panel"]
-        if not s:
-            box.pack_forget()
-            return
-        if not box.winfo_manager():
-            box.pack(fill="x", padx=8, pady=(0, 8), before=self.mm_detail)
-        f = self._mm_my_numbers_all().get(s["id"])
-        tk.Label(box, text="YOUR NUMBERS", bg=P1, fg=C["steel"], font=("Segoe UI", 9, "bold"), anchor="w").pack(fill="x")
-        if not f or not f["runs"]:
-            tk.Label(box, text="Not tracked yet. ▶ Track in Strat Tracker makes a setup for it - then your real cost, "
-                               "loot and profit per hour show here.", bg=P1, fg=C["muted"], font=("Segoe UI", 9),
-                     anchor="w", justify="left", wraplength=360).pack(fill="x", pady=(2, 0))
-            return
-        row = tk.Frame(box, bg=P1)
-        row.pack(fill="x", pady=(4, 0))
-        for big, small in ((f"{f['runs']}", "runs"),
-                           (f"{f['per_hour']:.1f}" if f["per_hour"] is not None else "-", "div / hour"),
-                           (f"{f['profit_run']:+.2f}" if f.get("profit_run") is not None else "-", "div a run"),
-                           (_hms(f["avg_run"]) if f.get("avg_run") else "-", "a run")):
-            c = tk.Frame(row, bg=P1)
-            c.pack(side="left", padx=(0, 24))
-            tk.Label(c, text=big, bg=P1, fg=C["good"], font=("Segoe UI", 16, "bold"), anchor="w").pack(anchor="w")
-            tk.Label(c, text=small, bg=P1, fg=C["muted"], font=("Segoe UI", 9), anchor="w").pack(anchor="w")
+    def _mm_my_loot(self, sid):
+        """What your logs for this strat dropped, by item, with each one's share (ledger.loot_table)."""
+        from . import ledger as L
+        by, d = self._mm_setups_by_strat()
+        ids = by.get(sid)
+        if not ids:
+            return []
+        try:
+            rows = L.loot_table([l for l in d["logs"] if l["setup"] in ids])
+        except Exception:
+            buglog.caught()
+            return []
+        return [g for g in rows if g.get("total", 0) > 0]
 
     # ---------------- 2.30.0: Official / Community / Mine
     def _mm_official_cache(self):
@@ -551,25 +425,21 @@ class MoneyMakersPage:
         return [s for s in local if s["origin"] != "mine"] + promoted
 
     def mm_view_changed(self):
-        community = self.mm_view.get() == "Community"
-        from .style import flow_show
-        for w in (self.mm_bsort_lab, self.mm_bsort_box):
-            flow_show(self.mm_fbar, w, community)            # 2.98.0: the row wraps (was pack / pack_forget)
-        if community:
+        if self.mm_view.get() == "Community":
             self.mm_board_fetch()
         self.mm_sel = None
+        self.mm_one_sel = None
+        self.mm_drops_paint()
         self.mm_reload()
 
     def mm_reload(self, keep=None):
         self.mm_strats = self.mm_view_list()
-        self.mm_chips_paint()                                # 2.71.0: the filter buttons (were the Browse tree)
         self.mm_fill(keep)
-        if hasattr(self, "mm_one_tree"):
-            self.mm_one_fill()
 
     def mm_rows(self):
         q = self.mm_q.get().strip().lower()
         cat, typ, tag, tier = self.mm_cat.get(), self.mm_type.get(), self.mm_tag.get(), self.mm_tier.get()
+        budget = self.mm_budget.get()
         words = {w: k for k, (w, _d) in MM.THINKING.items()}
         mx = words.get(self.mm_max.get(), 5)
         bands = list(MM.CLICKS)
@@ -579,6 +449,8 @@ class MoneyMakersPage:
             if cat and s.get("category") != cat:
                 continue
             if typ and s.get("type") != typ:
+                continue
+            if budget != "Any" and budget not in (s.get("tags") or []):
                 continue
             if tag != "Any" and tag not in (s.get("tags") or []) and tag != s.get("type"):
                 continue
@@ -603,212 +475,109 @@ class MoneyMakersPage:
             if key == "profit":                             # 2.85.0: in divines (ex / chaos converted); 0 is 0
                 v = MM.div_value(s.get("est_profit"))
                 return v if v is not None else float("-inf")
-            if key == "origin":                             # (the By column: the author's name)
-                post = s.get("_post") or {}
-                return str(post.get("author", {}).get("name") or (s.get("author") if s["origin"] != "mine" else "me")).lower()
-            if key == "type":
-                return MM.type_text(s).lower()
-            if key == "clicks_per_hour":
-                return list(MM.CLICKS).index(s["clicks_per_hour"]) if s.get("clicks_per_hour") in MM.CLICKS else 9
             return s.get(key, 0) if num else str(s.get(key, "")).lower()
         return sorted(out, key=k, reverse=rev)
 
     def mm_fill(self, keep=None):
-        keep = keep or self.mm_sel
-        tv = self.mm_tree
-        tv.delete(*tv.get_children())
-        rows = self.mm_rows()
-        for s in rows:
-            post = s.get("_post") or {}
-            tags = (s["origin"],) + (("hidden",) if post.get("hidden") else ())
-            by = post.get("author", {}).get("name") or (s.get("author") if s["origin"] != "mine" else "me")
-            tv.insert("", "end", iid=s["id"] + "|" + s["origin"], tags=tags,
-                      values=(("✔ " if post.get("voted") else "") + s["name"],
-                              s.get("type", "") if self.mm_cat.get() else MM.type_text(s),
-                              MM.thinking_word(s.get("thoughts_per_click")), s.get("clicks_per_hour", ""),
-                              MM.money_text(s.get("est_profit")), post.get("score", "") if post else "", by or ""))
+        """The strats the search and filters show: the best for you first (the most an hour), then the rest in the
+        Sort's order. An opened strat stays open (redrawn) while it is still in the list."""
+        mine = self._mm_my_numbers_all()
+        costs = self.mm_costs()
+        rows = []
+        for s in self.mm_rows():
+            m = mine.get(s["id"])
+            rows.append({"key": s["id"] + "|" + s["origin"], "s": s, "mine": m, "ph": MM.per_hour(s, m),
+                         "cost": MM.run_cost(s, costs)})
         if rows:
-            self.mm_empty.place_forget()
-        else:
-            view = self.mm_view.get()
-            empty = {"Community": "No community strats yet - post one of yours (Mine > 📤 Post to Community)."
-                                  if B.configured() else "The community board isn't set up yet.",
-                     "Mine": "None yet - press + Add my own.",
-                     "Official": "No strats yet - press ↻ Refresh."}[view]
-            self.mm_empty.config(text="No strats match." if self.mm_strats else empty)
-            self.mm_empty.place(relx=0.5, rely=0.3, anchor="center")
-        if keep and tv.exists(keep):
-            tv.selection_set(keep)
-            tv.see(keep)
-        elif rows:
-            tv.selection_set(tv.get_children()[0])
-        else:
-            self.mm_show_detail(None)
-        if self.mm_layout.get() == "Cards":                  # 2.71.0
-            self.mm_cards_fill()
-
-    def mm_sort_by(self, col):
-        key = "thoughts_per_click" if col == "thoughts_per_click" else col
-        cur, rev = self.mm_sort
-        self.mm_sort = (key, not rev if cur == key else key in ("profit", "score"))
-        self.mm_fill()
+            best = max(rows, key=lambda r: r["ph"]["value"] if r["ph"] else float("-inf"))
+            rows.remove(best)
+            rows.insert(0, best)
+        self.mm_find_rows = rows
+        keys = {r["key"] for r in rows} | {s["id"] + "|" + s["origin"] for s in self.mm_strats}
+        keep = keep or (self.mm_sel if getattr(self, "mm_detail_on", False) else None)
+        self.mm_drops_paint()
+        if keep and keep in keys:
+            self.mm_open(keep)
+        elif getattr(self, "mm_detail_on", False):
+            self.mm_close()
+        cv = getattr(self, "mm_find_cv", None)
+        if cv is not None:
+            cv.later(10)
 
     def mm_current(self):
-        sel = self.mm_tree.selection()
-        if not sel:
+        if not self.mm_sel:
             return None
-        return next((s for s in self.mm_strats if s["id"] + "|" + s["origin"] == sel[0]), None)
+        return next((s for s in self.mm_strats if s["id"] + "|" + s["origin"] == self.mm_sel), None)
 
-    def mm_pick(self):
-        s = self.mm_current()
-        self.mm_sel = self.mm_tree.selection()[0] if s else None
-        self.mm_show_detail(s)
-        self.mm_cards_mark()
+    # ---------------- an opened strat
+    def mm_open(self, key):
+        """Open a strat (Find hides; ‹ All strats comes back)."""
+        if not key:
+            return None
+        self.mm_sel = key
+        if not self.mm_detail_on:
+            self.mm_detail_on = True
+            self.mm_find_f.pack_forget()
+            self.mm_open_f.pack(fill="both", expand=True)
+            self.mm_detail_cv.yview_moveto(0)
+        self.mm_detail_cv.later(10)
+        try:
+            self.mm_detail_cv.focus_set()
+        except tk.TclError:
+            pass
+        return self.mm_current()
 
-    def mm_show_detail(self, s):
-        t = self.mm_detail
-        t.config(state="normal")
-        t.delete("1.0", "end")
-        for b in self.mm_btns.values():
-            b.pack_forget()
-        self.mm_mine_paint(s)                                     # 2.71.0
-        if not s:
-            t.insert("end", "Pick a strat on the left.", "meta")
-            t.config(state="disabled")
-            return
-        post = s.get("_post") or {}
-        show = ["track"] + (["vote"] if post else []) + (["post"] if s["origin"] == "mine" else []) + \
-            (["regex"] if s.get("regex") else []) + ["more"]
-        if post:
-            self.mm_btns["vote"].config(text=f"{'▲ Upvoted' if post.get('voted') else '▲ Upvote'} ({post.get('score', 0)})")
-        for key in show:
-            self.mm_btns[key].pack(side="left", padx=(0, 8))
-        t.insert("end", MM.type_text(s).upper() + "\n", "kicker")
-        t.insert("end", s["name"] + "\n", "title")
-        t.insert("end", "by ", "meta")
-        t.insert("end", f"{post.get('author', {}).get('name') or s.get('author', '?')} · game {s.get('patch', '?')} · "
-                        f"updated {s.get('updated', '?')} · {ORIGIN.get(s['origin'], '')}"
-                        + (f" · ▲ {post.get('score', 0)}" if post else "")
-                        + (" · HIDDEN" if post.get("hidden") else "") + "\n", "meta")
-        extra = []                                                # 2.85.0
-        if (post.get("based_on") or {}).get("id"):
-            extra.append(f"based on “{post['based_on'].get('name') or 'another strat'}”")
-        if post.get("pending"):
-            extra.append(f"{post['pending']} change waiting for reviewers")
-        if post.get("mine") and post.get("suggestions"):
-            extra.append(f"{post['suggestions']} suggested edit{'s' if post['suggestions'] != 1 else ''} for you (right-click › "
-                         "Suggestions)")
-        if extra:
-            t.insert("end", " · ".join(extra) + "\n", "meta")
-        t.insert("end", s.get("summary", "") + "\n", "summary")
-        tpc, cph = s.get("thoughts_per_click", 0), s.get("clicks_per_hour", "")
-        word, why = MM.THINKING.get(tpc, ("?", ""))
-        t.insert("end", "🧠 Thoughts per click  ", "h")
-        t.insert("end", word, "stat")
-        t.insert("end", f"  {why}\n", "meta")
-        t.insert("end", "🖱 Clicks per hour  ", "h")
-        t.insert("end", cph, "stat")
-        t.insert("end", f"  {MM.CLICKS.get(cph, '')}\n", "meta")
-        t.insert("end", "Est. profit  ", "h")
-        t.insert("end", MM.money_text(s.get("est_profit"), " / h") + "     ", "stat")
-        t.insert("end", "Est. cost  ", "h")
-        t.insert("end", MM.money_text(s.get("est_cost")) + "\n", "stat")
-        self.mm_cost_lines(t, s)                                  # 2.46.0: what it costs today
-        if s.get("waystone_tiers"):
-            t.insert("end", "Waystone tiers  ", "h")
-            t.insert("end", MM.tiers_text(s["waystone_tiers"]) + "\n", "stat")
-        tags = s.get("tags") or []
-        for group, opts in MM.tag_groups().items():
-            got = [x for x in opts if x in tags]
-            if got:
-                t.insert("end", group + "  ", "h")
-                t.insert("end", " · ".join(got) + "\n", "chip")
-        # (2.71.0: your Strat Tracker numbers are in the Your numbers box above)
-        if isinstance(s.get("ledger"), dict):
-            t.insert("end", "Author's Strat Tracker  ", "h")
-            t.insert("end", MM.ledger_text(s["ledger"]) + "\n", "meta")
-        self.mm_need_items(t, s)                                   # 2.78.0: W - regex + trade for each item
-        self.mm_atlas(t, s)
-        for key, title in (("requirements", "Requirements"), ("tablets", "Tablets"), ("waystones", "Waystones"),
-                           ("craft_steps", "Craft steps"), ("setup", "Other setup"),
-                           ("steps", "Steps"),
-                           ("loot", "Loot to sell"), ("tips", "Tips"), ("risks", "Risks")):
-            if key in ("tablets", "waystones") and s.get("items"):
-                continue                                          # (the cards above have them)
-            items = s.get(key) or []
-            if not items:
-                continue
-            t.insert("end", title + "\n", "h")
-            for i, line in enumerate(items, 1):
-                t.insert("end", (f"{i}. " if key == "steps" else "• ") + line + "\n", "li")
-        if s.get("regex"):
-            t.insert("end", "Stash regex\n", "h")
-            t.insert("end", s["regex"] + "\n", "mono")
-        if s.get("sources"):
-            t.insert("end", "Sources\n", "h")
-            for i, src in enumerate(s["sources"]):
-                tag = f"src{i}"
-                t.insert("end", "• ", "li")
-                t.insert("end", (src.get("title") or src["url"]) + "\n", ("li", "link", tag))
-                t.tag_bind(tag, "<Button-1>", lambda e, u=src["url"]: webbrowser.open(u))
-        t.config(state="disabled")
+    def mm_close(self):
+        """‹ All strats."""
+        self.mm_detail_on = False
+        self.mm_sel = None
+        self.mm_open_f.pack_forget()
+        self.mm_find_f.pack(fill="both", expand=True)
+        self.mm_find_cv.later(10)
 
-    # ---------------- 2.78.0: W - what a strat needs, with a regex and a trade search for each item
-    def mm_need_items(self, t, s):
-        items = s.get("items") or []
-        if not items:
-            return
-        P1 = C["panel"]
-        now = MM.cost_now(s, self.mm_costs())
-        prices = {}
-        c = (self.mm_costs() or {}).get(s.get("id")) or {}
-        for i in range(len(items)):
-            p = (c.get("prices") or {}).get(str(i))
-            if p is not None:
-                prices[i] = p
-        t.insert("end", "What you need - search or buy it\n", "h")
-        self.mm_item_btns = []
-        for i, it in enumerate(items):
-            card = tk.Frame(t, bg=P1, padx=8, pady=8, highlightthickness=1, highlightbackground=C["line"])
-            top = tk.Frame(card, bg=P1)
-            top.pack(fill="x")
-            kind = {"waystone": "WAYSTONE", "tablet": "TABLET"}.get(it.get("kind"), "ITEM")
-            tk.Label(top, text=f"{kind} ×{it.get('count', 1)}", bg=P1, fg=C["muted"], font=("Segoe UI", 9, "bold"),
-                     width=11, anchor="w").pack(side="left")
-            last = f" · lasts {it.get('lasts')} runs" if int(it.get("lasts") or 1) > 1 else ""
-            tk.Label(top, text=(it.get("name") or it["base"]) + last, bg=P1, fg=C["text"],
-                     font=("Segoe UI", 10, "bold"), anchor="w").pack(side="left")
-            price = prices.get(i)
-            if it.get("key_mods"):
-                tk.Label(card, text="\n".join("★ " + m for m in it["key_mods"]), bg=P1, fg=C["muted"],
-                         font=("Segoe UI", 9), anchor="w", justify="left", wraplength=440).pack(fill="x", pady=(2, 0))
-            row = tk.Frame(card, bg=P1)
-            row.pack(fill="x", pady=(8, 0))
-            rx = MM.item_regex([it])
-            b1 = ttk.Button(row, text="Copy regex", style="Quiet.TButton",
-                            command=lambda rx=rx, it=it: self.mm_item_copy(rx, it.get("name") or it["base"]))
-            b1.pack(side="left")
-            b2 = ttk.Button(row, text="Trade ↗", style="Quiet.TButton", command=lambda it=it: self.mm_item_trade(it))
-            b2.pack(side="left", padx=(8, 0))
-            if not rx:
-                b1.state(["disabled"])
-            self.mm_item_btns.append((b1, b2, rx))
-            tk.Label(row, text=f"~{price:.2f} div today" if price is not None else
-                     ("no recent listings" if now or c else ""), bg=P1, fg=C["good"] if price is not None else C["muted"],
-                     font=("Segoe UI", 9)).pack(side="left", padx=8)
-            t.window_create("end", window=card, stretch=1)
-            wheel_scrolls(t, card)                         # 3.0.1: the wheel over a card scrolls the guide too
-            t.insert("end", "\n")
-        tabs = [it for it in items if it.get("kind") != "waystone" and it.get("key_mods")]
-        if len(tabs) > 1:
-            rx = MM.item_regex(tabs)
-            b = ttk.Button(t, text="Copy one regex for all the tablets", style="Quiet.TButton",
-                           command=lambda: self.mm_item_copy(rx, "all the tablets"))
-            self.mm_all_tabs_btn = b
-            t.window_create("end", window=b)
-            wheel_scrolls(t, b)
-            t.insert("end", "  stash or vendor: Ctrl+V in the search · Trade: the ★ mods, cheapest first\n", "meta")
+    def mm_select(self, key):
+        return self.mm_open(key)
 
+    def mm_show_detail(self, s=None):
+        """Redraw the opened strat (its cost was checked, its picture came...)."""
+        if getattr(self, "mm_detail_on", False):
+            self.mm_detail_cv.later(10)
+        cv = getattr(self, "mm_find_cv", None)
+        if cv is not None:
+            cv.later(40)
+
+    def mm_run(self, key):
+        """Run this strat (the one orange button): the Strat Tracker on it (a setup is made if there's none)."""
+        if key:
+            self.mm_sel = key
+        return self.mm_track()
+
+    def mm_row_menu(self, key, x, y):
+        """Right-click a strat: everything you can do with it (the same menu as More ▾)."""
+        self.mm_sel = key                                    # (Find: not opened - mm_detail_on says what is)
+        return self.mm_menu(None, x, y)
+
+    def mm_more_at(self, tag):
+        x, y = self.mm_detail_cv.at_root(tag)
+        return self.mm_menu(None, x, y)
+
+    def mm_item_menu(self, it, tag):
+        """A You need slot: copy its stash search, or open the Trade Site on it."""
+        rx = MM.item_regex([it])
+        m = self._mm_menu()
+        name = it.get("name") or it.get("base")
+        m.add_command(label="Copy its stash search (regex)", command=lambda: self.mm_item_copy(rx, name),
+                      state="normal" if rx else "disabled")
+        m.add_command(label="Trade Site ↗ (cheapest first)", command=lambda: self.mm_item_trade(it))
+        x, y = self.mm_detail_cv.at_root(tag)
+        try:
+            m.tk_popup(x, y)
+        except tk.TclError:
+            pass
+        self.mm_last_menu = m
+        return m
+
+    # ---------------- 2.78.0: W - what a strat needs (You need), a regex and a trade search for each item
     def mm_item_copy(self, rx, what):
         if not rx:
             return None
@@ -823,33 +592,7 @@ class MoneyMakersPage:
         webbrowser.open(url)
         return url
 
-    # ---------------- 2.78.0: the atlas - trees, the author's screenshot (click: see it big), notes
-    def mm_atlas(self, t, s):
-        lines, ref = s.get("atlas") or [], s.get("atlas_image")
-        if not lines and not ref:
-            return
-        t.insert("end", "Atlas / master setup\n", "h")
-        if ref:
-            from . import stratimg
-            path = stratimg.path_of(ref) if ref.startswith("l:") else None
-            if ref.startswith("b:"):
-                path = self.mm_board_image(ref, s)
-            img = self.strat_thumb(path, 320, 180) if path else None
-            if img is not None:
-                self.mm_atlas_img = img
-                lbl = tk.Label(t, image=img, bg=C["panel"], cursor="hand2", highlightthickness=1,
-                               highlightbackground=C["line"])
-                lbl.bind("<Button-1>", lambda e, p=path: self.mm_atlas_big(p))
-                t.window_create("end", window=lbl)
-                wheel_scrolls(t, lbl)
-                t.insert("end", "\n")
-                t.insert("end", "Click the picture to see it big.\n", "meta")
-            else:
-                t.insert("end", "loading the author's atlas screenshot…\n" if ref.startswith("b:") else
-                         "The atlas screenshot is missing from this PC.\n", "meta")
-        for line in lines:
-            t.insert("end", "• " + line + "\n", "li")
-
+    # ---------------- 2.78.0: the atlas - the author's screenshot (click: see it big)
     def mm_board_image(self, ref, s):
         """A board image: kept on this PC after the first download (in the background; the panel redraws)."""
         from . import stratimg
@@ -891,24 +634,18 @@ class MoneyMakersPage:
         self.mm_atlas_win = w
         return w
 
-    def mm_more(self):
-        b = self.mm_btns["more"]
-        self.mm_menu(None, b.winfo_rootx(), b.winfo_rooty() + b.winfo_height())
-
-    def mm_menu(self, e, x=None, y=None):
-        """Right-click a strat (or ⋯ More): everything you can do with it."""
+    def mm_menu(self, e=None, x=None, y=None):
+        """More ▾ on an opened strat, or a right-click on one: everything you can do with it."""
         if e is not None:
-            row = self.mm_tree.identify_row(e.y)
-            if not row:
-                return
-            self.mm_tree.selection_set(row)
             x, y = e.x_root, e.y_root
         s = self.mm_current()
         if not s:
-            return
+            return None
         post, me = s.get("_post") or {}, B.signed_in() or {}
         m = tk.Menu(self.root, tearoff=0, bg=C["panel2"], fg=C["text"], activebackground="#2c4a84")
-        m.add_command(label="▶ Track it in the Strat Tracker", command=self.mm_track)
+        if not getattr(self, "mm_detail_on", False):
+            m.add_command(label="Open", command=lambda k=self.mm_sel: self.mm_open(k))
+        m.add_command(label="Run this strat", command=self.mm_track)
         if s.get("regex"):
             m.add_command(label="Copy regex", command=self.mm_copy_regex)
         if post:
@@ -943,7 +680,12 @@ class MoneyMakersPage:
             m.add_command(label="Admin: Delete", command=lambda: self.mm_admin("delete"))
             m.add_command(label=f"Admin: Ban {post.get('author', {}).get('name', '')}",
                           command=lambda: self.mm_admin("ban"))
-        m.tk_popup(x, y)
+        try:
+            m.tk_popup(x, y)
+        except tk.TclError:
+            pass
+        self.mm_last_menu = m
+        return m
 
     # ---------------- the board (network work off the main thread; mm_sync = do it now, for tests)
     def _mm_bg(self, work, done):
@@ -961,8 +703,7 @@ class MoneyMakersPage:
             save_json("board_official.json", d)
             if self.mm_view.get() == "Official":
                 self.mm_reload()
-            if hasattr(self, "mm_one_tree"):
-                self.mm_one_fill()
+            self.mm_one_fill()
 
     def mm_board_fetch(self, keep=None):
         if not B.configured():
@@ -985,8 +726,7 @@ class MoneyMakersPage:
         self.mm_live_lbl.config(text=f"Community: {d['total']} strat{'s' if d['total'] != 1 else ''}", fg=C["muted"])
         if self.mm_view.get() == "Community":
             self.mm_reload(keep=keep)
-        if hasattr(self, "mm_one_tree"):
-            self.mm_one_fill()
+        self.mm_one_fill()
 
     def mm_need_login(self, why):
         """No login: the first time you post / vote / report, pick a name and the board gives this install a key."""
@@ -1030,8 +770,8 @@ class MoneyMakersPage:
         post = (s or {}).get("_post")
         if not post or self.mm_need_login("upvote"):
             return None
-        self._mm_bg(lambda: B.vote(post["id"], not post.get("voted")),
-                    lambda r: self.mm_board_result(r, keep=self.mm_sel))
+        keep = self.mm_sel if getattr(self, "mm_detail_on", False) else None
+        self._mm_bg(lambda: B.vote(post["id"], not post.get("voted")), lambda r: self.mm_board_result(r, keep=keep))
 
     def mm_post(self):
         s = self.mm_current()
@@ -1119,8 +859,9 @@ class MoneyMakersPage:
         return c
 
     def mm_show_mine(self, sid=None):
+        """From: Mine, with this strat of yours opened (none: the list)."""
         if self.mm_view.get() != "Mine":
-            self.mm_view.pick("Mine", notify=False)
+            self.mm_view.set("Mine")
             self.mm_view_changed()
         self.mm_reload(keep=(sid + "|mine") if sid else None)
 
@@ -1215,25 +956,7 @@ class MoneyMakersPage:
         c.update(at=time.time(), league=league)
         save_costs(self.mm_costs())
         self._mm_cost_busy = getattr(self, "_mm_cost_busy", set()) - {sid}
-        cur = self.mm_current()
-        if cur and cur["id"] == sid:
-            self.mm_show_detail(cur)
-
-    def mm_cost_lines(self, t, s):
-        if not s.get("items"):
-            return
-        now = MM.cost_now(s, self.mm_costs())
-        busy = s["id"] in getattr(self, "_mm_cost_busy", set())
-        t.insert("end", "Cost now  ", "h")
-        if now:
-            total, parts, at = now
-            ago = max(0, time.time() - (at or time.time()))
-            when = "today" if ago < 86400 else f"{int(ago // 86400)} days ago"
-            t.insert("end", f"{total:.2f} div a run", "stat")
-            t.insert("end", f"  (trade site, checked {when}{' - checking again…' if busy else ''})\n", "meta")
-        else:
-            t.insert("end", "checking the trade site…\n" if busy else
-                     "not checked yet (once a day while Farming Strategies is open)\n", "meta")
+        self.mm_fill()                                            # (Cost per run: the rows and the opened strat)
 
     def mm_on_show(self):
         self.mm_check_live(force=False)
@@ -1309,9 +1032,20 @@ class MoneyMakersPage:
         return path
 
     def mm_more_menu(self, btn):
+        """The toolbar's ⋯: Refresh, Import file… (P6), your community name (2.94.0: Settings › Privacy & community)."""
+        from .community_page import chip_text
         m = tk.Menu(self.root, tearoff=0, bg=C["panel2"], fg=C["text"], activebackground="#2c4a84")
+        m.add_command(label="↻ Refresh", command=self.mm_refresh)
         m.add_command(label="Import file…", command=self.mm_import)
-        m.tk_popup(btn.winfo_rootx(), btn.winfo_rooty() + btn.winfo_height())
+        m.add_separator()
+        name = chip_text()
+        m.add_command(label=name + ("…" if name.endswith("Community name") else " - community name…"),
+                      command=self.mm_account_click)
+        try:
+            m.tk_popup(btn.winfo_rootx(), btn.winfo_rooty() + btn.winfo_height())
+        except tk.TclError:
+            pass
+        self.mm_last_menu = m
         return m
 
     def mm_import(self, path=None):
@@ -1558,56 +1292,17 @@ class MoneyMakersPage:
 
     # ---------------- the run tracker (its own, simple)
     def mm_track(self):
-        """A strat's "▶ Strat Tracker": its setup there (made if there's none yet)."""
+        """Run this strat: its setup in the Strat Tracker (made if there's none yet)."""
         s = self.mm_current()
         self.mm_page.pick("Strat Tracker", notify=False)
         self.mm_show_page()
         if s:
             self.fl_for_strat(s["id"])
 
-    # ---------------- Lucrative Strats: simple one-liners
-    def mm_build_oneliners(self, page):
-        P1 = C["panel"]
-        bar = tk.Frame(page, bg=P1, padx=8, pady=8)
-        bar.pack(fill="x")
-        tk.Label(bar, text="Search", bg=P1, fg=C["muted"]).pack(side="left", padx=(0, 8))
-        self.mm_one_q = tk.StringVar()
-        self.mm_one_q.trace_add("write", lambda *_a: self.root.after_idle(self.mm_one_fill))
-        ttk.Entry(bar, textvariable=self.mm_one_q, width=26).pack(side="left")
-        # 2.132.6 (feedback: "multiple copies of the same thing ... sorting for Official | Community | Mine")
-        self.mm_one_view = SegBar(bar, list(VIEWS), command=lambda v: self.mm_one_fill(), size=10, pad=(12, 4))
-        self.mm_one_view.pack(side="left", padx=(12, 0))
-        self.mm_one_btns = {}
-        for text, cmd, style in (("+ Add a one-liner", self.mm_one_add, "Primary.TButton"),
-                                 ("📤 Post", self.mm_one_post, "TButton"), ("▲ Upvote", self.mm_one_vote, "TButton"),
-                                 ("🏷 Tags…", self.mm_one_tags, "TButton"), ("Copy text", self.mm_one_copy, "TButton")):
-            b = ttk.Button(bar, text=text, command=cmd, style=style)
-            b.pack(side="right", padx=(8, 0))
-            self.mm_one_btns[text] = b
-        Tooltip(self.mm_one_btns["🏷 Tags…"], "Pick a one-liner of yours (Mine) to set its type and tags.")
-        tk.Label(page, text="Quick ways to make currency, one line each - no guide needed. Official ones come with the app, "
-                            "Community ones from other players; 📤 Post shares yours.", bg=P1, fg=C["muted"],
-                 font=("Segoe UI", 9), anchor="w", justify="left").pack(fill="x", padx=12, pady=(0, 8))
-        autowrap(page.pack_slaves()[-1], pad=24)            # D3: wraps at Drawer width
-        box = tk.Frame(page, bg=P1)
-        box.pack(fill="both", expand=True, padx=8, pady=(0, 8))
-        cols = (("text", "Strat", 560, "w"), ("mech", "Type / tags", 150, "w"), ("score", "▲", 44, "center"),
-                ("by", "By", 110, "w"), ("origin", "From", 90, "center"))
-        self.mm_one_tree = ttk.Treeview(box, columns=[c[0] for c in cols], show="headings", selectmode="browse")
-        for cid, title, w, anchor in cols:
-            self.mm_one_tree.heading(cid, text=title)
-            self.mm_one_tree.column(cid, width=w, minwidth=40, anchor=anchor, stretch=cid == "text")
-        self.mm_one_tree.tag_configure("mine", foreground=C["green"])
-        self.mm_one_tree.tag_configure("hidden", foreground=C["red"])
-        sb = ttk.Scrollbar(box, orient="vertical", command=self.mm_one_tree.yview)
-        self.mm_one_tree.configure(yscrollcommand=sb.set)
-        sb.pack(side="right", fill="y")
-        self.mm_one_tree.pack(side="left", fill="both", expand=True)
-        self.mm_one_tree.bind("<Button-3>", self.mm_one_menu)
-        self.mm_one_tree.bind("<<TreeviewSelect>>", lambda e: self.mm_one_greys())
-        self.mm_one_tree.bind("<Double-1>", lambda e: self.mm_one_copy())
-        self.mm_one_tree.bind("<Delete>", lambda e: self.mm_one_delete())
-        self.mm_one_empty = tk.Label(box, text="", bg=P1, fg=C["muted"], font=("Segoe UI", 10))
+    # ---------------- Quick tips (3.0.6: was the Lucrative Strats tab): one-liners, folded at the bottom of Find
+    def mm_tips_toggle(self, on):
+        self.mm_tips_open = bool(on)
+        self.mm_find_cv.later(1)
 
     def mm_one_items(self):
         have = {o["id"] for o in MM.oneliners()}
@@ -1618,7 +1313,7 @@ class MoneyMakersPage:
     def mm_one_view_items(self, view=None):
         """2.132.6: one view at a time, each copy once. Official: the app's own and promoted posts. Community: other
         posts. Mine: yours (the one on this PC first, then what you posted)."""
-        view = view or self.mm_one_view.get()
+        view = view or self.mm_view.get()
         items = self.mm_one_items()
         post = lambda o: o.get("_post") or {}                                   # noqa: E731
         if view == "Official":
@@ -1637,13 +1332,15 @@ class MoneyMakersPage:
                 out.append(o)
         return out
 
-    def mm_one_greys(self):
-        o = self.mm_one_current()
-        mine, post = bool(o and o["origin"] == "mine"), (o or {}).get("_post")
-        for text, ok in (("📤 Post", mine), ("▲ Upvote", bool(post)), ("🏷 Tags…", mine), ("Copy text", bool(o))):
-            b = getattr(self, "mm_one_btns", {}).get(text)
-            if b is not None:
-                b.state(["!disabled"] if ok else ["disabled"])
+    def mm_one_shown(self):
+        """The tips of the view picked in From (Official / Community / Mine) that match the search."""
+        q = self.mm_q.get().strip().lower() if hasattr(self, "mm_q") else ""
+        return [o for o in self.mm_one_view_items()
+                if not q or q in (o.get("text", "") + " " + " ".join(o.get("tags") or [])).lower()]
+
+    def mm_one_pick(self, key):
+        self.mm_one_sel = key
+        self.mm_one_fill()
 
     def mm_one_tags(self):
         """2.132.6: set a one-liner's type and tags (the strats' lists)."""
@@ -1710,37 +1407,21 @@ class MoneyMakersPage:
         return w
 
     def mm_one_fill(self):
-        tv = self.mm_one_tree
-        tv.delete(*tv.get_children())
-        q = self.mm_one_q.get().strip().lower()
-        self.mm_ones = {}
-        for o in self.mm_one_view_items():
-            if q and q not in o.get("text", "").lower() + " " + " ".join(o.get("tags") or []).lower():
-                continue
-            iid = o["id"] + "|" + o["origin"]
-            post = o.get("_post") or {}
-            self.mm_ones[iid] = o
-            tv.insert("", "end", iid=iid, tags=(o["origin"],) + (("hidden",) if post.get("hidden") else ()),
-                      values=(("✔ " if post.get("voted") else "") + o["text"],
-                              " · ".join(x for x in (MM.type_text(o) if o.get("category") else "",
-                                                     ", ".join(o.get("tags") or [])) if x),
-                              post.get("score", "") if post else "",
-                              post.get("author", {}).get("name") or o.get("author", ""), ORIGIN.get(o["origin"], "")))
-        self.mm_one_greys()
-        if self.mm_ones:
-            self.mm_one_empty.place_forget()
-        else:
-            self.mm_one_empty.config(text="Nothing yet - press + Add a one-liner.")
-            self.mm_one_empty.place(relx=0.5, rely=0.3, anchor="center")
+        """Draw Find again (the Quick tips are on it)."""
+        cv = getattr(self, "mm_find_cv", None)
+        if cv is not None:
+            cv.later(10)
 
     def mm_one_current(self):
-        sel = self.mm_one_tree.selection()
-        return self.mm_ones.get(sel[0]) if sel else None
+        sel = getattr(self, "mm_one_sel", None)
+        if not sel:
+            return None
+        return next((o for o in self.mm_one_view_items() if o["id"] + "|" + o["origin"] == sel), None)
 
     def mm_one_add(self, text=None):
         from tkinter import simpledialog
         text = text if text is not None else simpledialog.askstring(
-            "Lucrative strat", "Your money maker in one line:", parent=self.root)
+            "Quick tip", "Your way to make currency, in one line:", parent=self.root)
         text = (text or "").strip()
         if not text:
             return None
@@ -1748,8 +1429,10 @@ class MoneyMakersPage:
              "updated": time.strftime("%Y-%m-%d")}
         mine = [x for x in MM.mine_one() if x["id"] != o["id"]] + [o]
         MM.save_mine_one(mine)
-        if self.mm_one_view.get() != "Mine":
-            self.mm_one_view.pick("Mine", notify=False)
+        self.mm_tips_open = True
+        if self.mm_view.get() != "Mine":
+            self.mm_view_set("Mine")
+        self.mm_one_sel = o["id"] + "|mine"
         self.mm_one_fill()
         return o
 
@@ -1764,7 +1447,7 @@ class MoneyMakersPage:
     def mm_one_post(self):
         o = self.mm_one_current()
         if not o or o["origin"] != "mine":
-            self._say("Pick one of your own one-liners (From: Mine) to post it.", 6)
+            self._say("Pick one of your own tips (From: Mine) to post it.", 6)
             return None
         if not self.cm_need_sharing(self.mm_one_post) or self.mm_need_login("post"):
             return None
@@ -1775,7 +1458,7 @@ class MoneyMakersPage:
         o = self.mm_one_current()
         post = (o or {}).get("_post")
         if not post:
-            self._say("Upvotes are for Community one-liners.", 5)
+            self._say("Upvotes are for community tips.", 5)
             return None
         if self.mm_need_login("upvote"):
             return None
@@ -1790,19 +1473,20 @@ class MoneyMakersPage:
             MM.save_mine_one([x for x in MM.mine_one() if x["id"] != o["id"]])
             self.mm_one_fill()
 
-    def mm_one_menu(self, e):
-        row = self.mm_one_tree.identify_row(e.y)
-        if not row:
-            return
-        self.mm_one_tree.selection_set(row)
+    def mm_one_menu(self, e=None, x=None, y=None):
+        """Right-click a tip: copy, upvote, tag, post, delete, report (and the admin's tools)."""
+        if e is not None:
+            x, y = e.x_root, e.y_root
         o = self.mm_one_current()
+        if not o:
+            return None
         post, me = (o or {}).get("_post") or {}, B.signed_in() or {}
         m = tk.Menu(self.root, tearoff=0, bg=C["panel2"], fg=C["text"], activebackground="#2c4a84")
         m.add_command(label="Copy text", command=self.mm_one_copy)
         if post:
             m.add_command(label="▲ Remove my upvote" if post.get("voted") else "▲ Upvote", command=self.mm_one_vote)
         if o and o["origin"] == "mine":
-            m.add_command(label="🏷 Type & tags…", command=self.mm_one_tags)
+            m.add_command(label="🏷 Tags…", command=self.mm_one_tags)
             m.add_command(label="📤 Post to Community", command=self.mm_one_post)
         if (o and o["origin"] == "mine") or post.get("mine"):
             m.add_separator()
@@ -1819,7 +1503,12 @@ class MoneyMakersPage:
                                                               self._mm_bg(B.official, self._mm_official_done))))
             m.add_command(label="Admin: Delete", command=lambda: self._mm_bg(lambda: B.delete(post["id"]),
                                                                              lambda r: self.mm_board_result(r, "Deleted.")))
-        m.tk_popup(e.x_root, e.y_root)
+        try:
+            m.tk_popup(x, y)
+        except tk.TclError:
+            pass
+        self.mm_last_menu = m
+        return m
 
     def _mm_report_post(self, post):
         from tkinter import simpledialog

@@ -1,4 +1,4 @@
-# Money Makers strats
+# Farming Strategies strats
 
 > **GGG ToS safety check - read first.** One key press = one action, only when you press it · nothing acts in the game by itself (helpers only read and show) · never touch the game's memory, code or traffic · the mouse is never moved or clicked for you · it reads Client.txt, the trade site (within its limits) and poe.ninja, and your clipboard or screen only once per key press (the Read Key, a copy key). Every change must pass all of [TOS.md](../TOS.md) (`tools/check_tos.py` checks the code on every PR).
 
@@ -6,7 +6,7 @@
 
 Each strat is **one file** in this folder, in the standard layout below: a `.csv` file (2.46.0 - what the app saves
 with **Export**; opens in Excel / Google Sheets), or `.json`. The older plain-text `.txt`
-layout still reads. One-liners for **Lucrative Strats** go in
+layout still reads. One-liners for **Quick tips** (folded at the bottom of Farming Strategies › Find) go in
 `oneliners.json`. `tools/build_strats.py` checks every file and builds `moneymakers.json`, which ships with the app
 **and** is fetched from `main` by the app (at most every 12 h), so a merged strat reaches everyone without a new release.
 

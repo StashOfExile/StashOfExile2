@@ -282,6 +282,13 @@ def _read_key_name(S):
         seen["Read Key"] = seen["Look key"]
 
 
+def _strats_find_306(S):
+    """3.0.6 Farming Strategies (the approved mockups): one row per strat (the Cards | List switch is gone) and one
+    dropdown per filter (More filters / Fewer filters is gone) - their saved choices go."""
+    S.pop("mm_layout", None)
+    S.pop("mm_more_filters", None)
+
+
 STEPS = (
     ("modbook_import", "1.x", "app", _modbook_import, "modbook_imported"),
     ("rules_scoped", "2.6.0", "app", _rules_scoped, "rules_scoped_26"),
@@ -310,6 +317,7 @@ STEPS = (
     ("delirium_gone", "GGG policy", "settings", _delirium_gone, None),
     ("look_key_default", "GGG policy", "settings", _look_key_default, None),
     ("read_key_name", "3.0.1", "settings", _read_key_name, None),
+    ("strats_find_306", "3.0.6", "settings", _strats_find_306, None),
 )
 
 

@@ -25,6 +25,20 @@ DOCS = ("README.md", "TOS.md", "linux/README.md", "themes/README.md", "strats/RE
 
 # (version, what it was, words a person read, names in the code / settings keys[, pending])
 REMOVED = [
+    ("3.0.6", "Farming Strategies to the approved mockups: the Lucrative Strats tab (its one-liners are Quick tips, "
+              "folded at the bottom of Find - Add, Copy, Upvote, Post, Tags… inside), the Strats tab's name (Find), "
+              "the Cards | List switch and its sortable table (a row per strat; Sort orders them), the filter chip "
+              "rows with More filters / Fewer filters (one dropdown each: Budget, Effort, Type, From, More; the "
+              "Drawer: Filters), the toolbar's community name chip (⋯ › community name) and Track in Strat Tracker "
+              "(Run this strat, the one orange button)",
+     ("Lucrative Strats", "Lucrative strat", "Track in Strat Tracker", "Track it in the Strat Tracker", "More filters",
+      "Fewer filters", "Thoughts/click", "Est. profit/h", "Pick a strat on the left", "+ Add a one-liner",
+      "Farming Strategies › Strats", "Strats › Mine"),
+     ("mm_layout", "mm_more_filters", "mm_more_paint", "mm_layout_changed", "mm_cards_fill", "mm_cards_reflow",
+      "mm_cards_mark", "mm_card_w", "mm_sort_by", "mm_chips_paint", "mm_chip_rows", "_mm_flow", "_mm_chip",
+      "_mm_content_chips", "mm_content_menu", "mm_tree", "mm_one_tree", "mm_one_view", "mm_one_q", "mm_one_btns",
+      "mm_build_oneliners", "mm_need_items", "mm_cost_lines", "mm_mine_paint", "mm_mine_box", "mm_sash", "mm_pick",
+      "mm_one_greys", "mm_acct", "mm_btns", "mm_more")),
     ("3.0.6", "tabs.txt and jewels.txt (owner: no reason to still use .txt - both are one modlists.json now)",
      ("tabs.txt", "jewels.txt"), ("load_tabs", "load_jewels", "clean_jewel_line", "_clean_tab_line")),
     ("3.0.6", "the Search with fewer mods button (owner: Broaden Search does it for every item - the orange button "
