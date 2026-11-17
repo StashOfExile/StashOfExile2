@@ -855,7 +855,7 @@ class Shell:
             self.sidebar = None
             self.dock.pack(side="left", fill="y")
             self.dock_sep.pack(side="left", fill="y")
-        self.desk = tk.Canvas(root, bg="#0a0c12", highlightthickness=0, bd=0)
+        self.desk = tk.Canvas(root, bg=C["bg"], highlightthickness=0, bd=0)
         self.desk.pack(side="left", fill="both", expand=True)
         self._wall_img, self._wall_job, self._wall_size = None, None, None
         self.desk.bind("<Configure>", self._desk_resized)
@@ -960,9 +960,10 @@ class Shell:
 
     # ---- the wallpaper
     def _desk_resized(self, e):
-        if self._wall_job:
-            self.root.after_cancel(self._wall_job)
-        self._wall_job = self.root.after(150, self.paint_wallpaper)
+        if not PAGES:
+            if self._wall_job:
+                self.root.after_cancel(self._wall_job)
+            self._wall_job = self.root.after(150, self.paint_wallpaper)
         self._follow_soon()
 
     # ---- the windows are real windows (2.0 beta 13): keep them on the desktop area when the app moves / resizes
@@ -1373,6 +1374,14 @@ class Shell:
 
     def paint_wallpaper(self):
         self._wall_job = None
+        if PAGES:                       # 3.0.6 (owner: "still uses a gradient circle background from old versions,
+            self.desk.delete("wall")    # we can probably get rid of that"): pages cover the area - a plain color
+            self._wall_img = None       # under them, nothing to draw again on each resize
+            try:
+                self.desk.configure(bg=C["bg"])
+            except tk.TclError:
+                pass
+            return
         w, h = max(2, self.desk.winfo_width()), max(2, self.desk.winfo_height())
         if self._wall_size == (w, h, self.cfg.get("wallpaper")):
             return
