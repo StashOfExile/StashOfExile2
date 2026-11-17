@@ -290,7 +290,15 @@ def pin_ui_dpi():
     Screen reading doesn't depend on this thread's DPI: look_page.ev_look reads the game window and the mouse in real
     pixels (screenread.game_real - this thread per-monitor for the two reads, then back), the picture is taken the
     same way (screenread._grab), and a helper's tags are placed in the app's pixels (screenread.to_ui)."""
-    if not WIN or UI_DPI == "off":
+    mode = UI_DPI
+    try:                                       # 3.0.6: the Drawer-drag test - settings "ui_dpi" picks the mode
+        from .config import SETTINGS
+        if SETTINGS.get("ui_dpi") in ("gdiscaled", "unaware", "off"):
+            mode = SETTINGS["ui_dpi"]
+    except Exception:
+        pass
+    if not WIN or mode == "off":
+        UI_DPI_SET[0] = "off"
         return None
     try:
         import ctypes
@@ -299,7 +307,7 @@ def pin_ui_dpi():
         if put is None:
             return None
         put.restype, put.argtypes = ctypes.c_void_p, [ctypes.c_void_p]
-        for name, ctx in ((("gdiscaled", -5), ("unaware", -1)) if UI_DPI == "gdiscaled" else (("unaware", -1),)):
+        for name, ctx in ((("gdiscaled", -5), ("unaware", -1)) if mode == "gdiscaled" else (("unaware", -1),)):
             if put(ctypes.c_void_p(ctx)):              # -5 DPI_AWARENESS_CONTEXT_UNAWARE_GDISCALED (1809+), -1 UNAWARE
                 UI_DPI_SET[0] = name
                 return name

@@ -46,6 +46,20 @@ def _win_count(root):
         return None
 
 
+def _dpi(root):
+    """How Windows scales the app's windows (drawer.pin_ui_dpi) and the screen's scale."""
+    try:
+        from .drawer import UI_DPI_SET
+        mode = UI_DPI_SET[0] or "process default"
+    except Exception:
+        mode = "?"
+    try:
+        scale = f"{root.winfo_fpixels('1i') / 96 * 100:.0f}% as the app sees it"
+    except tk.TclError:
+        scale = "?"
+    return f"{mode}, {scale}"
+
+
 def _steps(root, w0, h0, each=None):
     """STEPS resizes (wider, narrower, ...) -> (median ms, worst ms) for one step drawn on the screen. each(): run
     after every resize (the page laid out at once)."""
@@ -69,7 +83,7 @@ def run(app):
     root, sh = app.root, app.shell
     lines = [f"Measure resizing - {time.strftime('%Y-%m-%d %H:%M')} - "
              f"{'Drawer' if getattr(app, 'drawer_shown_as_drawer', lambda: False)() else 'Full window'} - "
-             f"{STEPS} steps each, ms per step (median / worst)", ""]
+             f"{STEPS} steps each, ms per step (median / worst) - window scaling: {_dpi(root)}", ""]
     root.update()
     w0, h0 = root.winfo_width(), root.winfo_height()
     was = sh.active
