@@ -25,6 +25,14 @@ DOCS = ("README.md", "TOS.md", "linux/README.md", "themes/README.md", "strats/RE
 
 # (version, what it was, words a person read, names in the code / settings keys[, pending])
 REMOVED = [
+    ("3.0.6", "Farming Strategies' Add my own form (owner: \"so hard to understand\" - a popup of labels and switches): "
+              "New strat, a page in Farming Strategies with chips, your copied tablets and waystone, Made for you, "
+              "Atlas masters and How it goes; profit an hour comes from runs, not a typed estimate (older ones are "
+              "kept and read)",
+     ("Tags (everything else about it)", "Numbers (estimates)", "Est. profit per hour", "Est. cost per run",
+      "The guide (one line per item)", "What it is: the main thing you farm or do", "* = needed. Everything else "
+      "is optional."),
+     ("mm_form", "mm_form_win", "mm_form_save", "mm_form_vars")),
     ("3.0.6", "Farming Strategies › Find: the Best for you right now card (owner: one list, best per hour first)",
      ("Best for you right now", "BEST FOR YOU RIGHT NOW", "MORE STRATS"), ("_mm_best_card", "run_best")),
     ("3.0.6", "Farming Strategies to the approved mockups: the Lucrative Strats tab (its one-liners are Quick tips, "

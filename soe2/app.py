@@ -2754,6 +2754,11 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
 
     def accept_clip(self, text):
         """Only a real Ctrl+Alt+C copy of an item we haven't already got becomes a new row."""
+        try:                                                      # 3.0.6: Farming Strategies › New strat, while it
+            if text.lstrip().startswith("Item Class:") and self.mm_new_capturing():     # shows: your tablets and
+                return self.mm_new_take_clip(text)                                      # waystone
+        except Exception:
+            buglog.caught()
         if not SETTINGS.get("listen", True):
             return
         if text.lstrip().startswith("Item Class:"):               # 2.45.0: the Strat Tracker's loot box / setup takes it

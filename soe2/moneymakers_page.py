@@ -1,7 +1,7 @@
 """Farming Strategies (2.28.0 Money Makers): community strats in one standard layout and the Strat Tracker.
-3.0.6 (the approved mockups): Find - a search box, one-line filters, the best strat for you right now and a row per
-strat, Quick tips folded at the bottom - and an opened strat (its numbers, what you need, how it goes); both drawn on
-canvases (stratview.py). Data and the layout check live in moneymakers.py."""
+3.0.6 (the approved mockups): Find - a search box, one-line filters (League first), a row per strat, Quick tips
+folded at the bottom - an opened strat (its numbers, what you need, how it goes) and New strat (stratnew.py); all
+drawn on canvases (stratview.py). Data and the layout check live in moneymakers.py."""
 import json
 import time
 import tkinter as tk
@@ -13,9 +13,10 @@ from . import board as B
 from . import moneymakers as MM
 from .config import SETTINGS, save_json
 from .style import over_app
-from .style import C, SegBar, Tooltip, place_near
+from .style import C, SegBar, Tooltip
 from .chrome import section as chrome_section
 from .stratview import StratViews, scroller
+from .stratnew import StratNewPage
 
 ORIGIN = {"community": "Official", "mine": "Mine", "example": "Example", "board": "Community"}
 VIEWS = ("Official", "Community", "Mine")
@@ -31,7 +32,7 @@ def _hms(secs):
     return f"{h}:{m:02d}:{s:02d}" if h else f"{m}:{s:02d}"
 
 
-class MoneyMakersPage(StratViews):
+class MoneyMakersPage(StratViews, StratNewPage):
     """Mixed into App."""
 
     def build_money_window(self, body):
@@ -69,6 +70,8 @@ class MoneyMakersPage(StratViews):
         self.mm_q = tk.StringVar()
         self.mm_q.trace_add("write", lambda *_a: self.root.after_idle(self.mm_fill))
         self.mm_view = tk.StringVar(value="Official")        # where the strats come from (2.30.0)
+        self.mm_league = tk.StringVar(value=self.mm_league_default())    # 3.0.6: your league first
+        self._mm_league_touched = False
         self.mm_budget = tk.StringVar(value="Any")
         self.mm_tag, self.mm_tier = tk.StringVar(value="Any"), tk.StringVar(value="Any")
         self.mm_max, self.mm_cmax = tk.StringVar(value="Any"), tk.StringVar(value="Any")
@@ -102,14 +105,16 @@ class MoneyMakersPage(StratViews):
         self.mm_q.trace_add("write", placeholder)
         se.after(300, placeholder)                           # (gone with the box)
         self.mm_drops = {}
-        for key, tip in (("budget", "What a strat costs to start - a strat's Budget tag."),
-                         ("effort", "Thoughts per click: how much thinking a strat needs - a pick shows that level "
-                                    "and the easier ones."),
+        for key, tip in (("league", "Which league's strats show: yours (Settings) or All leagues. A strat without "
+                                    "a league goes by its game version."),
+                         ("budget", "What a strat costs to start - a strat's Budget tag."),
+                         ("effort", "Effort: how much thinking a strat needs - a pick shows that level and the "
+                                    "easier ones."),
                          ("type", "What a strat is: its category, then its type."),
                          ("from", "Where strats come from: Official (comes with the app), Community (posted by "
                                   "players) or Mine (yours, on this PC)."),
                          ("more", "Clicks per hour, Content, Waystone tier and Tag."),
-                         ("filters", "Every filter, the sort and Add my own.")):
+                         ("filters", "Every filter, the sort and Add my own (New strat).")):
             self.mm_drops[key] = self._mm_drop(bar, key, tip)
         self.mm_live_lbl = tk.Label(bar, text="", bg=P1, fg=C["muted"], font=("Segoe UI", 9))
         dots = tk.Label(bar, text="⋯", bg=P1, fg=C["text"], font=("Segoe UI", 12, "bold"), padx=8, pady=8,
@@ -118,9 +123,10 @@ class MoneyMakersPage(StratViews):
         Tooltip(dots, "Refresh, Import file…, your community name")
         self.mm_dots = dots
         self.mm_add_btn = self._mm_ghost(bar, "＋ Add my own", self.mm_add)
-        Tooltip(self.mm_add_btn, "Write down a strat of your own - it stays on this PC until you post it.")
+        Tooltip(self.mm_add_btn, "New strat: write down how you farm - it stays on this PC until you post it.")
         self.mm_drops["sort"] = self._mm_drop(bar, "sort", "The order of the strats under the best one.")
-        for w, side, padx in ((self.mm_drops["budget"], "left", (0, 8)), (self.mm_drops["effort"], "left", (0, 8)),
+        for w, side, padx in ((self.mm_drops["league"], "left", (0, 8)),
+                              (self.mm_drops["budget"], "left", (0, 8)), (self.mm_drops["effort"], "left", (0, 8)),
                               (self.mm_drops["type"], "left", (0, 8)), (self.mm_drops["from"], "left", (0, 8)),
                               (self.mm_drops["more"], "left", (0, 8)), (self.mm_drops["filters"], "left", (0, 0)),
                               (dots, "right", (8, 0)), (self.mm_add_btn, "right", (8, 0)),
@@ -134,6 +140,9 @@ class MoneyMakersPage(StratViews):
         self.mm_open_f, self.mm_detail_cv = scroller(page, self, self._mm_draw_detail, P1)
         self.mm_detail_cv.bind("<Escape>", lambda e: self.mm_close())
         self.mm_detail_on = False
+        # 3.0.6: New strat (stratnew.py) - its own canvas too (‹ All strats / Cancel go back)
+        self.mm_new_f, self.mm_new_cv = scroller(page, self, self._mm_draw_new, P1)
+        self.mm_new_on = False
         self._art_hooks = getattr(self, "_art_hooks", []) + [self._mm_art_came]
         self._drawer_look_hooks = getattr(self, "_drawer_look_hooks", []) + [self.mm_drawer_look]
         self.mm_drawer_look(None)
@@ -155,7 +164,8 @@ class MoneyMakersPage(StratViews):
         return b
 
     def _mm_art_came(self, done):
-        for cv in (getattr(self, "mm_find_cv", None), getattr(self, "mm_detail_cv", None)):
+        for cv in (getattr(self, "mm_find_cv", None), getattr(self, "mm_detail_cv", None),
+                   getattr(self, "mm_new_cv", None)):
             if cv is not None and cv.want & set(done):
                 cv.want -= set(done)
                 cv.later()
@@ -179,7 +189,8 @@ class MoneyMakersPage(StratViews):
         except tk.TclError:
             pass
         self.mm_drops_paint()
-        for cv in (getattr(self, "mm_find_cv", None), getattr(self, "mm_detail_cv", None)):
+        for cv in (getattr(self, "mm_find_cv", None), getattr(self, "mm_detail_cv", None),
+                   getattr(self, "mm_new_cv", None)):
             if cv is not None:
                 cv.later()
 
@@ -191,14 +202,32 @@ class MoneyMakersPage(StratViews):
         return (self.mm_cmax.get() != "Any") + len(self.mm_content) + (self.mm_tier.get() != "Any") + \
             (self.mm_tag.get() != "Any")
 
-    def mm_filters_on(self):
+    # ---------------- 3.0.6: the League filter (first): your league from Settings, or All leagues
+    def mm_league_default(self):
+        """Your league (its trade, hardcore and SSF sides are one), or All leagues when none is set."""
+        return MM.league_base(SETTINGS.get("league")) or MM.ALL_LEAGUES
+
+    def mm_league_set(self, value):
+        self._mm_league_touched = True
+        self.mm_league.set(value)
+        self.mm_filters_changed()
+
+    def mm_filters_on_but_league(self):
         return bool(self.mm_budget.get() != "Any" or self.mm_max.get() != "Any" or self.mm_cat.get()
                     or self.mm_more_count() or self.mm_q.get().strip())
 
+    def mm_league_off(self):
+        """The League filter is set away from your league (Clear filters puts it back)."""
+        return self.mm_league.get() != self.mm_league_default()
+
+    def mm_filters_on(self):
+        return bool(self.mm_budget.get() != "Any" or self.mm_max.get() != "Any" or self.mm_cat.get()
+                    or self.mm_more_count() or self.mm_q.get().strip() or self.mm_league_off())
+
     def mm_filter_words(self):
-        """What the filters show, in a few words (MORE STRATS · … · MID BUDGET)."""
-        out = [w for w in (self.mm_budget.get(), self.mm_max.get(), self.mm_type.get() or self.mm_cat.get())
-               if w and w != "Any"]
+        """What the filters show, in a few words (FORBIDDEN RITES · MID BUDGET)."""
+        out = [w for w in (self.mm_league.get(), self.mm_budget.get(), self.mm_max.get(),
+                           self.mm_type.get() or self.mm_cat.get()) if w and w not in ("Any", MM.ALL_LEAGUES)]
         n = self.mm_more_count()
         if n:
             out.append(f"{n} more")
@@ -211,10 +240,12 @@ class MoneyMakersPage(StratViews):
         d = getattr(self, "mm_drops", None)
         if not d:
             return
+        lg = self.mm_league.get()
         n_on = sum((self.mm_budget.get() != "Any", self.mm_max.get() != "Any", bool(self.mm_cat.get()),
-                    self.mm_view.get() != "Official")) + self.mm_more_count()
+                    self.mm_view.get() != "Official", lg != MM.ALL_LEAGUES)) + self.mm_more_count()
         n_more = self.mm_more_count()
-        texts = {"budget": ("Budget", self.mm_budget.get(), self.mm_budget.get() != "Any"),
+        texts = {"league": ("League", lg, lg != MM.ALL_LEAGUES),
+                 "budget": ("Budget", self.mm_budget.get(), self.mm_budget.get() != "Any"),
                  "effort": ("Effort", self.mm_max.get(), self.mm_max.get() != "Any"),
                  "type": ("Type", self.mm_type_word(), bool(self.mm_cat.get())),
                  "from": ("From", self.mm_view.get(), self.mm_view.get() != "Official"),
@@ -255,7 +286,20 @@ class MoneyMakersPage(StratViews):
 
     def _mm_fill_menu(self, m, key):
         go = self.mm_filters_changed
-        if key == "budget":
+        if key == "league":
+            have = {}
+            for s in self.mm_strats:
+                have[MM.league_of(s)] = have.get(MM.league_of(s), 0) + 1
+            mine = self.mm_league_default()
+            m.add_radiobutton(label=f"{MM.ALL_LEAGUES}  ({len(self.mm_strats)})", variable=self.mm_league,
+                              value=MM.ALL_LEAGUES, command=lambda: self.mm_league_set(MM.ALL_LEAGUES))
+            m.add_separator()
+            names = ([mine] if mine != MM.ALL_LEAGUES else []) + sorted(x for x in have if x != mine)
+            for lg in names:
+                label = MM.league_text(lg) + ("  (yours)" if lg == mine else "") + f"  ({have.get(lg, 0)})"
+                m.add_radiobutton(label=label, variable=self.mm_league, value=lg,
+                                  command=lambda lg=lg: self.mm_league_set(lg))
+        elif key == "budget":
             m.add_radiobutton(label="Any", variable=self.mm_budget, value="Any", command=go)
             for b in MM.BUDGETS:
                 n = self._mm_count(lambda s, b=b: b in (s.get("tags") or []))
@@ -323,7 +367,8 @@ class MoneyMakersPage(StratViews):
                 tg.add_cascade(label=group, menu=sub)
             m.add_cascade(label="Tag" + (f": {self.mm_tag.get()}" if self.mm_tag.get() != "Any" else ""), menu=tg)
         elif key == "filters":                               # the Drawer: everything in one menu
-            for k, name in (("budget", f"Budget: {self.mm_budget.get()}"), ("effort", f"Effort: {self.mm_max.get()}"),
+            for k, name in (("league", f"League: {self.mm_league.get()}"),
+                            ("budget", f"Budget: {self.mm_budget.get()}"), ("effort", f"Effort: {self.mm_max.get()}"),
                             ("type", f"Type: {self.mm_type_word()}"), ("from", f"From: {self.mm_view.get()}"),
                             ("more", "More" + (f": {self.mm_more_count()} on" if self.mm_more_count() else "")),
                             ("sort", f"Sort: {self.mm_csort.get()}")):
@@ -349,6 +394,8 @@ class MoneyMakersPage(StratViews):
         self.mm_type.set("")
         self.mm_content = set()
         self.mm_q.set("")
+        self.mm_league.set(self.mm_league_default())
+        self._mm_league_touched = False
         self.mm_filters_changed()
 
     def mm_content_pick(self, tag):
@@ -440,12 +487,15 @@ class MoneyMakersPage(StratViews):
         q = self.mm_q.get().strip().lower()
         cat, typ, tag, tier = self.mm_cat.get(), self.mm_type.get(), self.mm_tag.get(), self.mm_tier.get()
         budget = self.mm_budget.get()
+        league = self.mm_league.get()
         words = {w: k for k, (w, _d) in MM.THINKING.items()}
         mx = words.get(self.mm_max.get(), 5)
         bands = list(MM.CLICKS)
         cmax = bands.index(self.mm_cmax.get()) if self.mm_cmax.get() in bands else len(bands)
         out = []
         for s in self.mm_strats:
+            if league != MM.ALL_LEAGUES and MM.league_of(s) != league:
+                continue
             if cat and s.get("category") != cat:
                 continue
             if typ and s.get("type") != typ:
@@ -517,9 +567,8 @@ class MoneyMakersPage(StratViews):
         self.mm_sel = key
         if not self.mm_detail_on:
             self.mm_detail_on = True
-            self.mm_find_f.pack_forget()
-            self.mm_open_f.pack(fill="both", expand=True)
             self.mm_detail_cv.yview_moveto(0)
+            self._mm_frames()                            # (New strat stays in front while it's open)
         self.mm_detail_cv.later(10)
         try:
             self.mm_detail_cv.focus_set()
@@ -531,9 +580,7 @@ class MoneyMakersPage(StratViews):
         """‹ All strats."""
         self.mm_detail_on = False
         self.mm_sel = None
-        self.mm_open_f.pack_forget()
-        self.mm_find_f.pack(fill="both", expand=True)
-        self.mm_find_cv.later(10)
+        self._mm_frames()
 
     def mm_select(self, key):
         return self.mm_open(key)
@@ -790,10 +837,10 @@ class MoneyMakersPage(StratViews):
                 data["atlas_image"] = ref
             meta = (SETTINGS.get("mm_meta") or {}).get(s["id"]) or {}
             if meta.get("post"):                               # 2.85.0: posted before - update it, no duplicate
-                res = B.update(meta["post"], data)
+                res = self.mm_board_send(lambda x: B.update(meta["post"], x), data)
                 if res[0] or "only its author" not in str(res[1]) and "not found" not in str(res[1]):
                     return res
-            res = B.post("strat", data, based_on=meta.get("based_on"))
+            res = self.mm_board_send(lambda x: B.post("strat", x, based_on=meta.get("based_on")), data)
             if res[0]:
                 SETTINGS.setdefault("mm_meta", {}).setdefault(s["id"], {})["post"] = res[1]["post"]["id"]
                 save_json("settings.json", SETTINGS)
@@ -954,11 +1001,18 @@ class MoneyMakersPage(StratViews):
         from .stratcost import save_costs
         c = self.mm_costs().setdefault(sid, {})
         c.update(at=time.time(), league=league)
-        save_costs(self.mm_costs())
         self._mm_cost_busy = getattr(self, "_mm_cost_busy", set()) - {sid}
+        if str(sid).startswith("_new"):                           # 3.0.6: New strat's copies (not saved yet)
+            if getattr(self, "mm_new_on", False):
+                self.mm_new_cv.later(10)
+            return
+        save_costs({k: v for k, v in self.mm_costs().items() if not str(k).startswith("_new")})
         self.mm_fill()                                            # (Cost per run: the rows and the opened strat)
 
     def mm_on_show(self):
+        if not getattr(self, "_mm_league_touched", True) and self.mm_league.get() != self.mm_league_default():
+            self.mm_league.set(self.mm_league_default())          # (your league changed in Settings)
+            self.mm_filters_changed()
         self.mm_check_live(force=False)
         try:
             self.mm_cost_check()                                  # 2.46.0: once a day, strats that list their items
@@ -1090,205 +1144,23 @@ class MoneyMakersPage(StratViews):
             self.mm_reload()
 
     def mm_add(self):
-        self.mm_form(MM.new_strat())
+        """＋ Add my own: New strat (stratnew.py)."""
+        return self.mm_new_open(None)
 
     def mm_edit(self):
         s = self.mm_current()
         if s and (s["origin"] == "mine" or (s.get("_post") or {}).get("mine")):
-            self.mm_form(dict(s))
+            return self.mm_new_open(dict(s))
+        return None
 
-    def mm_form(self, s, suggest=False):
-        """Add / edit one of your strats - exactly the fields of the standard layout. 2.85.0: suggest=True - someone
-        else's Community strat: your version goes to its author (with a note) instead."""
-        from .style import ScrollArea
-        P1 = C["panel"]
-        win = tk.Toplevel(self.root, bg=P1)
-        over_app(win, self.dlg_parent())               # 2.114.3: over the app, on its monitor
-        win.title("Suggest an edit" if suggest else "Your strat")
-        win.transient(self.root)
-        self.mm_form_win = win
-        sa = ScrollArea(win, P1)
-        sa.pack(fill="both", expand=True)
-        f = tk.Frame(sa.inner, bg=P1, padx=16, pady=8)
-        f.pack(fill="both", expand=True)
-        f.columnconfigure(1, weight=1)
-        v = {}
-        r = 0
-
-        def head(text):
-            nonlocal r
-            tk.Label(f, text=text, bg=P1, fg=C["accent"], font=("Segoe UI", 10, "bold"), anchor="w").grid(
-                row=r, column=0, columnspan=2, sticky="w", pady=(8, 2))
-            r += 1
-
-        def entry(key, label, value, width=40):
-            nonlocal r
-            tk.Label(f, text=label, bg=P1, fg=C["text"], anchor="w").grid(row=r, column=0, sticky="w", pady=2)
-            v[key] = tk.StringVar(value=value)
-            ttk.Entry(f, textvariable=v[key], width=width).grid(row=r, column=1, sticky="w" if width < 40 else "we",
-                                                                 pady=2)
-            r += 1
-
-        def combo(key, label, values, value):
-            nonlocal r
-            tk.Label(f, text=label, bg=P1, fg=C["text"], anchor="w").grid(row=r, column=0, sticky="w", pady=2)
-            v[key] = tk.StringVar(value=value)
-            cb = ttk.Combobox(f, textvariable=v[key], values=values, state="readonly", width=60)
-            cb.grid(row=r, column=1, sticky="w", pady=2)
-            r += 1
-            return cb
-
-        def checks(key, label, options, picked):
-            nonlocal r
-            tk.Label(f, text=label, bg=P1, fg=C["text"], anchor="nw").grid(row=r, column=0, sticky="nw", pady=2)
-            box = tk.Frame(f, bg=P1)
-            box.grid(row=r, column=1, sticky="w", pady=2)
-            v[key] = {}
-            for i, opt in enumerate(options):
-                var = tk.BooleanVar(value=opt in (picked or []))
-                ttk.Checkbutton(box, text=opt, variable=var).grid(row=i // 4, column=i % 4, sticky="w", padx=(0, 16))
-                v[key][opt] = var
-            r += 1
-
-        def lines(key, label, h=2):
-            nonlocal r
-            tk.Label(f, text=label, bg=P1, fg=C["text"], anchor="nw").grid(row=r, column=0, sticky="nw", pady=2)
-            t = tk.Text(f, height=h, width=60, bg=C["odd"], fg=C["text"], insertbackground=C["text"], relief="flat",
-                        highlightthickness=1, highlightbackground=C["line"], font=("Segoe UI", 9), wrap="word")
-            t.insert("1.0", "\n".join(s.get(key) or []))
-            t.grid(row=r, column=1, sticky="we", pady=2)
-            v[key] = t
-            r += 1
-
-        p, inv, wt = s.get("est_profit") or {}, s.get("est_cost") or {}, s.get("waystone_tiers") or {}
-        head("About it")
-        entry("name", "Name *", s.get("name", ""))
-        entry("summary", "Summary (one line) *", s.get("summary", ""))
-        entry("patch", "Game version", s.get("patch", ""), 10)
-        head("What it is: the main thing you farm or do")
-        cat_cb = combo("category", "Category *", MM.CATEGORIES, s.get("category", "Mapping"))
-        typ_cb = combo("type", "Type *", MM.TAXONOMY.get(s.get("category", "Mapping"), ()), s.get("type", ""))
-
-        def cat_changed(_e=None):
-            types = MM.TAXONOMY.get(v["category"].get(), ())
-            typ_cb.config(values=types)
-            if v["type"].get() not in types:
-                v["type"].set(types[0] if types else "")
-        cat_cb.bind("<<ComboboxSelected>>", cat_changed)
-        head("Effort")
-        think = [f"{w} - {d}" for w, d in MM.THINKING.values()]
-        tpc0 = s.get("thoughts_per_click") if s.get("thoughts_per_click") in MM.THINKING else 2
-        combo("tpc", "🧠 Thoughts per click *", think, think[tpc0 - 1])
-        clicks = [f"{w} - {d}" for w, d in MM.CLICKS.items()]
-        cur = next((c for c in clicks if c.startswith(str(s.get("clicks_per_hour")) + " ")), clicks[1])
-        combo("cph", "🖱 Clicks per hour *", clicks, cur)
-        head("Tags (everything else about it)")
-        v["tags"] = {}
-        for group, opts in MM.tag_groups().items():                 # 2.78.0: + the Content groups
-            checks("tags:" + group, group, opts, s.get("tags"))
-            v["tags"].update(v["tags:" + group])
-        head("Numbers (estimates)")
-        entry("tiers", "Waystone tiers (1-16, e.g. 14-16)",
-              "" if not wt else MM.tiers_text(wt).replace("T", ""), 10)
-        entry("inv", "Est. cost per run (e.g. 2 div, 50 ex)", MM.money_edit(inv), 16)
-        entry("profit", "Est. profit per hour (e.g. 5-10 div)", MM.money_edit(p), 16)
-        head("The guide (one line per item)")
-        lines("requirements", "Requirements")
-        lines("tablets", "Tablets")
-        lines("waystones", "Waystones")
-        lines("atlas", "Atlas / master setup")
-        lines("craft_steps", "Craft steps", 3)
-        lines("setup", "Other setup")
-        lines("steps", "Steps *", 5)
-        lines("loot", "Loot to sell")
-        lines("tips", "Tips")
-        lines("risks", "Risks")
-        entry("regex", "Stash regex", s.get("regex", ""))
-        srcs = s.get("sources") or []                             # 2.85.0: every link (only the first was kept)
-        s = dict(s, _src_lines=[x.get("url", "") for x in srcs])
-        lines("_src_lines", "Source links (one per line)")
-        msg = tk.Label(f, text="* = needed. Everything else is optional.", bg=P1, fg=C["muted"], anchor="w",
-                       font=("Segoe UI", 9))
-        msg.grid(row=r, column=0, columnspan=2, sticky="we", pady=(8, 0))
-        r += 1
-
-        def save():
-            out = dict(s)
-            out.pop("origin", None)
-            for k in ("name", "category", "type", "summary", "patch", "regex"):
-                out[k] = v[k].get().strip()
-            for k in ("requirements", "tablets", "waystones", "atlas", "craft_steps", "setup", "steps", "loot", "tips",
-                      "risks"):
-                out[k] = [ln.strip() for ln in v[k].get("1.0", "end").split("\n") if ln.strip()]
-            out["tags"] = [opt for opt, var in v["tags"].items() if var.get()] + \
-                [x for x in s.get("tags") or [] if x not in v["tags"]]          # (e.g. "example")
-            words = [w for w, _d in MM.THINKING.values()]
-            out["thoughts_per_click"] = words.index(v["tpc"].get().split(" - ")[0]) + 1
-            out["clicks_per_hour"] = v["cph"].get().split(" - ")[0]
-            try:
-                out["est_profit"] = MM.money_parse(v["profit"].get())          # 2.85.0: units kept, negatives fine
-                out["est_cost"] = MM.money_parse(v["inv"].get(), single=True)
-                rng = MM._num_range(v["tiers"].get().lower().replace("t", ""))
-                out["waystone_tiers"] = {"min": int(rng[0]), "max": int(rng[1])} if rng else None
-            except (TypeError, ValueError):
-                msg.config(text="Tiers, cost and profit: a number or a range (5-10), with div, ex or chaos.", fg=C["red"])
-                return
-            out.pop("_src_lines", None)
-            titles = {x.get("url"): x.get("title") or x.get("url") for x in srcs}
-            urls = [ln.strip() for ln in v["_src_lines"].get("1.0", "end").split("\n") if ln.strip()]
-            out["sources"] = [{"title": titles.get(u, u), "url": u} for u in urls]
-            out["patch"] = out["patch"] or "?"
-            out["updated"] = time.strftime("%Y-%m-%d")
-            if not s.get("name"):
-                out["id"] = MM.slug("my-" + out["name"])
-            post = s.get("_post")
-            out = MM.tidy(out)
-            probs = MM.validate(out)
-            if probs:
-                msg.config(text="Not saved: " + probs[0], fg=C["red"])
-                return
-            if post and suggest:                             # 2.85.0: someone else's: a suggestion for its author
-                from tkinter import simpledialog
-                note = simpledialog.askstring("Suggest an edit", "What did you change, and why? (the author reads this)",
-                                              parent=win)
-                if not note or len(note.strip()) < 3:
-                    msg.config(text="Not sent: say in a few words what you changed and why.", fg=C["red"])
-                    return
-                data = {k: v for k, v in out.items() if k not in ("id", "author")}
-                ok, d = self.bm_send_suggestion(post, data, note.strip())
-                if not ok:
-                    msg.config(text="Not sent: " + d, fg=C["red"])
-                    return
-                win.destroy()
-                return
-            if post:                                         # your Community post: saved on the board
-                data = {k: v for k, v in out.items() if k not in ("id", "author")}
-                ok, d = B.update(post["id"], data)
-                if not ok:
-                    msg.config(text="Not saved: " + d, fg=C["red"])
-                    return
-                win.destroy()
-                if isinstance(d, dict) and d.get("pending"):  # 2.85.0: an Official post - reviewers look first
-                    self._say("Saved - it's an Official strat, so the change goes live once 2 reviewers approve it "
-                              "(History shows it waiting).", 12)
-                self.mm_board_fetch(keep=s["id"] + "|board")
-                return
-            mine = [m for m in MM.mine() if m["id"] not in (s.get("id"), out["id"])] + [out]
-            MM.save_mine(mine)
-            win.destroy()
-            self.mm_show_mine(out["id"])
-
-        btns = tk.Frame(win, bg=P1, padx=16, pady=8)
-        btns.pack(fill="x", side="bottom", before=sa)
-        ttk.Button(btns, text="Save", style="Primary.TButton", command=save).pack(side="right")
-        ttk.Button(btns, text="Cancel", command=win.destroy, style="Quiet.TButton").pack(side="right", padx=8)
-        win.bind("<Escape>", lambda e: win.destroy())
-        self.mm_form_save = save
-        self.mm_form_vars = v
-        win.update_idletasks()
-        win.geometry(f"{min(820, f.winfo_reqwidth() + 40)}x{min(720, f.winfo_reqheight() + 70)}")
-        place_near(self.root, win, self.root.winfo_rootx() + 80, self.root.winfo_rooty() + 40)
-        return win
+    def mm_board_send(self, send, data):
+        """Post / update / suggest on the board. 3.0.6: a board from before New strat answers "unknown field" for
+        the league, Atlas masters and the copies' every line - then it is sent without them (they stay on this PC).
+        -> (ok, answer)."""
+        res = send(data)
+        if not res[0] and ("unknown field" in str(res[1]) or "items must be" in str(res[1])):
+            res = send(MM.board_compat(data))
+        return res
 
     # ---------------- the run tracker (its own, simple)
     def mm_track(self):

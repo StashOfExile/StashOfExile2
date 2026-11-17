@@ -73,8 +73,9 @@ class StratCanvas(tk.Canvas):
 
     def _wheel(self, e):
         try:
-            if not self.winfo_ismapped() or self.winfo_containing(e.x_root, e.y_root) is not self:
-                return
+            under = self.winfo_containing(e.x_root, e.y_root)
+            if not self.winfo_ismapped() or (under is not self and getattr(under, "master", None) is not self):
+                return                                  # (a field drawn on the page - New strat - scrolls it too)
         except (tk.TclError, KeyError):
             return
         if self._h <= self.winfo_height():
@@ -175,8 +176,11 @@ class StratCanvas(tk.Canvas):
 
     def redraw(self):
         self._job = None
-        if TH.ST.theme is None:
-            return
+        try:
+            if TH.ST.theme is None or not self.winfo_exists():
+                return
+        except tk.TclError:
+            return                                  # (gone with its page)
         keep = self.hover or ()
         self.delete("all")
         self.acts, self.dbl, self.menus, self.tips, self.lifts = {}, {}, {}, {}, {}
@@ -360,9 +364,11 @@ class StratViews:
         else:
             more = rows                                  # (owner: no "Best for you right now" card - one list)
             on = self.mm_filters_on()
-            line = f"STRATS · {len(more)} OF {total}" + (f" · {self.mm_filter_words().upper()}"
-                                                        if on and not narrow else "")
-            cv.text(pad, y, line, ("Segoe UI", 9, "bold"), fill=cv.c("text_muted"), anchor="w")
+            words = self.mm_filter_words().upper()      # 3.0.6: FORBIDDEN RITES · MID BUDGET · 5 OF 8
+            line = (f"{words} · " if words else "STRATS · ") + f"{len(more)} OF {total}"
+            room = W - 2 * pad - (90 if on else 0)
+            cv.text(pad, y, cv.fit(line, ("Segoe UI", 9, "bold"), room), ("Segoe UI", 9, "bold"),
+                    fill=cv.c("text_muted"), anchor="w")
             if on:
                 i = cv.text(W - pad, y, "Clear filters", ("Segoe UI", 9), fill=cv.c("link"), anchor="e",
                             tags=("clear",))
@@ -382,7 +388,12 @@ class StratViews:
         """Empty state: what it is, and one button."""
         view = self.mm_view.get()
         from . import board as B
-        if filtered:
+        lg = self.mm_league.get() if hasattr(self, "mm_league") else MM.ALL_LEAGUES
+        only_league = filtered and lg != MM.ALL_LEAGUES and not self.mm_filters_on_but_league()
+        if only_league:                                  # 3.0.6: nothing for your league yet
+            head, body, btn, fn = (f"No strats for {lg} yet", "Strats for other leagues show under All leagues.",
+                                   MM.ALL_LEAGUES, lambda: self.mm_league_set(MM.ALL_LEAGUES))
+        elif filtered:
             head, body, btn, fn = ("No strats match", "Nothing here fits the search and filters.", "Clear filters",
                                    self.mm_clear_filters)
         elif view == "Mine":
@@ -466,7 +477,7 @@ class StratViews:
             word = MM.thinking_word(s.get("thoughts_per_click"))
             ew = 30 + 6 + cv.tw(word, ("Segoe UI", 9))
             self._mm_effort(cv, ex1 - ew, y + 48, s, tags=(tag, f"{tag}_e"))
-            cv.tips[f"{tag}_e"] = "Thoughts per click: " + MM.THINKING.get(s.get("thoughts_per_click"), ("", "?"))[1]
+            cv.tips[f"{tag}_e"] = "Effort: " + MM.THINKING.get(s.get("thoughts_per_click"), ("", "?"))[1]
             left_end = ex1 - max(ew, 50) - 20
         name = ("✔ " if (s.get("_post") or {}).get("voted") else "") + s["name"]
         cv.text(tx, y + 24, cv.fit(name, ("Segoe UI", 12, "bold"), left_end - tx), ("Segoe UI", 12, "bold"),
@@ -619,8 +630,8 @@ class StratViews:
         y = self._mm_head_card(cv, s, pad, y, W, narrow) + 16
         y = self._mm_tiles(cv, s, mine, pad, y, W, narrow) + 16
         if narrow or W < 900:
-            for part in (self._mm_need_card, self._mm_steps_card, self._mm_yours_card, self._mm_money_card,
-                         self._mm_guide_card):
+            for part in (self._mm_need_card, self._mm_steps_card, self._mm_masters_card, self._mm_yours_card,
+                         self._mm_money_card, self._mm_guide_card):
                 y2 = part(cv, s, mine, pad, W - pad, y)
                 y = y2 + 16 if y2 > y else y
             return y
@@ -629,7 +640,7 @@ class StratViews:
         for part in (self._mm_yours_card, self._mm_money_card, self._mm_guide_card):
             y2 = part(cv, s, mine, pad, mid, yl)
             yl = y2 + 16 if y2 > yl else yl
-        for part in (self._mm_need_card, self._mm_steps_card):
+        for part in (self._mm_need_card, self._mm_steps_card, self._mm_masters_card):
             y2 = part(cv, s, mine, mid + 16, W - pad, yr)
             yr = y2 + 16 if y2 > yr else yr
         return max(yl, yr)
@@ -660,7 +671,7 @@ class StratViews:
             x = cv.chip(x + 8, cy, b)
         if x + 120 < wr:
             self._mm_effort(cv, x + 12, cy + 11, s, tags=("h_eff",))
-            cv.tips["h_eff"] = "Thoughts per click: " + MM.THINKING.get(s.get("thoughts_per_click"), ("", "?"))[1]
+            cv.tips["h_eff"] = "Effort: " + MM.THINKING.get(s.get("thoughts_per_click"), ("", "?"))[1]
         ty = cy + 34
         tt = cv.text(tx, ty, ("✔ " if post.get("voted") else "") + s["name"],
                      ("Segoe UI", 16 if narrow else 18, "bold"), fill=cv.c("text_strong"), width=wr - tx)
@@ -668,7 +679,9 @@ class StratViews:
         if s.get("summary"):
             ty = cv.bottom(cv.text(tx, ty, s["summary"], ("Segoe UI", 10), fill=cv.c("text"), width=wr - tx), ty) + 6
         by = post.get("author", {}).get("name") or s.get("author") or "?"
-        meta = [f"By {by}", f"updated {_ago_day(s.get('updated'))}", f"game {s.get('patch', '?')}",
+        lg = MM.league_of(s)
+        meta = [f"By {by}", f"updated {_ago_day(s.get('updated'))}",
+                lg if lg.startswith(("Game ", "Unknown")) else f"{lg} · game {s.get('patch', '?')}",
                 {"community": "Official", "mine": "Mine", "example": "Example", "board": "Community"}.get(s["origin"], "")]
         if post:
             meta.append(f"▲ {post.get('score', 0)} found it useful")
@@ -755,6 +768,12 @@ class StratViews:
             if kind == "ph":
                 big = (MM.short_div(v["value"]) + " div") if v else "-"
                 cv.text(x0 + 16, ty + 36, big, num, fill=cv.c("money"), tags=(tag,))
+                if not v:                                # 3.0.6 (New strat): it comes from runs, not a guess
+                    how = ("Comes from runs, not a guess: Run this strat and log your runs in the Strat Tracker - "
+                           "Your numbers show what it made an hour.")
+                    cv.tips[f"{tag}_i"] = how
+                    cv.text(x0 + 16, ty + 78, "comes from runs: Run this strat", ("Segoe UI", 9),
+                            fill=cv.c("text_muted"), width=tw - 32)
                 cv.tips[tag] = how
                 if v and (v["high"] > v["low"] or v.get("you") is not None) and tw > 180:
                     cv.range_bar(x0 + 24, x0 + tw - 24, ty + 84, v)
@@ -868,6 +887,32 @@ class StratViews:
         cv.coords(card, *_rr_points(x0, y, x1, yy, R))
         return yy
 
+    def _mm_masters_card(self, cv, s, mine, x0, x1, y):
+        """Atlas masters: each master the strat picks from - its dot, name, "N of 4" and the picks."""
+        ms = {m: v for m, v in (s.get("masters") or {}).items() if v and m in MM.MASTERS}
+        if not ms:
+            return y
+        card, yy = self._mm_box(cv, x0, x1, y, "Atlas masters", "masters_i",
+                                f"The author's picks: up to {MM.MASTER_PICKS} of each master's choices.")
+        for m, picks in ms.items():
+            col = cv.c(MM.MASTERS[m]["role"])
+            cv.create_oval(x0 + 18, yy + 3, x0 + 26, yy + 11, fill=col, outline="")
+            t = cv.text(x0 + 32, yy + 7, m, ("Segoe UI", 10, "bold"), fill=cv.c("text_strong"), anchor="w")
+            full = len(picks) >= MM.MASTER_PICKS
+            cv.text(cv.bbox(t)[2] + 8, yy + 7, f"{'✓ ' if full else ''}{len(picks)} of {MM.MASTER_PICKS}",
+                    ("Segoe UI", 9), fill=cv.c("good") if full else cv.c("text_muted"), anchor="w")
+            yy += 20
+            x = x0 + 32
+            for p in picks:
+                w = cv.tw(p, ("Segoe UI", 9)) + 16
+                if x > x0 + 32 and x + w > x1 - 18:
+                    x, yy = x0 + 32, yy + 28
+                x = cv.chip(x, yy, p, MM.MASTERS[m]["role"]) + 6
+            yy += 22 + 12
+        yy += 4
+        cv.coords(card, *_rr_points(x0, y, x1, yy, R))
+        return yy
+
     def _mm_yours_card(self, cv, s, mine, x0, x1, y):
         """Your numbers: what your Strat Tracker logged for this strat, or how to start."""
         card, yy = self._mm_box(cv, x0, x1, y, "Your numbers", "yours_i",
@@ -943,7 +988,7 @@ class StratViews:
         word, why = MM.THINKING.get(s.get("thoughts_per_click"), ("?", ""))
         cph = s.get("clicks_per_hour", "")
         head("Effort")
-        lines([f"Thoughts per click: {word} - {why}", f"Clicks per hour: {cph} - {MM.CLICKS.get(cph, '')}"])
+        lines([f"{word} - {why}", f"Clicks per hour: {cph} - {MM.CLICKS.get(cph, '')}"])
         if s.get("waystone_tiers"):
             head("Waystone tiers")
             lines([MM.tiers_text(s["waystone_tiers"])])

@@ -41,7 +41,8 @@ def write_board_schema():
     d = {"schema": SCHEMA, "taxonomy": MM.TAXONOMY, "tags": list(MM.all_tags()), "tag_groups": MM.tag_groups(),
          "thinking": {str(k): w for k, (w, _d) in MM.THINKING.items()}, "clicks": list(MM.CLICKS),
          "units": list(MM.UNITS), "required": list(MM.REQUIRED), "lists": list(MM.LISTS), "order": list(MM.ORDER),
-         "one_order": list(MM.ONE_ORDER)}
+         "one_order": list(MM.ONE_ORDER), "masters": {m: list(d["choices"]) for m, d in MM.MASTERS.items()},
+         "master_picks": MM.MASTER_PICKS}
     os.makedirs(os.path.dirname(BOARD_SCHEMA), exist_ok=True)
     with open(BOARD_SCHEMA, "w", encoding="utf-8", newline="\n") as f:
         json.dump(d, f, indent=1, ensure_ascii=False)

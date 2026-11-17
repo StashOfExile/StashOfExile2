@@ -102,10 +102,10 @@ REQUIRED = ("id", "name", "author", "updated", "patch", "category", "type", "sum
             "clicks_per_hour", "steps")
 LISTS = ("tags", "requirements", "tablets", "waystones", "atlas", "craft_steps", "setup", "steps", "loot", "tips",
          "risks")
-ORDER = ("id", "name", "author", "updated", "patch", "category", "type", "summary", "thoughts_per_click",
+ORDER = ("id", "name", "author", "updated", "patch", "league", "category", "type", "summary", "thoughts_per_click",
          "clicks_per_hour", "tags", "waystone_tiers", "est_cost", "est_profit",
-         "requirements", "tablets", "waystones", "atlas", "craft_steps", "setup", "steps", "loot", "tips", "risks",
-         "regex", "sources", "items", "ledger", "atlas_image")
+         "requirements", "tablets", "waystones", "atlas", "masters", "craft_steps", "setup", "steps", "loot", "tips",
+         "risks", "regex", "sources", "items", "ledger", "atlas_image")
 # Quick tips (3.0.6: was the Lucrative Strats tab): one-liners
 ONE_ORDER = ("id", "text", "author", "updated", "category", "type", "tags")
 
@@ -191,10 +191,16 @@ def validate(s):
         return (isinstance(x, dict) and isinstance(x.get("base"), str) and x["base"]
                 and all(x.get(k) is None or (isinstance(x[k], int) and not isinstance(x[k], bool) and 1 <= x[k] <= lim)
                         for k, lim in (("count", 1000), ("lasts", 100)))
-                and (x.get("key_mods") is None or (isinstance(x["key_mods"], list)
-                                                   and all(isinstance(m, str) for m in x["key_mods"]))))
+                and all(x.get(k) is None or (isinstance(x[k], list) and all(isinstance(m, str) for m in x[k]))
+                        for k in ("key_mods", "mods"))                 # 3.0.6: mods = every line of the copy
+                and (x.get("rarity") is None or isinstance(x["rarity"], str)))
     if it is not None and (not isinstance(it, list) or not all(_item_ok(x) for x in it)):
-        out.append("items must be a list of {\"kind\", \"base\", \"count\", \"lasts\", \"key_mods\"}")
+        out.append("items must be a list of {\"kind\", \"base\", \"count\", \"lasts\", \"key_mods\", \"mods\"}")
+    lg = s.get("league")                      # 3.0.6: the league it was made in (none: from its game version)
+    if lg is not None and (not isinstance(lg, str) or not lg.strip() or len(lg) > 60):
+        out.append("league: a league name, 60 characters at most")
+    if s.get("masters") is not None and not masters_ok(s["masters"]):
+        out.append(f"masters must be {{master: up to {MASTER_PICKS} of its choices}} - " + ", ".join(MASTERS))
     img = s.get("atlas_image")                # 2.78.0: a screenshot of the atlas (l: on this PC, b: on the board)
     if img is not None and not (isinstance(img, str) and re.fullmatch(r"(l:[A-Za-z0-9._-]{1,80}|b:[0-9a-f]{32})", img)):
         out.append("atlas_image must be \"b:<board image id>\" (or \"l:<file>\" on your PC)")
@@ -210,7 +216,7 @@ def validate(s):
 
 def tidy(s):
     """The fields in the standard order (for files people read and diff)."""
-    return {k: s[k] for k in ORDER if k in s and s[k] not in (None, "", [])}
+    return {k: s[k] for k in ORDER if k in s and s[k] not in (None, "", [], {})}
 
 
 def money_text(d, per=""):
@@ -393,16 +399,19 @@ def tiers_text(wt):
 # ---------------------------------------------------------------- the .txt layout (opens in Notepad on any PC)
 TXT_HEAD = "STASHOFEXILE2 STRAT 1"
 TXT_FIELDS = (("name", "Name"), ("id", "ID (empty = made from the name)"), ("author", "Author"),
-              ("updated", "Updated (YYYY-MM-DD)"), ("patch", "Game version"), ("summary", "Summary"),
+              ("updated", "Updated (YYYY-MM-DD)"), ("patch", "Game version"),
+              ("league", "League (empty = the league of its game version)"), ("summary", "Summary"),
               ("category", "Category"), ("type", "Type"), ("thoughts_per_click", "Thinking"),
               ("clicks_per_hour", "Clicks per hour"), ("waystone_tiers", "Waystone tiers (1-16, e.g. 14-16)"),
-              ("est_cost", "Est. cost (div)"), ("est_profit", "Est. profit per hour (div, e.g. 5-10)"),
+              ("est_cost", "Est. cost (div)"), ("est_profit", "Profit per hour (div, older strats - runs say it now)"),
               ("regex", "Stash regex"), ("tags", "Tags"),
               ("requirements", "Requirements"), ("tablets", "Tablets"), ("waystones", "Waystones"),
-              ("atlas", "Atlas / master setup"), ("craft_steps", "Craft steps"), ("setup", "Other setup"),
+              ("atlas", "Atlas / master setup"), ("masters", "Atlas masters"), ("items", "Items (what a run uses)"),
+              ("craft_steps", "Craft steps"), ("setup", "Other setup"),
               ("steps", "Steps"), ("loot", "Loot to sell"), ("tips", "Tips"), ("risks", "Risks"),
               ("sources", "Sources (links)"))
 _LABEL2KEY = {re.sub(r"\s*\(.*\)$", "", lab).lower(): k for k, lab in TXT_FIELDS}
+_LABEL2KEY["est. profit per hour"] = "est_profit"           # (files written before 3.0.6)
 
 
 _NUM = r"-?\d+(?:\.\d+)?"
@@ -501,6 +510,217 @@ def short_div(v):
     a = abs(v)
     t = f"{v:.0f}" if a >= 10 else f"{v:.1f}" if a >= 1 else f"{v:.2f}".rstrip("0").rstrip(".")
     return "0" if t in ("-0", "") else t
+
+
+# ---------------------------------------------------------------- 3.0.6: New strat - the league, Atlas masters, copies
+# A strat's league: its own "league" (New strat writes your league from Settings) or, for the shipped and older ones,
+# the league of its game version (LEAGUE_VERSIONS - only versions the app knows for sure; unknown: "Game 0.4").
+LEAGUE_VERSIONS = {"Forbidden Rites": "0.5.5"}
+ALL_LEAGUES = "All leagues"
+_LEAGUE_HEAD = re.compile(r"^(hardcore|hc|ssf|solo self-found)\s+", re.I)
+
+
+def league_base(name):
+    """"HC SSF Forbidden Rites (PL123)" -> "Forbidden Rites" (one league for its trade, hardcore and SSF sides)."""
+    n = re.sub(r"\s*\(PL\d+\)\s*$", "", str(name or "").strip(), flags=re.I)
+    while _LEAGUE_HEAD.match(n):
+        n = _LEAGUE_HEAD.sub("", n, count=1)
+    return n.strip()
+
+
+def league_version(league):
+    return LEAGUE_VERSIONS.get(league_base(league))
+
+
+def league_text(league):
+    """"Forbidden Rites" -> "Forbidden Rites · 0.5.5" (its game version when known)."""
+    v = league_version(league)
+    return f"{league_base(league)} · {v}" if v else league_base(league)
+
+
+def league_of(s):
+    """The league a strat is for (Find's League filter): its own, else its game version's, else "Game <version>"."""
+    own = league_base(s.get("league")) if isinstance(s.get("league"), str) else ""
+    if own:
+        return own
+    p = str(s.get("patch") or "").strip()
+    for name, v in LEAGUE_VERSIONS.items():
+        if re.match(re.escape(v) + r"(?![\d])", p):
+            return name
+    return f"Game {p}" if p and p != "?" else "Unknown game version"
+
+
+# Atlas masters (the atlas' three masters): up to 4 of each one's 12 choices. Shipped with the data model, like
+# TAXONOMY. role = the theme color it is drawn in (color: the mockup's, for reference); never the color alone - each
+# shows its name, a dot and "N of 4".
+MASTER_PICKS = 4
+MASTERS = {
+    "Doryani's Science": {"role": "bad", "color": "#ff6b5e", "choices": (
+        "Evolutionary Pressure", "Stitch the Flesh", "Refined Formula", "Disengaged Safeties", "Improved Calibration",
+        "Careful Procurement", "Mechanical Guardians", "Hidden Patterns", "Volatile Connection", "Head of the Snake",
+        "Dam the River", "Remnants of Greatness")},
+    "Hilda's Hunting": {"role": "link", "color": "#6cb8ff", "choices": (
+        "Breeding Season", "Mighty Prey", "Scarred Lands", "Soul Eaters", "Dangerous Game", "Will of the Draíocht",
+        "Lethal Adaptation", "Call of the Spirits", "Ancient Inscriptions", "Gutting and Skinning",
+        "Claimed Territories", "Patient Battue")},
+    "Jado's Spycraft": {"role": "money", "color": "#f2c55c", "choices": (
+        "Unexpected Missions", "In the Wrong Hands", "Trove Seekers", "Mysterious Gifts", "Eastern Knowledge",
+        "Unforeseen Threats", "Partial Translations", "Long Days", "Stolen Relics", "Ancient Activations",
+        "Keen Appraisal", "Untold Histories")},
+}
+
+
+def masters_ok(ms):
+    return isinstance(ms, dict) and all(
+        k in MASTERS and isinstance(v, list) and len(v) <= MASTER_PICKS and len(set(v)) == len(v)
+        and all(x in MASTERS[k]["choices"] for x in v) for k, v in ms.items())
+
+
+def master_pick(ms, master, choice):
+    """Tick / untick one choice -> (new masters, what happened: "on", "off" or "full" - 4 of 4 used, nothing)."""
+    ms = {k: list(v) for k, v in (ms or {}).items()}
+    cur = ms.setdefault(master, [])
+    if choice in cur:
+        cur.remove(choice)
+        what = "off"
+    elif len(cur) >= MASTER_PICKS:
+        what = "full"
+    else:
+        cur.append(choice)
+        what = "on"
+    return {k: v for k, v in ms.items() if v}, what
+
+
+def masters_count(ms):
+    return sum(len(v) for v in (ms or {}).values())
+
+
+# Effort, as New strat asks it: three of the effort words (THINKING), kept as the layout's two fields (an older
+# strat keeps its own values until you pick another)
+EFFORTS = {"Easy": (2, "Steady"), "Moderate": (3, "Steady"), "Hard": (4, "Busy")}
+
+
+def effort_of(s):
+    n = s.get("thoughts_per_click")
+    if not isinstance(n, int):
+        return None
+    return "Easy" if n <= 2 else "Moderate" if n == 3 else "Hard"
+
+
+# New strat's chips for the Budget and Play style tags (the short word shown -> the tag)
+BUDGET_CHIPS = (("League start", "League start"), ("Low", "Low budget"), ("Mid", "Mid budget"),
+                ("High", "High budget"))
+TABLETS_MAX = 4                               # in your map device: up to 4 tablets a map
+TABLET_USES = 10                              # the trade search: tablets with at least this many uses left
+
+
+def copied_card(text):
+    """A copied tablet or waystone (Ctrl+Alt+C) -> New strat's card {"kind", "base", "name", "rarity", "uses", "tier",
+    "mods": [every line], "ticked": [the lines that matter]} - or None for anything else. Nothing is ticked yet."""
+    from . import waystone as WS
+    from .mods import parse_item
+    if WS.is_waystone_text(text):
+        w = WS.parse_waystone(text)
+        if not w:
+            return None
+        lines = [m["shown"] for m in w["mods"] if not (m.get("endgame") and not m.get("value"))]
+        return {"kind": "waystone", "base": w["base"], "name": w["name"], "rarity": w["rarity"], "uses": None,
+                "tier": w.get("tier"), "mods": lines, "ticked": []}
+    it = parse_item(text)
+    if not it or it.get("class") != "Tablet":
+        return None
+    return {"kind": "tablet", "base": it["base"], "name": it["name"], "rarity": it["rarity"], "uses": it.get("uses"),
+            "tier": None, "mods": [m["shown"] for m in it["mods"]], "ticked": []}
+
+
+def card_item(card):
+    """A card -> the strat's item (what a run uses; key_mods = the ticked lines, mods = all of them)."""
+    it = {"kind": card["kind"], "base": card["base"], "count": max(1, int(card.get("count") or 1))}
+    if card.get("name") and card["name"] != card["base"]:
+        it["name"] = card["name"]
+    if card["kind"] == "tablet" and isinstance(card.get("uses"), int) and card["uses"] > 1:
+        it["lasts"] = min(100, card["uses"])
+    ticked = [m for m in card.get("mods") or [] if m in (card.get("ticked") or [])]
+    if ticked:
+        it["key_mods"] = ticked
+    if card.get("mods"):
+        it["mods"] = list(card["mods"])
+    if card.get("rarity"):
+        it["rarity"] = card["rarity"]
+    return it
+
+
+def item_card(it):
+    """A strat's item -> its card (to edit it). Older items have no "mods": their ticked lines are all there is."""
+    if it.get("kind") not in ("tablet", "waystone"):
+        return None
+    base = str(it.get("base") or "")
+    m = re.search(r"Tier (\d+)", base)
+    keys = list(it.get("key_mods") or [])
+    mods = list(it.get("mods") or keys)
+    mods += [k for k in keys if k not in mods]
+    return {"kind": it["kind"], "base": base, "name": it.get("name") or base, "rarity": it.get("rarity") or "",
+            "uses": it.get("lasts") if it["kind"] == "tablet" else None, "tier": int(m.group(1)) if m else None,
+            "mods": mods, "ticked": keys, "count": int(it.get("count") or 1)}
+
+
+def board_compat(data):
+    """A strat for a community board from before 3.0.6: without the league, the Atlas masters and the copies' other
+    lines (it refuses fields it doesn't know)."""
+    out = {k: v for k, v in data.items() if k not in ("league", "masters")}
+    if out.get("items"):
+        out["items"] = [{k: v for k, v in it.items() if k not in ("mods", "rarity")} for it in out["items"]]
+    return out
+
+
+def made_for_you(kind, cards, league, sid_of=None, uses_sid=None):
+    """Made for you: the stash search and the trade search for the copies' ticked mods ->
+    {"regex", "url", "caption", "ticked"}. Tablets: their base (the one most of them share), each ticked mod the
+    trade site knows (sid_of: line -> stat id) - all of them for one tablet, any of them for several - and at least
+    TABLET_USES uses (uses_sid). A waystone: its tier and each ticked number (Endgame filters)."""
+    cards = [c for c in cards if c]
+    if not cards:
+        return {"regex": "", "url": None, "caption": "", "ticked": 0}
+    items = [card_item(c) for c in cards]
+    ticked = sum(len(i.get("key_mods") or []) for i in items)
+    rx = item_regex([i for i in items if i.get("key_mods")]) if ticked else ""
+    word = f"{ticked} ticked mod{'s' if ticked != 1 else ''}"
+    if kind == "waystone":
+        c = cards[0]
+        url = item_trade_link(league, items[0])
+        return {"regex": rx, "url": url, "ticked": ticked,
+                "caption": " · ".join(x for x in (f"Tier {c['tier']}" if c.get("tier") else "", word) if x)}
+    bases = [c["base"] for c in cards]
+    base = max(dict.fromkeys(bases), key=bases.count)
+    lines = [m for i in items if i["base"] == base for m in i.get("key_mods") or []]
+    sids = []
+    for line in lines:
+        try:
+            sid = (sid_of or stat_id)(line)
+        except Exception:
+            sid = None
+        if sid and sid not in sids:
+            sids.append(sid)
+    q = {"query": {"status": {"option": _status()}, "type": base}, "sort": {"price": "asc"}}
+    groups = []
+    if sids:
+        several = len([i for i in items if i["base"] == base and i.get("key_mods")]) > 1
+        groups.append({"type": "count", "value": {"min": 1}, "filters": [{"id": s} for s in sids]} if several
+                      else {"type": "and", "filters": [{"id": s} for s in sids]})
+    if uses_sid:
+        groups.append({"type": "and", "filters": [{"id": uses_sid, "value": {"min": TABLET_USES}}]})
+    if groups:
+        q["query"]["stats"] = groups
+    url = (f"https://www.pathofexile.com/trade2/search/poe2/{urllib.parse.quote(league or 'Standard')}?q="
+           + urllib.parse.quote(json.dumps(q, separators=(",", ":"))))
+    bits = [word + (" (any of them)" if sids and len(groups) and groups[0]["type"] == "count" else ""), base]
+    if uses_sid:
+        bits.append(f"{TABLET_USES}+ uses")
+    if lines and len(sids) < len(set(lines)):
+        from .mods import TEXT2SID
+        bits.append("the trade site's mod list isn't loaded yet" if sid_of is None and not TEXT2SID else
+                    f"{len(set(lines)) - len(sids)} not on the trade site")
+    return {"regex": rx, "url": url, "caption": " · ".join(bits), "ticked": ticked, "query": q}
 
 
 def per_hour(s, mine=None):
@@ -624,7 +844,10 @@ def to_text(s=None):
            "# One field per line (\"Field: value\"). Lists: one \"- item\" line per item under the field.",
            "# Checkboxes: put an x in the box, [x], for each one that applies (one in each [ ] group of Type,",
            "# Thinking and Clicks per hour; as many Tags as fit).",
-           "# Needed: Name, Author, Summary, Category + Type, Thinking, Clicks per hour, Steps.", ""]
+           "# Needed: Name, Author, Summary, Category + Type, Thinking, Clicks per hour, Steps.",
+           "# Atlas masters: one \"- master: choice, choice\" line each (up to 4 choices).",
+           "# Items: one \"- kind | base | name | uses\" line per tablet or waystone, then a [x] line for each mod",
+           "# that matters and a [ ] line for the rest.", ""]
     for key, label in TXT_FIELDS:
         v = s.get(key)
         if key == "category":
@@ -649,6 +872,27 @@ def to_text(s=None):
                 out.append(f"Tags - {group}:")
                 out += [f"[{'x' if t in (v or []) else ' '}] {t}" for t in tags]
                 out.append("")
+        elif key == "masters":
+            out.append(f"{label}:")
+            out += [f"- {m}: {', '.join((v or {}).get(m) or [])}".rstrip() for m in MASTERS]
+            out.append("")
+        elif key == "items":
+            out.append(f"{label}:")
+            for it in v or []:
+                bits = [it.get("kind") or "item", it.get("base", ""), it.get("name") or it.get("base", "")]
+                if int(it.get("count") or 1) > 1:
+                    bits.append(f"×{int(it['count'])}")
+                if int(it.get("lasts") or 1) > 1:
+                    bits.append(f"{int(it['lasts'])} uses")
+                if it.get("rarity"):
+                    bits.append(it["rarity"])
+                out.append("- " + " | ".join(bits))
+                keys = it.get("key_mods") or []
+                out += [f"[{'x' if m in keys else ' '}] {m}" for m in (it.get("mods") or keys)]
+                out += [f"[x] {m}" for m in keys if m not in (it.get("mods") or keys)]
+            if not v:
+                out.append("- ")
+            out.append("")
         elif key in LISTS or key == "sources":
             out.append(f"{label}:")
             items = [x.get("url", "") for x in v or []] if key == "sources" else v or []
@@ -676,6 +920,13 @@ def from_text(text):
         if not line or line.startswith("#") or line == TXT_HEAD:
             continue
         m = re.match(r"^\[( |x|X)\]\s*(.+)$", line)
+        if m and cur == "items":                             # 3.0.6: a mod of the item above, [x] = it matters
+            if s.get("items"):
+                it = s["items"][-1]
+                it.setdefault("mods", []).append(m.group(2).strip())
+                if m.group(1).lower() == "x":
+                    it.setdefault("key_mods", []).append(m.group(2).strip())
+            continue
         if m and cur:
             if m.group(1).lower() != "x":
                 continue
@@ -692,7 +943,14 @@ def from_text(text):
             continue
         if line.startswith("- ") or line == "-":
             item = line[1:].strip()
-            if cur and item:
+            if cur == "masters" and ":" in item:
+                name, picks = item.split(":", 1)
+                picks = [x.strip() for x in picks.split(",") if x.strip()]
+                if picks:
+                    s.setdefault("masters", {})[name.strip()] = picks
+            elif cur == "items" and item:
+                s.setdefault("items", []).append(_txt_item(item))
+            elif cur and item:
                 s.setdefault(cur, []).append(item)
             continue
         m = re.match(r"^([^:]{2,60}):\s*(.*)$", line)
@@ -726,9 +984,32 @@ def from_text(text):
             s[key] = val
     if s.get("sources"):
         s["sources"] = [{"title": u, "url": u} for u in s["sources"] if u.startswith("http")]
+    for it in s.get("items") or []:
+        if it.get("mods") == it.get("key_mods"):             # (every line ticked, or an older item: no copy)
+            it.pop("mods", None)
     if s.get("name") and not s.get("id"):
         s["id"] = slug(s["name"])
-    return {k: v for k, v in s.items() if v not in (None, "", [])}
+    return {k: v for k, v in s.items() if v not in (None, "", [], {})}
+
+
+def _txt_item(line):
+    """"tablet | Breach Tablet | Grim Charter | ×4 | 10 uses | Rare" -> an item."""
+    bits = [b.strip() for b in line.split("|")]
+    it = {"kind": bits[0].lower() if bits[0].lower() in ("tablet", "waystone", "other", "item") else "item",
+          "base": bits[1] if len(bits) > 1 else bits[0]}
+    if len(bits) > 2 and bits[2] and bits[2] != it["base"]:
+        it["name"] = bits[2]
+    for b in bits[3:]:
+        n = re.match(r"^[×x]\s*(\d+)$", b) or re.match(r"^(\d+)\s*[×x]$", b)
+        u = re.match(r"^(\d+)\s+uses?$", b, re.I)
+        if n:
+            it["count"] = max(1, min(1000, int(n.group(1))))
+        elif u:
+            it["lasts"] = max(1, min(100, int(u.group(1))))
+        elif b:
+            it["rarity"] = b
+    it.setdefault("count", 1)
+    return it
 
 
 def new_strat(**kw):
@@ -938,13 +1219,14 @@ CSV_MAGIC = "stashofexile2 strat"
 LEDGER_FIELDS = ("runs", "minutes", "cost_per_run_div", "loot_per_run_div", "profit_per_run_div", "div_per_hour")
 _CSV_STRAT = (("name", "Name - needed"), ("id", "lower-case-with-dashes; empty = made from the name"),
               ("author", "needed"), ("updated", "YYYY-MM-DD"), ("patch", "game version, e.g. 0.4"),
+              ("league", "the league it's for; empty = the league of its game version"),
               ("summary", "one line - needed"), ("category", " | ".join(CATEGORIES)),
               ("type", "a type of the category (strats/README.md)"),
               ("thinking", " | ".join(w for w, _d in THINKING.values())), ("clicks_per_hour", " | ".join(CLICKS)),
               ("waystone_tiers", "e.g. 14-16"), ("est_cost_div", "a run, e.g. 2 div or 50 ex"),
               ("est_profit_div", "an hour, e.g. 5-10 div"), ("regex", "a stash search"))
 _CSV_LISTS = ("requirements", "tablets", "waystones", "atlas", "craft_steps", "setup", "steps", "loot", "tips", "risks")
-_ITEM_FIELDS = ("kind", "base", "name", "count", "lasts", "key_mod")
+_ITEM_FIELDS = ("kind", "base", "name", "count", "lasts", "rarity", "key_mod")
 
 
 def to_csv(s=None):
@@ -988,8 +1270,18 @@ def to_csv(s=None):
         for f in _ITEM_FIELDS[:-1]:
             if it.get(f) not in (None, ""):
                 w.writerow(("item", f"{n}:{f}", it[f], ""))
-        for m in it.get("key_mods") or []:
-            w.writerow(("item", f"{n}:key_mod", m, ""))
+        keys = it.get("key_mods") or []
+        for m in it.get("mods") or keys:                     # 3.0.6: every line of the copy, in order
+            w.writerow(("item", f"{n}:{'key_mod' if m in keys else 'mod'}", m, ""))
+        for m in keys:
+            if m not in (it.get("mods") or keys):
+                w.writerow(("item", f"{n}:key_mod", m, ""))
+    for master, picks in (s.get("masters") or {}).items():
+        for c in picks:
+            w.writerow(("master", master, c, ""))
+    if not s:
+        for master, d in MASTERS.items():
+            w.writerow(("master", master, "", f"up to {MASTER_PICKS} of: " + " | ".join(d["choices"])))
     for k in LEDGER_FIELDS:
         if k in (s.get("ledger") or {}):
             w.writerow(("ledger", k, f"{s['ledger'][k]:g}", "from the Strat Tracker"))
@@ -1026,8 +1318,11 @@ def from_csv(text):
                     s[key2] = money_parse(val, single=key2 == "est_cost")
                 except (TypeError, ValueError):
                     s[key2] = val
-            elif field in ("name", "id", "author", "updated", "patch", "summary", "category", "type", "regex"):
+            elif field in ("name", "id", "author", "updated", "patch", "league", "summary", "category", "type",
+                           "regex"):
                 s[field] = val
+        elif sec == "master":
+            s.setdefault("masters", {}).setdefault(field, []).append(val)
         elif sec == "tag":
             s.setdefault("tags", []).append(val)
         elif sec in _CSV_LISTS:
@@ -1037,8 +1332,12 @@ def from_csv(text):
         elif sec == "item" and ":" in field:
             n, f = field.split(":", 1)
             it = items.setdefault(n, {})
-            if f == "key_mod":
-                it.setdefault("key_mods", []).append(val)
+            if f in ("key_mod", "mod"):
+                if f == "key_mod":
+                    it.setdefault("key_mods", []).append(val)
+                it.setdefault("_lines", []).append(val)
+                if f == "mod":
+                    it["_all"] = True
             elif f in ("count", "lasts"):
                 try:
                     it[f] = int(float(val))
@@ -1052,8 +1351,15 @@ def from_csv(text):
             except ValueError:
                 pass
     if items:
-        s["items"] = [dict(items[k], key_mods=items[k].get("key_mods", []))
-                      for k in sorted(items, key=lambda x: int(x) if x.isdigit() else 0)]
+        out = []
+        for k in sorted(items, key=lambda x: int(x) if x.isdigit() else 0):
+            it = dict(items[k])
+            lines, every = it.pop("_lines", []), it.pop("_all", False)
+            it["key_mods"] = it.get("key_mods", [])
+            if every:                                        # 3.0.6: the unticked lines too
+                it["mods"] = lines
+            out.append(it)
+        s["items"] = out
     if s.get("name") and not s.get("id"):
         s["id"] = slug(s["name"])
     return {k: v for k, v in s.items() if v not in (None, "", [])}

@@ -194,6 +194,8 @@ class Page(unittest.TestCase):
         cls.root.destroy()
 
     def setUp(self):
+        from soe2.config import SETTINGS
+        SETTINGS["league"] = ""                           # (no league set: Find shows All leagues)
         save_json(MM.FILE, {"schema": MM.SCHEMA, "revision": 999, "strats": STRATS,
                             "oneliners": [{"id": "tip-one", "author": "A", "text": "Sell splinters in 100s."},
                                           {"id": "tip-two", "author": "B", "text": "Buy waystones in bulk."}]})

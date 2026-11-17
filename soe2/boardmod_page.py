@@ -196,7 +196,7 @@ class BoardModPage:
         post = (s or {}).get("_post")
         if not post or post.get("mine") or self.mm_need_login("suggest an edit"):
             return None
-        return self.mm_form(dict(s), suggest=True)
+        return self.mm_new_open(dict(s), suggest=True)
 
     def bm_send_suggestion(self, post, data, note):
         ok, d = B.suggest(post["id"], data, note)

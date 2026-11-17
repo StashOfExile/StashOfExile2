@@ -108,6 +108,16 @@ FEATURES = (
     "You need",
     "How it goes",
     "Where your money came from",
+    # 3.0.6 New strat (was the Add my own form): one page in five parts - What it is, Your tablets, Your waystone,
+    # Atlas masters, How it goes - with Made for you (a regex and a trade search from the ticked mods of your copies)
+    # and Cost per map; Find's League filter (your league, or All leagues). Never another tool's words for these
+    # ("Session Configuration", "Loadout"): what you put in for a map is "in your map device"
+    "New strat",
+    "Made for you",
+    "Atlas masters",
+    "Cost per map",
+    "All leagues",
+    "In your map device",
     "Linux check",              # Linux build: Settings › Advanced and  StashOfExile2 --check-linux  - session, keys,
                                 # screen picture, clipboard, key sending, OCR, Client.txt, each with its fix
 )
@@ -169,6 +179,9 @@ OLD = {
     "Lucrative Strats": "Quick tips",   # 3.0.6 Farming Strategies: the tab folded into Find
     "Lucrative strats": "Quick tips",
     "Track in Strat Tracker": "Run this strat",
+    "Session Configuration": "In your map device",     # 3.0.6: other tools' words - never ours
+    "Active Loadout": "In your map device",
+    "Loadout": "In your map device",
 }
 
 # an old page name that now means another page: before 2.80.0, Bulk Pricing was called "Price checks"

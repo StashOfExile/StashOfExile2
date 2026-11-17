@@ -40,8 +40,9 @@ Searching a tag finds both: `Breach` finds Mapping › Breach and strats tagged 
 | `name`, `author`, `summary` | yes | text; summary = one line |
 | `updated` | yes | `YYYY-MM-DD` |
 | `patch` | yes | game version, e.g. `0.4` |
+| `league` | no | the league it's for, e.g. `Forbidden Rites` (empty: the league of its game version - Find's League filter) |
 | `category`, `type` | yes | from the table above |
-| `thoughts_per_click` | yes | Thoughts per click, 1-5: 1 Autopilot, 2 Easy, 3 Moderate, 4 Hard, 5 Big brain |
+| `thoughts_per_click` | yes | Effort (how much thinking), 1-5: 1 Autopilot, 2 Easy, 3 Moderate, 4 Hard, 5 Big brain (New strat asks Easy / Medium / Hard: 2 / 3 / 4) |
 | `clicks_per_hour` | yes | `Chill`, `Steady`, `Busy` or `Frantic` |
 | `steps` | yes | list of lines, in order |
 | `tags` | no | from the tag table |
@@ -53,13 +54,15 @@ Searching a tag finds both: `Breach` finds Mapping › Breach and strats tagged 
 | `regex` | no | a stash search string |
 | `sources` | no | `[{"title", "url"}]` |
 
-| `items` | no | `[{"kind", "base", "name", "count", "lasts", "key_mods"}]` - what a run uses, with the mods that matter: the app checks their trade price once a day ("Cost now") |
+| `items` | no | `[{"kind", "base", "name", "count", "lasts", "key_mods", "mods", "rarity"}]` - what a run uses, with the mods that matter (`key_mods`; `mods` = every line of the copy): the app checks their trade price once a day (Cost per map) |
+| `masters` | no | Atlas masters: `{"Doryani's Science": ["Refined Formula", ...]}` - up to 4 of each master's choices (`moneymakers.MASTERS`) |
 | `ledger` | no | numbers from the author's Strat Tracker: `runs`, `minutes`, `cost_per_run_div`, `loot_per_run_div`, `profit_per_run_div`, `div_per_hour` |
 
 **The CSV layout** (one header for every Money Makers CSV): `section,field,value,note`. `strat` rows hold the fields
 above (`thinking` as a word, `est_cost_div` a run, `est_profit_div` an hour), `tag` rows one tag each (field = its
 group), list rows one line each (section = the list, field = 1, 2, 3 ...), `source` rows a link (note = its title),
-`item` rows `1:kind`, `1:base`, `1:count`, `1:lasts`, `1:key_mod` (repeat for more mods), and `ledger` rows the Farm
+`item` rows `1:kind`, `1:base`, `1:count`, `1:lasts`, `1:key_mod` (repeat for more mods; `1:mod` for a line that
+doesn't matter), `master` rows one Atlas masters pick each (field = the master), and `ledger` rows the Farm
 Ledger's numbers under the same names as its own CSV. The `note` column is help - the app ignores it.
 
 One-liner (`oneliners.json`): `{"id", "text", "author"}` + optional `category`, `type`, `tags`, `updated`.

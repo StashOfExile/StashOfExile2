@@ -105,9 +105,21 @@ export function validateStrat(s) {
       (x.count === undefined || (Number.isInteger(x.count) && x.count >= 1 && x.count <= 1000)) &&
       (x.lasts === undefined || (Number.isInteger(x.lasts) && x.lasts >= 1 && x.lasts <= 100)) &&
       (x.key_mods === undefined || (Array.isArray(x.key_mods) && x.key_mods.length <= 12 && x.key_mods.every((m) => typeof m === "string" && m.length <= 200))) &&
-      Object.keys(x).every((k) => ["kind", "base", "name", "count", "lasts", "key_mods"].includes(k));
+      (x.mods === undefined || (Array.isArray(x.mods) && x.mods.length <= 20 && x.mods.every((m) => typeof m === "string" && m.length <= 200))) &&
+      (x.rarity === undefined || (typeof x.rarity === "string" && x.rarity.length <= 20)) &&
+      Object.keys(x).every((k) => ["kind", "base", "name", "count", "lasts", "key_mods", "mods", "rarity"].includes(k));
     if (!Array.isArray(it) || it.length > 30 || !it.every(okItem))
-      out.push('items must be up to 30 of {"kind", "base", "name", "count" 1-1000, "lasts" 1-100, "key_mods"}');
+      out.push('items must be up to 30 of {"kind", "base", "name", "count" 1-1000, "lasts" 1-100, "key_mods", "mods", "rarity"}');
+  }
+  // 3.0.6: the league it was made in, and the Atlas masters picked (up to RULES.master_picks of each one's choices)
+  if (s.league !== undefined && !(typeof s.league === "string" && s.league.trim() && s.league.length <= 60))
+    out.push("league: a league name, 60 characters at most");
+  if (s.masters !== undefined) {
+    const ms = s.masters, M = RULES.masters || {};
+    const ok = ms && typeof ms === "object" && !Array.isArray(ms) && Object.entries(ms).every(([k, v]) =>
+      k in M && Array.isArray(v) && v.length <= (RULES.master_picks || 4) && new Set(v).size === v.length &&
+      v.every((x) => M[k].includes(x)));
+    if (!ok) out.push(`masters must be {master: up to ${RULES.master_picks || 4} of its choices}`);
   }
   if (s.ledger !== undefined) {
     const lg = s.ledger;

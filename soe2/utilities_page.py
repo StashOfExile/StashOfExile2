@@ -176,7 +176,7 @@ class UtilitiesPage:
         if alt:
             if SETTINGS.get("listen", True):
                 return True
-            for f in ("fd_capturing", "fl_capturing", "fl_ed_open"):
+            for f in ("fd_capturing", "fl_capturing", "fl_ed_open", "mm_new_capturing"):
                 try:
                     if getattr(self, f)():
                         return True
