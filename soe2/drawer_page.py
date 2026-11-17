@@ -801,9 +801,11 @@ class DrawerHost:
 
     def _drawer_freeze(self, on):
         """3.0.6 (owner: dragging the Drawer's edge "lags in settings and every other page", not on Dashboard; the
-        measured drag: 11 resize steps in 6.7 s - each step drew every page again): while you drag, the pages are
-        taken off (an empty Drawer is cheap to draw); they come back once, at the new size, when you let go
-        (_drawer_resized). Every page shown counts - Settings lies over the page under it."""
+        measured drag: 11 resize steps in 6.7 s - each step laid every page out again, and on Windows every one of
+        its parts is a window of its own to move). While you drag, each page keeps its size and stays in view (a
+        wider Drawer shows a strip beside it, a narrower one cuts it off for the moment); when you let go it is laid
+        out once, at the new size (_drawer_resized). Shell._follow leaves frozen pages alone. (Owner: taking the
+        pages off instead left the Drawer empty while dragging - "not the right fix".)"""
         sh = getattr(self, "shell", None)
         try:
             if on:
@@ -812,16 +814,18 @@ class DrawerHost:
                 shown = [w for w in list(getattr(sh, "windows", {}).values())
                          if getattr(w, "_shown", False) and w.winfo_ismapped()]
                 for w in shown:
-                    w.place_forget()
+                    tk.Place.place_configure(w, relwidth=0, relheight=0, width=w.winfo_width(),
+                                             height=w.winfo_height())
                 self._drawer_frozen = shown
             else:
                 shown, self._drawer_frozen = getattr(self, "_drawer_frozen", None) or [], None
                 for w in shown:
-                    if getattr(w, "_shown", False):           # (the order they lie in is kept: Settings on top)
+                    if getattr(w, "_shown", False):
                         w._place_now()
                 if sh is not None:
                     sh._follow_soon()                         # (and each page sized once, for the new width)
         except (tk.TclError, AttributeError):
+            self._drawer_frozen = None
             buglog.caught()
 
     def _drawer_maximized(self):
