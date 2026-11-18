@@ -226,6 +226,15 @@ Versions follow Semantic Versioning 2.0.0, always written in full: 2.10.0 adds f
 
 ## ▶ Next up
 
+### Pass: every helper's alerts after the policy changes (owner, 2026-11-18)
+Some on-screen alerts still point at features removed for GGG policy compliance (automatic screen reads, timers that
+read) or removed in the 3.0.x cleanup. One helper at a time (Breach, Ritual, Expedition, Temple, Trial of the Sekhemas,
+Desecration, Campaign, League Plan, Top Up Reminders, Break reminders, Map profit, Trade whispers, Music):
+- list every alert card, status line, tooltip and setting it can show;
+- mark each: still true / points at a removed feature / wording only;
+- remove or reword (removed features through tools/check_removed.py; names via names.py);
+- one checklist artifact per batch for the owner to confirm in game.
+
 ### Fix: Vaal Lens room placement (owner, 2026-11-17: "temple helper seems gutted")
 Before 3.0 (2.140-2.143) Vaal Lens watched the Temple Console while it was open, so picking a room card showed where it goes (1 / 2 on the best lit tiles, ✕ near reward rooms) and the gold path to the Architect, live. Since 3.0 (one read per Read Key press) it only updates on a press.
 Found in the owner's log (2026-11-17): the board is still read fine on a press (architect, rooms, paths, reward rooms), crystals read 54/60. But the card's plan said "Nothing to plan with these cards" for a hand of Path, Commander's Chamber, Sealed Vault ×2, Path, Crimson Hall.
