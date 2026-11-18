@@ -720,6 +720,44 @@ class Page(unittest.TestCase):
         out = a.mm_new_save()
         self.assertEqual(out["items"][0]["key_mods"][1], "Breaches in Map have 12% increased Pack Size")
 
+    def test_tablet_row_any(self):
+        """3.0.6 (owner): a tablet row can be 'Any' - it shows, has no number box, and is not searched for."""
+        a = self.app
+        a.mm_add()
+        a.mm_new_hand_menu(x=0, y=0)
+        a.mm_last_menu.invoke(1)
+        a.mm_new_hand_set("ttype", "Breach Tablet")
+        self.pump()
+        cv = a.mm_new_cv
+        cv.acts["nw_hrow_p1"]()
+        self.pump()
+        self.assertIn("Any - it doesn't matter", self.words(cv), "first in the list")
+        self.assertIn("isn't searched", cv.tips.get("nw_hopt_p1_0", ""))
+        a.mm_new_hand_choose("p1", "Any")
+        a.mm_new_hand_choose("s1", "Breaches in Map have (5—15)% increased Pack Size")
+        self.assertEqual(a.mm_new_hand_summary(), "Breach Tablet · 10 uses · 1 mod · 1 any")
+        self.pump()
+        self.assertIn("Any - it doesn't matter", self.words(cv), "the row says it")
+        cv.acts["nw_hand_done"]()
+        self.assertEqual(a.mm_nd["cards"][0]["ticked"], ["Breaches in Map have 5% increased Pack Size"],
+                         "Any is not a mod")
+
+    def test_no_master_needed(self):
+        """3.0.6 (owner): 'No atlas master needed' - the part is done with no picks; a pick turns it off."""
+        a = self.app
+        a.mm_add()
+        a.mm_new_master("Jado's Spycraft", MM.MASTERS["Jado's Spycraft"][0])
+        self.pump()
+        cv = a.mm_new_cv
+        cv.acts["nw_nomaster"]()
+        self.pump()
+        self.assertEqual((a.mm_nd["no_master"], a.mm_nd["masters"]), (True, {}), "on clears the picks")
+        w_ = " ".join(self.words(cv))
+        self.assertIn("This strat works without an atlas master.", w_)
+        self.assertIn("✓ Atlas master · none needed", w_)
+        a.mm_new_master("Jado's Spycraft", MM.MASTERS["Jado's Spycraft"][1])
+        self.assertFalse(a.mm_nd["no_master"], "a pick turns it off")
+
     def test_unique_tablet(self):
         """★ Unique ▾: every unique tablet, added by name - its slot, the trade search and a copy of one."""
         a = self.app

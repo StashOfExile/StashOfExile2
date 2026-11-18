@@ -47,6 +47,10 @@ JUNK = re.compile(r"[^\w' ()\-:,.]+")
 # Still uncertain (no allowed source ranks them): Rebirth / Wisdom / Ward in B (epoe.io lists Rebirth and Ward only as
 # "approach with caution"), Moon / Toxic / Bloodletting in D (epoe.io: caution), Earth / Sky / Tidal in D (hazards by
 # their game text only), Oath in S (epoe.io: S but conditional on handling its summoner).
+# 2026-11-18 re-check (epoe.io + poe.gnejs.app/poe2/expedition/runes, both crediting Cutedog_'s sheet): Moon / Toxic /
+# Bloodletting / Earth stay D (epoe: hazards, dangerous); Rebirth / Ward stay B (low confidence); Oath stays S (0.5.5:
+# its immunity became more Ward - S for builds that handle the summoner). Wisdom / Sky / Tidal: still no source.
+# Bond is contested: gnejs ranks it 2nd, epoe says skip - kept in C until the owner decides.
 RUNE_TIPS_UPDATED = "Nov 2026"
 RUNE_TIERS = [   # (2.130.4, feedback: C and D in alphabetical order - S-B stay in the players' order)
     ("S", "Opulent", "increased monster rarity"),

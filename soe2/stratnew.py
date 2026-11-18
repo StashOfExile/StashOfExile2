@@ -39,6 +39,7 @@ F9, F10, FB = ("Segoe UI", 9), ("Segoe UI", 10), ("Segoe UI", 8, "bold")  # toke
 URL = re.compile(r"https?://\S+")
 ROWS = (("p1", "Prefix 1"), ("p2", "Prefix 2"), ("s1", "Suffix 1"), ("s2", "Suffix 2"))
 ROWS = dict(ROWS)
+ANY = "Any"            # 3.0.6 (owner): a tablet row that can be any mod - it doesn't go in the search
 PICKER_BUSY = "Finish or cancel the picker first"
 HAND_W = 650                                             # the by-hand pickers' width at most
 
@@ -80,6 +81,8 @@ class StratNewPage:
             "others": [it for it in items if it.get("kind") not in ("tablet", "waystone")],
             "masters": {k: list(v) for k, v in (s.get("masters") or {}).items() if v},
             "mtab": MM.master_of(s.get("masters"))[0] or next(iter(MM.MASTERS)),
+            # 3.0.6 (owner): some strats need no atlas master - a saved strat with none picked had said so
+            "no_master": bool(not new and s.get("name") and not any((s.get("masters") or {}).values())),
             "loot": list(s.get("loot") or []),
             "league": s.get("league") or own, "msg": None,
             "cost_sid": s.get("id") if items and not new else None, "cost_items": [dict(i) for i in items],
@@ -258,6 +261,7 @@ class StratNewPage:
         strat to it (the old picks are cleared; the page said so above the tiles)."""
         d = self.mm_nd
         old = MM.master_of(d["masters"])
+        d["no_master"] = False
         d["masters"], what = MM.master_pick(d["masters"], master, choice)
         d["mtab"] = master
         if what == "full":
@@ -270,6 +274,14 @@ class StratNewPage:
 
     def mm_new_master_tab(self, master):
         self.mm_nd["mtab"] = master
+        self.mm_new_cv.later(1)
+
+    def mm_new_no_master(self):
+        """'No atlas master needed': on clears the picks and folds the grid away; off brings it back."""
+        d = self.mm_nd
+        d["no_master"] = not d.get("no_master")
+        if d["no_master"]:
+            d["masters"] = {}
         self.mm_new_cv.later(1)
 
     def mm_new_masters_clear(self):
@@ -450,8 +462,9 @@ class StratNewPage:
             return f"{h['unique']} · {h.get('ttype') or 'Tablet'} · unique"
         if not h.get("ttype"):
             return "Pick its type."
-        n = len(h["rows"])
-        return f"{h['ttype']} · 10 uses · {n} mod{'s' if n != 1 else ''}"
+        n = sum(1 for v in h["rows"].values() if v and v != ANY)
+        anyn = sum(1 for v in h["rows"].values() if v == ANY)
+        return f"{h['ttype']} · 10 uses · {n} mod{'s' if n != 1 else ''}" + (f" · {anyn} any" if anyn else "")
 
     def mm_new_hand_done(self):
         """Done: the picked waystone / tablet goes in its slot (the picker closes)."""
@@ -469,7 +482,8 @@ class StratNewPage:
             card["hand"] = True
         else:
             card = MM.hand_card("tablet", base=h["ttype"],
-                                mods=[(h["rows"][r], mins.get(r)) for r in ROWS if h["rows"].get(r)])
+                                mods=[(h["rows"][r], mins.get(r)) for r in ROWS
+                                      if h["rows"].get(r) and h["rows"][r] != ANY])
         card["hand_state"] = state
         if h["kind"] == "waystone":
             d["way"] = card
@@ -1152,8 +1166,9 @@ class StratNewPage:
                     val = h["rows"].get(r)
                     b = TH.round_rect(cv, bx0, yy, bx1, yy + 34, 4, fill=cv.c("surface_sunken"),
                                       outline=acc if h.get("open") == r else cv.c("border_light"), tags=(tag,))
-                    cv.text(bx0 + 10, yy + 17, cv.fit(val or ("Pick a prefix…" if r.startswith("p") else
-                                                             "Pick a suffix…"), F10, bx1 - bx0 - 36), F10,
+                    shown = "Any - it doesn't matter" if val == ANY else val
+                    cv.text(bx0 + 10, yy + 17, cv.fit(shown or ("Pick a prefix…" if r.startswith("p") else
+                                                               "Pick a suffix…"), F10, bx1 - bx0 - 36), F10,
                             fill=cv.c("text") if val else cv.c("text_muted"), anchor="w", tags=(tag,))
                     cv.text(bx1 - 12, yy + 17, "▾", F9, fill=cv.c("text_muted"), anchor="center", tags=(tag,))
                     cv.acts[tag] = lambda r=r: self.mm_new_hand_dropdown(r)
@@ -1165,7 +1180,10 @@ class StratNewPage:
                         e.configure(highlightbackground=C["accent"] if self._mm_val(e).strip() else C["line"])
                     except tk.TclError:
                         pass
-                    self._nw_place(cv, e, cr - 88, yy, 88, 34)
+                    if val == ANY:                       # (any mod: no number to search for)
+                        e.var.set("")
+                    else:
+                        self._nw_place(cv, e, cr - 88, yy, 88, 34)
                     yy += 42
                     if h.get("open") == r:
                         yy = self._nw_hand_list(cv, r, bx0, bx1, yy) + 8
@@ -1192,8 +1210,11 @@ class StratNewPage:
         yy = y + 46
         opts = self._mm_hand_options(row)
         uniq = row == "unique"
-        if not uniq and self.mm_nd["hand"]["rows"].get(row):
-            opts = [""] + opts                               # (none: empties the row)
+        if not uniq:
+            q = self._mm_val(nw["hand_q"]).strip().lower()
+            opts = ([ANY] if not q or q in ANY.lower() else []) + [m for m in opts if m != ANY]
+            if self.mm_nd["hand"]["rows"].get(row):
+                opts = [""] + opts                           # (none: empties the row)
         tablets = MM.unique_tablets() if uniq else {}
         for i, m in enumerate(opts):                     # (every one: Visions of Paradise was past the 8th)
             tag = f"nw_hopt_{row}_{i}"
@@ -1208,11 +1229,12 @@ class StratNewPage:
                 cv.text(cv.bbox(t_)[2] + 8, yy + 16, tablets.get(m, ""), F9, fill=cv.c("text_muted"), anchor="w",
                         tags=(tag,))
             else:
-                cv.text(tx, yy + 14, cv.fit(m or "- none -", F9, x1 - x0 - 40), F9,
+                word = "Any - it doesn't matter" if m == ANY else (m or "- none -")
+                cv.text(tx, yy + 14, cv.fit(word, F9, x1 - x0 - 40), F9,
                         fill=cv.c("text") if m else cv.c("text_muted"), anchor="w", tags=(tag,))
             cv.acts[tag] = lambda m=m: self.mm_new_hand_choose(row, m)
             cv.lifts[tag] = [(b, {"outline": ""}, {"outline": cv.c("text_muted")})]
-            cv.tips[tag] = m or "Empty this row"
+            cv.tips[tag] = ("Any mod can be here - it isn't searched for" if m == ANY else m or "Empty this row")
             yy += (35 if uniq else 31)
         if not opts:
             yy = cv.bottom(cv.text(x0 + 12, yy + 2, "Nothing matches.", F9, fill=cv.c("text_muted")), yy + 14) + 6
@@ -1287,11 +1309,18 @@ class StratNewPage:
     def _nw_part_masters(self, cv, d, x0, x1, y, n):
         """3 · Atlas master: the master list, its 12 choices as squares in the game's grid, the picks (mockup v3)."""
         cur, picks = MM.master_of(d["masters"])
-        self._nw_head(cv, n, bool(picks), "Atlas master", x0, x1, y,
+        none = bool(d.get("no_master"))
+        self._nw_head(cv, n, bool(picks) or none, "Atlas master", x0, x1, y,
                       note=f"optional · one master, up to {MM.MASTER_PICKS} picks")
         cx, cr = x0 + 72, x1 - 24
         px0 = x0 + 24                                    # (the panel spans the part, as the mockup: list | grid | details)
-        y += 46
+        y += 42
+        y = self._nw_chips(cv, cx, cr, y, [("No atlas master needed", "nw_nomaster", none, self.mm_new_no_master,
+                                            "This strat works with any master, or none" if not none else
+                                            "Show the masters again")]) + 12
+        if none:
+            return cv.bottom(cv.text(cx, y, "This strat works without an atlas master.", F9,
+                                     fill=cv.c("text_muted")), y + 14) + 8
         tab = d.get("mtab") or cur or next(iter(MM.MASTERS))
         if cur and cur != tab and picks:                 # ticking here switches the strat's master: said first
             note = (f"Your strat uses {cur} ({len(picks)} pick{'s' if len(picks) != 1 else ''}). Ticking one here "
@@ -1466,7 +1495,9 @@ class StratNewPage:
         cur, picks = MM.master_of(d["masters"])
         rows = ((bool(f["name"]) and not ({"a mechanic", "a boss"} & set(miss)), "What you farm"),
                 (bool(d["cards"] or d["way"]), f"Map device · {n_t} tablet{'s' if n_t != 1 else ''}"),
-                (bool(picks), f"Atlas master · {len(picks)} of {MM.MASTER_PICKS}"),
+                (bool(picks) or bool(d.get("no_master")),
+                 "Atlas master · none needed" if d.get("no_master") else
+                 f"Atlas master · {len(picks)} of {MM.MASTER_PICKS} (optional)"),
                 (bool(f["steps"]), f"How it goes · {len(f['steps'])} step{'s' if len(f['steps']) != 1 else ''}"),
                 (bool(f["tips"] or f["risks"] or f["source"]), "Notes (optional)"))
         for ok, word in rows:
