@@ -21,8 +21,10 @@ MEDALLIONS = {
     "Quipolatl's Medallion": ("Upgrade", "Raises a room's tier", 9),
     "Estazunti's Medallion": ("Extra restricted room", "One more restricted room card after the Architect", 8),
     "Uromoti's Medallion": ("Add room", "Adds a room card", 5),
-    "Hayoxi's Medallion": ("Reroll restricted", "Rerolls a restricted room", 5),
-    "Puhuarte's Medallion": ("Reroll cards", "Rerolls the room cards on offer", 4),
+    # 3.0.6 (owner: "it should be telling me next to delete hayoxi's medallion to pick up the reroll medallion
+    # (puhuarte's)"): rerolling the cards on offer is worth more than rerolling a restricted room
+    "Hayoxi's Medallion": ("Reroll restricted", "Rerolls a restricted room", 4),
+    "Puhuarte's Medallion": ("Reroll cards", "Rerolls the room cards on offer", 5),
     "Xopec's Medallion": ("Crystal capacity", "Crystal capacity +6 (up to 60)", 6),
     "Azcapa's Medallion": ("Medallion slot", "Medallion capacity +1 (up to 6)", 7),
     "Zantipi's Medallion": ("Waystone modifier", "Adds a random waystone modifier to the temple", 1),

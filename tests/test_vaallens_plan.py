@@ -297,3 +297,12 @@ class CardRows(unittest.TestCase):
         g = V._gold_text(im)
         self.assertEqual(g.getpixel((5, 5)), 0)
         self.assertEqual(g.getpixel((25, 5)), 255)
+
+
+class KeyRoomPreview(unittest.TestCase):
+    def test_key_card_held_and_its_spot_lit_is_step_1(self):
+        # 3.0.6 (owner): the game shows the key room on the one square it can go - number it, card and tile
+        b = board({**BASE, (2, 3): ("key", "Key Room", 1)})
+        r = VP.full_plan(b, ["Royal Access Chamber", "Path", "Path"])
+        self.assertEqual(r["plan"][0], ((2, 3), "Key Room", "the key room"))
+        self.assertEqual(VP.steps(r["plan"])[0], 1)

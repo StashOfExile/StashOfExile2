@@ -658,6 +658,14 @@ def full_plan(board, cards=(), medals=(), medal_rooms=(), prev=()):
     # profits for t3 rooms / upgrade / lock #5: Everything else"
     key_needed = keyroom is None
     keep = key_spot(b) if key_needed and not key_card else set()   # (no key room yet: its landing spot stays free)
+    if key_card and keyroom is not None:
+        # 3.0.6 (owner: "it also needs to tell me where to place atziri's key room ... it should have the number on
+        # her room and the board"): the key room card held and its room on the board = the game's preview of
+        # where it goes (it lights that one square) - step 1, then what joins it
+        b.pop(keyroom, None)
+        b[keyroom] = "Key Room"
+        plan.append((keyroom, "Key Room", "the key room"))
+        key_card, key_needed, keep = False, False, set()
     for t, fam, why in prev or ():                     # (the last plan, step by step, while it still fits)
         if b.get(t) or not any(n in network(b) for n in near(t)) or touches_reward(b, t):
             continue

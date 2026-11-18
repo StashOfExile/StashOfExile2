@@ -548,9 +548,9 @@ def on_screen(game, x, y):
 
 # 2.142.0: the side panels keep to the game window's edges (the board keeps to the middle 16:9): the card list
 # (Room Cards) on the left, the Medallions panel on the right. Boxes in 2560x1440 frame coordinates.
-CARD_BOX = (40, 200, 480, 1150)
+CARD_BOX = (0, 200, 480, 1150)      # 3.0.6: from the edge - "ROYAL ACCESS CHAMBER" starts at x 14
 MEDAL_BOX = (1700, 560, 2560, 1110)      # the panel and where a hovered medallion's tooltip shows (left of it)
-DIAMOND_X = (250, 440)                   # a card's diamond, from the card list box's left
+DIAMOND_X = (290, 480)                   # a card's diamond, from the card list box's left
 
 
 def side_box(game, box, right=False):
@@ -594,7 +594,7 @@ def card_names(lines):
     return out
 
 
-ROW_FIRST, ROW_STEP, ROW_HALF, ROW_TEXT_W = 138, 144, 28, 250   # the card list's rows (1440p, in CARD_BOX)
+ROW_FIRST, ROW_STEP, ROW_HALF, ROW_TEXT_W = 138, 144, 28, 290   # the card list's rows (1440p, in CARD_BOX)
 TITLE_TO_ROW = 101                       # the "ROOM CARDS" title's middle -> the first row's middle (the list moves)
 PATH_FLAT = 34                           # a diamond this flat (gray spread) holds a path's lines, not a room icon
 CARD_PICS = {}                           # {card name: its diamond's picture} seen this session (in memory only)

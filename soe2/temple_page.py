@@ -485,8 +485,14 @@ class TemplePage:
             self.tm_icons = icons
         have, most = medal["count"]
         old = c.get("medals") or {}
-        if old.get("have") == have and len(old.get("hand") or []) == len(hand):
-            hand = [h or o for h, o in zip(hand, old["hand"])]   # 3.0.6: a slot known stays known (same count)
+        vecs = list(medal.get("vecs") or [])
+        was = getattr(self, "_tm_medal_vecs", None) or []
+        if old.get("have") == have and len(old.get("hand") or []) == len(hand) and len(was) == len(vecs):
+            # 3.0.6: a slot known stays known (same count) - only while its picture is the same (owner: a
+            # Zantipi's swapped for a Synthflesh Lab at 6/6 was still called "Waystone modifier")
+            hand = [h or (o if w is not None and float(v @ w) >= 0.95 else None)
+                    for h, o, v, w in zip(hand, old["hand"], vecs, was)]
+        self._tm_medal_vecs = vecs
         buglog.debug("Vaal Lens", f"medallions {have}/{most}: " + ", ".join(h or "?" for h in hand))
         self.tm_medal_boxes = list(zip(hand, medal.get("boxes") or []))     # 3.0.6: where each slot is (its step)
         new = {"have": have, "most": most, "hand": hand}
