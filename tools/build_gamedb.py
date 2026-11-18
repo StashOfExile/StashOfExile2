@@ -46,7 +46,9 @@ SCHEMA = 1
 GROUPS = names.GAME_SEARCH_GROUPS                                     # (one name per feature: soe2/names.py)
 NOT_IN_DATA = "Effect not in the game data yet"
 # permanent owner rule: game8 and fextralife are AI-generated and wrong - never a data source (see tools/README.txt)
-BLACKLIST = re.compile(r"game8|fextralife", re.I)
+BLACKLIST = re.compile(r"game8|fextralife|aoeah|mmoexp|u4n|u4gm|poecurrency|mulefactory|g2g|eldorado|playerauctions|"
+                       r"mmogah|iggm|lootbar|rpgstash|odealo|z2u|boostmatch|overgear|expcarry", re.I)   # (+ 3.0.6: RMT
+#                                                                                                 sites, owner)
 SAMPLES = os.path.join("tests", "fixtures", "gamedb_samples.txt")
 BANDS = {"map_key_low": "T1-5", "map_key_medium": "T6-10", "map_key_high": "T11-15", "map_key_highest": "T16"}
 BAND_TIERS = {"T1-5": range(1, 6), "T6-10": range(6, 11), "T11-15": range(11, 16), "T16": range(16, 17)}

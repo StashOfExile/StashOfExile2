@@ -2,8 +2,8 @@
 each gets a tag with the island it leads to and your Map library rank for it (feedback: "use our Map library to build
 an add-on ... that operates the rumor helper").
 
-Which rumor leads where: the two newest guides agree (epoe.io's Expedition guide, reviewed for 0.5.5e, and aoeah's
-0.5 tier list). Ranks are yours - set them in the Map library (the suggested ones are in the 2.83.0 notes).
+Which rumor leads where: epoe.io's Expedition guide, reviewed for 0.5.5e (3.0.6: an RMT site that was once a
+second check is no longer a source - owner: RMT sites are never used). Ranks are yours - set them in the Map library (the suggested ones are in the 2.83.0 notes).
 On screen: the card is the one large light parchment patch (found on a small copy of the screen), then only that
 part is read (Windows' text reader). Only while you're in your hideout (Client.txt). GGG ToS: it looks and shows."""
 import difflib
