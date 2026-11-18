@@ -152,6 +152,8 @@ class StashScanPage:
             return self.stash_scan_card()
         ss["got"][tab] = list(res["items"])
         ss["unread"][tab] = list(res["unread"])
+        if res["unread"]:                                    # 3.0.6: which slots, to fix the number reader (item
+            buglog.debug("Scan stash", f"{tab}: number not read - " + ", ".join(res["unread"]))   # names only)
         ss.setdefault("icons", {}).update(res.get("icons") or {})        # 2.114.3: wildcards - in memory only
         ss.setdefault("wild", {})[tab] = list(res.get("wild") or [])
         n = len(res["items"])
