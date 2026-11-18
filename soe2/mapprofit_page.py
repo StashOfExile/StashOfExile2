@@ -88,6 +88,13 @@ class MapProfitPage:
         - went in with, so emptying your inventory between visits isn't a loss."""
         if not self.mp_on() or getattr(self, "br_area", None) not in ("hideout", "town"):
             return None
+        self.mp_restore()
+        try:
+            return self._mp_seen(res)
+        finally:
+            self.mp_save()
+
+    def _mp_seen(self, res):
         from . import topup as TU
         refs = self.mp_refs()
         if refs is None:
@@ -104,12 +111,22 @@ class MapProfitPage:
         counts, unknown = MP.identify(res.get("cells") or [], TU.learned(), refs, price=self.mp_price, info=info)
         buglog.debug("Map profit", "read: " + (", ".join(f"{n} {k}" for n, k in sorted(counts.items())) or "nothing")
                      + f" · {unknown} not known · {info.get('skipped', 0)} without a stack number"
-                     + "".join(f" · {n} = one of {len(v)} look-alikes" for n, v in (info.get("alike") or {}).items()))
-        counts = MP.exchange_only(counts, self.mp_price)
+                     + "".join(f" · can't tell apart: {' / '.join(v)}" for v in (info.get("alike") or {}).values()))
+        ways = {k: n for k, n in counts.items() if MP.is_waystone(k)}    # 3.0.6: shown by tier, no price
+        counts = dict(MP.exchange_only(counts, self.mp_price), **ways)
         # 3.0.6 (owner: "make sure it's excluding the persistent items from top up supplies"): what you keep in your
         # inventory for Top Up Reminders isn't loot - topping it up from your stash would count as profit
-        keep = {str(i.get("name") or "").lower() for i in TU.cfg().get("items") or []}
-        counts = {k: n for k, n in counts.items() if str(k).lower() not in keep}
+        # 3.0.6 (owner: "it failed to read the 2 vaal orbs I picked up"): only what you keep is left out - a
+        # supply counts above its Top Up amount (20 Vaal Orbs kept, 22 back: +2), the same before and after
+        keep = {}
+        for i in TU.cfg().get("items") or []:
+            try:
+                k = i.get("keep")
+                keep[str(i.get("name") or "").lower()] = 10 ** 9 if k is None else max(0, int(k))
+            except (TypeError, ValueError):
+                keep[str(i.get("name") or "").lower()] = 10 ** 9      # (no amount: all of it is a supply)
+        counts = {k: n - keep.get(str(k).lower(), 0) for k, n in counts.items()
+                  if n - keep.get(str(k).lower(), 0) > 0}
         snap = {"t": time.time(), "counts": counts, "unknown": unknown}
         pend = getattr(self, "mp_pending", None)
         if pend is not None:
@@ -119,7 +136,6 @@ class MapProfitPage:
                 for k, n in counts.items():
                     vis[k] = max(vis.get(k, 0), n)
             pend["unknown"] = max(pend.get("unknown", 0), unknown)
-            pend.setdefault("alike", {}).update(info.get("alike") or {})
             self.mp_check_done()
             self.mp_paint()
             self.mp_read_card(pend)
@@ -146,14 +162,15 @@ class MapProfitPage:
             from .pricefmt import fmt_div
             e = self._mp_entry(pend)
             rows = sorted(e.get("rows") or [], key=lambda r: -(r[2] - r[1]) * r[3])
-            alike = pend.get("alike") or {}
-            parts = [("≈ " if n in alike else "") + f"{n} +{a - b}" for n, b, a, _each in rows[:4]]
+            parts = [f"{n} +{a - b}" for n, b, a, _each in rows[:4]]
             if len(rows) > 4:
                 parts.append(f"+{len(rows) - 4} more")
+            ways = sorted((k, n) for k, n in self._mp_gain(pend).items() if MP.is_waystone(k) and n > 0)
+            if ways:                                        # 3.0.6: read and understood - no price
+                parts.append("Waystones " + ", ".join((f"T{k.split()[-1].rstrip(')')}" if "Tier" in k else "?")
+                                                      + f" +{n}" for k, n in ways) + " (no price)")
             if e.get("unknown"):
                 parts.append(f"{e['unknown']} not known")
-            if any(n in alike for n, *_r in rows[:4]):
-                parts.append("≈ looks like another item too: counted as the cheaper one")
             title = ("≈ " if pend.get("est") else "") + f"Map counted: {MP.signed(e['div'], fmt_div)}"
             from . import alertcard
             from .alerts_page import game_rect
@@ -191,20 +208,68 @@ class MapProfitPage:
                 g[k] = g.get(k, 0) + d                      # used, stashed or not seen - "I didn't actually lose
                 #                                             anything")
 
-    def _mp_entry(self, run):
-        base = run["before"]["counts"]
+    @staticmethod
+    def _mp_gain(run):
+        """What the map gained so far: {name: how many more}."""
         gain = dict(run.get("gain") or {})
         vis = run.get("visit")
         if vis is not None:                                 # (the visit you're on now, so far)
             went = run.get("seg_before") or {}
             for k in set(vis) | set(went):
                 gain[k] = gain.get(k, 0) + max(0, vis.get(k, 0) - went.get(k, 0))
+        return gain
+
+    def _mp_entry(self, run):
+        base = run["before"]["counts"]
+        gain = self._mp_gain(run)
         after = {k: base.get(k, 0) + gain.get(k, 0) for k in set(base) | set(gain)}
         e = MP.entry(run["map"], run["secs"], base, after, self.mp_price,
                      unknown=max(run["before"].get("unknown", 0), run.get("unknown", 0)))
         if run.get("est"):
             e["est"] = True                                 # (no read before it: see mp_area)
         return e
+
+    # ---------------------------------------------------------------- 3.0.6: a restart keeps the map going
+    STATE_FILE = "map_profit_state.json"
+    STATE_KEYS = ("mp_run", "mp_pending", "mp_home", "mp_home_cov")
+
+    def mp_save(self):
+        """(owner: "I restarted the program mid-run and now it won't accurately count my profit from that map"): the
+        map you're on, the one you're between visits of, and what you went in with - kept on disk at every change."""
+        try:
+            from .config import save_json
+            d = {k: getattr(self, k, None) for k in self.STATE_KEYS}
+            d["n"], d["saved"] = getattr(self, "_mp_n", 0), time.time()
+            save_json(self.STATE_FILE, d)
+        except Exception:
+            buglog.caught()
+
+    def mp_restore(self):
+        """Once, on the first look or area change after the app starts: what mp_save kept, if recent (MP.BEFORE_SECS)."""
+        if getattr(self, "_mp_restored", False):
+            return False
+        self._mp_restored = True
+        try:
+            from .config import load_json
+            d = load_json(self.STATE_FILE, {}) or {}
+            if not d or time.time() - float(d.get("saved") or 0) > MP.BEFORE_SECS:
+                return False
+            for k in self.STATE_KEYS:
+                v = d.get(k)
+                if isinstance(v, dict):
+                    if isinstance(v.get("where"), list):
+                        v["where"] = tuple(v["where"])          # (JSON keeps a tuple as a list)
+                    if getattr(self, k, None) is None:
+                        setattr(self, k, v)
+            self._mp_n = max(getattr(self, "_mp_n", 0), int(d.get("n") or 0))
+            run = getattr(self, "mp_run", None)
+            if run is not None:
+                run["saved"] = float(d.get("saved") or time.time())
+            buglog.debug("Map profit", "restored the map in progress after a restart")
+            return True
+        except Exception:
+            buglog.caught()
+            return False
 
     def mp_done(self):
         """The map you came back from is done: its line goes in the log (if you looked at your inventory after it)."""
@@ -214,6 +279,7 @@ class MapProfitPage:
         e = self._mp_entry(pend)
         e["run"] = pend["run"]
         MP.log_add(e)
+        self.mp_save()
         self.mp_last = e
         buglog.debug("Map profit", f"a map: {len(e['rows'])} items changed")      # (no names, no amounts)
         self.mp_paint()
@@ -228,6 +294,8 @@ class MapProfitPage:
 
     def mp_so_far(self):
         """The map you're between visits of (a town trip): its profit so far, or None."""
+        if self.mp_on():
+            self.mp_restore()
         pend = getattr(self, "mp_pending", None)
         if pend is None or (pend.get("visit") is None and not pend.get("gain")):
             return None
@@ -238,9 +306,31 @@ class MapProfitPage:
         home adds its loot until it's done. Back into the same map (its portal, a town trip): the same run."""
         if not self.mp_on():
             return
+        self.mp_restore()
+        try:
+            self._mp_area(kind, before, where, left)
+        finally:
+            self.mp_save()
+
+    def _mp_area(self, kind, before, where, left):
         now = time.time()
         self.mp_check_done(now)
         run = getattr(self, "mp_run", None)
+        if kind == "map" and before is None and run is not None:
+            # 3.0.6: the app restarted - Client.txt's first line says where you are. The same map: it goes on (its
+            # time counts on). Another place: the map you were in ended while the app was off.
+            if run.get("where") == where:
+                return
+            run["secs"] += max(0.0, run.get("saved", now) - run["start"])
+            run["left"] = run.get("saved", now)
+            self.mp_pending, self.mp_run = run, None
+            self.mp_done()
+            run = None
+        elif kind in ("hideout", "town") and before is None and run is not None:
+            run["secs"] += max(0.0, run.get("saved", now) - run["start"])     # (out of it while the app was off)
+            run["left"] = run.get("saved", now)
+            self.mp_pending, self.mp_run = run, None
+            return
         if kind == "map" and before != "map":
             pend = getattr(self, "mp_pending", None)
             if pend is not None and pend.get("where") == where:

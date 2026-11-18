@@ -37,6 +37,16 @@ MATCH_SURE, MATCH_BY_SURE = 0.80, 0.06      # (a very close match may beat the n
                                            # Refreshment are the same hand in gold / teal)
 CLEAR = (0.50, 0.25)                       # 2.129.1: or far ahead of every other item (a gray, sealed reward - the
                                            # log: Sanctification 0.51, next 0.23; wrong ones were never 0.15 ahead)
+def maybe_names(top):
+    """3.0.6: Refs.ranked() of a cell best() couldn't name -> the items it could be: close to the top (VETO_BY) and
+    above MAYBE_MIN - [] when nothing came close (a big item's corner, an item never learned)."""
+    if not top or top[0][0] < MAYBE_MIN:
+        return []
+    return [n for s_, n, _k in top if s_ >= MAYBE_MIN and s_ >= top[0][0] - VETO_BY]
+
+
+MAYBE_MIN = 0.68                           # 3.0.6: the vetoed Sinistral Erasure 0.82 / 0.71; gear corners under 0.65
+VETO_BY = 0.15                             # 3.0.6: how close a better-colored item must score to veto (0.82 / 0.71)
 HUE_BY = 0.25                              # 2.129.3: or close, but its colors match far better (Refreshment's teal
 #                                            hand 0.54, Whittling's purple one 0.20)
 CLEAR_ITEMS = 10                           # (only among many items - with two, "far ahead" says nothing)
@@ -326,9 +336,28 @@ class Refs:
         if not (sure or clear) and len(top3) > 1 and top >= MATCH_MIN.get(src, 0.72):
             h1, h2 = hue_sim(top3[0][3], top3[0][4]), hue_sim(top3[1][3], top3[1][4])
             sure = h1 is not None and h2 is not None and h1 - h2 >= HUE_BY       # 2.129.3: same shape, other color
+        if (sure or clear) and self.hue_veto(f, top):
+            sure = clear = False
         if sure or clear:
             return name, top, top - nxt
         return None, top, top - nxt
+
+    def hue_veto(self, f, top=None):
+        """3.0.6 (owner: an Omen of Sinistral Erasure, 22 div, tagged as a 3.4ex Omen of Resurgence - "I would have
+        lost money there"): the same horn ring, purple specks vs teal ones. Not sure when another item scores close
+        (VETO_BY) but its colors match far better (HUE_BY)."""
+        got = self.ranked(f, 4, refs=True)
+        if len(got) < 2:
+            return False
+        top = got[0][0] if top is None else top
+        h1 = hue_sim(got[0][3], got[0][4])
+        if h1 is None:
+            return False
+        for sc, _n, _s, cf, rf in got[1:]:
+            h = hue_sim(cf, rf)
+            if sc >= top - VETO_BY and h is not None and h - h1 >= HUE_BY:
+                return True
+        return False
 
 
     def alike(self, f):

@@ -47,12 +47,135 @@ def fv_match(cell, refs, alike=False):
         e = max(1, int(round(FV.EDGE * w / FV.CELL)))
         f = {"box": FV.feats(FV.art_box(bgr[e:h - e, e:w - e]))}
         name, _score, _margin = refs.best(f)
+        names = [name] if name else ([] if not alike else refs.alike(f))
+        if names:
+            names = grade(names, tier_letters(bgr, white=True), refs.items)
         if not alike:
-            return name
-        return [name] if name else refs.alike(f)
+            return names[0] if names else None
+        return names
     except Exception:
         buglog.caught()
         return [] if alike else None
+
+
+WAYSTONE_MIN = 0.70        # 3.0.6: the owner's T15 waystones 0.77-1.00 to the shipped picture (red or blue backing),
+#                            other items under 0.35
+_WAY = []
+
+
+def _waystone_ref():
+    if not _WAY:
+        try:
+            import cv2
+            from . import favours as FV
+            from .topup import _templates
+            img = cv2.imread(str(_templates() / "waystone_cell.png"))
+            _WAY.append(_box_feats(img) if img is not None else None)
+        except Exception:
+            buglog.caught()
+            _WAY.append(None)
+    return _WAY[0]
+
+
+def _box_feats(bgr):
+    from . import favours as FV
+    h, w = bgr.shape[:2]
+    e = max(1, int(round(FV.EDGE * w / FV.CELL)))
+    return FV.feats(FV.art_box(bgr[e:h - e, e:w - e]))
+
+
+def roman(letters):
+    """'XV' -> 15, None when it isn't a roman number."""
+    vals = {"I": 1, "V": 5, "X": 10}
+    if not letters or any(ch not in vals for ch in letters):
+        return None
+    n = 0
+    for i, ch in enumerate(letters):
+        v = vals[ch]
+        n += -v if i + 1 < len(letters) and vals[letters[i + 1]] > v else v
+    return n if 1 <= n <= 30 else None
+
+
+def tier_letters(bgr, white=False):
+    """A waystone cell (BGR) -> its red tier letters ('XV'), or '' - the red roman number at its bottom right. Each
+    letter by shape: I is thin; V narrows to a point at its foot; X is as wide at its foot as at its top."""
+    import cv2
+    import numpy as np
+    h, w = bgr.shape[:2]
+    b, g, r = (bgr[..., i].astype(int) for i in range(3))
+    if white:                                     # (Greater / Perfect currency: a white II / III)
+        lo = np.minimum(np.minimum(r, g), b)
+        m = ((lo > 165) & (np.maximum(np.maximum(r, g), b) - lo < 50)).astype(np.uint8)
+    else:
+        m = ((r > 150) & (g < 90) & (b < 90)).astype(np.uint8)
+    m[:int(h * 0.55)] = 0
+    m[:, :int(w * (0.6 if white else 0.45))] = 0
+    n, lab, st, _c = cv2.connectedComponentsWithStats(m, 8)
+    out = []
+    for i in sorted(range(1, n), key=lambda k: st[k][0]):
+        x, y, bw, bh, area = (int(v) for v in st[i])
+        if not (0.12 * w <= bh <= 0.30 * w) or area < 6:
+            continue
+        if bw < 0.45 * bh:
+            out.append("I")
+            continue
+        g_ = lab[y:y + bh, x:x + bw] == i
+        q = max(1, bh // 4)
+        top = np.ptp(np.where(g_[:q].any(0))[0]) + 1 if g_[:q].any() else 0
+        foot = np.ptp(np.where(g_[-q:].any(0))[0]) + 1 if g_[-q:].any() else 0
+        out.append("V" if foot < 0.6 * top else "X")
+    return "".join(out)
+
+
+GRADES = {"II": "Greater ", "III": "Perfect "}
+
+
+def grade(names, letters, known):
+    """3.0.6 (owner: "it failed to read ... the greater exalted orb"): the white II / III on a currency picture says
+    Greater / Perfect - the same orb otherwise. -> names with that grade (the matched one moved to it when known),
+    or as they were."""
+    def base(n):
+        for g in GRADES.values():
+            if n.startswith(g):
+                return n[len(g):]
+        return n
+    want = GRADES.get(letters)
+    if want is None:                                      # (no mark read: as matched - a missed mark never
+        return names                                      # demotes a Greater one)
+    same = [n for n in names if n.startswith(want)]
+    if same:                                              # (a III: only the Perfect ones it looked like)
+        return same
+    out = []
+    for n in names:
+        cand = want + base(n)
+        out.append(cand if cand in known else n)
+    return list(dict.fromkeys(out))
+
+
+def waystone_tier(cell):
+    """3.0.6 (owner: "show them by tier without a price just to show that it has read and understands them"): a cell
+    (PIL) -> its tier (0 = a waystone, tier not read) or None (not a waystone)."""
+    try:
+        import numpy as np
+        from . import favours as FV
+        ref = _waystone_ref()
+        if ref is None:
+            return None
+        bgr = np.asarray(cell.convert("RGB"))[:, :, ::-1].copy()
+        if FV.score(_box_feats(bgr), ref) < WAYSTONE_MIN:
+            return None
+        return roman(tier_letters(bgr)) or 0
+    except Exception:
+        buglog.caught()
+        return None
+
+
+def waystone_name(tier):
+    return f"Waystone (Tier {tier})" if tier else "Waystone"
+
+
+def is_waystone(name):
+    return str(name).startswith("Waystone")
 
 
 def identify(cells, taught, refs=None, price=None, info=None):
@@ -60,22 +183,22 @@ def identify(cells, taught, refs=None, price=None, info=None):
 
     3.0.6 (owner: "missing things we've already learned for stash scan"): a cell with no stack number (gear, a jewel,
     a waystone) is never currency - skipped, not "not known" (a sword's corner was counted as an Idol). Look-alikes
-    (two Perfect Essences in one white) count as the one worth less (price(name) -> each). info: a dict that gets
-    "skipped" (no stack number) and "alike" {counted name: [the look-alikes]}."""
+    it can't tell apart (two Perfect Essences in one white) are not known - never a guess. price: unused (kept for
+    callers). info: a dict that gets "skipped" (no stack number) and "alike" {key: [the look-alikes]}."""
     from . import topup as TU
     out, unknown, skipped, alike = {}, 0, 0, {}
     for c in cells or []:
         name = TU.which(c["sig"], taught) if taught else None
         if name is None and c.get("shown") is False:
-            skipped += 1
-            continue
+            t = waystone_tier(c["img"]) if c.get("img") is not None else None
+            if t is None:
+                skipped += 1
+                continue
+            name = waystone_name(t)
         if name is None and refs is not None and c.get("img") is not None:
             names = fv_match(c["img"], refs, alike=True)
-            if len(names) > 1:
-                priced = [(price(n), n) for n in names] if price else []
-                priced = sorted(p for p in priced if p[0] is not None)
-                name = priced[0][1] if priced else names[0]
-                alike[name] = names
+            if len(names) > 1:                            # (owner: never a guess - two it can't tell apart are
+                alike["/".join(names[:3])] = names        # "not known", and the log says which)
             elif names:
                 name = names[0]
         if name is None:

@@ -86,7 +86,7 @@ class FavoursPage:
             grid = FV.grid_box(win)
             occ = FV.occupied(img, grid)
             refs = getattr(self, "fv_refs", None) or FV.Refs()
-            rows, left, known_f, unknown_f, seen = [], [], [], [], []
+            rows, left, known_f, unknown_f, seen, maybes = [], [], [], [], [], []
             for r, c in FV.single_cells(occ):
                 f = FV.cell_feats(img, grid, r, c)
                 if f is None:
@@ -104,13 +104,19 @@ class FavoursPage:
                                  "box": FV.cell_rect(grid, r, c), "twin": True})
                     continue
                 left.append((r, c))
-                top = refs.ranked(f, 2)
+                top = refs.ranked(f, 3)
                 if top and top[0][0] > 0.45:                  # (2.129.0: the log says how close it came)
                     seen.append(f"{r},{c}: " + " / ".join(f"{n} {s_:.2f} {k}" for s_, n, k in top))
+                maybe = FV.maybe_names(top)                  # 3.0.6: close, but not sure - "? up to" its dearest
+                if maybe:
+                    maybes.append({"r": r, "c": c, "name": None, "maybe": maybe, "score": top[0][0],
+                                   "box": FV.cell_rect(grid, r, c)})
             for name, sc, box in FV.find_belts(img, grid, occ, FV.belt_refs()):   # ★ Mageblood / Headhunter
                 rows.append({"name": name, "score": sc, "box": box, "belt": True})
             for name, sc, box in FV.find_stars(img, grid, left, getattr(self, "fv_stars", None) or FV.star_refs()):
                 rows.append({"name": name, "score": sc, "box": box, "belt": True})
+            starred = {tuple(x["box"]) for x in rows if x.get("belt")}
+            rows += [m for m in maybes if tuple(m["box"]) not in starred]
             fv_log(f"window read: {len(occ)} cells hold items, {len(rows)} known ({len(tw)} as a copy of another) - "
                    + ", ".join(f"{x['name']} ({x['score']:.2f})" for x in rows[:16])
                    + (f"; not sure: {'; '.join(seen[:8])}" if seen else ""))
@@ -135,6 +141,11 @@ class FavoursPage:
         from .wealth import WPRICES
         priced = []
         for row in rows:
+            if row.get("maybe"):                          # 3.0.6: not sure - the dearest it could be
+                ps = [p for p in (WPRICES.named(n) for n in row["maybe"]) if p is not None]
+                if ps:
+                    priced.append(dict(row, each=None, upto=max(ps)))
+                continue
             each = None if row.get("belt") else WPRICES.named(row["name"])     # (a belt: a ★ and its name only)
             priced.append(dict(row, each=each))
         best = max((x for x in priced if x["each"] is not None), key=lambda x: x["each"], default=None)
@@ -157,6 +168,8 @@ class FavoursPage:
             x, y, w, h = row["box"]
             if row.get("belt"):                           # 2.129.0: Mageblood / Headhunter - worth a look, no price
                 txt, fg, edge = "★ " + row["name"], WARM, WARM
+            elif row.get("upto") is not None:             # 3.0.6: a look-alike - check it before you defer it
+                txt, fg, edge = "? up to " + fmt_short(row["upto"]), WARM, WARM
             elif row["each"] is None:
                 txt, fg, edge = "no price", MUT, EDGE
             else:
