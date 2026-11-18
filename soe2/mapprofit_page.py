@@ -682,8 +682,7 @@ class MapProfitPage:
         last = runs[0] if runs else None
         if last and last["unknown"] >= 5 and not last["rows"]:
             self.mp_hint.config(text=f"⚠ Last map: {last['unknown']} items not recognized, so nothing was counted. "
-                                     f"Teach them: open your inventory, press {self.look_key_text()}, then hover each and press "
-                                     f"{self.topup_key_text()}.")
+                                     f"Scan stash on Wealth learns them by picture.")
             if not self.mp_hint.winfo_manager():
                 self.mp_hint.pack(fill="x", after=self.mp_sum)
         elif self.mp_hint.winfo_manager():

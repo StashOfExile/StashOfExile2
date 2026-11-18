@@ -131,7 +131,7 @@ def advice(new, hand, have, most, room=None, crystals_most=None):
         return "take", f"{new}: {why}. {most - have} slot{'s' if most - have != 1 else ''} free."
     known = [h for h in (hand or [])[:have] if h]
     if not known:
-        return "learn", f"{new}: {why}. Medallions full: open them (V) and press the Read Key so Vaal Lens knows them."
+        return "learn", f"{new}: {why}. Medallions full: open them (V) and press the Read Key to see which to drop."
     # 3.0.6 (owner: "nobody is going to manually read their medallions"): a slot not known yet doesn't stop the
     # advice - the weakest one known is the one to let go
     worst = min(known, key=lambda h: worth(h, None, crystals_most, most)[0])

@@ -649,7 +649,7 @@ class TemplePage:
         # its room, the rest by what they do (Lock, Upgrade ...)
         known = [M.base(h)[1] or M.MEDALLIONS.get(M.base(h)[0], (M.base(h)[0],))[0] for h in hand[:have] if h]
         unknown = have - len(known)
-        tail = [f"? {unknown} not known: hover it, press {self.look_key_text()}"] if unknown else []
+        tail = [f"? {unknown} not known yet"] if unknown else []        # (owner: "stop asking me to teach it")
         return "\n".join([f"Medallions {have}/{most}"] + known + tail)
 
     def temple_pad_show(self):
