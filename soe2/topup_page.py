@@ -236,10 +236,6 @@ class TopUpPage:
         if not (tu or mp) or not key:
             return None
         title = f"Back from {map_name}" if map_name else "Back from your map"
-        if mp and getattr(self, "mp_pending", None) is None and getattr(self, "mp_run", None) is None:
-            # 3.0.6 (owner: "it didn't update any information"): no read of your inventory before this map, so
-            # there was nothing to count it from - say so; this press starts the next one
-            return title, f"Not counted: no read before it. Open inventory, press {key}"
         return title, f"Open inventory, press {key}"
 
     def back_card(self, map_name=""):

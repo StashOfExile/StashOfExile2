@@ -155,8 +155,11 @@ class MapProfitPage:
             for k in set(vis) | set(went):
                 gain[k] = gain.get(k, 0) + max(0, vis.get(k, 0) - went.get(k, 0))
         after = {k: base.get(k, 0) + gain.get(k, 0) for k in set(base) | set(gain)}
-        return MP.entry(run["map"], run["secs"], base, after, self.mp_price,
-                        unknown=max(run["before"].get("unknown", 0), run.get("unknown", 0)))
+        e = MP.entry(run["map"], run["secs"], base, after, self.mp_price,
+                     unknown=max(run["before"].get("unknown", 0), run.get("unknown", 0)))
+        if run.get("est"):
+            e["est"] = True                                 # (no read before it: see mp_area)
+        return e
 
     def mp_done(self):
         """The map you came back from is done: its line goes in the log (if you looked at your inventory after it)."""
@@ -211,7 +214,14 @@ class MapProfitPage:
                                "secs": 0, "where": where, "map": self.mp_map_name(where),
                                "run": f"{now:.3f}-{self._mp_n}"}
             else:
-                self.mp_run = None                          # (no look at home before it: this map isn't counted)
+                # 3.0.6 (owner: "everyone will forget or ignore to read their inventory before a run, especially the
+                # first of the day"): no read before it - it still counts. What you went in with is taken as your
+                # Top Up supplies only (they're left out of the loot), so everything else you come back with is
+                # this map's. Marked ≈ with how it was worked out.
+                self._mp_n = getattr(self, "_mp_n", 0) + 1
+                self.mp_run = {"before": {"t": now, "counts": {}, "unknown": 0}, "seg_before": {}, "gain": {},
+                               "start": now, "secs": 0, "where": where, "map": self.mp_map_name(where),
+                               "run": f"{now:.3f}-{self._mp_n}", "est": True}
         elif left and run is not None:
             run["secs"] += now - run["start"]
             run["left"] = now
@@ -252,7 +262,7 @@ class MapProfitPage:
             return "Profit –"
         if abs(e.get("div") or 0) < 0.0005:               # 2.139.1 (feedback: "+0.000 div"): nothing gained
             return "0 div"
-        return MP.signed(e["div"], fmt_div)        # (2.139.0: its label says LAST MAP'S PROFIT)
+        return ("≈" if e.get("est") else "") + MP.signed(e["div"], fmt_div)   # (2.139.0: LAST MAP'S PROFIT)
 
     def mp_breakdown(self, e=None):
         """How the bar's number was worked out: [line, ...] (the hover)."""
@@ -281,6 +291,8 @@ class MapProfitPage:
         sd, sn = t["session"]
         out.append(f"Session: {MP.signed(sd, fmt_div)} · {sn} map{'s' if sn != 1 else ''}"
                    + (f" · {MP.signed(t['per_hour'], fmt_div)} / hour" if t["per_hour"] is not None else ""))
+        if e.get("est"):
+            out.append("≈ No read before this map: all you came back with counts, except Top Up supplies")
         if e.get("unknown"):
             out.append(f"{e['unknown']} item{'s' if e['unknown'] != 1 else ''} not known - teach with "
                        f"{self.topup_key_text()} or Scan stash")
@@ -661,10 +673,9 @@ class MapProfitPage:
 
     def mp_how_text(self):
         """The line under the list: which maps are in it, how a map's number is worked out, and where it's kept."""
-        return (f"Only maps you counted are listed: back from a map, press {self.look_key_text()} with your inventory "
-                f"open. A map you skip has no entry. A map's loot = what your inventory gained since your last count "
-                f"at home (stashed in between? press it once before the next map too). On your PC only - never "
-                f"uploaded or shared.")
+        return (f"Back from a map, press {self.look_key_text()} with your inventory open. A map's loot = what your "
+                f"inventory gained since your last read at home. No read before a map? It still counts: all you came "
+                f"back with except Top Up supplies (marked ≈). On your PC only - never uploaded or shared.")
 
     def mp_chart_draw(self):
         """Bars: profit per day (All Time, Daily) or per hour (Hourly). Hover a bar for its numbers."""

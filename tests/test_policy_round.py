@@ -98,13 +98,8 @@ class BackFromAMap(unittest.TestCase):
         self.assertEqual(self.app(key="F9").back_card_text("X")[1], "Open inventory, press F9")
 
     def test_one_helper_on(self):
-        for a in (self.app(mp=False), self.app(tu=False)):
+        for a in (self.app(mp=False), self.app(tu=False), self.app(counted=False)):
             self.assertEqual(a.back_card_text("X")[1], "Open inventory, press Ctrl+Shift+R")
-
-    def test_uncounted_map_says_so(self):
-        # 3.0.6 (owner: "it didn't update any information"): no read before the map - the card says why
-        self.assertEqual(self.app(counted=False).back_card_text("X")[1],
-                         "Not counted: no read before it. Open inventory, press Ctrl+Shift+R")
 
     def test_no_card(self):
         self.assertIsNone(self.app(tu=False, mp=False).back_card_text("X"))
