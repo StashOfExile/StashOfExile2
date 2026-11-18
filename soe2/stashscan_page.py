@@ -96,7 +96,9 @@ class StashScanPage:
         except Exception:
             buglog.caught()
         if ss["got"] or ss["unread"]:
-            self.stash_scan_review(ss)
+            # 3.0.6 (the check window went behind the app again): the app slides into place for 0.6 s and comes to
+            # the front as it does - the check window opens once it's there (and is put in front again below)
+            self.root.after(700, lambda: self.stash_scan_review(ss))
         else:
             self.app_toast("Scan stash: nothing was read - no numbers were found on the tabs you opened.",
                            "Scan stash", kind="warning")
@@ -377,6 +379,8 @@ class StashScanPage:
             center_over(dlg, self.dlg_parent())          # the other screen)
             from .ratemods_page import on_top
             on_top(dlg)                                      # (in front, focused, once)
+            dlg.after(900, lambda: dlg.winfo_exists() and on_top(dlg))   # (3.0.6: and again, after the app's own
+            #                                                                raise when it slides in)
         except Exception:
             buglog.caught()
 
