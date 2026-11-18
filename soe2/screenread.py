@@ -350,7 +350,7 @@ def _grab(box):
         from PIL import Image
         l_, t, r, b = box
         with see_through():                         # 3.0.6: the app's own windows left out of this one picture
-            with mss.mss() as one:
+            with (getattr(mss, "MSS", None) or mss.mss)() as one:
                 shot = one.grab({"left": int(l_), "top": int(t), "width": int(r - l_), "height": int(b - t)})
         return Image.frombytes("RGB", shot.size, shot.rgb)
 
