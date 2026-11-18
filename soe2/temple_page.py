@@ -76,6 +76,7 @@ class TemplePage:
         self.tm_board, self.tm_plan, self.tm_marks, self.tm_pick = None, [], {}, None
         self._tm_hist, self._tm_plan_shown, self._tm_plan_next = {}, None, None
         self._tm_prev = None                                # (a new run: a new plan)
+        self._temple_clear_btn(None)
         mk = getattr(self, "tm_marks_win", None)
         if mk is not None:
             try:
@@ -368,10 +369,50 @@ class TemplePage:
                 from .overlaywin import pal
                 chain = VP.architect_chain(board) if board and V.seen(board) else None
                 mk.show(g, marks, pal(), getattr(self, "tm_icons", None), chain)
+                self._temple_clear_btn(g)
             elif mk is not None:
                 mk.hide()
+                self._temple_clear_btn(None)
         except Exception:
             buglog.caught()
+
+    def _temple_clear_btn(self, g):
+        """3.0.6 (owner: "we need an option to clear the info/suggestions off the screen, maybe a button in the top
+        left corner above room cards"): one small button over the game while the marks show. A click only hides the
+        marks - it reads nothing; your next Read Key press brings them back."""
+        b = getattr(self, "tm_clear_win", None)
+        if g is None:
+            if b is not None:
+                try:
+                    b.withdraw()
+                except tk.TclError:
+                    pass
+            return
+        from .overlaywin import pal
+        P = pal()
+        if b is None or not b.winfo_exists():
+            b = self.tm_clear_win = tk.Toplevel(self.root)
+            b.overrideredirect(True)
+            b.attributes("-topmost", True)
+            lb = tk.Label(b, text="✕ Clear marks", bg=P["bg"], fg=P["text"], font=(P["font"], 10), padx=8, pady=4,
+                          cursor="hand2", highlightthickness=1, highlightbackground=P.get("line", "#3a3128"))
+            lb.pack()
+            lb.bind("<Button-1>", lambda _e: self.temple_marks_clear())
+            from .style import Tooltip
+            Tooltip(lb, f"Hides the Vaal Lens marks. Press {self.look_key_text()} to show them again.")
+        s = g[3] / 1440
+        b.geometry(f"+{int(g[0] + 14 * s)}+{int(g[1] + 150 * s)}")
+        b.deiconify()
+        b.lift()
+
+    def temple_marks_clear(self):
+        """The Clear marks button: the marks and the button go until the next Read Key press."""
+        mk = getattr(self, "tm_marks_win", None)
+        if mk is not None:
+            mk.hide()
+        self._temple_clear_btn(None)
+        self.tm_marks = {}
+        buglog.debug("Vaal Lens", "marks cleared")
 
     def _temple_step_labels(self, board, plan):
         """3.0.6 (owner: "a number on the room card on the left, and then number the square ... factor for my

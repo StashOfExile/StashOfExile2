@@ -345,3 +345,21 @@ class OwnersRound2(unittest.TestCase):
         for t, f, _w in r["plan"]:
             if f == "Spymaster":
                 self.assertNotIn((-1, 3), VP.near(t))
+
+
+class ClearMarks(unittest.TestCase):
+    def test_clear_hides_marks_and_reads_nothing(self):
+        from soe2.temple_page import TemplePage
+        hid = []
+
+        class Mk:
+            def hide(self):
+                hid.append(1)
+
+        class A(TemplePage):
+            pass
+        a = A()
+        a.tm_marks_win, a.tm_marks = Mk(), {(0, 1): ("p", (1, "path"))}
+        a.temple_marks_clear()
+        self.assertEqual(hid, [1])
+        self.assertEqual(a.tm_marks, {})
