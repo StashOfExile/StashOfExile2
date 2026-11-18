@@ -186,7 +186,7 @@ def identify(cells, taught, refs=None, price=None, info=None):
     it can't tell apart (two Perfect Essences in one white) are not known - never a guess. price: unused (kept for
     callers). info: a dict that gets "skipped" (no stack number) and "alike" {key: [the look-alikes]}."""
     from . import topup as TU
-    out, unknown, skipped, alike = {}, 0, 0, {}
+    out, unknown, skipped, alike, unknown_cells = {}, 0, 0, {}, []
     for c in cells or []:
         name = TU.which(c["sig"], taught) if taught else None
         if name is None and c.get("shown") is False:
@@ -203,10 +203,12 @@ def identify(cells, taught, refs=None, price=None, info=None):
                 name = names[0]
         if name is None:
             unknown += 1
+            if c.get("img") is not None:
+                unknown_cells.append((c["img"], c.get("count")))
             continue
         out[name] = out.get(name, 0) + (c["count"] if c.get("count") is not None else 1)
     if info is not None:
-        info.update(skipped=skipped, alike=alike)
+        info.update(skipped=skipped, alike=alike, unknown_cells=unknown_cells)
     return out, unknown
 
 

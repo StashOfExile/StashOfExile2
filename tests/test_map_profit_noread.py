@@ -71,25 +71,38 @@ class NoReadBefore(unittest.TestCase):
 
 
 class ReadCard(unittest.TestCase):
-    def test_a_card_says_what_was_counted(self):
-        # 3.0.6 (owner: "we need some verification that it read the profits")
+    def test_a_check_window_lists_what_was_counted(self):
+        # 3.0.6 (owner: "a popup confirmation box for currency/inventory items it read similar to how stash scan
+        # works for wealth")
+        import tkinter as tk
+        from PIL import Image
         a = App()
-        a.root = None
-        shown = []
+        a.root = tk.Tk()
+        a.root.withdraw()
+        a.mp_save = lambda: None
         inv = {"Divine Orb": 2}
-        with mock.patch.object(MP, "identify", lambda *x, **k: (dict(inv), 1)), \
-                mock.patch.object(TU, "learned", lambda: {}), \
-                mock.patch.object(TU, "cfg", lambda: {"items": []}), \
-                mock.patch("soe2.alertcard.show", lambda *x, **k: shown.append(x) or None), \
-                mock.patch("soe2.alerts_page.game_rect", lambda: (0, 0, 1920, 1080)):
-            a.mp_area("map", "hideout", ("MapSunTemple",), False)
-            a.mp_area("hideout", "map", None, True)
-            a.mp_seen({"cells": [1]})
-        self.assertTrue(shown)
-        title, line = shown[0][1], shown[0][2]
-        self.assertIn("Map counted", title)
-        self.assertIn("Divine Orb +2", line)
-        self.assertIn("1 not known", line)
+
+        def ident(*x, **k):
+            k["info"]["unknown_cells"] = [(Image.new("RGB", (70, 70)), 1)]
+            return dict(inv), 1
+        try:
+            with mock.patch.object(MP, "identify", ident), \
+                    mock.patch.object(TU, "learned", lambda: {}), \
+                    mock.patch.object(TU, "cfg", lambda: {"items": []}), \
+                    mock.patch("soe2.alerts_page.game_rect", lambda: (0, 0, 1920, 1080)):
+                a.mp_area("map", "hideout", ("MapSunTemple",), False)
+                a.mp_area("hideout", "map", None, True)
+                a.mp_seen({"cells": [1]})
+            dlg = a.mp_rev
+            tv = next(w for w in dlg.winfo_children()[2].winfo_children() if w.winfo_class() == "Treeview")
+            names = [tv.item(i, "text") for i in tv.get_children()]
+            self.assertEqual(names, ["Divine Orb", "? not known"])
+            save = [b for b in dlg.winfo_children()[-1].winfo_children() if b.cget("text") == "Save"][0]
+            tv.delete(tv.get_children()[1])
+            save.invoke()
+            self.assertEqual(a.mp_pending["fix"], {"Divine Orb": 2})
+        finally:
+            a.root.destroy()
 
 
 class LearnedItems(unittest.TestCase):

@@ -109,6 +109,7 @@ class MapProfitPage:
                 buglog.caught()
         info = {}
         counts, unknown = MP.identify(res.get("cells") or [], TU.learned(), refs, price=self.mp_price, info=info)
+        self._mp_unknown = info.get("unknown_cells") or []          # (pictures for the check window - not saved)
         buglog.debug("Map profit", "read: " + (", ".join(f"{n} {k}" for n, k in sorted(counts.items())) or "nothing")
                      + f" · {unknown} not known · {info.get('skipped', 0)} without a stack number"
                      + "".join(f" · can't tell apart: {' / '.join(v)}" for v in (info.get("alike") or {}).values()))
@@ -172,15 +173,170 @@ class MapProfitPage:
             if e.get("unknown"):
                 parts.append(f"{e['unknown']} not known")
             title = ("≈ " if pend.get("est") else "") + f"Map counted: {MP.signed(e['div'], fmt_div)}"
-            from . import alertcard
-            from .alerts_page import game_rect
-            self.mp_card_win = alertcard.show(self.root, title, " · ".join(parts) or "Nothing new in your inventory",
-                                              color="#6fae6f", mark="✓", secs=8, game=game_rect(), tag="Map Profit",
-                                              rank=3)
+            # 3.0.6 (owner: "I asked for a popup confirmation box for currency/inventory items it read similar to
+            # how stash scan works for wealth"): what it read, to check and fix - not a card that goes away
+            self.mp_review(pend)
             return title
         except Exception:
             buglog.caught()
             return None
+
+    def mp_review(self, pend):
+        """The check window (like Scan stash's): every item this map gave you - how many, each, worth - and the
+        cells it didn't know, with their pictures. Double-click to fix a number or name a picture (it's known by
+        that picture from then on); Delete drops a row. Save keeps it as this map's count; Close leaves it as read.
+        It stays up (over the game, never taking the keyboard from it) until you close it; a later read on the same
+        visit fills it again, unless you've changed something."""
+        from tkinter import simpledialog
+        from .pricefmt import fmt_div
+        old = getattr(self, "mp_rev", None)
+        if old is not None:
+            try:
+                if old.winfo_exists():
+                    if getattr(old, "mp_edited", False):
+                        return old
+                    old.destroy()
+            except tk.TclError:
+                pass
+        gain = {k: n for k, n in self._mp_gain(pend).items() if n > 0}
+        unknown = list(getattr(self, "_mp_unknown", None) or [])
+        par = self.root
+        dlg = tk.Toplevel(par)
+        dlg.title("Map Profit - check what it counted")
+        dlg.configure(bg=C["panel2"], padx=16, pady=12)
+        dlg.mp_edited = False
+        head = tk.Label(dlg, bg=C["panel2"], fg=C["text"], anchor="w", justify="left", font=("Segoe UI", 12, "bold"))
+        head.pack(fill="x")
+        tk.Label(dlg, text="What this map gave you. Double-click a number to fix it, or a ? to name it. Delete drops "
+                           "a row.", bg=C["panel2"], fg=C["muted"], justify="left", anchor="w",
+                 wraplength=520).pack(fill="x", pady=(2, 0))
+        f = tk.Frame(dlg, bg=C["panel2"])
+        f.pack(fill="both", expand=True, pady=(8, 0))
+        try:
+            ttk.Style(dlg).configure("MPCheck.Treeview", rowheight=32)   # (room for a cell's picture)
+        except tk.TclError:
+            pass
+        tv = ttk.Treeview(f, columns=("qty", "each", "worth"), show="tree headings", style="MPCheck.Treeview",
+                          height=min(12, max(5, len(gain) + len(unknown))), selectmode="extended")
+        tv.heading("#0", text="Item")
+        tv.column("#0", width=300, anchor="w", stretch=True)
+        for cid, title, wd in (("qty", "Got", 60), ("each", "Each", 90), ("worth", "Worth", 90)):
+            tv.heading(cid, text=title)
+            tv.column(cid, width=wd, anchor="e", stretch=False)
+        sb = ttk.Scrollbar(f, orient="vertical", command=tv.yview)
+        tv.configure(yscrollcommand=sb.set)
+        tv.pack(side="left", fill="both", expand=True)
+        sb.pack(side="left", fill="y")
+        tv.tag_configure("unknown", foreground=C.get("muted", "#9a9a9a"))
+        pics, cells = [], {}
+
+        def each_of(name):
+            return None if MP.is_waystone(name) else self.mp_price(name)
+
+        def put(iid, name, n):
+            ea = each_of(name)
+            tv.item(iid, text=name, values=(f"+{n:,}", "no price" if ea is None else fmt_div(ea),
+                                            "-" if ea is None else fmt_div(ea * n)))
+
+        def total():
+            div, n_items = 0.0, 0
+            for iid in tv.get_children():
+                if iid in cells and not tv.item(iid, "text").strip("? ").strip():
+                    continue
+                name, q = tv.item(iid, "text"), str(tv.item(iid, "values")[0]).lstrip("+").replace(",", "")
+                ea = each_of(name) if q.isdigit() else None
+                if ea is not None:
+                    div += ea * int(q)
+                    n_items += 1
+            head.config(text=("≈ " if pend.get("est") else "") + f"This map: {MP.signed(div, fmt_div)}  "
+                             f"({n_items} item{'s' if n_items != 1 else ''} × poe.ninja's price)")
+
+        for name, n in sorted(gain.items(), key=lambda kv: -((each_of(kv[0]) or 0) * kv[1])):
+            put(tv.insert("", "end", text=name), name, n)
+        for img, n in unknown:
+            try:
+                from PIL import ImageTk
+                ph = ImageTk.PhotoImage(img.resize((28, 28)))
+                pics.append(ph)
+                iid = tv.insert("", "end", text="? not known", image=ph, values=(f"+{n or 1:,}", "", ""),
+                                tags=("unknown",))
+            except Exception:
+                iid = tv.insert("", "end", text="? not known", values=(f"+{n or 1:,}", "", ""), tags=("unknown",))
+            cells[iid] = img
+        dlg.mp_pics = pics                                   # (Tk forgets a picture nobody holds)
+        total()
+        if pend.get("est"):
+            tk.Label(dlg, text="≈ No read before this map: everything but your Top Up supplies counts as its loot.",
+                     bg=C["panel2"], fg=C["muted"], justify="left", anchor="w", wraplength=520).pack(fill="x",
+                                                                                                    pady=(8, 0))
+
+        def edit(_e=None):
+            iid = tv.focus()
+            if not iid:
+                return
+            name = tv.item(iid, "text")
+            if iid in cells and name.startswith("?"):
+                nm = simpledialog.askstring("Name this item", "What is it? (its name, as the game shows it)",
+                                            parent=dlg)
+                if not nm or not nm.strip():
+                    return
+                name = nm.strip()
+                tv.item(iid, tags=())
+            q = str(tv.item(iid, "values")[0]).lstrip("+").replace(",", "")
+            n = simpledialog.askinteger("How many", f"How many {name} did this map give you?", parent=dlg,
+                                        initialvalue=int(q) if q.isdigit() else 1, minvalue=0)
+            if n is None:
+                return
+            put(iid, name, n)
+            dlg.mp_edited = True
+            total()
+
+        def drop(_e=None):
+            for iid in tv.selection():
+                tv.delete(iid)
+            dlg.mp_edited = True
+            total()
+
+        def save():
+            fix, learn = {}, {}
+            for iid in tv.get_children():
+                name = tv.item(iid, "text")
+                q = str(tv.item(iid, "values")[0]).lstrip("+").replace(",", "")
+                if name.startswith("?") or not q.isdigit() or int(q) <= 0:
+                    continue
+                fix[name] = fix.get(name, 0) + int(q)
+                if iid in cells:
+                    learn[name] = cells[iid]
+            if learn:
+                try:
+                    import numpy as np
+                    from . import favours as FV
+                    FV.learn_many({n: np.asarray(im.convert("RGB"))[:, :, ::-1].copy() for n, im in learn.items()})
+                    self.mp_refs_at = 0                          # (built again with them)
+                except Exception:
+                    buglog.caught()
+            pend["fix"] = fix
+            self.mp_save()
+            dlg.destroy()
+            self.mp_paint()
+
+        tv.bind("<Double-1>", edit)
+        tv.bind("<Delete>", drop)
+        btns = tk.Frame(dlg, bg=C["panel2"])
+        btns.pack(fill="x", pady=(8, 0))
+        ttk.Button(btns, text="Save", style="Primary.TButton", command=save).pack(side="right")
+        ttk.Button(btns, text="Close", command=dlg.destroy).pack(side="right", padx=(0, 8))
+        dlg.bind("<Escape>", lambda _e: dlg.destroy())
+        try:
+            dlg.attributes("-topmost", True)                 # (over the game; the keyboard stays with the game)
+            from .alerts_page import game_rect
+            gx, gy, gw, gh = game_rect()
+            dlg.update_idletasks()
+            dlg.geometry(f"+{int(gx + gw * 0.28)}+{int(gy + gh * 0.18)}")
+        except Exception:
+            buglog.caught()
+        self.mp_rev = dlg
+        return dlg
 
     def mp_home_base(self):
         """What you went into the map with: the last clear look, plus anything a later covered look saw more of."""
@@ -210,7 +366,9 @@ class MapProfitPage:
 
     @staticmethod
     def _mp_gain(run):
-        """What the map gained so far: {name: how many more}."""
+        """What the map gained so far: {name: how many more} - what you saved in the check window, if you did."""
+        if isinstance(run.get("fix"), dict):
+            return dict(run["fix"])
         gain = dict(run.get("gain") or {})
         vis = run.get("visit")
         if vis is not None:                                 # (the visit you're on now, so far)

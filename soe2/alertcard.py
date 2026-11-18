@@ -281,8 +281,10 @@ class Card:
                      width=2).pack(side="left", padx=(0, int(10 * ui)))
             r.box = row
             if many and r.tag:
-                tk.Label(row, text=r.tag, bg=BG, fg=MUT, font=(font, -int(11 * ui)), padx=int(5 * ui),
-                         highlightthickness=1, highlightbackground=LINE).pack(side="right", anchor="n")
+                # 3.0.6 (owner: "[Map Profit] and [Read Key] have feedback which implies they are click-able
+                # buttons"): which helper it's from - plain words, no box (a box reads as a button)
+                tk.Label(row, text=r.tag, bg=BG, fg=MUT, font=(font, -int(11 * ui), "italic"),
+                         padx=0).pack(side="right", anchor="n")
             txt = tk.Frame(row, bg=BG)
             txt.pack(side="left", fill="x", expand=True)
             tk.Label(txt, text=r.card_title.text, bg=BG, fg=RED if r.vital else TXT, anchor="w", justify="left",
