@@ -245,7 +245,7 @@ class SearchPage:
         terms, neg = gamesearch.parse(q)
         has = bool(terms or neg)
         allr = gamesearch.search(q) if has else d["rows"]
-        # UI overhaul (feedback: "categories in alphabetical order to make navigation easier"): A-Z, All on top
+        # UI overhaul (feedback: categories in alphabetical order to ease navigation): A-Z, All on top
         order = sorted(set(d["order"]) | {gamesearch.ANOINTS}, key=str.lower)
         counts = {}
         for it in allr:

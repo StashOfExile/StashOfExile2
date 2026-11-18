@@ -1,4 +1,4 @@
-"""The Read Key with nothing to read (owner: "if it doesn't have anything to read it shouldn't give the alert"):
+"""The Read Key with nothing to read (with nothing to read it gives no alert):
 which helpers apply is decided BEFORE any picture - from where you are (the game's log), each helper's switch and what
 it needs. None applies -> no picture, no read mark (👁 card), one line in the app's log. One applies -> one picture
 and the card, as before (a read that happened is never hidden).

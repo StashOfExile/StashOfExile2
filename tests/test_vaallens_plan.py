@@ -29,7 +29,7 @@ class Quadrants(unittest.TestCase):
 
 class Priorities(unittest.TestCase):
     def test_atziri_then_key_room_then_architect(self):
-        # 3.0.6 (owner): "#1: Atziri Chamber #2: Key Room (if available) #3: Architect"
+        # 3.0.6 (priority order): 1 Atziri Chamber, 2 Key Room (if available), 3 Architect
         b = board({**BASE, (3, 2): ("key", "Key Room", 1), (2, 7): ("architect", "Architect", 1)})
         r = VP.full_plan(b, ["Thaumaturge's Laboratory"] + ["Path"] * 12)
         whys = [w for _t, f, w in r["plan"] if f == "Path"]
@@ -211,7 +211,7 @@ class Numbers(unittest.TestCase):
 
 
 class UsesWhatYouHave(unittest.TestCase):
-    """3.0.6 (owner: "It needs to use what I have, not what I don't have"): paths only from path cards; a room card
+    """3.0.6 (the plan must use what is in hand, not what is not): paths only from path cards; a room card
     can join something when the path cards run out; an unread placed tile ("?") is joined."""
 
     def test_no_more_path_tiles_than_path_cards(self):
@@ -261,7 +261,7 @@ class OwnersBoard(unittest.TestCase):
         return board(cells)
 
     def test_atziri_joined_by_paths_only(self):
-        # (owner: "it's better to use paths to connect to atziri's chamber at the end" - a room chain can break)
+        # (owner: better to join Atziri's chamber by paths at the end - a room chain can break)
         r = VP.full_plan(self.b(), ["Path", "Bronzeworks", "Depot", "Path", "Guardhouse", "Path"])
         atz = [(t, f) for t, f, w in r["plan"] if w.endswith("Atziri")]
         self.assertEqual([f for _t, f in atz], ["Path"] * 3)
@@ -369,7 +369,7 @@ class ClearMarks(unittest.TestCase):
 
 class CorruptionFirst(unittest.TestCase):
     def test_upgrade_and_lock_go_to_the_corruption_chamber(self):
-        # (owner: "Corruption chamber takes upgrade + lock priority over everything else")
+        # (the Corruption Chamber takes upgrade and lock priority over everything else)
         b = board({**BASE, (1, 3): ("room", "Corruption Chamber", 2), (1, 4): ("room", "Thaumaturge", 1),
                    (-2, 5): ("room", "Smithy", 3), (-2, 4): ("room", "Golem Works", 1)})
         r = VP.full_plan(b, ["Path"], ["Quipolatl's Medallion", "Juatalotli's Medallion"])
@@ -407,7 +407,7 @@ class ArchitectConsole(unittest.TestCase):
 
 class Placement(unittest.TestCase):
     def test_sealed_vault_only_beside_a_path(self):
-        # (owner: "sealed vaults have to connect to a path and cannot connect to anything else")
+        # (a Sealed Vault joins only a path and nothing else)
         b = board({**BASE, (1, 3): ("room", "Garrison", 2), (-1, 2): ("key", "Key Room", 1)})
         r = VP.full_plan(b, ["Sealed Vault"])
         n = VP.names(b)
@@ -528,7 +528,7 @@ class AtziriFirst(unittest.TestCase):
         self.assertFalse(any("Atziri" in n and "path" in n.lower() and "No safe" in n for n in r["notes"]))
 
     def test_chain_never_touches_an_x_square(self):
-        # (owner: "built in protections of the x rooms not to connect to") - a reward room beside the only way up
+        # (protection for the x rooms that must not connect) - a reward room beside the only way up
         c = {(0, j): ("path", None, 1) for j in range(1, 7)}
         c.update({(0, 7): ("room", "Garrison", 1), (1, 8): R, (-1, 8): R})
         b = board(c)
@@ -540,9 +540,8 @@ class AtziriFirst(unittest.TestCase):
 
 
 class Upgrades(unittest.TestCase):
-    """Owner: "it also wants me to upgrade the flesh surgeon, that's like way low priority, I'm saving the upgrade
-    for the next corruption chamber upgrade"; "the t3/t4 barracks and synthflesh were useless"; "why is it suggesting
-    I upgrade the generator/dynamo?" (3 pictures)."""
+    """The Flesh Surgeon is low priority (the upgrade is kept for the next Corruption Chamber); tier 3-4 Barracks and
+    Synthflesh gave nothing; the Generator and Dynamo are not worth upgrading (3 pictures)."""
     def test_kept_for_the_corruption_chamber(self):
         meds = ["Quipolatl's Medallion", "Uromoti's Medallion: Generator", "Uromoti's Medallion: Thaumaturge",
                 "Quipolatl's Medallion", "Uromoti's Medallion: Thaumaturge",
@@ -579,8 +578,8 @@ class Upgrades(unittest.TestCase):
 
 
 class CorruptionChain(unittest.TestCase):
-    """Owner: "I will place the corruption chamber and thaumaturge, upgrade corruption chamber and lock it so I get
-    2 runs out of it which is 2 guaranteed architect's orbs" (2 pictures)."""
+    """Place the Corruption Chamber and Thaumaturge, upgrade the chamber and lock it: two runs from it, two guaranteed
+    Architect's Orbs (2 pictures)."""
     MEDS = ["Uromoti's Medallion: Thaumaturge", "Uromoti's Medallion: Corruption Chamber", "Quipolatl's Medallion"]
 
     def test_waits_for_an_upgrade_and_a_lock(self):
@@ -614,10 +613,9 @@ class CorruptionChain(unittest.TestCase):
 
 
 class ArchitectsCards(unittest.TestCase):
-    """Owner (3 pictures): "where the key room is by itself and has an option to connect a reward room to it, it's
-    okay to place it beside it as long as it doesn't connect to other reward rooms. I will take a currency vault";
-    "I also placed a currency vault on the opposite side because I can safely access it and connect to it next run
-    without breaking my outside 'block' rooms along the walls"."""
+    """(3 pictures) A lone key room may take a reward room beside it as long as that room touches no other reward
+    room - a currency vault is the pick; a currency vault on the far side stays reachable next run without breaking
+    the outer block rooms along the walls."""
     def b(self):
         c = {(0, j): ("path", None, 1) for j in range(1, 7)}
         c.update({(-1, 6): ("path", None, 1), (1, 6): ("path", None, 1), (0, 7): ("room", "Synthflesh Lab", 3),
@@ -650,8 +648,8 @@ class ArchitectsCards(unittest.TestCase):
 
 
 class AtziriDoorOpenSpace(unittest.TestCase):
-    """Owner (2026-11-18): Atziri's doorstep may touch a reward room "only if that reward room is placed alongside it
-    in open space"."""
+    """(2026-11-18) Atziri's doorstep may touch a reward room only when that reward room is placed alongside it
+    in open space."""
 
     def test_reward_room_alone_beside_the_doorstep(self):
         from soe2 import vaallens_plan as P

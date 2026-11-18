@@ -47,7 +47,7 @@ def classes():
 
 
 def learn_classes(path, max_bytes=64 * 1024 * 1024):
-    """2.87.0 (feedback: "we don't have a way to read the class"): the game's log says it at every level-up
+    """2.87.0 (feedback: no way to read the class): the game's log says it at every level-up
     ("ExampleWitch (Invoker) is now level 24"); the overlay only noted it from 2.86.0 on. Read the last part of Client.txt
     (64 MB at most) for each character's newest class. -> {character: class} (also saved). Thread-safe (no Tk)."""
     import os

@@ -34,8 +34,9 @@ NEXT = [
 # it should help ("X was doing Y; this should stop it", "should catch", "shouldn't ... any more"), never "Fixed X".
 # At most MAX_BIG big per card (skipped updates together, newest first); the rest go small.
 MAX_BIG = 3
-# 2.125.6 (feedback: "any updates to beta functions should only show in the What's new card if a person has labs/beta
-# enabled"): notes in these areas show only with Settings › General › Beta features on. Name a note's area after the
+# 2.125.6 (feedback: updates to beta functions should only show in the What's new card when labs / beta
+# is enabled): notes in these areas show only with Settings › General › Beta features
+# on. Name a note's area after the
 # beta feature it's about (a Labs page, or a part of a page marked BETA).
 BETA_AREAS = ("Wealth", "Money Makers", "Game Search", "Market Insights", "Craft Helper", "Stash tab", "Scan stash",
               "Desecration Helper")
@@ -319,7 +320,7 @@ NOTES = {
         ],
     },
     "2.135.0": {
-        # (feedback: "push it as full release with bugfixes as the what's new card")
+        # (feedback: push it as a full release, with the bugfixes as the What's new card)
         "big": [
             ("🪟", "Page windows stay with the app", "Moving the app shouldn't leave a page behind any more.", None,
              "App"),

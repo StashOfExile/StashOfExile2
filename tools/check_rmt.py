@@ -1,4 +1,4 @@
-"""3.0.6 (owner: "Rmt ... = always block/disallow"): no real-money-trading or currency-seller site is ever a source.
+"""3.0.6 (RMT is always blocked / disallowed): no real-money-trading or currency-seller site is ever a source.
 Fails when one is named anywhere in the app, its data or its docs (this file and the list below aside)."""
 import os
 import re

@@ -38,8 +38,8 @@ class SettingsPage:
             cb.bind("<<ComboboxSelected>>", lambda e: (cmd(), self.root.after(20, self.root.focus_set)))
             return cb
 
-        # 2.123.0 (UX pass 3, p1, feedback: "settings that apply globally for price checks vs settings for bulk price
-        # checks vs settings that are for regular price checks"): three groups, each saying which pages it changes.
+        # 2.123.0 (UX pass 3, p1, feedback: separate the settings that apply to all price checks, to bulk price
+        # checks and to regular price checks): three groups, each saying which pages it changes.
         # What isn't price checking moved out (Account -> General; Fine tuning's rows went to their group).
         PC, BP, CARD = "Price Checks", "Bulk Pricing", "Overlay"      # (2.125.5: was "Card over the game")
         self.set_anchors["pc_all"] = self.settings_group("Price checking", "ALL PRICE CHECKS", top=True,
@@ -51,10 +51,10 @@ class SettingsPage:
         combo(row, self.status_var, [l for l, _ in STATUS_OPTIONS], self.on_listing_rules, 22).pack(side="left")
         tk.Label(row, text="Listed within", **lab).pack(side="left", padx=(16, 8))
         combo(row, self.age_var, [a[0] for a in AGE_OPTIONS], self.on_listing_rules, 10).pack(side="left")
-        # 2.125.5 (feedback: "they don't really add anything"): no Valuable mods amount - the app's own (GOOD_DIV)
+        # 2.125.5 (feedback: they added nothing): no Valuable mods amount - the app's own (GOOD_DIV)
         # 2.125.6 (feedback): Prices in joins "How searches are made", now called Search Options; the Mod Book's
-        # re-check and background learning rows are gone from Settings (the app's own behavior - "people ... won't
-        # know what that even means")
+        # re-check and background learning rows are gone from Settings (the app's own behavior - players would not
+        # know what they mean)
         row = section("Price checking", "Search Options", "The currency prices show in, how close to your item's "
                                                           "rolls a search asks for, and how many listings a price "
                                                           "needs.")
@@ -98,7 +98,7 @@ class SettingsPage:
                         command=lambda: (SETTINGS.__setitem__("pc_art", bool(v.get())),
                                          save_json("settings.json", SETTINGS))).pack(side="left", padx=(16, 0))
         # 2.125.5 (feedback): the overlay's close key lives on Keys only (it was shown here too)
-        # 2.131.2 (feedback: "an opt-in for whether or not they want to be asked to rate mods"): off until you say
+        # 2.131.2 (feedback: asking to rate mods needs an opt-in): off until you say
         row = section("Price checking", "Mods you haven't rated", "Your ratings tune every price check of items like "
                                                                   "it. Off until you turn it on.")
         self.ask_unrated_var = getattr(self, "ask_unrated_var", None) or tk.BooleanVar(
@@ -110,7 +110,7 @@ class SettingsPage:
                  fg=C["muted"], font=("Segoe UI", 9)).pack(side="left", padx=(12, 0))
 
         self.set_anchors["pc_bulk"] = self.settings_group("Price checking", "BULK PRICING (CTRL+ALT+C)", used=(BP,))
-        # 2.125.5 (feedback: "they don't really add anything/don't work"): no Skip cheap items - every item is searched
+        # 2.125.5 (feedback: they added nothing or did not work): no Skip cheap items - every item is searched
         row = section("Price checking", "The list", "What happens in Bulk Pricing's list as items are priced.")
         ttk.Checkbutton(row, text="Play a sound when a valuable item is priced", variable=self.snd_var,
                         command=self.on_toggles).pack(side="left")
@@ -460,7 +460,7 @@ class SettingsPage:
         te.grid(row=0, column=1, sticky="w")
         te.bind("<FocusOut>", lambda e: self.ov_save())
         te.bind("<Return>", lambda e: (self.ov_save(), self.root.focus_set()))
-        # (2.132.0, feedback: "needs relocated to where it makes sense": Hide the overlay from screen captures is
+        # (2.132.0, feedback: it was in the wrong place: Hide the overlay from screen captures is
         # in Overlay › Options now, beside Lock position and Click-through)
         # 2.74.0: Under the hood (with the Mod book inside it) is hidden unless you want it - both keep working
         row = section("Advanced", "Under the Hood", "How the price checker reads an item (its base, which bases it "
@@ -692,7 +692,7 @@ class SettingsPage:
         from .style import THEMES
         from .hangwatch import profiled
         if wait and getattr(self, "_theme_busy", False):
-            # 2.130.2 (feedback: "people keep crashing when rapidly changing themes"): a swap is running - this pick
+            # 2.130.2 (feedback: crashes when themes are changed rapidly): a swap is running - this pick
             # waits and only the last one is applied when it's done (clicks never stack up behind a swap)
             self._theme_next = tid
             return None
@@ -1020,7 +1020,8 @@ class SettingsPage:
                 pass
 
     def hotkeys_defaults(self):
-        """2.127.0 (feedback: "in case anything goes wrong"): every keybind back to the app's own - after a yes. The
+        """2.127.0 (feedback: a way back in case anything goes wrong): every keybind back to the app's own - after a
+        yes. The
         keys of your own chat commands and Regex keys stay (they have no default); the Read Key is Ctrl+Shift+R again."""
         from .tracker_page import DEFAULT_HOTKEYS
         if not messagebox.askyesno("Keybinds", "Set every keybind back to the default?\n\nYour chat commands, "

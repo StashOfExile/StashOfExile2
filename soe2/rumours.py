@@ -1,6 +1,6 @@
 """2.83.0: Island Rumors helper (Expedition) - the world map's "Uncharted Waters" card lists up to three rumors;
-each gets a tag with the island it leads to and your Map library rank for it (feedback: "use our Map library to build
-an add-on ... that operates the rumor helper").
+each gets a tag with the island it leads to and your Map library rank for it (feedback: use our Map library to build
+an add-on that operates the rumor helper).
 
 Which rumor leads where: epoe.io's Expedition guide, reviewed for 0.5.5e (3.0.6: an RMT site that was once a
 second check is no longer a source - owner: RMT sites are never used). Ranks are yours - set them in the Map library (the suggested ones are in the 2.83.0 notes).

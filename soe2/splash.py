@@ -21,7 +21,7 @@ STEPS = ["Loading your settings", "Building your windows", "Restoring your windo
 
 
 def _theme():
-    """3.0.6 (owner: "the splash screen has a color mismatched background"): the theme's own colors (apply_look runs
+    """3.0.6 (the splash screen background did not match the theme): the theme's own colors (apply_look runs
     before the splash), so the box, the chest's picture and the bar match the app."""
     try:
         from .style import C

@@ -2,7 +2,7 @@
 are doing with that data").
 
 Each time the app reads your screen or your clipboard - once, on a key you pressed - it says so over the game.
-Round 18 (feedback: "a small tooltip with too much text"): the same alert card every helper uses (alertcard), with
+Round 18 (feedback: a small tooltip with too much text): the same alert card every helper uses (alertcard), with
 the eye (👁) and a few words - "Reading the screen", "Reading the item"; a press whose picture no helper could use
 says "Read the screen · nothing here" (it was still read, so it still shows); a copy that isn't an item says "Not an item"
 and an empty copy shows nothing (the reason is on Price Checks' status line). A click closes it; it goes by itself
@@ -44,7 +44,7 @@ def card_text(source, what):
         from .screenread import NOTHING
         return READ_NOTHING if NOTHING in parts else READING
     if any(p.lower().startswith("chat command") for p in parts):
-        return None                                   # (owner: F1 /hideout said "Reading the item" - a chat key only
+        return None                                   # (owner: F1 /hideout showed the "Reading the item" card - a chat
                                                       # keeps your clipboard to put it back; the log line stays)
     missed = next((p[len("nothing - "):] for p in parts if p.startswith("nothing - ")), None)
     if missed is None:

@@ -1110,8 +1110,8 @@ class Shell:
         return max(MIN_W, self.desk.winfo_width()), max(MIN_H, self.desk.winfo_height())
 
     def _pages_fit_soon(self, _e=None):
-        """3.0.6 (owner: dragging the Drawer "laggy everywhere but dashboard - figure out what dashboard is doing
-        right"): Dashboard is one drawing whose size follows the window at once and whose contents are drawn again
+        """3.0.6 (dragging the Drawer lagged everywhere but Dashboard - find what Dashboard does
+        right): Dashboard is one drawing whose size follows the window at once and whose contents are drawn again
         40 ms after the size stops changing (dashboard_page.later). Every page now does the same: the main area
         follows the window at once (cheap), and the open pages - hundreds of parts each, every one a window of its
         own on Windows - are laid out once, 40 ms after the size stops changing, not on every step of a drag."""
@@ -1376,8 +1376,8 @@ class Shell:
 
     def paint_wallpaper(self):
         self._wall_job = None
-        if PAGES:                       # 3.0.6 (owner: "still uses a gradient circle background from old versions,
-            self.desk.delete("wall")    # we can probably get rid of that"): pages cover the area - a plain color
+        if PAGES:                       # 3.0.6 (owner: an old gradient circle background was still used,
+            self.desk.delete("wall")    # and can go): pages cover the area - a plain color
             self._wall_img = None       # under them, nothing to draw again on each resize
             try:
                 self.desk.configure(bg=C["bg"])

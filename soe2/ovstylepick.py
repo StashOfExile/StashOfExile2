@@ -1,5 +1,7 @@
-"""2.116.0 (P10, feedback: the overlay styles had cards "for a visual indicator ... if you can figure out a better
-system, go for it"): Overlay › Look › Style (nav phase 2; was Settings › Appearance) - the styles as a list of names (grouped: Classic, Light,
+"""2.116.0 (P10, feedback: the overlay styles had cards as a visual indicator - a better
+system is welcome): Overlay › Look › Style (nav phase 2; was Settings › Appearance) - the
+styles as a list of names
+(grouped: Classic, Light,
 Ornate) beside a big live preview of the bar in the style under the mouse (or the one picked), with one line about it.
 Hovering previews without changing anything; a click (or Enter / Space) picks it - the overlay over the game changes
 at once, as the old dropdown did.

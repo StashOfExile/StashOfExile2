@@ -62,7 +62,7 @@ class RateModsPage:
     def rm_queue(self, s):
         return RM.queue(s, self.rm_gear_mods(s) if s.startswith(("gear:", "unique:")) else None)
 
-    # 2.120.0 (UX pass 2, feedback: "window drawing is really janky"): a page, Price Checks ↳ Rate Mods - it was a
+    # 2.120.0 (UX pass 2, feedback: the window drawing was janky): a page, Price Checks ↳ Rate Mods - it was a
     # window that changed size between its two views (and shared self.rm_win with the Expedition tags, so showing
     # remnant prices could break it). The item kinds stay on the left, the rater on the right; nothing is rebuilt
     # between mods, only re-filled.

@@ -28,7 +28,8 @@ REPO = "StashOfExile/StashOfExile2"
 LIVE_URL = f"https://raw.githubusercontent.com/{REPO}/main/{FILE}"
 GAP = 15 * 60                     # a longer gap between two log lines isn't counted in a split (away, or closed)
 ROUTES = (("full", "Full"), ("speed", "Speedrun"), ("rush", "Rush (carry)"))   # (2.125.3 names; 2.131.0: no 4th)
-# 2.125.0 (feedback: "a rush/carry helper ... in the perspective of the person giving the carry"): each route in one line
+# 2.125.0 (feedback: a rush / carry helper from the point of view of the person giving the carry): each route in one
+# line
 ROUTE_LINES = {"full": "Every passive point, spirit and resistance, with the side zones that give them.",
                "speed": "The main story. Skips side zones and most extras; keeps the rewards worth the time.",
                "rush": "You're carrying someone: what to clear, when to bring them in, what they pick up and who they "

@@ -706,7 +706,7 @@ class DrawerHost:
             return self._drawer_do(st.unmaximized(), "restore")
         if not self.drawer_shown_as_drawer() or time.time() < self._drawer_showing_until:
             return
-        # 3.0.6 (owner: "super laggy when trying to drag and resize it"): while the mouse is down nothing is looked
+        # 3.0.6 (dragging and resizing it was very laggy): while the mouse is down nothing is looked
         # up (the game's window, its size) - each pixel of a drag was a window search; the width is taken once, when
         # you let go (_drawer_resized). Nothing re-docks meanwhile: the watcher waits for the release and this job.
         if not self._drawer_mouse_down():
@@ -1034,7 +1034,7 @@ class DrawerHost:
         tk.Label(r1, text="Window", **lab).pack(side="left", padx=(0, 8))
         from . import newchip as _NEW                      # 3.0.0: the Drawer is NEW until opened or used
         _NEW.chip(r1, "Drawer").pack(side="left", padx=(0, 8))
-        # 3.0.6 (owner: "a toggle option like how we switch from bar to panel"): Drawer | Full window, the same
+        # 3.0.6 (a toggle like the bar / panel one): Drawer | Full window, the same
         # toggle as the overlay's Layout; one gray line says when each suits
         from .style import SegBar
         self._drawer_seg = SegBar(r1, list(SHAPE_WORD.values()), value=SHAPE_WORD.get(v["shape"].get(), "Full window"),
@@ -1057,7 +1057,7 @@ class DrawerHost:
         self._drawer_side_seg = SegBar(r2, ["Left", "Right"], value=v["side"].get().title(), size=10, pad=(16, 4),
                                        command=lambda o: (v["side"].set(o.lower()), self._drawer_side_pick()))
         self._drawer_side_seg.pack(side="left", padx=(0, 12))
-        # (3.0.6, owner: "we don't need a width input box" - drag the Drawer's inner edge)
+        # (3.0.6: no width input box - drag the Drawer's inner edge)
         r3 = tk.Frame(row, bg=P2)
         r3.pack(fill="x", pady=(8, 0))
         ttk.Checkbutton(r3, text="Put the Drawer away when I click the game", variable=v["click"],

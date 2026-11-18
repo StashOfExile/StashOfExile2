@@ -295,7 +295,7 @@ def _look_key_dedicated(S):
 
 
 def _read_key_name(S):
-    """3.0.1 (owner: "ctrl + shift + r = Read. R for Read."): the Look key is the Read Key. Its NEW chip went once
+    """3.0.1 (Ctrl+Shift+R = Read, R for Read): the Look key is the Read Key. Its NEW chip went once
     you opened Settings › Keybinds or pressed it (settings.json "new_seen", by the feature's name) - that stays so
     under the new name; the old name is kept too (an older build put back still finds it). The key itself was always
     saved as look_key: nothing to move."""

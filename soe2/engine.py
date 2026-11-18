@@ -59,8 +59,8 @@ def spread_of(stages, league):
 
 
 def fewer_offer(rec, ticked):
-    """3.0.6 (owner: "for all price checks, similar to how we did bases, there should be an option to broaden
-    search"): an item that found too few -> the Broaden Search step that searches without one mod, or None (fewer
+    """3.0.6 (every price check should offer a way to broaden the search, as bases do): an item that found too few ->
+    the Broaden Search step that searches without one mod, or None (fewer
     than two mods ticked). Which one: the lowest-rated ticked mod (your Rate letter, S best ... D; an unrated mod
     counts as C), the last on the card on a tie; a total (pseudo, DPS, defences) goes last."""
     from .ratemods import current, key_for
@@ -81,7 +81,7 @@ def fewer_offer(rec, ticked):
     shown = re.sub(r"\s+", " ", str(worst.get("shown") or worst.get("text") or "")).strip()
     return {"next": f"without {shown[:48]}", "drop": ov_key(worst), "text": worst.get("text")}
 
-LOOSEN_STEPS = (10, 20)     # owner: "reduce/expand values/ranges first before removing mods. Maybe 10% ... then 20%"
+LOOSEN_STEPS = (10, 20)     # owner: loosen values and ranges first, before removing mods - 10%, then 20%
 
 
 def _loose_val(v, pct, down):
@@ -447,8 +447,8 @@ class Engine(TabReaderJobs, WealthJobs, StratCostJobs, threading.Thread):
                     buglog.caught()
         rec["resolved"] = True
 
-    # ---- 2.87.0 (feedback: "single price checks should take priority over bulk pricing ... if you change them and
-    # hit search again it should refresh and remove its own single searches ... and start a new search"): between
+    # ---- 2.87.0 (feedback: single price checks take priority over bulk pricing; changing one and hitting search
+    # again refreshes it, removes its own single searches and starts a new one): between
     # searches, a Bulk Pricing item steps aside (back in line) while a Price Checks item waits, and a Price Checks
     # item whose Search was pressed again stops - its newer search runs instead.
     URGENT = ("pc", "fav")
@@ -456,7 +456,7 @@ class Engine(TabReaderJobs, WealthJobs, StratCostJobs, threading.Thread):
     def urgent_waiting(self):
         """A Price Checks / Favorites job really waiting in the queue (first in line, priority 0). 2.88.1: not "any
         such item marked queued" - a favorite that was never opened stays "queued" with no job, and Bulk Pricing then
-        stepped aside forever (feedback: "Ctrl+Alt+C isn't working for bulk pricing")."""
+        stepped aside forever (feedback: Ctrl+Alt+C did not work for bulk pricing)."""
         with self.lock:
             return any(v[0] > 0 and v[1] == 0 and self.records.get(k[1], {}).get("src") in self.URGENT
                        for k, v in self.latest.items())
@@ -557,7 +557,7 @@ class Engine(TabReaderJobs, WealthJobs, StratCostJobs, threading.Thread):
                        label="only low-impact mods - not worth a search" if low else "no searchable mods")
             tell()
             return
-        # 2.125.5 (feedback: Skip cheap items "doesn't really add anything/don't work"): 2.96.0's Bulk Pricing floor
+        # 2.125.5 (feedback: Skip cheap items added nothing or did not work): 2.96.0's Bulk Pricing floor
         # is gone - every item with a searchable mod is searched
         rec["skip"] = False
         _status, _age, hours = listing_rules()
@@ -841,8 +841,8 @@ class Engine(TabReaderJobs, WealthJobs, StratCostJobs, threading.Thread):
         base_o = current_opts()                                # ilvl 81, 29% quality - found nothing): white / blue
         if base_steps:                                         # bases: exactly the card's boxes, one search (owner:
             steps = [(name, must, opt, len(opt), values, it_) for name, it_ in base_steps]   # Broaden Search widens)
-            # (2.131.4, feedback: "setting the search to Count but not making that search require a count of 2 makes
-            # the count not function": each ☑ mod must match - it was "at least 0 of them")
+            # (2.131.4, feedback: a Count search that did not require a count of 2 made the count not work): each ☑
+            # mod must match - it was "at least 0 of them")
         for step_ in steps:
             name, must_s, opt_s, k, vals = step_[:5]
             it_ = step_[5] if len(step_) > 5 else item
@@ -997,6 +997,6 @@ class Engine(TabReaderJobs, WealthJobs, StratCostJobs, threading.Thread):
         from .trade import current_opts
         if record and not current_opts():          # 2.4.1: a search narrowed by hand doesn't teach the Mod book
             MARKET.record(base, Market.filters_of(mods), name, total, kept, st["est"])
-        else:                                      # 2.133.0 (feedback: "All items should be pooled, gear included"):
+        else:                                      # 2.133.0 (feedback: pool all items, gear included):
             MARKET.pool(pool_base or base, rich)   # every other search's listings - gear, uniques, waystones, the
         return st                                  # fallbacks - go to the Community pool only, never the Mod book

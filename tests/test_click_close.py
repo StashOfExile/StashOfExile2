@@ -1,4 +1,4 @@
-"""Click to close (owner: "make this universal for anything we draw on screen like that"): every card or panel the app
+"""Click to close (universal for anything drawn on screen like that): every card or panel the app
 draws over the game that only shows something closes on a click anywhere on it, as the alert card does - the Trial
 of the Sekhemas legend, Island rumors, the Desecration Helper's notice (the read mark, Back from a
 map, Top Up and every helper alert are alert cards already). Overlays with their own controls are left alone.

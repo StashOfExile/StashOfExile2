@@ -53,7 +53,7 @@ class WealthPage:
     RANGES = {"24 hours": 86400, "7 days": 7 * 86400, "30 days": 30 * 86400, "Lifetime": None}
 
     def build_wealth_page(self, tab):
-        """2.75.0 (feedback: "this page needs a major pass to improve ux"): three pages, listed in the sidebar -
+        """2.75.0 (feedback: this page needs a major pass to improve UX): three pages, listed in the sidebar -
         Wealth ↳ Overview (the total, what moved it, every item), ↳ Stash tabs (your priced tabs: the list, add one,
         each one's last sync) and ↳ Snapshots (look back, compare two). Sync and Count currency sit on top of every
         page. The first time, the setup steps are cards on the Overview (no pop-up); once done they fold into one
@@ -72,7 +72,7 @@ class WealthPage:
                              activeforeground="#ffffff", relief="flat", padx=8, pady=4, cursor="hand2")
         mm = tk.Menu(more, tearoff=0, bg=C["panel2"], fg=C["text"], activebackground="#2c4a84")
         mm.add_command(label="Update prices from poe.ninja", command=self.wealth_update_prices)
-        # UI overhaul (feedback: "we don't need two of them, just Count by hand as a fallback"): Scan stash is the
+        # UI overhaul (feedback: drop the duplicate - Count by hand stays as a fallback): Scan stash is the
         # way; Count by hand is for a currency it can't read
         mm.add_command(label="Count by hand (Ctrl+C each stack)…", command=self.wealth_count_toggle)
         mm.add_separator()
@@ -147,7 +147,7 @@ class WealthPage:
         self.w_facts.pack(fill="x")
         autowrap(self.w_facts)                              # D3: wraps at Drawer width
 
-        # 3.0.4 (owner: "Where it is" told nothing): What moved it - the week's change split into prices and
+        # 3.0.4 (the "Where it is" card told nothing): What moved it - the week's change split into prices and
         # amounts, the biggest price moves, and one item's week when it's picked
         c2 = card(1, "What moved it")
         head2 = tk.Frame(c2, bg=P2)

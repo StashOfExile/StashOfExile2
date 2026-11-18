@@ -272,7 +272,7 @@ class CampaignUI:
     def camp_refresh(self, card=True, line_later=False):
         """The line changed: redraw it on the overlay (in place when it still fits the same rows) and the open
         route card's pages (card=False: a click on the card already changed its own line).
-        2.125.4 (feedback: "the whole campaign card is pretty laggy"): the card's pages are built again only as each
+        2.125.4 (feedback: the whole campaign card was laggy): the card's pages are built again only as each
         is shown (never the whole card), and a click on the card redraws the overlay's line just after, once for a
         quick run of clicks."""
         if card and not line_later:
@@ -575,7 +575,7 @@ class CampaignUI:
         return w
 
     def _camp_card_moved(self, _x, _y, w, h):
-        """2.125.4 (feedback: "after resizing it isn't remembering size"): a size you give the card is kept (Campaign
+        """2.125.4 (feedback: the size was not remembered after resizing): a size you give the card is kept (Campaign
         card_size) and used from then on - a longer page scrolls instead of growing it."""
         if (w, h) != tuple(getattr(self, "camp_size", (0, 0))):
             self.camp_size = (w, h)
@@ -624,7 +624,7 @@ class CampaignUI:
             cb.bind("<<ComboboxSelected>>", lambda e: self.root.after(1, lambda: self.camp_route_show(
                 act_key=next((a["key"] for a in CP.acts() if a["name"] == self.camp_act_var.get()), None))))
             self.camp_act_cb = cb
-        # 2.125.3 (feedback: "the option to select which route from that screen itself ... and the options"): Routes ▾
+        # 2.125.3 (feedback: pick the route and the options from that screen itself): Routes ▾
         # and Options ▾, each a small panel inside the card (a window of its own sent the card behind the game)
         for key, label, tip in (("options", "Options ▾", "The Campaign Helper's options (as on Overlay › Options)"),
                                 ("routes", "Routes ▾", "Pick the route: Full, Speedrun or Rush (carry)")):
@@ -634,7 +634,7 @@ class CampaignUI:
             from .style import Tooltip
             Tooltip(b, tip)
             setattr(self, f"camp_{key}_btn", b)
-        # 2.125.3 (feedback: "the full list doesn't scroll if the window is resized"): the pages scroll
+        # 2.125.3 (feedback: the full list did not scroll when the window was resized): the pages scroll
         from .style import ScrollArea
         self.camp_scroll = ScrollArea(body, bg=bg)
         self.camp_scroll.pack(fill="both", expand=True, pady=(8, 0))
@@ -697,7 +697,7 @@ class CampaignUI:
                        padx=8, pady=8)
         pop.kind = kind
         if kind == "routes":
-            # 2.125.4 (feedback: "visual hierarchy ... for division of selectable options"): each route its own row -
+            # 2.125.4 (feedback: a visual hierarchy to divide the selectable options): each route its own row -
             # a line between them, the one in use on a lighter ground with a bar and "✓ In use", a row lights on hover
             pop.configure(padx=0, pady=0)
             cur = CP.route_of(CP.char())
@@ -1117,7 +1117,8 @@ class CampaignUI:
         if not CP.vendor_searches():
             tk.Label(body, text="No vendor searches for this act.", bg=bg, fg=P["muted"],
                      font=(P["font"], self.ov_font(9)), anchor="w").pack(fill="x", pady=(8, 0))
-        # 2.124.0 (feedback: a click made the card wider to fit "Copied: ..."): two lines kept for it, wrapped to the
+        # 2.124.0 (feedback: a click made the card wider to fit the "Copied: ..." line): two lines kept for it,
+        # wrapped to the
         # card's width, and the card keeps its size
         self.camp_vendor_msg = tk.Label(body, text="", bg=bg, fg=P["on"], font=(P["font"], self.ov_font(9)), anchor="nw",
                                         justify="left", height=2)

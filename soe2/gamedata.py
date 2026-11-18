@@ -142,7 +142,7 @@ def class_from_text(text):
     return _class_by_text.get((text or "").strip().lower())
 
 
-# 2.121.0 (items pass, feedback: "how are we still having issues with unknown items?"): gamedata.json is built from
+# 2.121.0 (items pass, feedback: unknown items were still an issue): gamedata.json is built from
 # Exiled Exchange 2's data, which can be a patch behind. The trade site's own item list (every base type and unique
 # it knows - downloaded once a day, like the mod list: engine._load_items) fills the gaps: a base or unique the game
 # data doesn't know yet is still read, and a unique name the trade site doesn't know is never sent to it.

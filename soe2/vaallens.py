@@ -630,7 +630,7 @@ def card_rows_read(img, ocr, lines=None):
     by row from the same picture -> [(name, y middle at twice its size)] like card_names.
     - Rows are found from the "ROOM CARDS" title (lines: the list's OCR at twice its size), else fixed.
     - Each row's gold name is read alone (the game's white Life/Ward numbers can cover the bottom card).
-    - Owner: "a fallback ... to try and identify it by its icon": a row with a card but no name read is matched to
+    - Owner: a fallback that identifies it by its icon: a row with a card but no name read is matched to
       the diamond pictures of the cards read this session; still unknown, it's left out."""
     from . import vaallens_plan as VP
     s = img.height / (CARD_BOX[3] - CARD_BOX[1])
@@ -739,7 +739,7 @@ def card_icons(img, names, up=1.0):
 
 
 def cutout(pic, diff=48):
-    """2.143.0 (feedback: "the crudely cropped images of the cards looks awful"): a card's picture -> the room's art
+    """2.143.0 (feedback: the crudely cropped card images looked bad): a card's picture -> the room's art
     alone (RGBA): the pixels unlike its backing (the median of its edge) kept, the rest see-through, so it sits on the
     tile like the game's own icons instead of in a dark box."""
     a = np.asarray(pic.convert("RGB")).astype(np.float32)

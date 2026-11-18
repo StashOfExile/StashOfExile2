@@ -50,7 +50,7 @@ ICONS = {
     "dot": '<circle cx="12" cy="12" r="3"/>',
     "globe": '<path d="M17.74 11.56A7.5 7.5 0 1 1 12.44 6.26"/><ellipse cx="10.5" cy="13.5" rx="3" ry="7.5"/>'
              '<path d="M3 13.5h15M14.5 9.5L21 3M15.5 3H21v5.5"/>',       # 3.0.6: Trade Site - a web browser, opens outside
-}                                                          # (owner: "a globe with an arrow")
+}                                                          # (owner: a globe with an arrow)
 
 # a page's key -> its icon (the sidebar's rail in the Drawer); a page not named here gets "dot". Settings is not here:
 # its gear is the app's one gear everywhere (gearicon.py - sidebar, overlay, price check card, Price Checks)

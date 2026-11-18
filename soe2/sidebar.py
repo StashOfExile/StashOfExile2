@@ -227,10 +227,10 @@ class Sidebar(tk.Canvas):
             return False
 
     def _redraw_rail(self, t):
-        """drawer-look (mockups.html, owner: "icons on the left bar are too small and difficult to make out what they
-        are"): each page a big line icon with its short name under it - a touch-sized row; Settings at the bottom. The
+        """drawer-look (mockups.html, owner: the icons on the left bar were too small to make out): each page a big
+        line icon with its short name under it - a touch-sized row; Settings at the bottom. The
         rows scroll with the wheel when the window is short. Every row keeps its tip beside it (_rail_tip: "Trade ›
-        Price Checks"). Round 18 (feedback: "everything blends together"): the theme's own sidebar - its surface and
+        Price Checks"). Round 18 (feedback: everything blended together): the theme's own sidebar - its surface and
         texture, the group names (TRADE, STASH ...) in its group color, and the open page on its selection color with
         the marker in its accent at the left edge (a mark, not color alone) and its icon and name lit."""
         from . import lineicons

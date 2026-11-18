@@ -1,6 +1,7 @@
 """Trial of the Sekhemas helper (BETA) - the legend over the game beside the trial map, from sekhemas.json (shipped):
-three groups - Rooms, Boons, Afflictions - each with what to take and what to avoid. Owner's design: "a legend of bad
-afflictions and good stuff that pops up if you Ctrl+Shift+R on the trial room map screen", in the empty space left and
+three groups - Rooms, Boons, Afflictions - each with what to take and what to avoid. Design: a legend of bad
+afflictions and good picks that pops up on a Ctrl+Shift+R press on the trial room map screen, in the empty space left
+and
 right of the map window (Afflictions on the left; Rooms and Boons on the right).
 
 GGG policy (Nov 2026: one screen read per manual key press): nothing here reads the screen. sekhemas_page.py asks
@@ -33,7 +34,7 @@ GROUP_WORD = {ROOMS: "Rooms", BOONS: "Boons", AFFLICTIONS: "Afflictions"}
 GROUP_COLOR = {ROOMS: "#e0675a", BOONS: "#e3b65a", AFFLICTIONS: "#b58cf0"}
 LEFT, RIGHT = "left", "right"
 SIDES = {LEFT: (AFFLICTIONS,), RIGHT: (ROOMS, BOONS)}   # (both sides used: ~10 lines each)
-MAX_LINES = 8                            # a group's most lines (owner: "~6-8 lines per side")
+MAX_LINES = 8                            # a group's most lines (owner: about 6-8 lines per side)
 FLOORS = 4
 
 

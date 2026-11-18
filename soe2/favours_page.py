@@ -109,7 +109,7 @@ class FavoursPage:
                     seen.append(f"{r},{c}: " + " / ".join(f"{n} {s_:.2f} {k}" for s_, n, k in top))
                 maybe = FV.maybe_names(top)                  # 3.0.6: close, but not sure - "? up to" its dearest
                 if maybe and not FV.has_stack_number(img, grid, r, c):
-                    maybe = []                               # (owner: "we don't need to identify junk uniques" -
+                    maybe = []                               # (owner: junk uniques need no identifying -
                 if maybe:                                    # gear and a big item's pieces show no stack number)
                     maybes.append({"r": r, "c": c, "name": None, "maybe": maybe, "score": top[0][0],
                                    "box": FV.cell_rect(grid, r, c)})
@@ -199,7 +199,7 @@ class FavoursPage:
                 force_topmost(t)
             except Exception:
                 buglog.caught()
-            # (2.128.1, feedback: "show up on screenshots / screen share / streaming": not left out of captures)
+            # (2.128.1, feedback: show up in screenshots, screen share and streaming: not left out of captures)
             wins.append(t)
         self.fv_wins = wins or None
 

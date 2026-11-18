@@ -43,7 +43,7 @@ TRADE_SITE = "Trade Site"      # 3.0.6 (owner): every Trade Site button carries 
 
 def trade_icon(btn, color=None, size=16):
     """A Trade Site button (ttk.Button or tk.Label) -> the same button with the globe icon after its words. 3.0.6
-    (owner: "on the right side ... centered alongside the text"): the icon is drawn 2 px lower in its picture, so its
+    (owner: on the right side, centered alongside the text): the icon is drawn 2 px lower in its picture, so its
     middle sits on the words' middle, not above it."""
     try:
         from . import lineicons
@@ -300,7 +300,7 @@ def switch_look(root, look):
 
 
 def switches(root, s):
-    """2.49.0 (feedback: "anywhere there's a checkbox... a modern slider in its place"): every ttk.Checkbutton
+    """2.49.0 (feedback: a modern slider in place of every checkbox): every ttk.Checkbutton
     (TCheckbutton and its Bar. / Mod. styles) shows a switch instead of a tick box. Same widgets, same variables."""
     name = "Switch2.indicator.%s%s" % ((C["accent"] + C["line"] + C["text"] + C["panel2"]).replace("#", ""),
                                        "" if SWITCH_LOOK[0] == "onoff" else SWITCH_LOOK[0])
@@ -386,8 +386,8 @@ def center_over(win, parent):
 
 
 def over_app(win, parent):
-    """2.114.3 (feedback: the Scan stash check window came up on the wrong screen - "it should always appear over the
-    app"): center a window over `parent` (the app window in front) on its monitor once its content is built."""
+    """2.114.3 (feedback: the Scan stash check window came up on the wrong screen - it should always appear over the
+    app): center a window over `parent` (the app window in front) on its monitor once its content is built."""
     def go():
         try:
             if win.winfo_exists():
@@ -409,7 +409,7 @@ def _place_dialog(w, parent=None):
 
 
 def bind_own_configure(root, fn):
-    """3.0.6 (owner: dragging the Drawer lagged on every page except Dashboard - "what is the issue?!"): a handler
+    """3.0.6 (owner: dragging the Drawer lagged on every page except Dashboard ): a handler
     for the app window's own size / place. root.bind("<Configure>") runs for EVERY part inside the window too (each
     part's events pass its window's tag) - five such handlers meant five Python calls for each of the ~1,800 parts
     of a page, on every step of a drag. Dashboard is one drawing, so it never had that cost. This tag is the root's
@@ -1070,7 +1070,7 @@ class TagTip(Tooltip):
 
 
 class Splitter(tk.Frame):
-    """2.123.4 (feedback: the divider was "janky and slow ... no visible indicator"): a left side you can widen or
+    """2.123.4 (feedback: the divider was janky and slow, with no visible indicator): a left side you can widen or
     narrow by dragging a grip you can see (a line with dots that lights up under the mouse). While dragging only a
     thin guide line moves; the sides are laid out once, when you let go. Splitter(parent, width, lo, keep, on_set);
     .left and .right are the two sides; sashpos(0[, x]) reads or sets the left width."""
@@ -1209,7 +1209,7 @@ class Splitter(tk.Frame):
 
 
 class VSplitter(tk.Frame):
-    """2.125.6 (feedback: the Craft Helper's pairs were "crammed at the bottom"): Splitter's grip turned on its side -
+    """2.125.6 (feedback: the Craft Helper's pairs were crammed at the bottom): Splitter's grip turned on its side -
     a top part you make taller or shorter by dragging a grip you can see (a line with dots that lights up under the
     mouse); a thin guide moves while you drag, the parts are laid out once you let go. .top and .bottom are the two
     parts; sashpos(0[, y]) reads or sets the top's height; on_set(height) when you let go."""

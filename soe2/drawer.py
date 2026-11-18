@@ -278,7 +278,7 @@ UI_DPI_SET = [None]         # what pin_ui_dpi did (for the owner's checklist / b
 
 
 def pin_ui_dpi():
-    """drawer-look (owner: "everything is now scaled strangely"): the window thread's DPI awareness, fixed BEFORE
+    """drawer-look (everything was scaled strangely): the window thread's DPI awareness, fixed BEFORE
     Tk makes its first window, so every window of the app - the main one, Settings, dialogs, tooltips, Go to anything,
     Scan stash's review - is scaled by Windows the same way at 100 / 125 / 150 %.
     Why: the process starts DPI-unaware, then the first screen read's mss call (SetProcessDpiAwareness(2)) switched

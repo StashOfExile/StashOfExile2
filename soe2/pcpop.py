@@ -11,7 +11,7 @@ listings - each a one-line summary that opens to the whole item (implicits, ever
 Trade site and Open in app sit at the bottom.
 
 Typing: click into a Min / Max box and the card takes the keyboard (Enter searches again); click back into the
-game and it has the keyboard again. 3.0.1 (owner: "the Min / Max boxes don't take typing"): every box takes it - the
+game and it has the keyboard again. 3.0.1 (the Min / Max boxes did not take typing): every box takes it - the
 item's own boxes (item level, quality, sockets) never asked for the keyboard, only the mods' did; on Windows the card's
 window is made one that can have it (overlaywin.take_keyboard); a gray box ticks its row and puts the cursor in it; the
 box keeps the keyboard when the card is drawn again; the card waits only while you type (a key since the last search
@@ -159,7 +159,7 @@ class PricePopup:
 
     # ---------------------------------------------------------------- 2.127.0: currency and lineage gems
     def pcpop_rates(self, name, qty, each, src):
-        """2.127.0 (feedback: "ctrl+d on currency items and see the current common exchange rates"): a currency
+        """2.127.0 (feedback: Ctrl+D on currency items should show the current common exchange rates): a currency
         (or a lineage gem, or anything poe.ninja's exchange lists) in the card - what one is worth in the
         currencies people trade in, what a Divine / Exalted Orb buys of it, and the stack's worth."""
         self.pp_rid, self.pp_open = None, set()
@@ -593,7 +593,7 @@ class PricePopup:
             self._pcpop_refocus(*want)
 
     def _pcpop_socketed(self, inner, P, rec, it, runes, body, head):
-        """2.125.5 (feedback: "it doesn't say slots or show what is in them"): what's in the item's sockets - the
+        """2.125.5 (feedback: the card did not show the slots or what is in them): what's in the item's sockets - the
         game's copy gives each socketed rune / soul core / talisman's effect, marked (rune), but not its name, so
         those effects are listed here (tick one to search it); a jewel socket says it's there."""
         from .style import Tooltip

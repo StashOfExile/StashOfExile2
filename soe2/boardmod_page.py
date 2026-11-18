@@ -1,7 +1,7 @@
-"""2.85.0: the community board's people side (feedback: "only allow author + admin to make edits", "Suggest Edits ->
-change things, publish to community / moderation", "moderation ... opt-in community handled ... protections against
-data poisoning", and "prompt a user once at startup for their chosen username ... permanent ... only be changed every
-7 days").
+"""2.85.0: the community board's people side (feedback: only the author and the admin may edit; Suggest Edits changes
+things and
+publishes to the community through moderation, opt-in, with protection against data poisoning; the user is asked
+once at start-up for a username, which is permanent and can only be changed every 7 days).
 
   * Your community name: asked once at start-up (Money Makers, and anything else on the board, use it). It can change
     once every 7 days (the board checks).

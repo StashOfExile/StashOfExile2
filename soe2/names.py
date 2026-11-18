@@ -166,7 +166,7 @@ OLD = {
     # Features: app pages only - the first start's popup asks one question a screen
     "Feature Picker": "Setup",
     # features
-    "Calm alerts": "Alert card",          # 2.131.6 (feedback: "stop calling it calm alert card ... that sounds dumb")
+    "Calm alerts": "Alert card",          # 2.131.6 (feedback: the old name sounded wrong)
     "calm alert card": "Alert card",
     "Labs": "Features",
     "Beta features": "Features",
@@ -182,14 +182,14 @@ OLD = {
     "Quick Settings": "Quick settings",
     "Community Data Sharing": "Community data sharing",
     "How searches are made": "Search Options",
-    "dearest": "most valuable",          # 2.129.0 (feedback): "nobody uses that word"
+    "dearest": "most valuable",          # 2.129.0 (feedback): nobody uses that word
     "Clear list": "Clear All",          # Bulk Pricing's button (2.126.0: on screen, in the Items strip)
     "Settings › Keys": "Settings › Keybinds",          # 2.127.0
     "Settings > Keys": "Settings › Keybinds",
     "Overlay + Here": "Price check overlay",          # drawer build: each choice names one place (In the app | ...)
     "Read key": "Read Key",             # GGG policy: one name for the key the helpers read on (a name: Title Case)
     "Screen key": "Read Key",
-    "Look key": "Read Key",             # 3.0.1 (owner: "ctrl + shift + r = Read. R for Read.")
+    "Look key": "Read Key",             # 3.0.1 (owner: Ctrl+Shift+R = Read, R for Read)
     "Hide the overlay from screen captures": "Hide all overlay information from screen captures",   # 3.0.6
     "Lucrative Strats": "Quick tips",   # 3.0.6 Farming Strategies: the tab folded into Find
     "Lucrative strats": "Quick tips",

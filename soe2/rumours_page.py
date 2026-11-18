@@ -1,6 +1,6 @@
 """2.83.0: Island Rumors in the app (part of the Expedition helper, Remnant's row in Overlay › Helpers) and the
-Remnant watcher's places: it watches only where remnants can be (feedback: "it keeps popping up in random areas").
-  * Island Rumors: only in your hideout (Client.txt; feedback: "watch only in hideout"). GGG policy (Nov 2026): on a
+Remnant watcher's places: it watches only where remnants can be (feedback: it popped up in random areas).
+  * Island Rumors: only in your hideout (Client.txt; feedback: watch only in the hideout). GGG policy (Nov 2026): on a
     Read Key press, the press's one picture is checked for the Uncharted Waters card's parchment; only then its part
     is read. Each rumor gets a tag: the island and your Map library rank.
   * Remnant: in a Grand Expedition island (Client.txt: ExpeditionLogBook_...) and maps, never in hideouts, towns and
@@ -132,8 +132,8 @@ class RumoursPage:
         self.ru_show(rows, edge)
 
     def ru_show(self, rows, edge):
-        """One small panel beside the Uncharted Waters card (2.113.0, feedback: "too big and clunky... more like the
-        rune card helper"): a title, then one tight row per rumor - your Map library rank as a badge, the island,
+        """One small panel beside the Uncharted Waters card (2.113.0, feedback: too big and clunky - more like the
+        rune card helper): a title, then one tight row per rumor - your Map library rank as a badge, the island,
         and the rumor in small muted text - in the card's order. A click on it closes it (owner: as the alert card -
         alertcard.click_to_close; clicks beside it go to the game); in captures (2.128.1), painted over before a read."""
         self.ru_hide()

@@ -1,4 +1,4 @@
-"""3.0.6 (owner: dragging the Drawer's edge is "laggy as fuck" on every page but Dashboard - fixed blind four times, not
+"""3.0.6 (dragging the Drawer's edge lagged on every page but Dashboard - fixed blind four times, not
 gone): Settings › Advanced › Problems › Measure resizing. The app resizes its own window step by step on a few pages,
 the way a drag does, in different ways, and times each step - on YOUR PC, where the lag is. Written to
 resize_test_drawer.txt / _full.txt in the data folder: page names, step times and counts only, nothing about you.

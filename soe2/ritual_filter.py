@@ -1,13 +1,13 @@
-"""2.130.0 Filter in the Ritual window (feedback: "open the poe config file and have it tell a person what line to
-ctrl+f for ... to enable filter to work in the ritual window"): the game has a setting with no switch in its menus -
+"""2.130.0 Filter in the Ritual window (feedback: open the poe config file and tell the player which line to
+search for to enable the filter in the ritual window): the game has a setting with no switch in its menus -
 apply_item_filter_to_ritual in poe2_production_Config.ini - that makes your item filter apply to the Ritual altar's
 Favours window. Found by Ryonnen (reddit) and shown by NeverSink. The app finds the file, says whether it's on, copies
 the line to search for and opens the folder; you change it yourself (the game rewrites the file when it closes, so it
 must be closed). Reads that one line only, and never opens anything else in that folder (the game keeps your login
 there too).
 
-2.130.4 (feedback: a "Turn it on" button - "ONLY if we can safely and accurately adjust that line from =false to
-=true without messing with anything else"): turn_on() changes that one line and nothing else - every other byte of
+2.130.4 (feedback: a "Turn it on" button, only if that line can be changed safely and accurately from =false to
+=true without touching anything else): turn_on() changes that one line and nothing else - every other byte of
 the file stays as it was (checked before the file is replaced), a copy is kept in the app's data folder first, and
 the new file replaces the old in one step. Only when you press the button, only while the game is closed."""
 import os

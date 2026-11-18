@@ -179,7 +179,7 @@ def plate(root, w, h, P=None, ends=("crimson", "sapphire"), cap=None):
 
 
 def panel(root, w, h):
-    """2.124.1 (feedback: "classic panel visual look needs to be the same as bar"): the Bar's stone, pewter frame
+    """2.124.1 (feedback: the classic panel look should match the bar): the Bar's stone, pewter frame
     and corner brackets for the Panel - no end caps or crest, the recessed well filling the inside. -> PhotoImage."""
     key = ("panel", w, h)
     if key in _CACHE:

@@ -58,7 +58,8 @@ def place_texts(n, session, live, camp=False, zone_time=None):
         return "THIS MAP", ("" if where in (None, "-") else str(where)), t
     if not live:
         return "NOW", "Not tracking", ""
-    # 2.139.1 (feedback: "TOWN" in the chip and "NOW · Town" beside it): out of a map the chip says where you are,
+    # 2.139.1 (feedback: "TOWN" in the chip and "NOW · Town" beside it said the same twice): out of a map the chip
+    # says where you are,
     # and the map part shows your last map
     last = None
     for m in reversed(getattr(session, "maps", None) or []):
@@ -144,7 +145,7 @@ class OverlayA8:
         if camp:
             try:
                 from . import campaign as CP
-                # UI overhaul (feedback: "tells me the campaign shit twice"): the step is on the campaign line above
+                # UI overhaul (feedback: the campaign step was shown twice): the step is on the campaign line above
                 # the bar - this part says where you are
                 place = CP.char().get("zone") or "Campaign"
             except Exception:
@@ -204,7 +205,7 @@ class OverlayA8:
 
     def _a8_pin(self, cv, P, x, y):
         """A map pin, drawn (fonts' pins differ from PC to PC): a round head on a point, a hole in it - y is the head's
-        middle. 2.139.1 (feedback: "the gps pin looks like a ... flower"): a filled teardrop, not a ring on a stick.
+        middle. 2.139.1 (feedback: the GPS pin looked like a flower): a filled teardrop, not a ring on a stick.
         -> its width."""
         u = self._u
         r = max(4, u(5))

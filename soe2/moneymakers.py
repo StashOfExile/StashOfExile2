@@ -29,7 +29,7 @@ LIVE_EVERY = 12 * 3600
 
 # ---- what a strat IS: one category and one type inside it (2.28.0: "Mapping > Breach" - the strat is Breach farming,
 # done while mapping). Fixed lists, so every guide uses the same words and the browser can group them.
-# 3.0.6 (owner: "this is for farming strategies, not crafting, not trading, not flipping, not vendor recipes"): farming
+# 3.0.6 (this is for farming strategies only - not crafting, trading, flipping or vendor recipes): farming
 # only - Mapping and Bossing. A strat of a category that was dropped (Crafting, Trading, Other) stays on disk as it is
 # and doesn't show in Find (is_farming); nothing maps it to another category.
 TAXONOMY = {
@@ -1390,7 +1390,7 @@ def tablet_advice(rarity, n_mods, n_good):
 
 
 def _status():
-    """2.84.0 (feedback: "ALL price checks should ONLY be checking Instant Buyout unless the user selects in-person"):
+    """2.84.0 (feedback: price checks should only check Instant Buyout unless the user selects in-person):
     the seller setting from Settings (Instant Buyout by default)."""
     from .trade import listing_rules
     return listing_rules()[0]

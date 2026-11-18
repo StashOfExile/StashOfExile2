@@ -309,7 +309,7 @@ def _merge_same_stat(mods, refs_of):
         del refs_of[i]
 
 
-# 2.114.0 (feedback: "the 5 types of wombgifts ... they do exist" on the trade site): currency-like items that the
+# 2.114.0 (feedback: the 5 types of wombgifts do exist on the trade site): currency-like items that the
 # bulk exchange doesn't trade but the trade site lists as items - searched by their type alone, like the site's own
 # search for one ({"type": "Ornate Wombgift"}).
 TYPE_ONLY_CLASSES = ("Wombgifts",)
@@ -356,7 +356,7 @@ def gem_search(name, level=None, sockets=None, quality=0, corrupted=False):
 
 
 def gem_item(g, text):
-    """2.130.0 (feedback: "the price checker is currently unable to price skill/spirit gems"): a copied skill,
+    """2.130.0 (feedback: the price checker could not price skill or spirit gems): a copied skill,
     support or spirit gem -> a price-check item searched as the trade site's gem filters do (level, sockets,
     quality, corrupted), or None."""
     if not g or g.get("rarity") != "Gem" or g.get("class_text") not in GEM_CLASSES or not g.get("name"):
@@ -453,8 +453,8 @@ def _parse_gear(text):
         if not stat and not m["sid"]:
             m["note"] = m["note"] or "not found in the library or on the trade site's stat list"
         if kind == "Enchant" and unique and m.get("option") is not None:
-            # 2.138.4 (feedback: "Megalomaniac jewels can have any of the game's ... nodes on them, in any combination,
-            # we need to make them searchable"): which passive it allocates sets the price - each one searched
+            # 2.138.4 (feedback: Megalomaniac jewels can carry any of the game's nodes in any combination, so they
+            # must be searchable): which passive it allocates sets the price - each one searched
             m["auto"] = "high"
             m["note"] = "which passive it allocates decides the price - searched"
         elif kind == "Enchant" and g.get("corrupted") and m["sid"]:    # 2.98.2 (feedback): a corrupted item's
@@ -494,7 +494,7 @@ def _parse_gear(text):
     if unique:
         _exact_rolls(g["name"], mods)
 
-    # 2.98.4 (feedback: "I am unable to accurately price check a mageblood"): what a Mageblood's price hangs on -
+    # 2.98.4 (feedback: a Mageblood could not be price checked accurately): what a Mageblood's price hangs on -
     # its Legacies (which ones, how many of each: searched as Min N), its charm slots, and - with a duplicate - the
     # "increased effect per duplicate" roll (at least its value)
     notes = []
@@ -587,7 +587,7 @@ def _parse_gear(text):
             search["name"] = None
             notes.append(f"{g['name']} isn't on the trade site's list yet: any unique on this base")
         elif "unidentified" in g.get("flags", []) or not g["name"] or g["name"] == g["base"]:
-            # 2.120.0 (feedback: "unknown item name"): unidentified, a unique shows only its base - that's not a
+            # 2.120.0 (feedback: an unknown item name): unidentified, a unique shows only its base - that's not a
             # unique's name. The one unique on that base by name; with several (or none known), any unique on it.
             on = gamedata.uniques_on(g["base"])
             search["name"] = on[0] if len(on) == 1 else None
@@ -641,7 +641,7 @@ def _parse_gear(text):
             "ilvl": g.get("ilvl"), "group_id": g.get("group"), "search": search, "notes": notes}
 
 
-ILVL_TOP = 82            # 2.131.4 (feedback: "any ilvl above 82 doesn't matter ... always search at ilvl 82 min")
+ILVL_TOP = 82            # 2.131.4 (feedback: item level above 82 does not matter - always search at 82 min)
 
 def is_exceptional(cls, quality, sockets, name=None):
     """An exceptional base (the app's one meaning): over 20% quality, more sockets than its class usually rolls
@@ -745,8 +745,8 @@ def broadened_opts(opts, offer):
 
 
 def widens(item):
-    """Can this item's price check widen (Broaden Search: a white or blue base on the base route)? Owner: "all of
-    the white base rules apply to magic bases also" - a blue base's own mods are searched as before, every step."""
+    """Can this item's price check widen (Broaden Search: a white or blue base on the base route)? Owner: all of
+    the white base rules apply to magic bases also - a blue base's own mods are searched as before, every step."""
     return item.get("rarity") in ("Normal", "Magic") and bool((item.get("search") or {}).get("base_exact"))
 
 

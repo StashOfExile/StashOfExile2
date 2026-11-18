@@ -1,4 +1,4 @@
-"""The settings gear (UI overhaul, owner: "the ⚙ glyph renders like a flower"). Windows draws U+2699 from its emoji
+"""The settings gear (UI overhaul: the ⚙ glyph rendered like a flower). Windows draws U+2699 from its emoji
 font, a petalled shape at small sizes - so the gear is drawn here instead: eight flat teeth round a ring, smoothed
 (drawn four times bigger, then made small), in the color it's given - the theme's text color (C["text"] / the
 overlay's muted text), so it follows every theme and overlay style. Used by the sidebar's Settings row, the overlay's

@@ -1,4 +1,4 @@
-"""2.132.1 Temple Helper (feedback: "show how many crystals I am currently at"): your crystals, as the Temple
+"""2.132.1 Temple Helper (feedback: show the crystal count): your crystals, as the Temple
 Console prints them ("18/60" under its Run Temple button) in Vaal Ruins. GGG policy (Nov 2026: one screen read per
 manual key press): it reads that one line when you press your Read Key with the console open (temple_page.
 temple_console_job) and keeps the two numbers; Vaal Lens shows them. (The Vaal Beacon tooltip read in maps, the
@@ -14,8 +14,8 @@ STATE_FILE = "temple.json"
 DEFAULTS = {"on": True, "notepad": True, "notes": "", "pad_x": None, "pad_y": None}
 
 
-# 2.136.0: Atziri's Temple, as Client.txt names the area. 2.137.0 (feedback: "should open in Vaal Ruins as well as
-# inside Atziri's Temple"): the endgame Vaal Ruins (IncursionHubEndgame, not the campaign's IncursionHub) and Atziri's
+# 2.136.0: Atziri's Temple, as Client.txt names the area. 2.137.0 (feedback: it should open in Vaal Ruins as well as
+# inside Atziri's Temple): the endgame Vaal Ruins (IncursionHubEndgame, not the campaign's IncursionHub) and Atziri's
 # own area too.
 TEMPLE_AREAS = ("IncursionHubEndgame", "IncursionTemple", "IncursionTemplePresent")
 RUN_AREA = "IncursionTemple"            # entering it = a temple run started, so its crystals are spent
@@ -28,8 +28,8 @@ def cfg():
     return c
 
 
-# 2.136.1 (feedback: "when I'm in the Vaal ruins, it should be able to see through the overlay (the same way ritual
-# does) and read the crystal count at the bottom of the screen"): the Temple Console prints "18/60" under its Run
+# 2.136.1 (feedback: in the Vaal Ruins it should see through the overlay, as ritual does, and read the crystal
+# count at the bottom of the screen): the Temple Console prints "18/60" under its Run
 # Temple button. Read there (parts of the game; measured on 1080p and 1440p shots) on a Read Key press in a temple area.
 CONSOLE_BOX = (-0.0622, 0.942, 0.0978, 0.978)    # x from the game's middle, in game heights (2560x1440: 0.465-0.555 of
 #                                                the width); y in heights from the top. The console is drawn in the
@@ -72,7 +72,8 @@ def state_set(have, most, t=None):
 
 
 def mark_old():
-    """2.137.0 (feedback: "I have 54/60 it says 58/60"): a temple run spends crystals, and the number is only read
+    """2.137.0 (feedback: the count showed 58/60 when it was 54/60): a temple run spends crystals, and the number is
+    only read
     from the Temple Console. So once a run starts the kept number is marked as from before it, until the next read."""
     st = state()
     if st and not st["old"]:

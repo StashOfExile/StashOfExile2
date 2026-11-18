@@ -1,5 +1,5 @@
-"""3.0.6 (owner: "an install method ... so it comes up in the windows search as an installed program ... I still want
-the portable option"): Setup-StashOfExile2-<version>.exe next to the portable exe on every release.
+"""3.0.6 (an install method so it shows in the Windows search as an installed program, with
+the portable option kept): Setup-StashOfExile2-<version>.exe next to the portable exe on every release.
 
   * The updater never takes the installer - the portable exe stays the one it swaps in (old apps too: the installer's
     name doesn't start with "StashOfExile2", which they sort first).

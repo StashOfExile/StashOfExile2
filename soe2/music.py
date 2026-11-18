@@ -1,5 +1,5 @@
-"""2.134.0 Music Controls (feedback: "Some keyboards have Previous Track, Pause/Play, Next Track buttons ... could we
-have music controls as an in-game overlay?"): the same three commands a keyboard's media keys give, for whatever
+"""2.134.0 Music Controls (feedback: some keyboards have Previous Track, Pause/Play and Next Track buttons - add
+music controls as an in-game overlay): the same three commands a keyboard's media keys give, for whatever
 player you use (Spotify, a browser, ...).
 
 How: Windows - the app's own window hands Windows an app command (WM_APPCOMMAND through DefWindowProc), the way a

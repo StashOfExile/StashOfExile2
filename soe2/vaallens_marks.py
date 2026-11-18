@@ -64,7 +64,7 @@ class Marks:
                 pass
 
     def _smooth(self, game, marks, P, icons, chain):
-        """UI overhaul (feedback: "very janky"): one smooth picture in a layered window. -> True when shown."""
+        """UI overhaul (feedback: janky): one smooth picture in a layered window. -> True when shown."""
         import sys
         if sys.platform != "win32":
             return False
@@ -93,8 +93,9 @@ class Marks:
         """game: (left, top, width, height); marks: {tile: (kind, what)} - "p" (step, room): a planned room, its own
         picture and its step; "now" (step or None, room or card): where the picked card goes, framed solid; "x": a
         tile that touches a reward room. icons: {room or card name: its picture (PIL)}. P: the overlay palette.
-        2.142.2 (feedback: "I don't want the lines on screen ... I want it to be self-explanatory of what to place
-        where"): no callouts, no lines - each room's own picture on its tile, with its step."""
+        2.142.2 (feedback: no lines on screen - self-explanatory what goes where): no callouts, no lines - each
+        room's own picture on its tile,
+        with its step."""
         if not marks:
             return self.hide()
         icons = icons or {}
@@ -141,7 +142,7 @@ class Marks:
             pts = (x, y - hh, x + hw, y, x, y + hh, x - hw, y)
             if m == "x":
                 cv.create_polygon(*pts, fill="", outline=warn, width=max(2, int(4 * s)), dash=(8, 6))
-                d = max(7, int(16 * s))                    # 3.0.6 (owner: "the x turned into a square"): drawn as
+                d = max(7, int(16 * s))                    # 3.0.6 (the x turned into a square): drawn as
                 for a, b in ((-d, -d), (-d, d)):            # two lines - a theme's font may have no ✕ in it
                     cv.create_line(x + a, y + b, x - a, y - b, fill=warn, width=max(3, int(6 * s)), capstyle="round")
                 continue

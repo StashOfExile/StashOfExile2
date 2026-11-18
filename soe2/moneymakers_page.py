@@ -22,7 +22,7 @@ ORIGIN = {"community": "Official", "mine": "Mine", "example": "Example", "board"
 VIEWS = ("All", "Official", "Community", "Mine")             # 3.0.6: All by default (yours show with the rest)
 CARD_SORT = {"Most profit per hour": ("profit", True), "Most upvoted": ("score", True),
              "Easiest first": ("thoughts_per_click", False), "Name, A to Z": ("name", False)}
-# 2.71.0: the Sort. 3.0.6 (owner: "wtf is upvotes per hour? name per hour?"): each choice says what it orders by,
+# 2.71.0: the Sort. 3.0.6 (the sort names were unclear): each choice says what it orders by,
 # and the button reads "Sort by: <choice>"
 SORT_OLD = {"Per hour": "Most profit per hour", "Profit": "Most profit per hour", "Upvotes": "Most upvoted",
             "Easiest": "Easiest first", "Name": "Name, A to Z"}
@@ -1484,7 +1484,7 @@ class MoneyMakersPage(StratViews, StratNewPage):
                 "the mod sell clearly above that kind's middle price, across 12+ listings; this league). No prices "
                 "are shown here - they change too fast. To know what an item is worth, press your price check key "
                 "on it. Right-click a mod to rate it; double-click to search the trade site for it.")
-        # 2.125.6 (feedback: "pairs that sell together is crammed at the bottom"): the mods and the pairs share the
+        # 2.125.6 (feedback: the pairs that sell together were crammed at the bottom): the mods and the pairs share the
         # height on a divider you drag (remembered)
         from .style import VSplitter
         vp = self.mm_ch_vpane = VSplitter(right, height=360, lo=120, keep=110, bg=P1,

@@ -1,4 +1,4 @@
-"""2.115.0: one bug log for the whole app (feedback: "we need one global bug logging system", and Report a bug should
+"""2.115.0: one bug log for the whole app (feedback: one global bug logging system, and Report a bug should
 carry any crash).
 
 Everything that goes wrong lands in app_log.txt in the data folder, one entry each:

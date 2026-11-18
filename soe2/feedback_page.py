@@ -28,7 +28,7 @@ UPDATE_EVERY = 3600                 # 2.79.1 (feedback): every hour (was 6 h)
 
 
 def os_line():
-    """3.0.6 (owner: bug reports say the OS and the version): "Windows 11" / "Windows 10", or on Linux the distro
+    """3.0.6 (bug reports say the OS and the version): "Windows 11" / "Windows 10", or on Linux the distro
     family, the desktop and the session ("Linux (arch) · Hyprland · wayland") - never a build number or user name."""
     import sys
     if sys.platform == "win32":
@@ -229,7 +229,7 @@ class FeedbackPage:
         return v.get("1.0", "end-1c") if isinstance(v, tk.Text) else v.get()
 
     def _bug_ready(self):
-        """3.0.6 (owner: Send "did nothing" - the title or the text was too short and the red line went unseen):
+        """3.0.6 (Send appeared to do nothing - the title or the text was too short and the red line went unseen):
         Send stays gray, and the line under it says what's still needed, until both are long enough."""
         need = []
         if len(self._bug_val("title").strip()) < 4:

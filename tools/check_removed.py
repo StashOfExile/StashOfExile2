@@ -26,15 +26,15 @@ DOCS = ("README.md", "TOS.md", "linux/README.md", "themes/README.md", "strats/RE
 # (version, what it was, words a person read, names in the code / settings keys[, pending])
 REMOVED = [
     ("3.0.6", "Wealth / League Plan prices from the trade site's bulk exchange for items poe.ninja doesn't list "
-              "(owner: \"player-set prices skew the data; only poe.ninja\" - an item poe.ninja doesn't list is not "
+              "(owner: player-set prices skew the data, so only poe.ninja - an item poe.ninja doesn't list is not "
               "found on poe.ninja and left out of the total)",
      ("bulk exchange (", "asking the trade site's exchange", "too few offers on poe.ninja or the trade site's exchange",
       "or the bulk exchange", "else the trade site's exchange"),
      ("bulk_missing", "BULK_TRIED", "wealth_bulk_fill", "_w_bulk_running", "_w_bulk_left", "bulk_prices.json",
       "bulk.price", "bulk.cached", "bulk.missed", "bulk.search", "bulk.text", "bulk.exchange_id", "ids_from_static")),
-    ("3.0.6", "the Ritual helper's counter read: Read Key read \"2/4\" and the tribute off the screen (owner: \"ritual "
-              "reminders can be removed since they can't be automated, it defeats the purpose, reading / identifying "
-              "rituals can be removed since it can't be automated\" - can't be automated under GGG policy), the "
+    ("3.0.6", "the Ritual helper's counter read: Read Key read \"2/4\" and the tribute off the screen (owner: ritual "
+              "reminders and reading / identifying rituals can be removed since they can't be automated "
+              "- can't be automated under GGG policy), the "
               "Ritual line over the overlay's bar (On screen) and what Client.txt's ritual lines fed it; the Ritual "
               "helper keeps only Favours prices and Filter in the Ritual window",
      ("rituals done", "rituals started", "to read the counter", "Ritual counter", "On the overlay in Ritual maps",
@@ -64,24 +64,25 @@ REMOVED = [
      ("TOP NUMBERS", "Top numbers", "ADD A MOD", "Search mods…"),
      ("hand_waystone_mods", "mm_new_hand_pick", "mm_new_hand_add", "mm_new_hand_del", "_mm_hand_sync", "hand_min",
       "nw_mtab_", "nw_mclear")),
-    ("3.0.6", "Farming Strategies' Sort words (owner: \"upvotes per hour?\"): Per hour / Upvotes / Easiest / Name",
+    ("3.0.6", "Farming Strategies' Sort words (owner: the sort names were unclear): "
+              "Per hour / Upvotes / Easiest / Name",
      ("Sort: Per hour",), ()),
-    ("3.0.6", "Farming Strategies to the approved mockups v2 (owner: the opened strat was \"a wall of text\", \"More "
-              "details is confusing\", \"Sacred Bloom farm isn't a real thing\"): New strat's More details and its "
+    ("3.0.6", "Farming Strategies to the approved mockups v2 (owner: the opened strat was a wall of text, More "
+              "details was confusing, and Sacred Bloom farm isn't a real thing): New strat's More details and its "
               "inputs (stash regex, waystone tiers, requirements, craft steps, other setup - older strats keep them, "
               "shown under From the author), Farm type (Map type: City, Juiced maps, Low-tier maps, Campaign zones), "
               "the opened strat's Your numbers card (Per hour fills in from your runs) and The guide card",
      ("More details", "Sacred Bloom farm", "Farm type", "Your numbers"),
      ("mm_new_more", "_mm_yours_card", "_mm_guide_card", "_mm_need_card", "MORE_LISTS", "OLD_LISTS")),
-    ("3.0.6", "Farming Strategies' Crafting, Trading and Other categories and their types (owner: \"this is for "
-              "farming strategies, not crafting, not trading, not flipping, not vendor recipes\" - Mapping and "
+    ("3.0.6", "Farming Strategies' Crafting, Trading and Other categories and their types (owner: this is for "
+              "farming strategies only, not crafting, trading, flipping or vendor recipes - Mapping and "
               "Bossing; a strat of a dropped category stays on disk, out of Find); New strat's Also uses row in "
               "More details (part 1's Mechanic takes several) and the Atlas masters' colors (one master at a time)",
      ("Tablet crafting", "Waystone crafting", "Gear crafting", "Jewel crafting", "Flask & charm crafting",
       "Currency flipping", "Bulk selling", "Buy low, sell high", "Vendor recipes"),
      ()),
     ("3.0.6", "Farming Strategies: the ＋ Add my own button (one name: ＋ New strat)", ("Add my own",), ()),
-    ("3.0.6", "Farming Strategies' Add my own form (owner: \"so hard to understand\" - a popup of labels and switches): "
+    ("3.0.6", "Farming Strategies' Add my own form (owner: hard to understand - a popup of labels and switches): "
               "New strat, a page in Farming Strategies with chips, your copied tablets and waystone, Made for you, "
               "Atlas masters and How it goes; profit an hour comes from runs, not a typed estimate (older ones are "
               "kept and read)",
@@ -110,12 +111,12 @@ REMOVED = [
     ("3.0.6", "the Search with fewer mods button (owner: Broaden Search does it for every item - the orange button "
               "searches without the lowest-rated ticked mod; one name for it)",
      ("Search with fewer mods",), ()),
-    ("3.0.6", "Messages stay for, the Drawer's Width box and Settings › General › Your account (owner: \"needs removed\", "
-              "\"we don't need a width input box\" - drag its edge; the account is asked where it's used, Stash tab and "
+    ("3.0.6", "Messages stay for, the Drawer's Width box and Settings › General › Your account (owner: removed, "
+              "no width input box needed - drag its edge; the account is asked where it's used, Stash tab and "
               "Wealth)",
      ("Messages stay for", "% of the game's width"), ("_drawer_share_pick", "build_account_settings")),
-    ("3.0.6", "the Quick start guide and About's Every version's notes link (owner: \"replaced with the thing we give "
-              "people on first time startup\" - Setup, Run setup again; the link showed only this version's notes)",
+    ("3.0.6", "the Quick start guide and About's Every version's notes link (owner: replaced with what new users get "
+              "on first start - Setup, Run setup again; the link showed only this version's notes)",
      ("Quick start guide", "Every version's notes"), ("show_quickstart", "quickstart_go", "QUICKSTART")),
     ("3.0.4", "Wealth prices typed by hand (owner: never ask for a price - poe.ninja, else the trade site's exchange, "
               "else No price found) and the Where it is card (owner: it told nothing; What moved it took its place)",
@@ -123,7 +124,7 @@ REMOVED = [
       "Needs a price", "need a price", "set price", "Combine stacks"),
      ("wealth_set_price", "wealth_clear_price", "wealth_breakdown", "wealth_pick_cat", "w_catfilter", "w_bd_mode",
       "wealth_key", "w_combine", "w_unpriced")),
-    ("3.0.1", "the name Look key (owner: \"ctrl + shift + r = Read. R for Read.\" - it is the Read Key; its setting "
+    ("3.0.1", "the name Look key (owner: Ctrl+Shift+R = Read, R for Read - it is the Read Key; its setting "
               "is still look_key, its NEW chip's seen state moves over: migrations.read_key_name) and every line saying "
               "the game still gets the key (owner: nobody understands it - the key still reaches the game)",
      ("Look key", "The game still gets the key", "the game still gets the key", "the game still gets it",

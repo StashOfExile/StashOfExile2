@@ -1,4 +1,4 @@
-"""US spelling in everything a person reads (2.123.5, feedback: "we don't use the UK spelling of stuff").
+"""US spelling in everything a person reads (2.123.5, feedback: use US, not UK, spelling).
 
 Looks at the app's text - strings, comments and docstrings in soe2/ and stashofexile2.py, and the .md docs - for UK
 spellings (colour, behaviour, grey, centre, cancelled, ...). Left alone: names in the code, lowercase data keys and

@@ -33,8 +33,8 @@ def capture_affinity(win, hide=True):
 
 
 def capture_hidden():
-    """3.0.6 (owner: "all items should show on screen capture unless the user toggles the settings to hide from
-    screen captures"): Overlay › Options › Hide all overlay information from screen captures - one switch for every
+    """3.0.6 (items show in screen captures unless the hide setting is on): Overlay › Options › Hide all overlay
+    information from screen captures - one switch for every
     window over the game. (A Read Key read always sees through them: screenread.see_through.)"""
     return bool((SETTINGS.get("tracker") or {}).get("hide_capture", False))
 
@@ -273,7 +273,7 @@ class RemnantPage:
         return RM.Names(names), value_of
 
     def remnant_prefetch(self, league):
-        """2.129.2 (feedback: "eventually popped up but took a while" - its log: the first read took 14.5 s): the
+        """2.129.2 (feedback: it popped up late - its log: the first read took 14.5 s): the
         prices are fetched in the background, before a book is opened, and kept fresh - a read never waits on
         poe.ninja when there are prices to use."""
         if getattr(self, "_rm_fetching", False) or not league or time.time() - getattr(self, "_rm_fetch_at", 0) < 300:
@@ -309,7 +309,7 @@ class RemnantPage:
     POOL_KINDS = {"jewellery": ("ring", "amulet"), "jewelry": ("ring", "amulet")}
 
     def remnant_unique_pool(self, kind):
-        """2.130.0 (feedback: "show potential expensive/good uniques they COULD get out of that basetype pool"): the
+        """2.130.0 (feedback: show the expensive or good uniques that base type pool could give): the
         uniques of this kind (ring, belt, amulet ...) worth the most on poe.ninja right now - names only, best first."""
         from . import gamedata
         from .wealth import NINJA_ITEM_TYPES, WPRICES
@@ -329,14 +329,14 @@ class RemnantPage:
 
     # ---------------- 2.130.0 (feedback): gems in a remnant's book - priced on the trade site, one search each
     GEM_FRESH = 24 * 3600                             # a gem's price is kept this long (2.130.4: was 30 min; 2.132.0
-    #                                                   (feedback: "people are gonna get rate limited hard"): a day)
-    # 2.130.4 (feedback: "trade site rate limited us on fetching prices"): a book's gems may use at most GEM_BUDGET
+    #                                                   (feedback: players would be rate limited hard): a day)
+    # 2.130.4 (feedback: the trade site rate limited price fetching): a book's gems may use at most GEM_BUDGET
     # searches per 5 minutes - the rest of the trade site's allowance stays for your own price checks; prices are kept
     # on disk (GEM_FILE), so the same gem in the next book costs nothing
     GEM_BUDGET = 3
     GEM_FILE = "remnant_gems.json"
-    # 2.132.0 (feedback: "we need another system on top of that in case there's very few people who are running
-    # expedition"): a gem's price comes from, in turn - your own search (a day), the board's pooled one (a day), then
+    # 2.132.0 (feedback: a fallback system for when few people run
+    # expedition): a gem's price comes from, in turn - your own search (a day), the board's pooled one (a day), then
     # either one up to GEM_KEEP old (shown at once, searched again when the trade site has room). Searches go highest
     # level first (the gems worth the most); prices you find go up with your hourly community batch (if you share).
     GEM_KEEP = 14 * 86400
@@ -434,7 +434,7 @@ class RemnantPage:
     # from screen capture (Windows 10 2004+), so the watcher never read its own tags. 2.128.1: they show in captures (as
     # the overlay does); the watcher paints over them (RM.OWN, RM.mask_own) before it reads.
     def remnant_show(self, rect, rows, secs=RM.SHOW_SECS):
-        """2.56.2 (feedback: "very bold and large ... more compact, less intrusive"): smaller, plain-weight tags in
+        """2.56.2 (feedback: too bold and large - more compact, less intrusive): smaller, plain-weight tags in
         the overlay style's own colors (Overlays › Appearance › Style), on its texture when it has one (the runeshape
         parchment), a thin edge; the best one in the style's warm color with a ★."""
         self.remnant_hide()

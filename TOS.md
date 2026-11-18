@@ -35,7 +35,7 @@ also ask for this notice, word for word, and a User-Agent that says how to reach
    Price Checker, Top Up Reminders ...) only *read and show*: a banner, a sound, a price tag. They never press, click,
    type or send anything.
 2b. **One screen or clipboard read per key press - nothing reads by itself.** The owner takes GGG's rule at its
-   strictest ("we MUST be in compliance with this across everything"): a read happens only on a key pressed FOR it -
+   strictest (compliance across everything): a read happens only on a key pressed FOR it -
    never a timer, a thread, a loop, a click, a file change, the app's window getting the focus or the app starting.
    The screen is read once when you press your **Read Key** in the game: a key only for the read (Settings ›
    Keybinds, or Setup's helpers step). It is Ctrl+Shift+R as the app comes; if you clear it, nothing reads the screen. It

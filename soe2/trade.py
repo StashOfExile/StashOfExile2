@@ -240,7 +240,7 @@ def apply_opts(query, item=None, opts=None):
     gem = bool((item or {}).get("rarity") == "Gem" or ((item or {}).get("search") or {}).get("gem")
                or "gem_level" in (flt.get("misc_filters") or {}).get("filters", {}))
     for key, group, name in NUM_OPTS:          # 2.79.0: a number (at least) or {"min", "max"}
-        if key == "sockets" and gem:           # 2.130.1 (feedback: "sockets: 5 ... chose augmentable sockets"): a
+        if key == "sockets" and gem:           # 2.130.1 (feedback: 5 gem sockets chose augmentable): a
             group, name = "misc_filters", "gem_sockets"     # gem's sockets are the trade site's Gem Sockets
             put("equipment_filters", "rune_sockets", None)
         if key in o:

@@ -21,8 +21,8 @@ MEDALLIONS = {
     "Quipolatl's Medallion": ("Upgrade", "Raises a room's tier", 9),
     "Estazunti's Medallion": ("Extra restricted room", "One more restricted room card after the Architect", 8),
     "Uromoti's Medallion": ("Add room", "Adds a room card", 5),
-    # 3.0.6 (owner: "it should be telling me next to delete hayoxi's medallion to pick up the reroll medallion
-    # (puhuarte's)"): rerolling the cards on offer is worth more than rerolling a restricted room
+    # 3.0.6 (the advice should say to drop Hayoxi's medallion to pick up the reroll medallion, Puhuarte's):
+    # rerolling the cards on offer is worth more than rerolling a restricted room
     "Hayoxi's Medallion": ("Reroll restricted", "Rerolls a restricted room", 4),
     "Puhuarte's Medallion": ("Reroll cards", "Rerolls the room cards on offer", 5),
     "Xopec's Medallion": ("Crystal capacity", "Crystal capacity +6 (up to 60)", 6),
@@ -132,7 +132,7 @@ def advice(new, hand, have, most, room=None, crystals_most=None):
     known = [h for h in (hand or [])[:have] if h]
     if not known:
         return "learn", f"{new}: {why}. Medallions full: open them (V) and press the Read Key to see which to drop."
-    # 3.0.6 (owner: "nobody is going to manually read their medallions"): a slot not known yet doesn't stop the
+    # 3.0.6 (players will not read their medallions by hand): a slot not known yet doesn't stop the
     # advice - the weakest one known is the one to let go
     worst = min(known, key=lambda h: worth(h, None, crystals_most, most)[0])
     ww, wwhy = worth(worst, None, crystals_most, most)
@@ -245,8 +245,8 @@ SHIFT_STEP = 2
 
 
 def identify_at(crop, box, icons, scale=1.0):
-    """3.0.6 (owner: "it's still telling me medallions not known, how the hell is that possible, we have so much
-    data"): a slot's picture matched only where the slot was worked out to be - 4 px off (the title read a little
+    """3.0.6 (medallions were still reported as not known despite plenty of learned data): a slot's picture matched
+    only where the slot was worked out to be - 4 px off (the title read a little
     wider) and nothing matched. Now looked for round that spot: crop(box) -> PIL picture; the best name over every
     small shift, or None."""
     best = (None, -1.0)
@@ -265,7 +265,7 @@ ALIGN_REACH, ALIGN_STEP = 40, 6   # 3.0.6: px at 1440p
 
 
 def align(crop, head, icons, scale=1.0, n=6):
-    """3.0.6 (owner: "failure to identify medallions still, unacceptable"): the title's box as OCR gave it can be a
+    """3.0.6 (medallions still failed to be identified): the title's box as OCR gave it can be a
     good way off (a 6/6 panel read 1 of 6), and the slots are placed from it. -> (dx, dy): the shift of the slot grid
     whose pictures match the known medallions best (summed over the slots), or (0, 0)."""
     if not icons:
@@ -308,7 +308,7 @@ def identify(vec, icons, scored=False):
     return (order[0][0], order[0][1]) if scored else order[0][0]
 
 
-# 2.142.1 (feedback: "the room card medallions have matching icons to the regular cards and room tiles"): a slot not
+# 2.142.1 (feedback: the room card medallions have the same icons as the regular cards and room tiles): a slot not
 # known by its own picture is matched against the board's room icons - an Uromoti's shows the room it adds
 ROOM_MIN = 0.90
 

@@ -1,5 +1,5 @@
-"""The Ritual helper after the counter, the leave reminder and the Ritual Identifier were removed (3.0.6, owner: "they
-can't be automated, it defeats the purpose" - GGG policy).
+"""The Ritual helper after the counter, the leave reminder and the Ritual Identifier were removed (3.0.6, owner: they
+can't be automated, which defeats the purpose - GGG policy).
 
   * Overlay › Helpers: the Ritual row is Favours prices (one line, the Read Key in it) and Filter in the Ritual
     window - no counter, no reminder, no identifier, no On screen chip, no second Favours prices switch, no Test button

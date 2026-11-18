@@ -125,7 +125,7 @@ def summary(market, since, league):
     return prices, bases, newest
 
 
-# 2.121.1 (feedback: "unmatched_mods.txt to the cloud ... whatever requires no input from anyone"): the mod lines
+# 2.121.1 (feedback: send unmatched_mods.txt to the cloud in a way that needs no input from anyone): the mod lines
 # your price checks couldn't match ride on the same switch and the same hourly batch - no new option. Only the wording
 # with every number as #, and the base type; never the item's name, never a note. The board publishes a line once
 # two installs sent it (GET /mods/unmatched); a weekly workflow keeps a copy for fixing the matcher.
@@ -268,8 +268,8 @@ def maps_unsent():
 
 
 # ---------------------------------------------------------------- what everyone pooled
-# 2.137.0 (feedback: "protection against malware/viruses going to the cloudflare database ... especially if I'm
-# downloading that data daily"): what comes down is only ever data - parsed as JSON, never run - and each row is
+# 2.137.0 (feedback: protect the database against malware, especially when the data is
+# downloaded daily): what comes down is only ever data - parsed as JSON, never run - and each row is
 # checked again here: plain numbers and short plain text only (letters, digits, a few marks; no control characters,
 # no < > { } ` $ \\), at most MAX_ROWS rows. Anything else is dropped before it's saved.
 MAX_ROWS = 20000

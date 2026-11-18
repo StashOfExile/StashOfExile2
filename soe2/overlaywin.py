@@ -161,7 +161,7 @@ _TEX = {}
 
 
 def texture(root, w, h, seed=7, calm=False):
-    """2.47.0: a grungy parchment (feedback: "too clean") - made here, no image file: the base color, fibers and
+    """2.47.0: a grungy parchment (feedback: too clean) - made here, no image file: the base color, fibers and
     grain, a few stains and darker, burned edges. A Tk PhotoImage (None without Pillow)."""
     key = (w // 16 * 16 + 16, h // 16 * 16 + 16, seed, calm)
     if key in _TEX:
@@ -181,7 +181,7 @@ def texture(root, w, h, seed=7, calm=False):
             r, g, b = px[x, y]
             px[x, y] = (r + n, g + n, b + n - 2)
     d = ImageDraw.Draw(img, "RGBA")
-    # 2.51.0 calm: where text sits (feedback: "barely legible") - lighter grain, faint stains and fibers
+    # 2.51.0 calm: where text sits (feedback: barely legible) - lighter grain, faint stains and fibers
     for _ in range(max(6, W * H // 6000)):                 # stains
         cx, cy, rr = rnd.randint(0, W), rnd.randint(0, H), rnd.randint(8, 40)
         d.ellipse((cx - rr, cy - rr * 0.7, cx + rr, cy + rr * 0.7),
@@ -343,7 +343,7 @@ def foreground_ok():
             if _alive(w) and (u.GetParent(w.winfo_id()) or w.winfo_id()) == fg:
                 LAST_OK[0] = True
                 return True
-        # 2.125.3 (feedback: the route card "disappears to the background until I click on it again and again"): a
+        # 2.125.3 (feedback: the route card disappeared to the background until clicked again and again): a
         # list's dropdown or a tooltip opened from one of these windows is in front now - that counts as the window
         for w in _LIVE:
             if _alive(w) and fg in _child_hwnds(w):

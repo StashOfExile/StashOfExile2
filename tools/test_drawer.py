@@ -699,7 +699,7 @@ def a_T12(ctx):
 
 
 def a_T16(ctx):
-    """T16 (Round 18, owner: "dragging wider snaps back; maximize ... then reverts to the small size"): a width you drag
+    """T16 (Round 18, owner: dragging wider snapped back, and maximize reverted to the small size): a width you drag
     - even past 70% of the game - is never put back by the 2 s re-dock (only its edge / place); the window manager
     maximizing it (button, double-click on the title, Aero snap: simulated with drawer.WM_STATE_HOOK) makes it the
     Full window and nothing re-docks it; restored, it is the Drawer again with the width you set; the shape isn't
@@ -776,7 +776,7 @@ def t_T17():
 
 
 def t_T14():
-    """T14 (drawer-look, owner: "resizing still snaps back to a different size"): a width you drag stays - read and
+    """T14 (drawer-look, owner: resizing still snapped back to a different size): a width you drag stays - read and
     written in the same pixels at 100 / 125 / 150 / 175 % (Windows scales the app: its pixels = real / scale), on
     both sides, on 1080p / 1440p / 4K games; reading the docked rect again never counts as a new drag (< 8 px)."""
     from soe2 import drawer as D

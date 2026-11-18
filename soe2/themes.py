@@ -898,7 +898,7 @@ def bevel_image(root, key, w, h, stops, border, inner=None, radius=0, top_line=N
 
 
 def flat_spec(t, name):
-    """P2.5 (2.107.0, feedback: "the buttons feel very amateur"): one flat look in every theme - 2 px corners, no
+    """P2.5 (2.107.0, feedback: the buttons felt amateur): one flat look in every theme - 2 px corners, no
     gradient or bevel; the theme still gives the colors. Normal: a raised face; primary: the accent; danger: an
     outline in the theme's danger color; heading: list column heads."""
     c = t.c

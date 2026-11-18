@@ -33,7 +33,7 @@ class Switch(unittest.TestCase):
 
 class OneHome(unittest.TestCase):
     def test_only_in_options_no_readouts(self):
-        # (owner: the read-outs in Helpers and Quick settings were "a poor UI choice")
+        # (owner: the read-outs in Helpers and Quick settings were poor UI)
         import inspect
         from soe2 import alerts_page, ovquick, tracker_page
         self.assertIn("tk_hidecap = tk.BooleanVar", inspect.getsource(tracker_page))
@@ -56,7 +56,7 @@ if __name__ == "__main__":
 
 
 class MedallionAlign(unittest.TestCase):
-    """3.0.6 (owner: "failure to identify medallions still, unacceptable"): a 6/6 panel read 1 of 6 - the title's
+    """3.0.6 (medallions still failed to be identified): a 6/6 panel read 1 of 6 - the title's
     box was off and the slots followed it. The grid now follows the pictures."""
 
     def test_a_shifted_title_still_finds_the_slots(self):

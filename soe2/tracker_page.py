@@ -181,7 +181,8 @@ class TrackerPage:
         # ---- top: start / pause, and where the log is
         tpo, top = chrome_section(body, "Session")                             # 2.69.0
         tpo.pack(fill="x", padx=8, pady=(8, 8))
-        # 2.131.2 (feedback: "clipped text/cropped buttons"): no ▶ in a button's words - a PC without that symbol in the
+        # 2.131.2 (feedback: clipped text and cropped buttons): no ▶ in a button's words - a PC without that symbol
+        # in the
         # font draws it from another, wider one, and the button cut its words; the state label keeps its own room
         self.tk_start_btn = ttk.Button(top, text="Start session", style="Primary.TButton", command=self.tracker_toggle)
         self.tk_start_btn.pack(side="left")
@@ -570,7 +571,7 @@ class TrackerPage:
         self.tk_lock = tk.BooleanVar(value=bool(cfg.get("mlocked")))      # 2.59.0: ONE lock for the whole overlay
         self.tk_auto = tk.BooleanVar(value=bool(cfg.get("autostart")))           # 2.14.0
         self.overlay_hide_capture()                                                    # (2.89.1: its one-time reset)
-        # 2.120.1 (feedback: "Mouse" was confusing): the two names other overlays use - Lock position and
+        # 2.120.1 (feedback: the name "Mouse" was confusing): the two names other overlays use - Lock position and
         # Click-through - side by side here and in Quick settings. Each works on its own, as 2.74.3 asked.
         self.tk_ct = tk.BooleanVar(value=self.click_through_on())
         self.tk_hidecap = tk.BooleanVar(value=bool(cfg.get("hide_capture", False)))
@@ -747,7 +748,7 @@ class TrackerPage:
         return gx + int(gw * 0.02), y
 
     def overlay_reset_position(self, say=True):
-        """2.130.0 (feedback: "a button ... to move the bar overlay back to its default bottom centered location"):
+        """2.130.0 (feedback: a button to move the bar overlay back to its default bottom centered location):
         every place the overlay was dragged to is forgotten - each layout and style goes back to its own spot."""
         cfg = self.tracker_cfg()
         for k in ("mx", "my", "x", "y", "hud_pos", "hud_res", "lt_pos", "lt_res"):

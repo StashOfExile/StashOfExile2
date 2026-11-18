@@ -129,10 +129,10 @@ class MinMax(unittest.TestCase):
         self.assertIn('"max": 99', flat)
 
 
-# ---- owner (base widening): "if the quality is below 28% it should drop to 25% and try again, and then 22% and then
-# 0-20% for exceptional stuff. never widen it by removing sockets for exceptional items, if non exceptional and has
-# standard number of max sockets, sockets should be excluded anyways ... ilvl range to +/-1 ... up to 1 week."
-# Owner: "all of the white base rules apply to magic bases also." Owner: widening never runs on its own - a price
+# ---- owner (base widening): a quality below 28% drops to 25% and tries again, then 22%, then 0-20% for exceptional
+# bases; never widen an exceptional item by removing sockets (a non-exceptional one with the standard maximum of
+# sockets excludes them anyway); item level range +/-1; listings up to 1 week old.
+# Owner: all of the white base rules apply to magic bases also. Owner: widening never runs on its own - a price
 # check is the exact search; while too few are found the card's orange button is ↔ Broaden Search, one step a click.
 
 MAGIC_CROWN = """Item Class: Helmets

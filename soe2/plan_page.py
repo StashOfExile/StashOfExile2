@@ -20,7 +20,7 @@ def _num(text):
 
 
 class GamePlanPage:
-    """Mixed into App. 2.73.4 (feedback: "it all sort of blends together"): one look for every part - what's in it
+    """Mixed into App. 2.73.4 (feedback: it all blends together): one look for every part - what's in it
     first, then a hairline and a small ADD heading over its form, labels in one column, the same + Add button
     everywhere; phase headings with counts, goal details on a quieter second line, a summary strip on top."""
 

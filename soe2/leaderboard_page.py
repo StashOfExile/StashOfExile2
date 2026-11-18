@@ -59,7 +59,7 @@ class LeaderboardPage:
         tb.bind("<<ComboboxSelected>>", lambda e: self.lb_top_pick())
         ttk.Button(top2, text="↻ Refresh", style="Quiet.TButton", command=lambda: self.lb_refresh(send=True)).pack(
             side="right")
-        # 2.138.0 (feedback: "anywhere that saves player data ... should have that option")
+        # 2.138.0 (feedback: anywhere that saves player data should offer that option)
         exb = ttk.Button(top2, text="Export my times…", style="Quiet.TButton", command=self.lb_export)
         exb.pack(side="right", padx=(0, 8))
         Tooltip(exb, "Your fastest maps, bosses, trials and acts to a CSV - from this PC, no character names")
@@ -289,7 +289,7 @@ class LeaderboardPage:
         if keys:
             self.lb_keys_empty.place_forget()
         else:
-            # 2.124.1 (feedback: "no zone times being tracked?"): say when this board gets times
+            # 2.124.1 (feedback: no zone times seemed to be tracked): say when this board gets times
             self.lb_keys_empty.set_text(
                 "No times on this board yet\nA zone is timed from entering it to leaving it, while a character is "
                 "still in the campaign (not visits after it, and at least 10 s)." if self.lb_cat_key() == "zone" else
@@ -326,7 +326,7 @@ class LeaderboardPage:
                           tags=("gold",) if i == 0 else ())
             return
 
-        # 2.125.8 (feedback: "I still don't see anyone else's ... map times"; app_log: "Item b1767 already exists"):
+        # 2.125.8 (feedback: no one else's map times showed; app_log: "Item b1767 already exists"):
         # two looks at one board raced - the slower answer added its rows again and stopped half-way. Only the newest
         # answer is drawn, into a cleared list.
         self._lb_gen = gen = getattr(self, "_lb_gen", 0) + 1

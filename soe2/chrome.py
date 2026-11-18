@@ -214,7 +214,7 @@ def split_note(note):
 
 
 class Notice(tk.Frame):
-    """2.74.5 (feedback: beta notices "should be able to be closed off of the screen"): a one-line notice with a small
+    """2.74.5 (feedback: beta notices should be closable): a one-line notice with a small
     × at the right. Closed once, it stays closed (SETTINGS["notices_closed"][key]). show(**pack) packs it unless
     it was closed; the owner packs it with show() wherever it used to pack the label."""
 

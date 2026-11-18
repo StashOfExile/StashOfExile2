@@ -15,7 +15,7 @@ from .config import SETTINGS, save_json
 from .overlaywin import CanvasText, OverlayWindow, pal
 
 # 2.66.0: one look (the app's theme); the layout says the shape - Minimal moved here from the old Style list
-# 2.67.0 (feedback: "get rid of all of the other options"): the Panel in the game's vendor-window style (the
+# 2.67.0 (feedback: drop all the other options): the Panel in the game's vendor-window style (the
 # Treasurer's ledger) and the Bar on the XP bar. Strip, Minimal and beside-the-orbs are gone (-> Panel).
 LAYOUTS = {"panel": "Panel", "xpbar": "Bar"}     # 2.67.0: beside the orbs is gone; 2.74.0: "Bar"
 HUD = ("xpbar",)                 # 2.65.0: fitted to the game's own bottom bar, in its look
@@ -25,9 +25,9 @@ HUD = ("xpbar",)                 # 2.65.0: fitted to the game's own bottom bar, 
 #   x0 / x1 >= 0: from the left edge, < 0: from the right edge; bottom: up from the bottom edge.
 # 2.79.1: as wide as the XP bar (measured at 1440p), over it. 2.118.0: one row (no switches above it) - 0.036 high
 # (was 0.056 for two rows); a bar you moved keeps its bottom edge where you put it (OLD_HUD_H)
-# 2.130.1 (feedback: "bottom alignment mode is a few px above the xp bar, needs moved down"): measured on a 1440p
+# 2.130.1 (feedback: bottom alignment sat a few px above the xp bar): measured on a 1440p
 # screenshot, the XP bar's top is 22 px (0.0153) up from the bottom - the Bar's bottom edge sits on it (was 0.0205)
-HUD_SPOTS = {"xpbar": [(0.531, -0.531, 0.0153, 0.040)]}     # 2.139.1: 0.046 was too tall ("real tall and funky")
+HUD_SPOTS = {"xpbar": [(0.531, -0.531, 0.0153, 0.040)]}     # 2.139.1: 0.046 was too tall
 OLD_HUD_H = 0.056
 
 
@@ -47,7 +47,7 @@ def click_not_drag(cv, item, fn):
 
 
 def hud_k(game_h):
-    """2.78.3 (feedback: "make sure the overlay is detecting a person's resolution and scaling it to fit"): how much
+    """2.78.3 (feedback: detect the player's resolution and scale the overlay to fit): how much
     bigger than at 1080 px the overlay is drawn - the game window's height / 1080 (720p 0.67, 1440p 1.33, 4K 2.0)."""
     return max(0.6, min(3.0, (game_h or 1080) / 1080))
 
@@ -55,7 +55,7 @@ def hud_k(game_h):
 def set_click_through(w, on, _tries=0):
     """Windows: mouse clicks pass through the window to whatever is under it (WS_EX_TRANSPARENT on a layered window).
     GGG ToS: a window style of the app's own window - nothing is sent to the game.
-    2.133.1 (feedback: "Hollow deep is still causing crashes"): no update_idletasks - it runs layout jobs until none
+    2.133.1 (feedback: crashes after a theme change): no update_idletasks - it runs layout jobs until none
     are left, and a theme change that keeps a page laying itself out never let it return (12 s+, "not responding").
     A window not on screen yet has no frame: tried again in 50 ms, up to 1 s.
     The style change and the window's see-through color (a boxless Style) + opacity are set together (layered.apply) -
@@ -270,7 +270,7 @@ class MergedOverlay:
         oc = self.overlay.cfg
         if not self.ov_enabled():                         # 2.92.2: the master switch is off - nothing over the game
             return {"bar": False, "timer": False, "helpers": False, "notes": False}
-        # 2.118.0 (feedback: the helpers' switches were "just screen clutter"): no switches on the bar - every helper
+        # 2.118.0 (feedback: the helpers' switches were screen clutter): no switches on the bar - every helper
         # is on or off in Settings › Overlay › Helpers. The bar itself (menus, clock, lock, ⚙) shows while the
         # overlay is on; "helpers" stays False for the drawing code that used to lay the switches out.
         return {"bar": True, "timer": bool(getattr(self, "mg_timer", False)), "helpers": False,
@@ -333,8 +333,8 @@ class MergedOverlay:
         """The overlay's parts that show (Options › On the overlay) - in a campaign zone without the map's rank, its
         name, Maps and Avg."""
         ln = dict(self.tracker_cfg()["lines"])
-        # 2.132.6 (feedback: "remove the map name from the bar ... that information just needs registered
-        # internally"): the map's name is never on the overlay (it's still known - the rank, Map Library, the logs)
+        # 2.132.6 (feedback: remove the map name from the bar - it only needs registering internally): the map's name
+        # is never on the overlay (it's still known - the rank, Map Library, the logs)
         ln["where"] = False
         if self.ov_camp_mode():
             ln.update(rank=False, where=False, maps=False, avg=False)
@@ -466,7 +466,7 @@ class MergedOverlay:
 
     def click_through_on(self):
         """Settings › Appearance › Overlay › Click-through: clicks go through the overlay's bar to the game.
-        2.74.3 (feedback: "an isolated toggle that isn't tied to being locked"): its own switch, off by default."""
+        2.74.3 (feedback: a toggle not tied to being locked): its own switch, off by default."""
         return bool(self.tracker_cfg().get("click_through", False))
 
     def overlay_hide_capture(self):
@@ -897,7 +897,7 @@ class MergedOverlay:
     START_TEXT = "Start session"
 
     def start_on_bar(self):
-        """2.131.1 (feedback: "the overlay on startup has no option to start session tracking"): while no session
+        """2.131.1 (feedback: no way to start session tracking from the overlay at startup): while no session
         runs, ▶ Start session sits first on the bar; the timer takes its place once one starts."""
         # 2.139.0 Map First: the state chip starts one (▶ START) - no separate Start session on the bar
         return False
@@ -1020,7 +1020,7 @@ class MergedOverlay:
             except tk.TclError:
                 pass
 
-    # 2.74.3 (feedback: "a small pause play toggle for the session tracker directly on the overlay")
+    # 2.74.3 (feedback: a small pause / play toggle for the session tracker on the overlay)
     def play_glyph(self):
         s = getattr(self, "tk_session", None)
         running = s is not None and s.ended is None and s.paused_at is None
@@ -1104,7 +1104,7 @@ class MergedOverlay:
 
     # ---------------------------------------------------------------- 2.66.1: the Panel (the game's Treasurer window)
     def _mg_classic_panel(self, w, cv, P, want):
-        """2.124.1 (feedback: "classic panel visual look needs to be the same as bar"): the Slate Panel's parts on the
+        """2.124.1 (feedback: the classic panel look should match the bar): the Slate Panel's parts on the
         Bar's stone and pewter frame, in its colors and type. (2.67.0-2.124.0: a vendor-window card, _mg_card.)"""
         from . import hudart
         spot = self.hud_spots("xpbar")[0]
@@ -1189,7 +1189,7 @@ class MergedOverlay:
 
     def ov_btn(self, style="TButton"):
         """A button style for a card over the game: its text at the game's size.
-        2.125.5 (feedback: "ALL tools that open over the game ... should follow these rules for styling matching"):
+        2.125.5 (feedback: every tool that opens over the game should follow the same styling rules):
         in the overlay's style too - its colors and font, not the app's (the app's orange and blue showed on every
         card). Primary = the one picked: the style's accent edge and strong text (Quick settings' chips)."""
         from .overlaywin import pal
@@ -1296,8 +1296,8 @@ class MergedOverlay:
         mid = H // 2 + 1
         f = (P["font"], self._hf(10))
         fm = tkfont.Font(root=cv, family=P["font"], size=self._hf(10))
-        # ---- row 2 (or the only row): the numbers - 2.73.5: a divider between each part (feedback: "more visual
-        # division between the different areas of text")
+        # ---- row 2 (or the only row): the numbers - 2.73.5: a divider between each part (feedback: more visual
+        # division between the areas of text)
         SW = self._hf(14)                                    # a divider's slot (2.118.0: 20 -> 14, one row holds more)
         sh = None
         drawn = []

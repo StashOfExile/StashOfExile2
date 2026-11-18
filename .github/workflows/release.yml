@@ -60,7 +60,7 @@ jobs:
           --add-data "soe2\templates;soe2\templates" --add-data "soe2\ritual_glyphs.json;soe2" --add-data "soe2\sekhemas.json;soe2" --add-data "soe2\fonts;soe2\fonts" --hidden-import pystray._win32 --hidden-import PIL._tkinter_finder
           --hidden-import cv2 --hidden-import mss --hidden-import numpy --collect-submodules winrt stashofexile2.py
 
-      # 3.0.6 (owner: "an installer too ... I still want the portable option"): Setup-StashOfExile2-<version>.exe -
+      # 3.0.6 (an installer too, with the portable option kept): Setup-StashOfExile2-<version>.exe -
       # per user (no admin), Start menu, Settings > Apps, uninstaller (installer/StashOfExile2.iss). Its name doesn't
       # start with "StashOfExile2", so older apps' updater still takes the portable exe.
       - name: Build the installer (Inno Setup)
@@ -86,7 +86,7 @@ jobs:
           python tools/release_notes.py "$V" > notes.md
           cat notes.md
 
-      # 2.132.8 (feedback: "virustotal link and checksums"): SHA-256 of each download (SHA256SUMS.txt + the notes),
+      # 2.132.8 (feedback: a VirusTotal link and checksums): SHA-256 of each download (SHA256SUMS.txt + the notes),
       # and the exe sent to VirusTotal so the notes can link its scan. No VT_API_KEY secret = no scan link, the rest
       # still happens.
       - name: Checksums and VirusTotal scan
@@ -132,7 +132,7 @@ jobs:
             StashOfExile2_build_kit_*.zip
             SHA256SUMS.txt
 
-  # 3.0.5 (owner: "join main as long as it isn't going to create issues for windows builds"): the Linux build, after the
+  # 3.0.5 (owner: merge into main, provided it creates no issues for Windows builds): the Linux build, after the
   # Windows release is published, onto the SAME full release - StashOfExile2-<version>-linux.tar.gz + its checksum.
   # Its own job and machine: if it fails, the Windows release is already out and untouched. (Was linux-build.yml on
   # the linux branch, with its own pre-releases.)

@@ -699,8 +699,8 @@ class RegexPage:
         self.rx_fill_favorites()
 
     def rx_keys(self):
-        """2.132.7 (feedback: "All I wanted was the ability to add keybinds to 1-4 favorite regex buttons that when
-        pressed would copy its regex to clipboard"): up to 4 Regex keys, one favorite each -> [{"key", "fav"}]."""
+        """2.132.7 (feedback: keybinds for 1-4 favorite regex buttons that copy their regex to the clipboard when
+        pressed): up to 4 Regex keys, one favorite each -> [{"key", "fav"}]."""
         out = []
         for k in SETTINGS.get("regex_keys") or []:
             if not isinstance(k, dict):
@@ -828,7 +828,7 @@ class RegexPage:
         P1 = C["panel"]
         bar = tk.Frame(page, bg=P1, padx=8, pady=8)
         bar.pack(fill="x")
-        # 2.132.6 (feedback: "publish their regex to the database ... sorting for Official | Community | Mine"):
+        # 2.132.6 (feedback: publish regexes to the database, with sorting for Official | Community | Mine):
         # search first, the three views, then what you can do with the picked one (gray until there is one)
         self.rx_fav_q = tk.StringVar()
         tk.Label(bar, text="🔍", bg=P1, fg=C["muted"], font=("Segoe UI Symbol", 10)).pack(side="left", padx=(0, 4))

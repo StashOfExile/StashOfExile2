@@ -1,4 +1,4 @@
-"""2.118.0 (feedback: "the theme previews should work like the overlay style previews"): Settings › Appearance ›
+"""2.118.0 (feedback: theme previews should work like the overlay style previews): Settings › Appearance ›
 Theme - the themes as a list of names (Dark, Light) beside a big live preview of the app in the theme under the mouse,
 with its one-line description. Hovering previews without changing anything; a click (or Enter / Space) picks it and
 the whole app changes at once, as the cards did. (The first-start page keeps the small cards.)

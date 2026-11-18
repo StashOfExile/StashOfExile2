@@ -1,7 +1,7 @@
-"""Price check, 3.0.6: Broaden Search for every item (owner: "for all price checks, similar to how we did bases").
+"""Price check, 3.0.6: Broaden Search for every item (every price check, as bases already do).
 
-  * Too few listings: the orange button is ↔ Broaden Search. Owner (3.0.6 checklist): "reduce/expand values/ranges
-    first before removing mods. Maybe 10% variance, then 20%" - every ticked mod's values 10% looser, then 20% (from
+  * Too few listings: the orange button is ↔ Broaden Search. Owner (3.0.6 checklist): loosen values and ranges
+    first, before removing mods - 10% variance, then 20% - every ticked mod's values 10% looser, then 20% (from
     the item's own values), then a search without the lowest-rated ticked mod (your Rate letter; unrated counts as C;
     a total goes last; the last on a tie). A value you typed is yours: never loosened.
   * A box or tick changed since: the button says Search again (filters changed) instead.

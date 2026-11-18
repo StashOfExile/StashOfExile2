@@ -24,7 +24,7 @@ from . import buglog
 
 CREDIT_NAME = "PoE Ancients Price Helper (Pedro Quitério)"
 CREDIT_URL = "https://github.com/pedro-quiterio/PoeAncientsPriceHelper"
-SHOW_SECS = 12                    # 2.56.2 (feedback: "on screen too long"): was 30
+SHOW_SECS = 12                    # 2.56.2 (feedback: on screen too long): was 30
 MATCH = 0.84                      # how close an OCR'd line must be to an item name (difflib ratio)
 LAST_WORD = 0.75                  # ... and its last word to the name's last word (2.40.0)
 
@@ -95,7 +95,7 @@ class OcrStuck(Exception):
 
 # ================================================================ reading lines (pure: tested offline)
 ONE_X = re.compile(r"^[lI|i!]\s?[x×х](?=\s)")     # 2.129.0 (its log: 3 of 5 lines unread): OCR reads "1x" as "lx"
-# 2.130.4 (feedback: "doesn't read 10x divine orb" - its log: 'IOX Divine Orb'): a count whose digits OCR read as
+# 2.130.4 (feedback: 10x Divine Orb was not read - its log: 'IOX Divine Orb'): a count whose digits OCR read as
 # letters (I/l/| for 1, O/o for 0), at the start of a line before x
 QTY_LETTERS = re.compile(r"^([0-9IlOo|]{2,4})\s?[xX×х](?=\s)")
 
@@ -193,7 +193,7 @@ UNIQUE_LINE = re.compile(r"^Unique\s+([A-Za-z][A-Za-z ]{2,30})$")
 
 
 def unique_line(text):
-    """2.130.0 (feedback: "Unique Ring" showed nothing): "Unique Ring" -> "ring" (the kind of item), or None."""
+    """2.130.0 (feedback: a "Unique Ring" line showed nothing): "Unique Ring" -> "ring" (the kind of item), or None."""
     m = UNIQUE_LINE.match(" ".join(str(text).split()))
     return m.group(1).strip().lower() if m else None
 
@@ -281,7 +281,7 @@ def title_score(img, game_h):
 
 
 def reading_area(learned):
-    """2.130.0 (feedback: "no price on greater charging rune or greater ward rune" - the book's last two lines): an
+    """2.130.0 (feedback: no price on Greater Charging Rune or Greater Ward Rune - the book's last two lines): an
     area learned by the old key (before 2.119.0) can be shorter than a long book - the area read is now the learned
     one and AREA together, so every line of the book is read."""
     if not learned or len(learned) != 4:
@@ -400,7 +400,7 @@ def _engine_new():
 
 _OCR_LOCK = threading.Lock()
 _OCR_ERRS = set()
-# 2.138.3 (feedback: "this ritual didn't give an alert either" while the altar's tooltip was on screen, and the Fast
+# 2.138.3 (feedback: a ritual gave no alert while the altar's tooltip was on screen, and the Fast
 # Beacon Read missed crystals): one read that never came back stopped every later look in that map. A read now gives up
 # after READ_SECS (its reader is dropped, a new one is made next time) and waiting for the reader after WAIT_SECS.
 READ_SECS = 8.0

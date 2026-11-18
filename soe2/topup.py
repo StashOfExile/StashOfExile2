@@ -32,8 +32,8 @@ DIGIT_BAND = (0.0, 0.0, 0.62, 0.36)   # x0, y0, x1, y1 of a cell where its count
 LEARN_FILE = "topup.json"
 PICS = 4                                # pictures kept per item
 DEFAULTS = {"on": True, "items": [], "below": 0.3}   # items: [{"name", "keep"}] - their pictures are in topup.json
-# 2.131.2 (feedback: "it's asking me every single map, I only want it to ask when I am below a 70% threshold ... same
-# way we handle the % variances on price checks"): a reminder only once you hold less than Keep minus this share
+# 2.131.2 (feedback: it asked on every map - ask only when below a 70% threshold, handled like the % variances
+# on price checks): a reminder only once you hold less than Keep minus this share
 BELOW_STEPS = (0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7)
 # 2.131.4: + Add more's suggestions (the game's names; any other can be typed)
 SUGGEST = ("Scroll of Wisdom", "Exalted Orb", "Regal Orb", "Chaos Orb", "Orb of Alchemy", "Orb of Augmentation",
@@ -440,8 +440,8 @@ def full_stack(text):
 
 
 def item_name(text):
-    """The game's item text -> (name, stack count or None) for a stackable item - or (2.131.4, feedback: "things
-    like cryptic keys that do not stack") a normal one: each cell holding it counts 1. Else None (magic / rare /
+    """The game's item text -> (name, stack count or None) for a stackable item - or (2.131.4, feedback: things
+    that do not stack, like cryptic keys) a normal one: each cell holding it counts 1. Else None (magic / rare /
     unique gear)."""
     lines = [ln.strip() for ln in str(text or "").splitlines()]
     i = next((k for k, ln in enumerate(lines) if ln.startswith("Rarity:")), None)

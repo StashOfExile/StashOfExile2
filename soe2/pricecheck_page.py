@@ -1,5 +1,6 @@
-"""2.80.0: Price Checks - one item at a time (feedback: "copy the price checker / item panel into a new panel called
-Price Checks ... a display of the items on the trade site"). Your price check key (Ctrl+D since 2.83.1) on an item in game opens it here: the item
+"""2.80.0: Price Checks - one item at a time (feedback: copy the price checker / item panel into a new panel called
+Price Checks, showing the items on the trade site). Your price check key (Ctrl+D since 2.83.1) on an item in game
+opens it here: the item
 card with every filter on the left, the trade site's listings as cards on the right (name band, properties, item
 level, requirements, each mod with its tier, price, seller, when it was listed, the item's picture). Ctrl+Alt+C
 still adds to Bulk Pricing (the old Price checks page).
@@ -166,7 +167,7 @@ TABLET_ICONS = {
         "https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvUHJlY3Vyc29yVGFibGV0cy9QcmVjdXJzb3JUYWJsZXRCb3NzIiwidyI6MSwiaCI6MSwic2NhbGUiOjEsInJlYWxtIjoicG9lMiJ9XQ/6a422fabb8/PrecursorTabletBoss.png"),
 }
 
-# 3.0.6 (owner: the waystone had no picture): the T15 waystone's art, the "Waystone" picture for every tier (a tier's
+# 3.0.6 (the waystone had no picture): the T15 waystone's art, the "Waystone" picture for every tier (a tier's
 # own, learned from a listing, wins - art_url)
 WAYSTONE_ICON = ("https://web.poecdn.com/gen/image/WzI4LDE0LHsiZiI6IjJESXRlbXMvTWFwcy9FbmRnYW1lTWFwcy9FbmRnYW1lTWFwMTUi"
                  "LCJ3IjoxLCJoIjoxLCJzY2FsZSI6MSwicmVhbG0iOiJwb2UyIn1d/17149586aa/EndgameMap15.png")
@@ -443,10 +444,11 @@ class PriceCheckPage:
         self._pc_where_row(body)                     # 2.122.0: what your price check key does - first, full width
         self._pc_recent_row(body)                    # 2.123.0 (p6): Recent as chips (was a table under the card)
         self._pc_verdict_row(body)                   # 2.123.0 (p4): the price, how sure, why - once, across the top
-        # 2.123.3 (feedback: "too wide ... allow a person to resize its horizontal width"): the item and the listings
+        # 2.123.3 (feedback: too wide - let the width be resized): the item and the listings
         # share a divider you drag; its place is remembered (pc_card_w)
         cw = max(330, int(SETTINGS.get("pc_card_w", 420) or 420))
-        # 2.123.4 (feedback: "janky and slow ... no visible indicator"): a grip you can see; only a guide line moves
+        # 2.123.4 (feedback: the resize was janky and slow, with no visible indicator): a grip you can see; only a
+        # guide line moves
         # while you drag, and the item is drawn again once, when you let go
         wrap = Splitter(body, width=cw, lo=330, keep=300, on_set=self._pc_pane_saved, bg=C["bg"])
         self.limit_banner(body, wrap)                # 2.103.3: the "Staying under the limits" line
@@ -469,7 +471,7 @@ class PriceCheckPage:
         self.pcv = PCView(self.pc_left, self.pc_lcanvas, self.pc_list, self.pc_rcanvas, self.pc_count_lbl,
                           self.pc_open_btn)
         self.pcv.redraw = lambda: self.pc_draw_list(self.records.get(self.pc_rid))
-        # 3.0.6 (owner: "screen flickers"): a new width draws the card again only - the listings follow their own width
+        # 3.0.6 (the screen flickered): a new width draws the card again only - the listings follow their own width
         self.pcv.recard = lambda: self.pc_show(self.records.get(self.pc_rid), card_only=True)
         self.pcv_fit(self.pcv, wrap, None)               # (2.123.3: no fixed share - the divider decides)
         self._pc_side_build(left)                        # drawer build: the price card beside the item (the Drawer)
@@ -486,7 +488,7 @@ class PriceCheckPage:
         except Exception:
             buglog.caught()
 
-    # 2.122.0 (feedback: "Show over the game" was unclear and "randomly thrown in the top right"): one row across the
+    # 2.122.0 (feedback: "Show over the game" was unclear and sat oddly in the top right): one row across the
     # top of the page says what your price check key does and lets you pick where the price shows - the same setting
     # as Settings › Price checking › Where the price shows and the card's ⚙.
     # drawer build: each choice names one place - In the app (the Drawer or your full window opens quietly on Price
@@ -643,7 +645,8 @@ class PriceCheckPage:
                                   C["muted"])
 
     def _pc_verdict_row(self, body):
-        """p4 (feedback: "Couldn't price" in the card and "Couldn't search" again on the right): the answer, how sure,
+        """p4 (feedback: "Couldn't price" in the card and "Couldn't search" again on the right said the same twice):
+        the answer, how sure,
         how it was worked out and the next steps - one strip across the top. The only orange button: Search again."""
         f = self.pc_verdict = tk.Frame(body, bg=C["panel2"], padx=12, pady=8, highlightthickness=1,
                                        highlightbackground=C["line"])
@@ -762,8 +765,8 @@ class PriceCheckPage:
             pane.pack_configure(padx=12 if on else 0)
             self._pc_top.pack_forget() if on else self._pc_top.pack(fill="x", before=self._pc_lbox)
             self._pc_count_head.config(pady=8)
-            self.pc_side.pack_forget()                   # 3.0.6 (owner: "why is it a different layout than full
-            # screen mode? price card doesn't go on the right"): the Drawer has the price strip across the top too
+            self.pc_side.pack_forget()                   # 3.0.6 (the Drawer's layout differed from full screen: the
+            # price card did not go on the right): the Drawer has the price strip across the top too
             lcv, inner = self.pc_lcanvas, self.pc_left
             lcv.config(bg=P2)
             lcv.master.config(bg=P2, highlightthickness=1 if on else 0, highlightbackground=C["line"])
@@ -815,8 +818,8 @@ class PriceCheckPage:
         P2 = C["panel2"]
         f = self.pc_side = tk.Frame(parent, bg=P2, width=self.PC_SIDE_W, padx=16, pady=12, highlightthickness=1,
                                     highlightbackground=C["line"])
-        tk.Frame(f, bg=P2, width=self.PC_SIDE_W - 2 * 16 - 2, height=0).pack()   # 3.0.6 (owner: "the layout is
-        lab = dict(bg=P2, anchor="w", justify="left", bd=0)           # weird"): as tall as its lines, not the page
+        tk.Frame(f, bg=P2, width=self.PC_SIDE_W - 2 * 16 - 2, height=0).pack()   # 3.0.6 (the layout looked
+        lab = dict(bg=P2, anchor="w", justify="left", bd=0)           # odd): as tall as its lines, not the page
         self.pcs_head = tk.Label(f, text="Price", fg=C["muted"], font=("Segoe UI", 9), **lab)
         self.pcs_head.pack(fill="x")
         row = tk.Frame(f, bg=P2)
@@ -1083,8 +1086,8 @@ class PriceCheckPage:
 
             def go():
                 state[slot] = None
-                try:                                     # 3.0.6 (owner: the Drawer "super laggy when trying to drag
-                    held = self._drawer_mouse_down()     # and resize it"): still dragging - drawn once, on release
+                try:                                     # 3.0.6 (the Drawer lagged when dragged
+                    held = self._drawer_mouse_down()     # and resized): still dragging - drawn once, on release
                 except Exception:
                     held = False
                 if held:
@@ -1102,7 +1105,7 @@ class PriceCheckPage:
                         self.log_error("the price check view")
             state[slot] = self.root.after(150, go)
 
-        # 3.0.6 (owner: "doesn't update consistently ... sometimes the listings view is crunched"): compared with the
+        # 3.0.6 (the listings view updated inconsistently and was sometimes crunched): compared with the
         # width each was DRAWN for (not the last resize), so one drawn before the page had its width is drawn again
         # once it has it - the end state no longer depends on timing
         def card_off():
@@ -1160,7 +1163,7 @@ class PriceCheckPage:
         box = tk.Frame(parent, bg=bg)
         box.pack(fill="both", expand=True)
         sb = ttk.Scrollbar(box, orient="vertical")
-        # 3.0.6 (owner: "janky ... flickers ... sometimes cropped and has scroll down, sometimes it doesn't"): the bar's
+        # 3.0.6 (janky: flickers, sometimes cropped with a scroll bar, sometimes not): the bar's
         # room is kept when it's hidden (an empty strip as wide), so showing it never narrows the page - no re-wrap,
         # no redraw, no bar flipping on and off
         gap = tk.Frame(box, bg=bg, width=sb.winfo_reqwidth(), height=1)
@@ -1246,7 +1249,7 @@ class PriceCheckPage:
             self.favours_copy_learn(text)                # (2.129.3: exchange items, and ★ uniques - never priced)
         except Exception:
             buglog.caught()
-        if cur and cur[2] == "Wombgifts":                # (feedback: "use trade site for the 5 types of wombgifts")
+        if cur and cur[2] == "Wombgifts":                # (feedback: use the trade site for the 5 types of wombgifts)
             cur = None
         if cur:                                          # 2.129.0 (feedback): omens, essences, lineage gems, every
             self.status_text, self.status_until = f"Pricing {cur[0]}...", time.time() + 10     # currency: their
@@ -1271,8 +1274,8 @@ class PriceCheckPage:
                 self.pcpop_show(self.records[rid])
             except Exception:
                 self.log_error("the price check card over the game")
-            # 2.123.3: Overlay + Here - the app shows it too. 2.129.3 (feedback: "it's still prioritizing the app and
-            # bringing it to the front ... it should not bring to front and only use the overlay"): while the game is
+            # 2.123.3: Overlay + Here - the app shows it too. 2.129.3 (feedback: the app was still brought to the
+            # front - it should only use the overlay): while the game is
             # in front the app isn't touched at all - Price Checks opens on it the next time you come to the app
             try:
                 from .overlay import game_active, POE_TITLE

@@ -66,8 +66,8 @@ def fmt(v):
 class CalcOverlay:
     """Mixed into App (2.74.0): the calculator over the game - a small window of a fixed size, like Notes: dragged
     where you want it, held by the overlay's one lock, in the overlay's look. Opened from Calc on the overlay's bar
-    (Overlay › Options: its own switch, and whether it's on the bar). Feedback: "move the calculator ... into the
-    overlay ... dragged around the screen and locked / unlocked. Keep this at a fixed size."
+    (Overlay › Options: its own switch, and whether it's on the bar). Feedback: move the calculator into the
+    overlay, so it can be dragged around the screen and locked / unlocked, at a fixed size.
     GGG ToS: a window of the app's own - you type into it, nothing is sent to the game."""
 
     W = 248                                              # the window's fixed width (its height follows its keys)

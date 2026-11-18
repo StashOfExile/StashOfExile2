@@ -1,7 +1,7 @@
-"""2.132.0 Map profit (feedback: "use the same data from wealth stash scan to read inventory for currency/omens/etc
-and track the profit per map ... using the same mechanism as top-up reminders"; "should only be locally, never
-published or sent to the cloudflare database"; "would not count waystones, only currency exchange items"; "track
-per session/map/hour/day and log somewhere locally that only the user can see").
+"""2.132.0 Map profit (feedback: read the inventory for currency and omens with the same data as Scan stash on
+Wealth, track the profit
+per map with the same mechanism as Top Up Reminders; keep it local, never published or sent to the database; count
+currency exchange items, not waystones; track per session, map, hour and day in a local log only the user sees).
 
 How: Top Up's quick inventory read (the inventory panel only, never the stash side) is taken in your hideout or a
 town, only when you press your Read Key there. Owner decision: back from a map, one card (topup_page.back_card) asks
@@ -58,7 +58,7 @@ def fv_match(cell, refs, alike=False):
         return [] if alike else None
 
 
-WAYSTONE_MIN = 0.70        # 3.0.6: the owner's T15 waystones 0.77-1.00 to the shipped picture (red or blue backing),
+WAYSTONE_MIN = 0.70        # 3.0.6: T15 waystones 0.77-1.00 to the shipped picture (red or blue backing),
 #                            other items under 0.35
 _WAY = []
 
@@ -131,7 +131,7 @@ GRADES = {"II": "Greater ", "III": "Perfect "}
 
 
 def grade(names, letters, known):
-    """3.0.6 (owner: "it failed to read ... the greater exalted orb"): the white II / III on a currency picture says
+    """3.0.6 (a Greater Exalted Orb was not read): the white II / III on a currency picture says
     Greater / Perfect - the same orb otherwise. -> names with that grade (the matched one moved to it when known),
     or as they were."""
     def base(n):
@@ -153,7 +153,7 @@ def grade(names, letters, known):
 
 
 def waystone_tier(cell):
-    """3.0.6 (owner: "show them by tier without a price just to show that it has read and understands them"): a cell
+    """3.0.6 (show waystones by tier without a price, to show they were read): a cell
     (PIL) -> its tier (0 = a waystone, tier not read) or None (not a waystone)."""
     try:
         import numpy as np
@@ -181,7 +181,7 @@ def is_waystone(name):
 def identify(cells, taught, refs=None, price=None, info=None):
     """Top Up's cells -> ({name: count}, how many cells it couldn't name). Taught pictures first, then Scan stash's.
 
-    3.0.6 (owner: "missing things we've already learned for stash scan"): a cell with no stack number (gear, a jewel,
+    3.0.6 (things already learned for Scan stash were missing): a cell with no stack number (gear, a jewel,
     a waystone) is never currency - skipped, not "not known" (a sword's corner was counted as an Idol). Look-alikes
     it can't tell apart (two Perfect Essences in one white) are not known - never a guess. price: unused (kept for
     callers). info: a dict that gets "skipped" (no stack number) and "alike" {key: [the look-alikes]}."""
@@ -220,7 +220,7 @@ def exchange_only(counts, price):
 # ---------------------------------------------------------------- one map
 def rows(before, after, price):
     """-> [(name, before, after, divines each, worth)] for what a map gained, most worth first. 2.132.2 (feedback:
-    "why is it marking as -div if I didn't actually lose anything"): fewer of an item is never counted - it was used,
+    nothing lost was marked as -div): fewer of an item is never counted - it was used,
     stashed or covered, not lost to the map."""
     out = []
     for name in set(before) | set(after):
@@ -316,7 +316,7 @@ def log_restore(lines):
 
 
 def buckets(runs, kind, now=None):
-    """2.132.6 (feedback: "a log by date ... with graphs and bars ... All Time, Daily, Hourly"): maps -> [(label,
+    """2.132.6 (feedback: a log by date with graphs and bars - All Time, Daily, Hourly): maps -> [(label,
     start time, maps, div, secs)], oldest first. kind: "day" (each day with maps) or "hour" (the last 48 hours, each
     hour)."""
     now = now or time.time()

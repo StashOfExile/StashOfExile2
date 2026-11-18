@@ -1,4 +1,4 @@
-"""2.137.0: Error reports stay private (feedback: "how can we make sure it never ends up public/uploaded to github").
+"""2.137.0: Error reports stay private (feedback: make sure it never ends up public or uploaded to GitHub).
 
   py tools/check_private.py      exit 1 (and says where) if anything could publish them
 

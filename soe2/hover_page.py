@@ -81,7 +81,7 @@ def read_lines(img, game_h, ocr, want=lambda lines: True):
 
 
 def text_by_color(img, ocr):
-    """3.0.6 (owner: "I got no read for this medallion" - a label over lava read as noise): the picture's gold text
+    """3.0.6 (a medallion got no read - a label over lava read as noise): the picture's gold text
     (a medallion's name) and white text (what it does) read on their own, black on white -> more lines."""
     import numpy as np
     from PIL import Image
@@ -124,7 +124,7 @@ class HoverPage:
         if not self.hover_medals():
             return None
         if ctx.get("area") in ("hideout", "town"):
-            # 3.0.6 (owner: "screen reading after a run takes so long"): medallions drop in the temple itself - a
+            # 3.0.6 (screen reading after a run took too long): medallions drop in the temple itself - a
             # press in Vaal Ruins or your hideout (reading your inventory) doesn't read round the mouse too
             return None
         from . import screenread as SR, vaallens as V

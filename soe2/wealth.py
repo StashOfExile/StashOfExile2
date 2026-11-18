@@ -458,7 +458,7 @@ class WealthStore:
         self.last_sync = d.get("last_sync", 0)
         self.rare_prices = d.get("rare_prices", {})  # 2.0: listing id -> {est, sig, ts, label, conf, qid, league}
         self.holdings = d.get("holdings", {})      # 2.0 beta 7: counted by hand: name -> {qty, cls, ts, src}
-        # 2.105.1 (feedback: synced stash tabs are gone - "clean start"): what tabs read is dropped once - the tabs,
+        # 2.105.1 (feedback: synced stash tabs are gone - a clean start): what tabs read is dropped once - the tabs,
         # their items, results and rare prices, and the history they were part of. Counted currency stays.
         if self.tabs or self.items or self.results or self.rare_prices:
             self.tabs, self.items, self.results, self.rare_prices, self.snapshots = [], {}, {}, {}, []

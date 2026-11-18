@@ -1,4 +1,4 @@
-"""P4 (2.108.0, feedback: "a mini settings page over the game when we right click the cog wheel"): right-click the
+"""P4 (2.108.0, feedback: a mini settings page over the game on a right click of the cog wheel): right-click the
 overlay's ⚙ = Quick settings, a small box over the game, above the cog and on the game's monitor. (2.119.0: either
 click - All settings… in it opens the Overlay page (Helpers) in the app.) Style (2.110.0 - the Overlay ON | OFF switch is gone from here), Sound,
 Lock position, Click-through, Hide all overlay information from screen captures (3.0.6), Helpers (2.118.0: each helper on / off - the bar has no switches for them any
@@ -135,7 +135,7 @@ class OverlayQuick:
                 pass
 
     def ov_quick_style(self):
-        """2.125.1 (feedback: "Quick settings cog UI needs to match the style chosen"): its colors and type from the
+        """2.125.1 (feedback: the Quick settings cog UI should match the chosen style): its colors and type from the
         overlay's style (the app theme's before)."""
         from .overlaywin import pal
         P = pal()
@@ -192,7 +192,7 @@ class OverlayQuick:
         cb.pack(side="right")
         cb.bind("<<ComboboxSelected>>", lambda _e: self._ovq_style())
         Tooltip(srow, QUICK_TIPS["Style"])
-        # 2.124.1 (feedback: "quick settings needs a panel | bar toggle as well"): the Layout, as in Settings
+        # 2.124.1 (feedback: Quick settings needs a panel | bar toggle as well): the Layout, as in Settings
         # (2.125.1: two chips in the overlay's style, the one in use with ✓)
         from .merged_page import LAYOUTS
         lrow = tk.Frame(body, bg=P1)
@@ -206,8 +206,8 @@ class OverlayQuick:
             self.ovq_layout_chips[key] = ch
         self._ovq_layout_paint()
         Tooltip(lrow, QUICK_TIPS["Layout"])
-        # 2.130.0 (feedback: "a dropdown on the cog to choose location ... top or bottom for the bar style, and left
-        # or right for the panel style"): where it sits; picking one puts it there (wherever it was dragged)
+        # 2.130.0 (feedback: a dropdown on the cog to choose the location - top or bottom for the bar style, left
+        # or right for the panel style): where it sits; picking one puts it there (wherever it was dragged)
         prow = tk.Frame(body, bg=P1)
         prow.pack(fill="x", pady=(0, 8))
         tk.Label(prow, text="Place", bg=P1, fg=Q["text"], font=(F, 10)).pack(side="left")
@@ -223,7 +223,7 @@ class OverlayQuick:
         # 2.120.1: Lock position and Click-through, as in Options (Hide from captures is in Settings › Advanced)
         self.ovq_lock = row("Lock position", cfg.get("mlocked"), self._ovq_lock)
         self.ovq_ct = row("Click-through", self.click_through_on(), self.ov_click_through_set)
-        # (3.0.6 owner: the capture read-out here "was a poor UI choice" - the switch lives in Overlay › Options only)
+        # (3.0.6 owner: the capture read-out here was removed as poor UI - the switch lives in Overlay › Options only)
         self.ovq_chips = {}
         sections = [("HELPERS", None)] + [(g, items) for g, items in quick_groups()] + [("ON THE BAR", QUICK_BAR)]
         for title, items in sections:
@@ -252,7 +252,7 @@ class OverlayQuick:
                         highlightthickness=1, highlightbackground=Q["line"])
         allb.pack(side="left", fill="x", expand=True)
         allb.bind("<Button-1>", lambda _e: (self.ov_quick_close(), self.overlay_settings_go()))
-        # 2.125.3 (feedback: "a Reload Overlay button to reload the overlay if it has any issues")
+        # 2.125.3 (feedback: a Reload Overlay button for when the overlay has issues)
         rl = tk.Label(foot, text="⟳", bg=Q["field"], fg=Q["text"], font=(F, 11), padx=8, pady=2, cursor="hand2",
                       highlightthickness=1, highlightbackground=Q["line"])
         rl.pack(side="left", padx=(8, 0), fill="y")

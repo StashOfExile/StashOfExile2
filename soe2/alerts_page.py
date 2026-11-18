@@ -27,7 +27,7 @@ from .style import C, Tooltip
 REPEAT_SECS = 45          # the game repeats a warning (twice in 2 s, then every ~15 s when full): one banner per level
 RETRY_TICKS = 15          # Client.txt not found: look again every this many seconds
 LEVELS = {
-    # 2.131.0 (feedback: "a more elegant solution than just giant bold flashing letters"): the alert card's title,
+    # 2.131.0 (feedback: a more elegant solution than giant bold flashing letters): the alert card's title,
     # its detail line, its mark and its color (alertcard.py)
     "almost": ("Hiveblood almost full", "Spend it at the Genesis Tree", "!", "#d86bd0"),
     "full": ("Hiveblood is full", "Go to the Genesis Tree to consume it", "!", "#ff5a5a"),
@@ -440,8 +440,8 @@ class AlertsPage:
                 out.append("Options route")
             return out
 
-        # (2.132.2, feedback: "desecration needs moved up under 'play' settings to be above campaign")
-        # (2.132.6, feedback: "Temple in the settings should be listed under Helpers, below Expedition")
+        # (2.132.2, feedback: Desecration moves up under the "play" settings, above Campaign)
+        # (2.132.6, feedback: Temple is listed under Helpers, below Expedition)
         for group, keys in self.HELPER_GROUPS:
             hr = rule()
             hl = tk.Label(tbl, text=group.upper(), bg=P2, fg=C["muted"], font=("Segoe UI", 9, "bold"))

@@ -1,4 +1,4 @@
-"""3.0.6 (owner: "everyone will forget or ignore to read their inventory before a run"): a map with no read before
+"""3.0.6 (most players forget to read the inventory before a run): a map with no read before
 it still counts - all you came back with except Top Up supplies, marked ≈."""
 import os
 import sys
@@ -72,8 +72,7 @@ class NoReadBefore(unittest.TestCase):
 
 class ReadCard(unittest.TestCase):
     def test_a_check_window_lists_what_was_counted(self):
-        # 3.0.6 (owner: "a popup confirmation box for currency/inventory items it read similar to how stash scan
-        # works for wealth")
+        # 3.0.6 (a confirmation box for the currency and inventory items read, like Scan stash on Wealth)
         import tkinter as tk
         from PIL import Image
         a = App()
@@ -106,7 +105,7 @@ class ReadCard(unittest.TestCase):
 
 
 class LearnedItems(unittest.TestCase):
-    """3.0.6 (owner: "missing things we've already learned for stash scan"): no stack number = not currency,
+    """3.0.6 (things already learned for Scan stash were missing): no stack number = not currency,
     look-alikes count as the cheaper one."""
 
     def test_no_stack_number_is_skipped_not_unknown(self):
@@ -117,7 +116,7 @@ class LearnedItems(unittest.TestCase):
         self.assertEqual((got, unknown, info["skipped"]), ({}, 0, 1))
 
     def test_look_alikes_are_never_a_guess(self):
-        # owner: "unacceptable results 'looks like another item too'"
+        # owner: an ambiguous "looks like another item" result is not acceptable
         from unittest import mock
         from soe2 import mapprofit as MP
         cells = [{"sig": None, "count": 1, "shown": True, "img": object()}]
@@ -139,7 +138,7 @@ class LearnedItems(unittest.TestCase):
 
 
 class Restart(unittest.TestCase):
-    """3.0.6 (owner: "I restarted the program mid-run and now it won't accurately count my profit from that map")."""
+    """3.0.6 (restarting the program mid-run broke the profit count for that map)."""
 
     def _page(self, tmp):
         from soe2 import config
@@ -182,7 +181,7 @@ if __name__ == "__main__":
 
 
 class Waystones(unittest.TestCase):
-    """3.0.6 (owner: "show them by tier without a price just to show that it has read and understands them")."""
+    """3.0.6 (show waystones by tier without a price, to show they were read)."""
 
     def test_roman(self):
         self.assertEqual([MP.roman(x) for x in ("XV", "XIV", "IX", "XVI", "", "Q")], [15, 14, 9, 16, None, None])
@@ -200,7 +199,7 @@ class Waystones(unittest.TestCase):
 
 
 class FavoursLookAlikes(unittest.TestCase):
-    """3.0.6 (owner: a 22 div Omen of Sinistral Erasure tagged as a cheap omen - "I would have lost money there")."""
+    """3.0.6 (owner: a 22 div Omen of Sinistral Erasure tagged as a cheap omen - a costly miss)."""
 
     def test_maybe_names_close_ones_only(self):
         from soe2 import favours as FV
@@ -265,7 +264,7 @@ class StashedAfterRead(unittest.TestCase):
 
 class FavoursJunk(unittest.TestCase):
     def test_no_stack_number_no_question_tag(self):
-        # owner: "we don't need to identify junk uniques"
+        # owner: junk uniques need no identifying
         import numpy as np
         from PIL import Image
         from soe2 import favours as FV

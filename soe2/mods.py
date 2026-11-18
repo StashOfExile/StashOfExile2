@@ -255,7 +255,7 @@ def parse_item(text):
     else:
         return None
     rarity = next((l.split(":", 1)[1].strip() for l in lines if l.startswith("Rarity:")), "")
-    # 3.0.6 (owner: "we absolutely need to be able to price tablets"): white tablets too - priced by their base
+    # 3.0.6 (tablets must be priceable): white tablets too - priced by their base
     if rarity not in ("Magic", "Rare") and not (rarity == "Normal" and kind == "Tablet"):
         return None
     start = next(i for i, l in enumerate(lines) if l.startswith("Rarity:")) + 1

@@ -3,11 +3,11 @@
   * Map rank - your rank for the map you're in (S A B C D or Avoid; the community's in brackets when you have none)
     was glued onto "where you are". It's its own part now, with its own switch (Overlay › Options › On the overlay).
     Click it to rank the map. "Ask me to rank maps I haven't ranked" (on by default): leaving a map you haven't
-    ranked, a small card asks - S A B C D Avoid, Not now, or Never for this map. Feedback: "isolate the Map
-    Tier/rating piece on the overlay and add an option ... to prompt a user to give unrated maps a rating".
+    ranked, a small card asks - S A B C D Avoid, Not now, or Never for this map. Feedback: isolate the Map
+    Tier / rating piece on the overlay and add an option to prompt a user to rate unrated maps.
   * The lines - League Plan's NOW line, and the Campaign Helper's (2.77.0). 2.124.0: drawn at
     the top of the overlay's own window (they had their own small bar), which grows upward by their height - the bar
-    never moves. Feedback: "instead of having it as an isolated separate bar, can we just have it combine".
+    never moves. Feedback: combine it with the bar instead of an isolated separate bar.
 
 GGG ToS: windows and the game's log only - nothing is sent to the game."""
 import tkinter as tk
@@ -242,7 +242,7 @@ class OverlayParts:
             pass
 
     def goalbar_build(self, settled=False):
-        """One build at a time. UI overhaul (feedback: "campaign helper is giving me doubles"): a build flushes
+        """One build at a time. UI overhaul (feedback: the Campaign helper showed doubled lines): a build flushes
         layout (update_idletasks), which runs waiting idle jobs - one of them was another goal bar build, so two
         sets of lines went on the window and only the last one was known (the other never came off). A build asked
         for during a build now runs once, just after it."""
@@ -263,7 +263,7 @@ class OverlayParts:
         return cv
 
     def _goalbar_build_now(self, settled=False):
-        """2.124.0 (feedback: "instead of an isolated separate bar, can we just have it combine"): the Campaign
+        """2.124.0 (feedback: combine it with the bar instead of a separate bar): the Campaign
         and NOW lines are drawn at the top of the overlay's own window, as wide as it, and the window grows
         upward by their height - the bar itself never moves. (Was its own small window, docked or dragged.)
         -> the lines' canvas or None."""
@@ -317,10 +317,10 @@ class OverlayParts:
             bg = KEY
         geo = self._gb_geo(main, not settled)
         self._gb_strays(main)
-        # 2.130.1 (feedback: "overlay at top caused the ritual portion of the bar style to be beyond the edge of the
-        # monitor"): with the Bar placed at the top, the lines go under it, and the window grows down
+        # 2.130.1 (feedback: with the overlay at the top, the ritual part of the bar style ran past the edge of the
+        # monitor): with the Bar placed at the top, the lines go under it, and the window grows down
         self._gb_below = bool(hud and self.ov_spot() == "top")
-        # UI overhaul (feedback: "the overlay blocking leveling up information"): over the game's XP bar, the lines
+        # UI overhaul (feedback: the overlay blocked leveling-up information): over the game's XP bar, the lines
         # leave both ends clear - the game's + passive points / weapon set buttons (left) and its counters (right)
         # show there. Round 18: the lines go in their own window, as wide as they are (nothing see-through round
         # them - no black box); elsewhere: full width, on the bar's own window.
@@ -415,7 +415,7 @@ class OverlayParts:
         return cv
 
     def _gb_fit_later(self, main):
-        """UI overhaul (feedback: "broken void space under the overlay bar"): growing and shrinking by the lines'
+        """UI overhaul (feedback: an empty gap under the overlay bar): growing and shrinking by the lines'
         height drifts when a size was read before the last change landed - the window kept the old height and an
         empty strip showed under the bar. Once idle, the window is set to exactly what it holds (the bar's edge
         stays where it is: the bottom, or the top when the lines are under the bar)."""

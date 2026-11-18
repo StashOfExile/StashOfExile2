@@ -1,5 +1,6 @@
-"""2.81.0: Desecration Helper - the tier of each option the Well of Souls offers (feedback: "read desecration mods from
-the desecration window, compare them against tier database and show the tier ... as a small overlaid helper").
+"""2.81.0: Desecration Helper - the tier of each option the Well of Souls offers (feedback: read the desecration mods
+from
+the desecration window, compare them against the tier database and show the tier as a small overlaid helper).
 
 How it works:
   * Client.txt says you entered The Well of Souls (area Abyss_Hub) -> the helper is on while you're there (no
@@ -161,7 +162,8 @@ def classes_for(tpls):
 
 
 def resolve(text):
-    """An option's text -> (data template, the text in the data's line order) or (None, text). 2.81.2 (feedback: "+35
+    """An option's text -> (data template, the text in the data's line order) or (None, text). 2.81.2 (feedback: the
+    hybrid "+35
     to Accuracy Rating / 10% increased Light Radius" wasn't read): the game can show a hybrid's two lines in another
     order than the data lists them - every order is tried, exact matches before close ones."""
     import itertools

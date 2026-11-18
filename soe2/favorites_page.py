@@ -1,6 +1,6 @@
-"""2.84.0: Price Checks ↳ Favorites (feedback: "a favorites (bookmark) tracker that you can paste a trade link into
-... loads an item view similar to the new price checks section + the trade site options for that item ... 'Add to
-favorites' next to 'Open on trade site' ... reorganize, give a name to it, edit/delete/etc, fully context menu aware").
+"""2.84.0: Price Checks ↳ Favorites (feedback: a favorites (bookmark) tracker that takes a pasted trade link and
+loads an item view like the Price Checks section plus the trade site options for that item, with Add to
+favorites next to Open on trade site, and reorganize, rename, edit and delete through a context menu).
 
 Left: your favorites in groups (drag to reorder or move between groups; right-click for everything; F2 renames,
 Alt+↑/↓ moves, Delete removes, Ctrl+Z undoes). Middle: the item card with every filter (an item from Price Checks) or
@@ -76,7 +76,7 @@ class FavoritesPage:
         lf = tk.Frame(wrap, bg=P1, width=300)             # P2: narrower list, wider card
         lf.pack(side="left", fill="y")
         lf.pack_propagate(False)
-        # 2.132.6 (feedback: "publish ... favorites from the trade site section"; "Official | Community | Mine")
+        # 2.132.6 (feedback: publish favorites from the trade site section; Official | Community | Mine)
         from .share_page import VIEWS as SHARE_VIEWS
         from .style import SegBar, Tooltip
         vrow = tk.Frame(lf, bg=P1)
@@ -895,7 +895,7 @@ class FavoritesPage:
 
     @staticmethod
     def fav_status(f):
-        """2.105.1 (feedback: a link favorite searched "Any"): Seller follows your Seller setting (Settings) unless
+        """2.105.1 (feedback: a link favorite searched status Any): Seller follows your Seller setting (Settings) unless
         you picked one on this card - a trade link's own status (the site's default) doesn't count."""
         from .trade import STATUS_CHOICES
         q = f.setdefault("query", {})

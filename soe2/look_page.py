@@ -177,8 +177,8 @@ class LookPage:
         ctx = {"g": g, "rect": (g[0], g[1], g[0] + g[2], g[1] + g[3]), "ptr": ptr,
                "area": self.look_area(), "key": SR.pressed_key()}
         jobs = self.look_jobs(ctx)
-        if not jobs:                                     # (owner: "if it doesn't have anything to read it shouldn't
-            SR.nothing(AREA_WORDS.get(ctx["area"], "here") + ": no helper applies")   # give the alert"): no picture,
+        if not jobs:                                     # (owner: with nothing to read it gives
+            SR.nothing(AREA_WORDS.get(ctx["area"], "here") + ": no helper applies")   # no alert): no picture,
             return []                                    # no card - one line in the app's log
 
         def work():

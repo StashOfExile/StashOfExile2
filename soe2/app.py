@@ -147,7 +147,7 @@ def plain_notes(md):
     out, skip = [], False
     for line in md.replace("\r", "").split("\n"):
         t = line.strip()
-        # 2.134.1 (feedback: "I don't think we need that in the update available screen"): the release page's
+        # 2.134.1 (feedback: drop that from the update available screen): the release page's
         # "Check your download" block (SHA-256s, VirusTotal link) is for the GitHub page - the app checks the
         # checksum itself, and a link in this dialog can't be clicked
         if t.startswith("**Check your download"):
@@ -238,7 +238,7 @@ from .drawer_page import DrawerHost          # drawer build: the Drawer (drawer.
 
 
 # drawer build: the item card in the Drawer's look (mockups.html) - the card's own surface, the mod's kind said in a
-# word. A canvas is in it when cv._look is set. Round 18 (feedback: "it dulled them out... basically grayscale"): the
+# word. A canvas is in it when cv._look is set. Round 18 (feedback: the colors looked dulled to grayscale): the
 # theme's own colors as in the Full window - accent ticks, the mods' colors, the rarity color.
 def _cl(cv):
     return getattr(cv, "_look", "") == "drawer"
@@ -281,8 +281,8 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
     # 2.24.0: "★ Valuable" (how many of the item's mods your Mod book rates High) is the last column in the data, so
     # older code reading values by position keeps working, but it's shown right after the item's name
     SHOW_COLS = ("added", "name", "vmods", "type", "ilvl", "mark", "est", "conf", "listings", "priced", "match")
-    # 2.125.3 (feedback: "where did all of the columns go ... show all of them by default but have options to toggle
-    # them off"): every column shows; Columns ▾ turns any of them off but Item (SETTINGS bulk_cols_off)
+    # 2.125.3 (feedback: the columns were hidden - show all by default, with options to toggle them off):
+    # every column shows; Columns ▾ turns any of them off but Item (SETTINGS bulk_cols_off)
     BASE_COLS = ("name",)
     EXTRA_COLS = (("added", "# (order added)"), ("vmods", "★ Valuable mods"), ("type", "Type"), ("ilvl", "Item level"),
                   ("mark", "Status"), ("est", "Price"), ("conf", "Confidence"), ("listings", "Listings"),
@@ -358,7 +358,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         from . import listkit                        # 2.12.0: keys, right-click menus and striped rows everywhere
         listkit.install(self)
         SETTINGS.setdefault("poe2db_key", "Ctrl+Shift+D")
-        # 2.131.1: Top Up teaches with its own key; 2.131.4 (feedback: "F7 doesn't work ... it'll have to be ctrl+c"):
+        # 2.131.1: Top Up teaches with its own key; 2.131.4 (feedback: F7 did not work, so Ctrl+C):
         # the game's own Ctrl+C by default (F7, the old default, moves to it once)
         if not SETTINGS.get("topup_key_2131") and SETTINGS.get("topup_key") in (None, "F7"):
             SETTINGS["topup_key"] = "Ctrl+C"
@@ -707,8 +707,8 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
             self.root.after(500, self.show_whatsnew)
             return
         due = not force and getattr(self, "_drawer_wn_due", False)      # drawer build: first start - shown for everyone
-        # 3.0.0 (owner): "Why 3.0" / "How helpers work now" show to everyone once - after updating, and on a first
-        # start right after the quick start (its version is already seen then: the lead alone brings the card)
+        # 3.0.0 (owner): the "Why 3.0" / "How helpers work now" cards show to everyone once - after updating, and on a
+        # first start right after the quick start (its version is already seen then: the lead alone brings the card)
         lead_only = not force and SETTINGS.get("seen_version") == APP_VERSION and \
             lead_due(SETTINGS.get("whatsnew_lead"), APP_VERSION)
         if not force and not due and not lead_only and SETTINGS.get("seen_version") == APP_VERSION:
@@ -1216,7 +1216,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
 
 
     # (key, name, kind, low, high, step, what it does) - 2.59.0: Settings › Advanced › Fine tuning
-    # 2.123.1 (feedback: "every other price checker has 20% / 15% / 10% / 5% / 0%"): the Min a search asks for, as
+    # 2.123.1 (feedback: other price checkers offer 20% / 15% / 10% / 5% / 0%): the Min a search asks for, as
     # how far below your roll - 0% = your exact roll. Saved as before (range_factor 0.9 = 10% below).
     FINE = (("range_factor", "Search Min", "below", 0, 30, 5, "below your item's roll (more = more listings; 0% = your "
                                                                "exact roll)"),
@@ -1224,7 +1224,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
             ("spread_warn", "Warn when prices vary", "int", 0, 200, 5, "x - when the highest listing costs this many "
                                                                       "times the lowest (0 = off)"),
             ("tray", "Put away to the system tray", "bool", 0, 0, 0, "takes effect when the app starts"))
-    # (3.0.6, owner: "messages stay for x seconds needs removed" - toasts keep their default time)
+    # (3.0.6: the "messages stay for x seconds" setting is removed - toasts keep their default time)
 
     FINE_WINDOW = ("tray",)                   # 2.116.0 (P10): on General › Window, not Price checking
 
@@ -1856,7 +1856,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
             buglog.caught()
 
     def ev_er_pooled(self, n):
-        """2.137.0 (feedback: "prompt me for it"): the admin is told - nothing is fixed by itself."""
+        """2.137.0 (feedback: ask the admin first): the admin is told - nothing is fixed by itself."""
         self._say(f"Error reports: {n} new kind{'' if n == 1 else 's'} since the last look. They're in "
                   f"error_reports.json in your data folder - ask Claude to go through them.", 15)
 
@@ -2002,7 +2002,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
 
     def _upd_start_new(self, dest, old, n):
         """2.29.1: the new exe does the swap itself (no .bat, no console windows) - see updates.finish_update.
-        2.125.2 (feedback screenshot: "[WinError 32] ... being used by another process"): a file just downloaded is
+        2.125.2 (feedback screenshot: [WinError 32], file in use by another process): a file just downloaded is
         often still held by the virus scanner for a few seconds - tried again every 0.5 s for up to 20 s before
         giving up."""
         import subprocess
@@ -2160,8 +2160,8 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
                "to find your own public stash tab. No password, no sign-in.")
 
     def acc_link(self, parent, bg):
-        """A small 'Account: Name' label; a click asks for it. 3.0.6 (owner: in Settings › General it "doesn't explain
-        what it's used for ... someone's gonna think is sketchy"): it lives only where it's used - Bulk Pricing ›
+        """A small 'Account: Name' label; a click asks for it. 3.0.6 (in Settings › General it did not explain
+        what it is used for): it lives only where it's used - Bulk Pricing ›
         Stash tab - and says why it's asked."""
         from .style import Tooltip
         self.pc_vars()
@@ -2741,9 +2741,9 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         """2.19.0: a fresh Ctrl+Alt+C (seen by the key watcher) -> a ring where the mouse is, for 10 seconds."""
         keys = getattr(self, "keys", None)
         esc = getattr(keys, "esc_last", 0) if keys else 0
-        if esc and esc > getattr(self, "_esc_seen", 0):       # 3.0.6 (owner: "expedition helper staying on screen too
-            self._esc_seen = esc                              # long with no way to close it, it should disappear when I
-            self.esc_hide_tags()                              # press esc"): Esc closes the game's window - its tags go
+        if esc and esc > getattr(self, "_esc_seen", 0):       # 3.0.6 (the Expedition helper stayed on screen too
+            self._esc_seen = esc                              # long with no way to close it; it hides on Esc):
+            self.esc_hide_tags()                              # Esc closes the game's window - its tags go
         dbl = getattr(keys, "esc_double", 0) if keys else 0
         if dbl and dbl > getattr(self, "_esc_double_seen", 0):  # 2.25.0: Esc tapped twice clears every mark
             self._esc_double_seen = dbl
@@ -3573,7 +3573,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
 
     def set_item_impact(self, rec, mod, imp):
         """Tick / untick / star a mod on this one item only (pack size is worth money on some tablets, not all).
-        2.79.2 (feedback: "nothing is clickable under stat filters"): the override goes only when it matches what
+        2.79.2 (feedback: nothing was clickable under stat filters): the override goes only when it matches what
         this mod would be anyway on this item - gear mods the price check left out (filler, low tier) can be ticked."""
         from .trade import ov_key
         k = ov_key(mod)
@@ -3707,7 +3707,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         ns = types.SimpleNamespace(cat=cat, keys={}, filt=tk.StringVar())
         self.rt[cat] = ns
         ns.filt.trace_add("write", lambda *a: self.refresh_rules(cat))
-        # 2.114.0 (P8, feedback: "make Tier the only rating"): one rating, S-F - S / A = High (always searched),
+        # 2.114.0 (P8, feedback: make Tier the only rating): one rating, S-F - S / A = High (always searched),
         # B / C / D = Normal, F = Ignore - as on Gear rules. (Impact and its High / Normal / Ignore buttons are gone.)
         rbar = tk.Frame(tab, bg=C["panel"], padx=8, pady=8)
         rbar.pack(fill="x")
@@ -4406,8 +4406,8 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
             arrow = (" ▼" if self.sort_rev else " ▲") if cid == self.sort_col else ""
             self.tree.heading(cid, text=title + arrow)
 
-    # ---------------- 2.87.0 (feedback: the trade site lists a public tab's items in no order - "I work ... from top to
-    # bottom and left to right across my stash"): each item read from a tab keeps its place (the listing's stash x / y),
+    # ---------------- 2.87.0 (feedback: the trade site lists a public tab's items in no order - work top to
+    # bottom and left to right across the stash): each item read from a tab keeps its place (the listing's stash x / y),
     # and the list follows the tab - down each column, columns left to right (or across each row; Settings key
     # "stash_order": "columns" / "rows"). The # column shows the place (C3 R5 = column 3, row 5).
     def stash_key(self, rec):
@@ -4716,7 +4716,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
 
     def bulk_pane(self, on):
         """p10: the Item pane shows while one item is picked; the list has the whole width otherwise. 2.127.0
-        (feedback: "it helps with visual layout"): it's always on screen - show_detail always asks for it."""
+        (feedback: it helps the visual layout): it's always on screen - show_detail always asks for it."""
         pane, outer = getattr(self, "pane", None), getattr(self, "outer", None)
         if pane is None or outer is None:
             return
@@ -4740,7 +4740,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
             pass
 
     def show_detail(self, rec):
-        """2.79.0 (feedback: "a clean view"): the item card holds every filter - properties,
+        """2.79.0 (feedback: a clean view): the item card holds every filter - properties,
         requirements, miscellaneous, each mod, pseudo totals, trade filters - then Search again / Open on trade site,
         and one ▸ Advanced section at the bottom (listing status, if you list it, how it's priced, rolls, raw text)."""
         if rec is not None and rec.get("src") == "pc":          # 2.80.0: the card on Price Checks
@@ -5434,7 +5434,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         return y1
 
     # ---------------- 2.131.2 (feedback: a tablet priced 124d sold near 225d - its unrated Expedition mod was left out;
-    # "include an opt-in for whether or not they want to be asked to rate mods"): Ask me about mods I haven't rated
+    # asking to rate mods needs an opt-in): Ask me about mods I haven't rated
     def pc_ask_mod(self, rec):
         """The one mod a price check asks about: on Price Checks, switch on, a mod you never rated that isn't a
         must-match (★) - so a looser search may leave it out. None when there's nothing to ask."""
@@ -5451,7 +5451,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
 
     def _card_ask_strip(self, cv, rec, m, key, x, y, w):
         """Under the mod: Not rated yet - how much does it matter? S A B C D F (Rate Mods' grades) / Not now.
-        -> the next y. 2.131.3 (feedback: "the rate up and down goes against the Rate Mods page ... tier system")."""
+        -> the next y. 2.131.3 (feedback: the rate up and down went against the Rate Mods page's tier system)."""
         P = C["panel2"]
         fr = tk.Frame(cv, bg=P, highlightthickness=1, highlightbackground=C["accent"], padx=8, pady=4)
         left_out = mod_impact(rec, m) == "ignore"
@@ -5488,7 +5488,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         item is priced again. None (Not now): no more asks on this item."""
         if grade is None:
             rec["ask_skip"] = True
-            # 2.138.3 (feedback: "the "Not now" on price checks doesn't work, it doesn't go away if you click it"):
+            # 2.138.3 (feedback: Not now on price checks did not go away when clicked):
             # Price Checks' card isn't the shown_rec one - it's redrawn there (the listings stay)
             if rec.get("src") == "pc" and rec.get("id") == getattr(self, "pc_rid", None):
                 self.pc_show(rec, card_only=True)
@@ -5503,7 +5503,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         self.reprice([rec["id"]])
         return grade
 
-    # ---------------- 2.78.3 (feedback: "we don't have the option to check ilvl ... to enter mod values / ranges"):
+    # ---------------- 2.78.3 (feedback: no way to check item level or enter mod values / ranges):
     # on the card itself - the item level with its own check box, Min / Max beside each mod
     def _card_has_vals(self, rec, m):
         if m.get("typed_only"):                             # 2.103.1: a waystone's mods - a range only if you type one
@@ -6109,7 +6109,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
     def restore_zoom(self, tries=0):
         """Maximized last time -> maximized again. 2.25.4: only once the window is really on screen (asking before
         that did nothing on Windows, so it opened at the plain size), and checked: if Tk didn't, Windows is asked.
-        2.123.6 (feedback: "not remembering where it was if on other monitors after it updates"): on Windows the
+        2.123.6 (feedback: the window was not remembered on other monitors after an update): on Windows the
         window is put back with Windows' own placement record (its monitor, normal place and maximized), which
         Windows itself keeps on a screen."""
         if self.drawer_eff() != "full":
@@ -6256,7 +6256,7 @@ def main():
         SPLASH[0] = Splash(root, ICON_B64, pretty_version(), SETTINGS.get("league") or "")
     except Exception:
         SPLASH[0] = None
-    if SPLASH[0] is not None:          # 3.0.6 (owner: "the app loads behind it"): the window is built unseen while
+    if SPLASH[0] is not None:          # 3.0.6 (loaded behind the start-up): the window is built unseen while
         _hide_until_ready(root)        # the start-up screen shows, then comes up whole when it closes
     app = App(root)
     if CRASHED[0]:                     # 2.115.0: Report it - the form, filled in, with the crash in the app's log

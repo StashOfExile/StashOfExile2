@@ -98,7 +98,7 @@ class TopUpPage:
                 self.topup_refine(res)
             except Exception:
                 buglog.caught()
-            # 2.131.5 (feedback: "if the game's text box blocks the currency item, it drops down to seen 0"): a look
+            # 2.131.5 (feedback: when the game's text box covers the currency item, Seen dropped to 0): a look
             # with the mouse over the inventory (the game's item box may cover cells) or one of the app's own
             # windows over it (a price card) doesn't count - Seen keeps the last clear look, and the reminder
             # waits for one
@@ -159,7 +159,7 @@ class TopUpPage:
         return False
 
     def _tu_hidden(self, res):
-        """2.132.2 (feedback: "chat window blocks currency for the top up and prompts me to restock everything"):
+        """2.132.2 (feedback: the chat window covered currency and prompted a restock of everything):
         an item you had is gone, but the cells it was in still hold something this look can't name - something is
         over them (the chat box, another window). Not a clear look."""
         good = getattr(self, "tu_good", None)
@@ -194,7 +194,7 @@ class TopUpPage:
         return None
 
     def topup_refine(self, res):
-        """2.131.1 (feedback: "it didn't detect the quantities in my inventory" - 0 of an item you hold): teaching
+        """2.131.1 (feedback: the quantities in the inventory were not detected - 0 of an item you hold): teaching
         happens with the mouse on the item, so the picture it learned had the game's hover glow. 2.131.2 (feedback:
         still 0): a look from just before (the mouse elsewhere) is used at once; else the next look with the mouse
         off it, however much later - it's remembered in topup.json, closing the inventory or the app included."""
@@ -229,7 +229,7 @@ class TopUpPage:
     # ---------------------------------------------------------------- Back from a map (Top Up + Map profit, one card)
     def back_card_text(self, map_name=""):
         """-> (title, line) of the Back from a map card, or None when neither helper is on or no Read Key is set.
-        Round 18 (feedback: "nobody is gonna read that"): the title and one short line - "Back from <map>" / "Open
+        Round 18 (feedback: too much text to read): the title and one short line - "Back from <map>" / "Open
         inventory, press Ctrl+Shift+R" (the key from the setting). The stash tip is on Map Profit's page line."""
         tu, mp = self.topup_on(), self.mp_on()
         key = self.look_key_label()
@@ -238,8 +238,8 @@ class TopUpPage:
         title = f"Back from {map_name}" if map_name else "Back from your map"
         if not mp:
             return title, f"Open inventory, press {key}"
-        # 3.0.6 (owner: "after each map it should encourage a player to read their inventory and then empty it of
-        # anything except mapping supplies") - then the next map counts from an empty inventory
+        # 3.0.6 (after each map, encourage reading the inventory and emptying it of everything but mapping supplies)
+        # - then the next map counts from an empty inventory
         return title, f"Open inventory, press {key}, then stash all but map supplies"
 
     def back_card(self, map_name=""):
@@ -307,7 +307,7 @@ class TopUpPage:
             return False
         name, count = got
         if not any(it.get("name") == name for it in TU.cfg()["items"]):
-            # 3.0.6 (owner: "How did those even get added to my top up list in the first place?!"): a copy no longer
+            # 3.0.6 (items appeared on the Top Up list unasked): a copy no longer
             # adds an item to your list - only + Add more on the Top Up page does; a copy teaches the picture of one
             # already on it
             return False
@@ -353,7 +353,7 @@ class TopUpPage:
         return True
 
     def _tu_teach_card(self, text, ok=True):
-        """3.0.6 (owner: "I did a ctrl+c like it said and it didn't do shit"): teaching an item says so over the
+        """3.0.6 (Ctrl+C as instructed gave no sign it worked): teaching an item says so over the
         game - learned, or why not (it only said so in the app's status bar)."""
         try:
             from . import alertcard
@@ -549,8 +549,8 @@ class TopUpPage:
         self.topup_below_paint()
         self.tu_list = tk.Frame(inner, bg=P2)
         self.tu_list.pack(fill="both", expand=True)
-        # 2.131.4 (feedback: "go back to the Items... button and add new items to the list on top of what they
-        # have"): + Add more - a name now (taught later with Ctrl+C), or teach it in game
+        # 2.131.4 (feedback: go back to the Items... button and add new items on top of the existing list): + Add
+        # more - a name now (taught later with Ctrl+C), or teach it in game
         self.tu_add = tk.Frame(inner, bg=P2)
         self.tu_add.pack(fill="x", pady=(8, 0))
         foot = tk.Frame(inner, bg=P2)

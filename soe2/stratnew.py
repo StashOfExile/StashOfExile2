@@ -1,5 +1,6 @@
-"""Farming Strategies › New strat (3.0.6, the approved mockup v2 - it replaces the Add my own form: owner "so hard to
-understand"). One page, drawn on a canvas in the Farming Strategies page like an opened strat (stratview.StratCanvas),
+"""Farming Strategies › New strat (3.0.6, the approved mockup v2 - it replaces the Add my own form: the old form was
+hard to
+understand). One page, drawn on a canvas in the Farming Strategies page like an opened strat (stratview.StratCanvas),
 in five numbered parts:
 
   1 What you farm      name, activity (Mapping / Bossing), mechanics (tablet tiles, several: the first is MAIN, the

@@ -105,7 +105,7 @@ class AboutPage:
                  anchor="w").pack(fill="x")                                               # 2.73.2
         tk.Label(head, text=f"Version {pretty_version()}  ·  a toolkit for Path of Exile 2  ·  free and open source "
                             "(AGPL-3.0)", bg=C["panel2"], fg=C["muted"], anchor="w").pack(fill="x")
-        try:                                                     # 2.133.0 (feedback: "An active user count would be nice")
+        try:                                                     # 2.133.0 (feedback: show an active user count)
             from .communitymods import installs
             got = installs()
         except Exception:
@@ -144,7 +144,7 @@ class AboutPage:
         for line in notes:
             tk.Label(box, text="•  " + line, bg=P2, fg=C["text"], anchor="w", justify="left", wraplength=600,
                      font=("Segoe UI", 9)).pack(fill="x", pady=(4, 0))
-        # (3.0.6, owner: "Every version's notes" showed only this version's - removed)
+        # (3.0.6: the "Every version's notes" line showed only this version's - removed)
 
         box = tk.Frame(wrap, bg=P2, padx=16, pady=8, highlightthickness=1, highlightbackground=C["line"])
         box.pack(fill="x", pady=(0, 8))

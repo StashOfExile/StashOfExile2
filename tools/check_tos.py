@@ -230,7 +230,7 @@ READ_KEYS = re.compile(r"look_on_key|clip_on_key|look_key|screenread|clipread|\b
 
 
 def key_blocking(trees, src_of):
-    """The Read Key is only heard - the game still gets it (owner: "must NOT be swallowed"). In the key watcher's
+    """The Read Key is only heard - the game still gets it (owner: it must NOT be swallowed). In the key watcher's
     listener (UtilitiesPage.on_any_key): look_on_key / clip_on_key are called as plain statements (their answer is
     never returned or tested), and every statement that can swallow a key (return True or return of a call) belongs
     to a key the app already took before: the hotkey box, Ctrl+K, the price check / its close key, Regex keys, the Top

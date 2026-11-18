@@ -361,8 +361,8 @@ class Refs:
         return None, top, top - nxt
 
     def hue_veto(self, f, top=None):
-        """3.0.6 (owner: an Omen of Sinistral Erasure, 22 div, tagged as a 3.4ex Omen of Resurgence - "I would have
-        lost money there"): the same horn ring, purple specks vs teal ones. Not sure when another item scores close
+        """3.0.6 (owner: an Omen of Sinistral Erasure, 22 div, tagged as a 3.4ex Omen of Resurgence - a costly
+        miss): the same horn ring, purple specks vs teal ones. Not sure when another item scores close
         (VETO_BY) but its colors match far better (HUE_BY)."""
         got = self.ranked(f, 4, refs=True)
         if len(got) < 2:
@@ -379,7 +379,7 @@ class Refs:
 
 
     def alike(self, f):
-        """3.0.6 (owner: "missing things we've already learned for stash scan"): when best() can't pick, the items this
+        """3.0.6 (things already learned for Scan stash were missing): when best() can't pick, the items this
         could be - learned pictures only, each very close (MATCH_SURE, within MATCH_BY of the top) and in the same
         tint (TINT_MAX). -> [names], best first: one = that item; more = look-alikes (Perfect Essence of Abrasion /
         Enhancement - the same white crystal)."""
@@ -403,7 +403,7 @@ TWIN = 0.86                       # 2.130.4: an unknown cell this like a known o
 
 
 def twins(known, unknown):
-    """2.130.4 (feedback: "not showing some items when there's duplicates, should price all even if it's the same"):
+    """2.130.4 (feedback: some items were not shown when duplicated - price all, even the same one):
     known [(feats, name)], unknown [(key, feats)] -> {key: (name, score)} - a reward the pictures didn't name, but that
     looks just like one named in this same window (same art, same light, same frame), is that item too."""
     out = {}
@@ -572,7 +572,7 @@ def build_refs(items, exchange=False):
 
 
 def shipped_exchange():
-    """2.142.2 (feedback: "I shouldn't have to ctrl+c to teach it"): {name: 50 x 50 icon} - every item as the game's
+    """2.142.2 (feedback: no Ctrl+C should be needed to teach it): {name: 50 x 50 icon} - every item as the game's
     Currency Exchange lists it (templates/exchange_icons.png + .json, cut from the user's own screenshots of its
     "I Want" lists: currency, essences, omens, runes, soul cores, fragments...). Map profit only - an exchange icon
     isn't drawn like a Favours cell."""
@@ -697,7 +697,7 @@ def find_stars(img, grid, cells, refs):
 
 
 def find_belts(img, grid, occ, refs):
-    """2.129.0 (feedback: "if a Headhunter or Mageblood appears in the favour window ... a star over the item"):
+    """2.129.0 (feedback: a star over a Headhunter or Mageblood that appears in the favour window):
     every two side-by-side cells that hold an item, compared with the belts -> [(name, score, (x, y, w, h))]."""
     out = []
     for r, c in sorted(occ):

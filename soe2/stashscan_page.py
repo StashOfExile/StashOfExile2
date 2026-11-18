@@ -89,7 +89,7 @@ class StashScanPage:
             ss.pop("wild", None)
         if ss is None:
             return
-        # 2.114.3 (feedback: "led me through all the prompts but then did nothing"): the check window opened behind
+        # 2.114.3 (feedback: it led through all the prompts and then did nothing): the check window opened behind
         # the game. The app comes to the front with it, and it's put on top once, focused, centered on the app.
         try:
             self.app_show("wealth", focus=True, why="scan")
@@ -133,8 +133,8 @@ class StashScanPage:
         return "Scan stash", work, lambda res: self.ev_stash_scan_done(tab, res)
 
     def ev_stash_scan_done(self, tab, res):
-        if res.get("ok") and res.get("pics"):        # 2.129.0 (feedback: "we have the omen pictures from the stash
-            try:                                     # scan"): each slot's picture teaches Favours prices that item
+        if res.get("ok") and res.get("pics"):        # 2.129.0 (feedback: the omen pictures come from the stash
+            try:                                     # scan): each slot's picture teaches Favours prices that item
                 from . import favours as FV
                 n = FV.learn_many(res["pics"])
                 if n:
@@ -181,7 +181,7 @@ class StashScanPage:
         head = tk.Frame(box, bg=BG)
         head.pack(fill="x")
         tk.Label(head, text="Scan stash", bg=BG, fg=TXT, font=("Segoe UI", 12, "bold")).pack(side="left")
-        # (2.135.0: out of BETA - feedback "it's no longer beta, it works")
+        # (2.135.0: out of BETA - it works)
         x = tk.Label(head, text="✕", bg=BG, fg=MUT, cursor="hand2", font=("Segoe UI", 10))
         x.pack(side="right")
         x.bind("<Button-1>", lambda _e: self.stash_scan_cancel())
@@ -249,8 +249,8 @@ class StashScanPage:
         self.ss_win = w
 
     def _ss_drag_bind(self, w, box):
-        """2.135.0 (feedback: "The window that pops up telling you which tabs to navigate to needs to be move-able
-        and then remember its position"): drag it by anything but its buttons; where you drop it is kept."""
+        """2.135.0 (feedback: the window that lists which tabs to navigate to must be movable and remember its
+        position): drag it by anything but its buttons; where you drop it is kept."""
         st = {}
 
         def press(e):

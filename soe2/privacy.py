@@ -86,8 +86,8 @@ def public_league(league):
     return "Private league" if is_private_league(league) else (league or "")
 
 
-# 2.131.1 (feedback: "encourage users to not use personally identifiable names, and to never use their path of exile
-# account or character names"): the one line every community-name ask shows, and its ⓘ
+# 2.131.1 (feedback: encourage users not to use personally identifiable names, and never their Path of Exile
+# account or character names): the one line every community-name ask shows, and its ⓘ
 NAME_RULE = ("Pick a made-up name - not your real name, and never your Path of Exile account or character names. "
              "Other players see it.")
 NAME_TIP = ("A made-up name keeps the board from pointing at you, or at your characters in game. The app turns down "

@@ -356,7 +356,7 @@ def _grab(box):
 
 
 class see_through:
-    """3.0.6 (owner: "when I ctrl + shift + r, it should always look through the overlay for any on-screen reading"):
+    """3.0.6 (a Ctrl+Shift+R press should always look through the overlay for any on-screen reading):
     for the press's one picture, every visible window of this app (the overlay bar, Vaal Lens, its marks, alert
     cards, the app itself) is left out of the capture (WDA_EXCLUDEFROMCAPTURE, Windows 10 2004+) - you still see
     them; the picture sees the game under them. Each window's own setting is put back right after. Nothing in the

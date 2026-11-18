@@ -193,7 +193,7 @@ def _read_near(bgr, rect, k, sure=0.0):
 
 
 def digit_scale(bgr, rects, k):
-    """3.0.4 (feedback, Hyprland at ~1275 px high: "missing 21 from essence", 668 read as 1): away from 1440p the game
+    """3.0.4 (feedback, Hyprland at ~1275 px high: 21 essences missed, 668 read as 1): away from 1440p the game
     draws stack numbers at a slightly different size than the panel. The digit size that reads this tab's numbers best
     (the sum of each slot's run score, up to 16 filled slots) -> the k to read numbers with."""
     if not rects:
@@ -303,7 +303,7 @@ def read_tab(bgr, game_h, want):
         else:
             unread.append(name)
         icons[name] = _icon(bgr, r)
-    # 2.114.3 (feedback: "it didn't count the divs in the wildcard slot, the 1193"): a wildcard slot holds anything -
+    # 2.114.3 (feedback: the 1193 divs in the wildcard slot were not counted): a wildcard slot holds anything -
     # what it holds is told by its picture, matched with the tab's own fixed slots in the same shot (Divine Orb's
     # overflow looks just like the Divine Orb slot); the rest are kept for the end of the scan (match_wild: every
     # tab read). The pictures stay in memory only.
@@ -349,7 +349,7 @@ SHIPPED_ICONS = "stash_icons.json"  # 3.0.6: wildcard pictures shipped with the 
 
 def learned_icons():
     """{name: picture} you've named before (Sacred Bloom ...) - an item's look, nothing about your stash. 3.0.6
-    (owner: wildcard slots "need recognized ... regardless of their location"): the shipped ones first, yours over them."""
+    (owner: wildcard slots need to be recognized wherever they are): the shipped ones first, yours over them."""
     cv2, np = _np()
     import json
     from .config import load_json

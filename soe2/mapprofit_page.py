@@ -80,8 +80,8 @@ class MapProfitPage:
     def mp_seen(self, res):
         """A look at the open inventory (topup_seen) in your hideout or a town.
 
-        2.132.2 (feedback: "needs to account for inventory dumps if a player empties inventory and goes back into
-        the map"): a map is counted visit by visit. What you came back with is the most of each item seen while
+        2.132.2 (feedback: account for inventory dumps when a player empties the inventory and goes back into
+        the map): a map is counted visit by visit. What you came back with is the most of each item seen while
         you're home in your first looks (MP.ARRIVE_SECS from the first: stashing or selling only lowers it, and a
         covered look only hides cells - so a covered look counts here too; taking more from your stash later doesn't
         count); what you went back in with is the last clear look before the map. Each visit's loot = came back with
@@ -98,7 +98,7 @@ class MapProfitPage:
         from . import topup as TU
         refs = self.mp_refs()
         if refs is None:
-            # 3.0.6 (owner's map: "2 not known", +0 div): the pictures weren't built yet on the first read after the
+            # 3.0.6 (a map showed 2 not known and +0 div): the pictures weren't built yet on the first read after the
             # app started - built now, once, so this read counts
             try:
                 from . import favours as FV
@@ -115,9 +115,9 @@ class MapProfitPage:
                      + "".join(f" · can't tell apart: {' / '.join(v)}" for v in (info.get("alike") or {}).values()))
         ways = {k: n for k, n in counts.items() if MP.is_waystone(k)}    # 3.0.6: shown by tier, no price
         counts = dict(MP.exchange_only(counts, self.mp_price), **ways)
-        # 3.0.6 (owner: "make sure it's excluding the persistent items from top up supplies"): what you keep in your
+        # 3.0.6 (exclude the persistent Top Up supplies): what you keep in your
         # inventory for Top Up Reminders isn't loot - topping it up from your stash would count as profit
-        # 3.0.6 (owner: "it failed to read the 2 vaal orbs I picked up"): only what you keep is left out - a
+        # 3.0.6 (picked-up supplies weren't counted): only what you keep is left out - a
         # supply counts above its Top Up amount (20 Vaal Orbs kept, 22 back: +2), the same before and after
         keep = {}
         for i in TU.cfg().get("items") or []:
@@ -149,8 +149,8 @@ class MapProfitPage:
             self.mp_home = snap
             self.mp_home_cov = {}
         else:
-            # 2.132.6 (feedback: "counted omen of answered prayers as profit that I had in my inventory that I brought
-            # from my own stash"): moving an item in from the stash puts the mouse over the inventory - a covered
+            # 2.132.6 (feedback: an Omen of Answered Prayers brought from the stash was counted as profit):
+            # moving an item in from the stash puts the mouse over the inventory - a covered
             # look. What a covered look sees after the last clear one counts toward what you went in with.
             cov = getattr(self, "mp_home_cov", None)
             if cov is None:
@@ -160,8 +160,8 @@ class MapProfitPage:
         return snap
 
     def mp_read_card(self, pend):
-        """3.0.6 (owner: "I have no idea if my profits were counted ... we need some verification that it read the
-        profits"): the read back from a map says what it counted - its total and its items, over the game."""
+        """3.0.6 (no way to tell whether the profit was counted - it needs a verification): the read back from a map
+        says what it counted - its total and its items, over the game."""
         if pend is None or getattr(self, "mp_pending", None) is not pend:
             return None
         try:
@@ -178,8 +178,8 @@ class MapProfitPage:
             if e.get("unknown"):
                 parts.append(f"{e['unknown']} not known")
             title = ("≈ " if pend.get("est") else "") + f"Map counted: {MP.signed(e['div'], fmt_div)}"
-            # 3.0.6 (owner: "I asked for a popup confirmation box for currency/inventory items it read similar to
-            # how stash scan works for wealth"): what it read, to check and fix - not a card that goes away
+            # 3.0.6 (a confirmation box for the currency and inventory items read, like Scan stash on Wealth): what
+            # it read, to check and fix - not a card that goes away
             self.mp_review(pend)
             return title
         except Exception:
@@ -350,7 +350,7 @@ class MapProfitPage:
     def mp_home_base(self, stashed=False):
         """What you went into the map with: the last clear look, plus anything a later covered look saw more of.
 
-        stashed (a new map): 3.0.6 (owner: yes - "the next map should count from your Top Up supplies only" when the
+        stashed (a new map): 3.0.6 (owner: yes - the next map counts from your Top Up supplies only - when the
         last read was the one that counted the map before - the Back card says to stash all but supplies after it):
         that read's items are taken as stashed, so a Scrap picked up again counts."""
         home = getattr(self, "mp_home", None)
@@ -407,7 +407,7 @@ class MapProfitPage:
     STATE_KEYS = ("mp_run", "mp_pending", "mp_home", "mp_home_cov")
 
     def mp_save(self):
-        """(owner: "I restarted the program mid-run and now it won't accurately count my profit from that map"): the
+        """(restarting the program mid-run broke the profit count for that map): the
         map you're on, the one you're between visits of, and what you went in with - kept on disk at every change."""
         try:
             from .config import save_json
@@ -523,8 +523,8 @@ class MapProfitPage:
                                "secs": 0, "where": where, "map": self.mp_map_name(where),
                                "run": f"{now:.3f}-{self._mp_n}"}
             else:
-                # 3.0.6 (owner: "everyone will forget or ignore to read their inventory before a run, especially the
-                # first of the day"): no read before it - it still counts. What you went in with is taken as your
+                # 3.0.6 (most players forget to read the inventory before a run, especially the first of the day):
+                # no read before it - it still counts. What you went in with is taken as your
                 # Top Up supplies only (they're left out of the loot), so everything else you come back with is
                 # this map's. Marked ≈ with how it was worked out.
                 self._mp_n = getattr(self, "_mp_n", 0) + 1
@@ -554,8 +554,8 @@ class MapProfitPage:
 
     def mp_bar_text(self):
         """The bar's part: the last map's profit, "+3.8 div" - or "Profit –" before one is counted. (2.132.2,
-        feedback: "why is it marking as -div if I didn't actually lose anything ... the arrow up/down can be removed.
-        I just want a total of my profit per map": no arrows, and a map's profit is what it gained.)"""
+        feedback: nothing lost was marked as -div, and the arrows can go - a total of the profit per map is
+        enough: no arrows, and a map's profit is what it gained.)"""
         if not self.mp_on():
             return ""
         from .pricefmt import fmt_div
@@ -563,8 +563,8 @@ class MapProfitPage:
             self.mp_check_done()                            # (the bar redraws each second: a map can be done now)
         except Exception:
             buglog.caught()
-        # 3.0.6 (owner: "Say a person wants their last maps profit because they're done running, will they never see
-        # it because they didn't open another map?"): the map you just read your inventory after shows at once - it
+        # 3.0.6 (someone done running still needs the last map's profit, without opening another map): the map you
+        # just read your inventory after shows at once - it
         # still adds a second visit (a town trip) and is written down when you start another map or after a while
         e = self.mp_so_far() or getattr(self, "mp_last", None)
         if e is None:
@@ -572,7 +572,7 @@ class MapProfitPage:
             e = self.mp_last = last[-1] if last else None
         if e is None:
             return "Profit –"
-        if abs(e.get("div") or 0) < 0.0005:               # 2.139.1 (feedback: "+0.000 div"): nothing gained
+        if abs(e.get("div") or 0) < 0.0005:               # 2.139.1 (feedback: a +0.000 div showed): nothing gained
             return "0 div"
         return ("≈" if e.get("est") else "") + MP.signed(e["div"], fmt_div)   # (2.139.0: LAST MAP'S PROFIT)
 
@@ -606,7 +606,7 @@ class MapProfitPage:
         if e.get("est"):
             out.append("≈ No read before this map: all you came back with counts, except Top Up supplies")
         if e.get("unknown"):
-            # 3.0.6 (owner: "remove the 'teach me a currency with ctrl+c'"): Scan stash teaches them by picture
+            # 3.0.6 (the "teach me a currency with ctrl+c" line is removed): Scan stash teaches them by picture
             out.append(f"{e['unknown']} item{'s' if e['unknown'] != 1 else ''} not known yet - Scan stash on Wealth "
                        f"learns them")
         out.append("Currency Exchange items only, not your Top Up supplies · Exchange Rates prices · on your PC only")
@@ -661,8 +661,7 @@ class MapProfitPage:
 
     # ---------------------------------------------------------------- 2.132.6 Overlay ↳ Map Profit (a page, was a window)
     def mp_list_open(self):
-        """The Map Profit page (feedback: "Map Profit should be a child under Overlay if you have map profit enabled,
-        rather than a new window")."""
+        """The Map Profit page (feedback: it belongs under Overlay when Map Profit is enabled, not in a new window)."""
         self.shell.open("mapprofit")
         return getattr(self, "mp_tv", None)
 
@@ -681,7 +680,7 @@ class MapProfitPage:
         self.mp_clear_btn = ttk.Button(bar, text="Clear all…", command=self.mp_clear_all)
         self.mp_clear_btn.pack(side="right")
         Tooltip(self.mp_clear_btn, "Hide every map from the list, or delete them - asks first, and offers a CSV")
-        # 2.138.0 (feedback: "On Map profit I want an export csv option")
+        # 2.138.0 (feedback: an Export CSV option on Map profit)
         self.mp_export_btn = ttk.Button(bar, text="Export CSV…", command=self.mp_export)
         self.mp_export_btn.pack(side="right", padx=(0, 8))
         Tooltip(self.mp_export_btn, "Every map in the list, one row per item: before, after, change and value")
@@ -697,7 +696,7 @@ class MapProfitPage:
         self.mp_hidden_lbl = tk.Label(body, text="", bg=P1, fg=C["accent"], cursor="hand2", anchor="w", padx=12,
                                       font=("Segoe UI", 9))
         self.mp_hidden_lbl.bind("<Button-1>", lambda _e: self.mp_unhide())
-        # 2.132.6 (feedback: "Map profit didn't count my most recently completed map"): items it doesn't know yet
+        # 2.132.6 (feedback: the most recently completed map was not counted): items it doesn't know yet
         # can't be counted - say so, and how to teach them
         self.mp_hint = tk.Label(body, text="", bg=P1, fg=C["warn"] if "warn" in C else C["muted"], anchor="w", padx=12,
                                 justify="left")
@@ -783,8 +782,9 @@ class MapProfitPage:
         self.mp_after_change()
 
     def mp_clear_all(self, ask=True, how=None):
-        """2.138.0 (feedback: "if you hit clear all, I want it to ask if you want to export the data first ... clear it
-        from the list or clear the data itself"): a small question - Export CSV first, Hide from the list (kept,
+        """2.138.0 (feedback: Clear all should ask whether to export the data first, and whether to clear the list or
+        the
+        data itself): a small question - Export CSV first, Hide from the list (kept,
         one click brings them back), or Delete for good (Undo works until the app closes). how= "hide" / "delete"
         answers it without asking (tests)."""
         runs = self.mp_runs()

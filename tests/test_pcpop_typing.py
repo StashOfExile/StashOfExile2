@@ -1,4 +1,4 @@
-"""3.0.1 (owner: "the Min / Max boxes on the price check overlay don't take typing"): every Min / Max box on the card
+"""3.0.1 (the Min / Max boxes on the price check overlay did not take typing): every Min / Max box on the card
 over the game takes the keyboard when clicked - the item's own boxes (item level, quality, sockets) never asked for
 it, only the mods' did; on Windows the card's window is made one that can have the keyboard and put in front
 (overlaywin.take_keyboard: no-activate / click-through off). A gray box ticks its row and gets the cursor. A redraw

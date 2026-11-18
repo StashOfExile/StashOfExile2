@@ -1,7 +1,7 @@
 """The Currency Exchange's item list (catalog): what the trade site's /data/static lists by group (Currency, Fragments,
 Essences, Runes, Omens ...), for the pickers (Stockpile). Names only - no prices.
-3.0.6 (owner: "I don't think the bulk exchange is a valid method of checking any prices, the data and pricing there is
-player set ... that skews our pricing data too much"): this file used to price items poe.ninja doesn't list from the
+3.0.6 (the bulk exchange is not a valid method of checking prices: its data is player set and skews the pricing
+data too much): this file used to price items poe.ninja doesn't list from the
 trade site's bulk exchange. That is gone; the only price source is poe.ninja."""
 from . import buglog
 from .config import load_json

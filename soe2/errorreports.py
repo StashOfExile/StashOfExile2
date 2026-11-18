@@ -1,5 +1,5 @@
-"""2.137.0: Error reports (feedback: "have error log data sent to the cloudflare server so we can automatically handle
-bugs/issues ... debug stuff/errors/trade errors should go with it").
+"""2.137.0: Error reports (feedback: send error log data to the server so bugs and issues can be handled
+automatically, debug and trade errors included).
 
 Off until you say yes - its own switch (Settings › Privacy & community › Error reports, "error_reports"; asked once
 in the Feature Picker or, if that's done, once at start: "error_asked"). A no is final and never asked again.

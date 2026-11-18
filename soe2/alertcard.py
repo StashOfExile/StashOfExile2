@@ -1,5 +1,5 @@
-"""2.130.0 Helper alerts as one alert card (feedback: "a more elegant solution than just giant bold flashing letters,
-that's gonna piss some people off"): a small card over the game in the overlay's Style - a colored edge, a mark (! or
+"""2.130.0 Helper alerts as one alert card (feedback: a more elegant solution than giant bold flashing letters): a
+small card over the game in the overlay's Style - a colored edge, a mark (! or
 ✓) and a word, a line of detail, a click anywhere to close it early (2.138.2: was ×) and a thin line counting down its time. No flashing: it fades in
 once. Where it shows (Top center - the default since 2.137.1 -, Center, Above the bar, Top right) and its size (Small, Medium, Large) are settings
 (Overlay › Helpers › Alerts). Every helper's alert and the break reminders use it.
@@ -11,7 +11,7 @@ from .config import SETTINGS
 
 WHERE = {"top": "Top center", "center": "Center", "bar": "Above the bar", "topright": "Top right"}
 SIZES = {"small": ("Small", 0.8), "medium": ("Medium", 1.0), "large": ("Large", 1.3)}
-# 2.137.1 (feedback: "the notification for it almost got me killed, it needs to be somewhere else on the screen"):
+# 2.137.1 (feedback: the notification sat where it put the player at risk - move it elsewhere):
 # Top center by default - Center sat on your character (settings that had Center move once: migrations)
 DEFAULTS = {"where": "top", "size": "medium"}
 FADE = (0.25, 0.5, 0.75, 0.92, 1.0)        # the fade in, one step every 35 ms
@@ -49,7 +49,7 @@ CLICK_TIP = "Click to close"           # (the words a card that closes on a clic
 
 
 def click_to_close(win, act):
-    """Owner: "make this universal for anything we draw on screen like that" - a card or panel over the game that only
+    """Owner: make this universal for anything drawn on screen like that - a card or panel over the game that only
     shows something closes on a click anywhere on it, as the alert card does (2.138.2). The click is the card's (it
     doesn't reach the game); clicks beside it go to the game as before; it never takes the keyboard (no_focus); Esc
     in the game still clears it (readmark.ev_look_clear). Not for overlays with their own controls. -> win."""
@@ -132,7 +132,7 @@ class Row:
 
 
 class Card:
-    """2.131.4 (feedback: "people getting annoyed with 3 cards back to back"): one card for every alert that's up.
+    """2.131.4 (feedback: three cards back to back annoy players): one card for every alert that's up.
     An alert that comes while it shows joins it as a row - most urgent on top, one countdown (it starts again), × on a
     row closes that one, × at the top closes them all. One alone looks just as before."""
 
@@ -233,8 +233,8 @@ class Card:
         ui = max(0.6, game[3] / 1440.0) * k
         BG, TXT, MUT = P.get("bg", "#15111c"), P.get("big") or P.get("text", "#ece6f5"), P.get("muted", "#b3a9c6")
         LINE = P.get("rim") or P.get("line", "#3a3048")
-        try:                                                # 2.132.0 (feedback: "for each of the vital alert cards
-            from .style import C as _C                      # the text should be red"): a vital alert's words
+        try:                                                # 2.132.0 (feedback: vital alert text should be red
+            from .style import C as _C                      # on each vital alert card): a vital alert's words
             RED = P.get("bad") or _C.get("red") or "#ff6b5e"
         except Exception:
             RED = "#ff6b5e"
@@ -251,7 +251,7 @@ class Card:
         body.pack(side="left", fill="both", expand=True)
 
         def xbutton(parent, tip, act, size=16):
-            """2.138.2 (feedback: "instead of an X ... click anywhere on the card to dismiss it"): no × any more - a
+            """2.138.2 (feedback: click anywhere on the card to dismiss it instead of an X): no × any more - a
             click anywhere on the part closes it (a row: that alert; the card's top line: all of them)."""
             return clickable(parent, act)
 
@@ -281,8 +281,8 @@ class Card:
                      width=2).pack(side="left", padx=(0, int(10 * ui)))
             r.box = row
             if many and r.tag:
-                # 3.0.6 (owner: "[Map Profit] and [Read Key] have feedback which implies they are click-able
-                # buttons"): which helper it's from - plain words, no box (a box reads as a button)
+                # 3.0.6 (owner: [Map Profit] and [Read Key] looked like clickable buttons): which helper it's from -
+                # plain words, no box (a box reads as a button)
                 tk.Label(row, text=r.tag, bg=BG, fg=MUT, font=(font, -int(11 * ui), "italic"),
                          padx=0).pack(side="right", anchor="n")
             txt = tk.Frame(row, bg=BG)

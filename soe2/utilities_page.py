@@ -275,8 +275,8 @@ class UtilitiesPage:
         return True
 
     def topup_hotkey(self, vk, ctrl, alt, shift):
-        """2.131.1 (feedback: "using price check key on top up items causes the item's card to stay stuck on screen,
-        we need a different key"): Top Up's own key (F7) in game -> the game's copy once; the copy only teaches Top
+        """2.131.1 (feedback: the price check key on top up items left the item's card stuck on screen, so a
+        different key is needed): Top Up's own key (F7) in game -> the game's copy once; the copy only teaches Top
         Up (never priced, never Bulk Pricing)."""
         from .overlay import parse_key, game_active, send_copy, POE_TITLE
         from . import topup as TU

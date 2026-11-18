@@ -49,8 +49,8 @@ TOUCH = {
 }
 
 
-# 2.142.0 (feedback: "I should be getting suggestions to place the thaumaturge then the corruption chamber attached to
-# it and upgrade it to t3 and lock it"): the rooms that pay at tier 3, and the room each wants beside it
+# 2.142.0 (feedback: no suggestion to place the Thaumaturge, then the Corruption Chamber beside it, upgrade and lock
+# it): the rooms that pay at tier 3, and the room each wants beside it
 HIGH = ("Corruption Chamber", "Sacrificial Chamber", "Thaumaturge", "Alchemy Lab", "Smithy")
 PARTNER = {
     "Thaumaturge": ("Corruption Chamber", "Sacrificial Chamber", "Alchemy Lab"),
@@ -118,8 +118,8 @@ DOOR = (0, 9)
 
 def blocked(b, n, goal=None):
     """A square a path or room on the way to goal must not take: it touches a reward room (Atziri's doorstep, on the
-    way to her, excepted - owner, 2026-11-18: "only if that reward room is placed alongside it in open space", as in
-    his screenshots: that reward room touches nothing else but the doorstep)."""
+    way to her, excepted - 2026-11-18: only when that reward room sits alongside it in open space, as in the
+    screenshots: that reward room touches nothing else but the doorstep)."""
     if not touches_reward(b, n):
         return False
     if goal == ATZIRI and n == DOOR:
@@ -198,7 +198,7 @@ def network(taken):
 
 
 def path_network(taken):
-    """3.0.6 (owner: "paths cannot connect to rooms by themselves, they need a path to connect to"): the entrance and
+    """3.0.6 (a room cannot join the network without a path to link it): the entrance and
     the path tiles joined to it through paths only - where a new path card can go next to."""
     seen, q = {ENTRANCE}, deque([ENTRANCE])
     while q:
@@ -314,8 +314,8 @@ def combo(fam, hand=()):
 
 
 # ---------------------------------------------------------------- 2.142.0 the hand's plan
-# (feedback, with two layouts: "the corruption chamber medallion + 2 of the cards in hand, those are the kinds of
-# suggestions a player needs"): every room card in the list plus the rooms your medallions add, laid out together -
+# (feedback, with two layouts: a Corruption Chamber medallion plus two cards in hand should give suggestions):
+# every room card in the list plus the rooms your medallions add, laid out together -
 # each Thaumaturge first, with room beside it; the Corruption Chambers, Alchemy Labs and Sacrificial Chambers it
 # raises go beside it (an Alchemy Lab beside two when it can). Only free tiles joined to your paths and rooms, off the
 # gold path's lane, touching no reward room.
@@ -348,8 +348,8 @@ ANCHORS = {"Thaumaturge": ("Corruption Chamber", "Sacrificial Chamber", "Alchemy
 
 
 def architect_route(board):
-    """2.143.0 (feedback: "the most important step for this run is to connect to the architect and kill him so that I
-    gain access to his special room cards to place the key room"): -> the free tiles a path needs from your paths and
+    """2.143.0 (feedback: the first step of a run is to connect to the Architect and kill him for the special room cards
+    that place the key room): -> the free tiles a path needs from your paths and
     rooms to the Architect, fewest first, none touching a reward room; [] when he's already joined; None when he isn't
     on the board (or can't be reached safely)."""
     taken = names(board)
@@ -452,7 +452,7 @@ def hand_plan(board, fams):
 
 def card_title(name):
     """An OCR'd card name ("THAUMATURGE'S LABORATORY") -> as the game prints it ("Thaumaturge's Laboratory").
-    3.0.6 (owner's card said "Wor Kshop"): a near miss is snapped to the printed name too."""
+    3.0.6 (a card read as a split word, "Wor Kshop"): a near miss is snapped to the printed name too."""
     low = " ".join(str(name or "").lower().replace("’", "'").split())
     every = [n for names_ in ROOMS.values() for n in names_]
     for n in every:
@@ -470,7 +470,7 @@ def card_title(name):
 
 
 def with_plan(marks, plan, lit, what, card=None):
-    """The marks over the game (2.142.2, feedback: "I want it to be self-explanatory of what to place where"): each
+    """The marks over the game (2.142.2, feedback: make it self-explanatory what goes where): each
     planned tile -> ("p", (step, family)), drawn with that room's own picture and its step; the picked card's tile ->
     ("now", (step or None, family or card name)): its planned tile when lit, else its best tile; ✕ tiles stay."""
     out = {t: v for t, v in marks.items() if v[0] == "x"}
@@ -501,8 +501,8 @@ def with_plan(marks, plan, lit, what, card=None):
 # The quadrants are split by the gold path (i = 0) and the middle row (j = 5), as on the owner's screenshot:
 # left = i < 0, j < 5 · top = i < 0, j > 5 · right = i > 0, j > 5 · bottom = i > 0, j < 5.
 
-# 3.0.6 (round 14, owner: the tier 3-4 Transcendent Barracks and Synthflesh Lab "offered no reward"; the Flesh
-# Surgeon is "way low priority"): both below PAYS - filler and joiners
+# 3.0.6 (round 14: the tier 3-4 Transcendent Barracks and Synthflesh Lab gave no reward; the Flesh
+# Surgeon is low priority): both below PAYS - filler and joiners
 VALUE = {"Thaumaturge": 10, "Corruption Chamber": 9, "Sacrificial Chamber": 8, "Flesh Surgeon": 5, "Alchemy Lab": 7,
          "Synthflesh Lab": 3, "Smithy": 6, "Generator": 5, "Golem Works": 4, "Armoury": 4, "Garrison": 3,
          "Commander": 3, "Spymaster": 2, "Transcendent Barracks": 2, "Sealed Vault": 1}
@@ -547,8 +547,8 @@ def path_to(b, goal, avoid=()):
 
 
 def _path_to(b, goal, avoid):
-    # (3.0.6 owner: Atziri is joined by paths - "as soon as I end up ... having no rooms that can connect my chain to
-    # atziri I'm in trouble"; the key room and the Architect may be joined by a room too)
+    # (3.0.6 owner: Atziri is joined by paths - with no rooms that can connect a chain to
+    # her the run is in trouble; the key room and the Architect may be joined by a room too)
     # 3.0.6 (round 14: Atziri's doorstep taken by a room joined to the rest - her chamber lit up for the run): joined
     # by anything is joined; a path can't go there any more
     if any(n in network(b) for n in near(goal)):
@@ -674,8 +674,8 @@ def reachable_later(b, t, keep=()):
 
 
 def edge_blocks(b):
-    """3.0.6 (owner: "If no reward rooms lining the outside edges ... they need the every other placement at the very
-    least to block off atziri key room and architect from spawning near the edges"): every other outer square, on
+    """3.0.6 (with no reward rooms along the outer edges, every other placement at least blocks Atziri's key room and
+    the Architect from spawning near the edges): every other outer square, on
     each wall with no reward room on it - where filler rooms go."""
     walls = {"l": lambda t: t[0] == -4, "r": lambda t: t[0] == 4, "b": lambda t: t[1] == 1, "t": lambda t: t[1] == 9}
     out = set()
@@ -693,8 +693,8 @@ def key_spot(b):
     return {t, *near(t)} if t else set()
 
 
-PATH_ONLY = ("Sealed Vault", "Generator")       # (owner: "sealed vaults have to connect to a path and cannot connect
-#                                                 to anything else"; the cheat sheet: a Generator joins a path)
+PATH_ONLY = ("Sealed Vault", "Generator")       # (a Sealed Vault joins only a path
+#                                                 and nothing else; the cheat sheet: a Generator joins a path)
 
 
 def can_place(b, t, fam):
@@ -746,7 +746,7 @@ def _room_score(b, t, fam, rest, lane, arch, key_needed, keep=(), edges=(), ups=
     if _loops(b, t):
         score -= 10 if pals or friends else 30          # (owner: a loop is worth it for a second tier-3 Smithy)
         if any(n in LANE and b.get(n) == "Path" for n in near(t)) and (friends < 2 or ups):
-            score -= 40                                 # (owner: not "back into the main road down the middle" -
+            score -= 40                                 # (owner: not a loop back into the main road down the middle -
             #                                             unless it pays: his Golem Works beside three tier-3 Smithies)
     return score - abs(t[0]) * 0.1
 
@@ -774,7 +774,7 @@ def dead_ends(b, board):
 def full_plan(board, cards=(), medals=(), medal_rooms=(), prev=()):
     """board: a read board; cards: the room card names in the list; medals: medallion names held (None = not known);
     medal_rooms: room families the medallions add; prev: the last plan's steps for this board (kept while they still
-    fit - owner: "too many changed decisions ... per each card I place"). -> {"plan": [(tile, family, why)] in order,
+    fit - too many changed decisions with each card placed). -> {"plan": [(tile, family, why)] in order,
     "targets": {tile: ("Upgrade" | "Lock", family)}, "notes": [str]}."""
     from . import medallions as M
     taken = names(board)
@@ -784,8 +784,8 @@ def full_plan(board, cards=(), medals=(), medal_rooms=(), prev=()):
     keyroom = next((c for c, v in taken.items() if v == "Key Room"), None)
     arch = next((c for c, v in taken.items() if v == "Architect"), None)
     hand = [card(n) for n in cards or ()]
-    # 3.0.6 (owner: "it's still making lock/whatever suggestions at the architect's console, I cannot perform any
-    # actions except placing the special reward room cards"): his console - only restricted cards (vaults, the key
+    # 3.0.6 (suggestions kept appearing at the Architect's console, where only the special reward room cards can be
+    # placed): his console - only restricted cards (vaults, the key
     # room, an Extraction Chamber ...); a card name not known there is one of his too
     restricted = bool(hand) and any(h and h[0] in ("reward", "key") for h in hand) and \
         not any(h and h[0] in ("path", "room") for h in hand)
@@ -809,7 +809,7 @@ def full_plan(board, cards=(), medals=(), medal_rooms=(), prev=()):
         path_cards[t] = got[0]
         b[t] = "Path"
         return True
-    # (3.0.6 owner: "it needs to use what I have") - a tile with no path card left takes a room card instead (the
+    # (3.0.6: the plan has to use what is in hand) - a tile with no path card left takes a room card instead (the
     # owner joined the key room with a Sealed Vault): the one worth least, kept for the rooms worth placing
     spare = sorted([h[1] for h in hand if h and h[0] == "room"] + [f for f in medal_rooms if f],
                    key=lambda f: VALUE.get(f, 0))
@@ -839,7 +839,7 @@ def full_plan(board, cards=(), medals=(), medal_rooms=(), prev=()):
 
     def chain_to(goal, why):
         """3.0.6 (owner's board: not enough path cards, so a Garrison / Commander chain snaked up to Atziri, and one
-        more room after it "to hopefully preserve that chain"): rooms that raise each other, joined to anything."""
+        more room after it to preserve that chain): rooms that raise each other, joined to anything."""
         net = network(b)
         best, q = {c: None for c in net}, deque(sorted(net))
         end = None
@@ -951,13 +951,13 @@ def full_plan(board, cards=(), medals=(), medal_rooms=(), prev=()):
                 return False
         return True
 
-    # 3.0.6 (owner, in order): "#1: Atziri Chamber #2: Key Room (if available) #3: Architect #4: chains that give
-    # profits for t3 rooms / upgrade / lock #5: Everything else"
+    # 3.0.6 (priority order): 1 Atziri Chamber, 2 Key Room (if available), 3 Architect, 4 chains that give
+    # profit for tier 3 rooms / upgrade / lock, 5 everything else
     key_needed = keyroom is None
     keep = key_spot(b) if key_needed and not key_card else set()   # (no key room yet: its landing spot stays free)
     if key_card and keyroom is not None:
-        # 3.0.6 (owner: "it also needs to tell me where to place atziri's key room ... it should have the number on
-        # her room and the board"): the key room card held and its room on the board = the game's preview of
+        # 3.0.6 (the plan must also say where Atziri's key room goes, numbered on her room and on the board): the key
+        # room card held and its room on the board = the game's preview of
         # where it goes (it lights that one square) - step 1, then what joins it
         b.pop(keyroom, None)
         b[keyroom] = "Key Room"
@@ -1049,9 +1049,9 @@ def full_plan(board, cards=(), medals=(), medal_rooms=(), prev=()):
                 ups and (locks or fam != "Corruption Chamber")) and gain(b, best[1], fam) < 2:
             # (two rooms beside it that raise it take it to tier 3 without an Upgrade - the owner's Alchemy Lab went
             # 1 -> 3 between two Thaumaturges)
-            # 3.0.6 (owner: "I need an upgrade medallion before placing the corruption chamber otherwise it's wasted")
-            # 3.0.6 (owner: "I will place the corruption chamber and thaumaturge, upgrade corruption chamber and lock
-            # it so I get 2 runs out of it which is 2 guaranteed architect's orbs"): an Upgrade and a Lock first
+            # 3.0.6 (an upgrade medallion is needed before placing the Corruption Chamber, else it is wasted)
+            # 3.0.6 (place the Corruption Chamber and Thaumaturge, upgrade the chamber and lock it: two runs from it,
+            # two guaranteed Architect's Orbs): an Upgrade and a Lock first
             if fam == "Corruption Chamber":
                 notes.append(f"Keep the {fam} medallion until you hold an Upgrade and a Lock.")
                 why_cc = "Corruption Chamber: upgraded and locked, it pays 2 runs (2 Architect's Orbs)."
@@ -1071,8 +1071,8 @@ def full_plan(board, cards=(), medals=(), medal_rooms=(), prev=()):
             p in rest and (p != "Corruption Chamber" or (ups and locks)) for p in ANCHORS[fam])
         if not pals and (med or fam in KEEP_ALONE) and not anchor:
             # (3.0.6: a Thaumaturge medallion is the anchor when what it raises is in hand and goes down too)
-            # 3.0.6 (owner: "commanders should be saved for the next run (especially if it's a medallion, it can be
-            # paired with a garrison ...)"): a medallion room - or a Commander - with nothing beside it to raise it
+            # 3.0.6 (Commanders are saved for the next run, especially a medallion one, to pair with a Garrison):
+            # a medallion room - or a Commander - with nothing beside it to raise it
             # waits for a run where it has its partner
             mate = (sorted(TOUCH.get(fam) or ()) or list(PARTNER.get(fam) or ()) or ["partner"])[0]
             notes.append(f"Keep the {fam}{' medallion' if med else ''} for a run with a {mate} to sit beside.")
@@ -1090,7 +1090,7 @@ def full_plan(board, cards=(), medals=(), medal_rooms=(), prev=()):
         if lead and not pals and med and fam in ANCHORS:
             leads.append((best[1], fam))
     for t, fam in leads:
-        # 3.0.6 (owner: "I'm saving my medallions for next run when I have empty space to work with"): a
+        # 3.0.6 (medallions are saved for the next run, when there is empty space to work with): a
         # Thaumaturge medallion put down for its partner, and the partner found no clean square - both wait
         if not any(b.get(n) in ANCHORS[fam] for n in near(t)):
             plan[:] = [x for x in plan if x[0] != t]
@@ -1101,10 +1101,10 @@ def full_plan(board, cards=(), medals=(), medal_rooms=(), prev=()):
     rewards = [h for h in hand if h and h[0] == "reward"]
     kr = next((t for t, v in b.items() if v == "Key Room"), None)
     if rewards and kr is not None and kr not in network(b):
-        # 3.0.6 (owner: "where the key room is by itself and has an option to connect a reward room to it, it's okay
-        # to place it beside it as long as it doesn't connect to other reward rooms. I will take a currency vault"):
-        # one vault beside the lone key room - touching no other reward room and nothing else of yours, off the
-        # square that joins the key room to your paths; a currency vault (Kishara's Vault) first
+        # 3.0.6 (a lone key room may take a reward room beside it, as long as that room touches no other reward room;
+        # a currency vault is the pick): one vault beside the lone key room - touching no other reward room and
+        # nothing else of yours, off the square that joins the key room to your paths; a currency vault (Kishara's
+        # Vault) first
         pn = path_network(b)
         spots = [n for n in near(kr) if not b.get(n) and inside(n) and n not in LANE and n not in keep and
                  n not in (ATZIRI, ENTRANCE) and not any(n in near(c) for c in pn) and
@@ -1123,8 +1123,8 @@ def full_plan(board, cards=(), medals=(), medal_rooms=(), prev=()):
             return not b.get(t) and inside(t) and t not in keep and t not in LANE and \
                 not any(b.get(n) not in (None, "Reward") or n in (ENTRANCE, ATZIRI) for n in near(t))
         cells = [(i, j) for i in range(-4, 5) for j in range(1, 10)]
-        # 3.0.6 (owner: "I also placed a currency vault on the opposite side because I can safely access it and
-        # connect to it next run without breaking my outside 'block' rooms along the walls"): a square a later path
+        # 3.0.6 (a currency vault on the far side stays reachable next run without breaking the outer block rooms
+        # along the walls): a square a later path
         # can reach safely first
         spot = next((t for t in sorted(cells, key=lambda t: (not reachable_later(b, t, keep), abs(t[0]) != 4,
                                                              -sum(1 for n in near(t) if not b.get(n)), abs(t[1] - 5)))
@@ -1142,8 +1142,8 @@ def full_plan(board, cards=(), medals=(), medal_rooms=(), prev=()):
         if fam in ("Synthflesh Lab", "Spymaster") and "Garrison" in [b.get(n) for n in near(t)]:
             notes.append(f"The {fam} turns the Garrison beside it into "
                          f"{'Transcendent Barracks' if fam == 'Synthflesh Lab' else 'a Legion Barracks'}.")
-    # #5 (owner: "using up all of the cards in my hand and creating filler for when destabilization happens to reduce
-    # chances of my good rooms getting deleted, creating intentional loop of paths"): spare path cards, path to path
+    # #5 (use up every card in hand as filler for when destabilization happens, so the good rooms are less likely to
+    # be deleted - an intentional loop of paths): spare path cards, path to path
     while pcards:
         pn = path_network(b)
         best = None
@@ -1183,8 +1183,8 @@ def full_plan(board, cards=(), medals=(), medal_rooms=(), prev=()):
     rooms = {t: v for t, v in taken.items() if v in ROOMS}      # (placed rooms only: a medallion goes on a real one)
 
     def used_up(t, f):
-        """3.0.6 (owner: "if a room is a t2 without it's connected upgrade room, it means it was already upgraded with
-        a medallion and cannot be upgraded anymore unless via room connection"): higher than its neighbors make it."""
+        """3.0.6 (a tier 2 room without its connected upgrade room was already upgraded with a medallion and can only
+        rise by room connection): higher than its neighbors make it."""
         raised = sum(1 for n in near(t) if rooms.get(n) in TOUCH.get(f, ()))
         return tier_of(board, t) > 1 + raised
 
@@ -1193,14 +1193,14 @@ def full_plan(board, cards=(), medals=(), medal_rooms=(), prev=()):
                 and not (need_up and tier_of(board, t) >= min(3, _tiers(f)))]
         # (3.0.6, owner's board: both tier-2 Smithies beside the Golem Works took the two upgrades) - closest to tier
         # 3 first, then a room in a chain (something beside it raises it), then the room that pays most
-        # 3.0.6 (owner: "Corruption chamber takes upgrade + lock priority over everything else")
+        # 3.0.6 (the Corruption Chamber takes upgrade and lock priority over everything else)
         cand.sort(key=lambda x: (x[1] != "Corruption Chamber", 3 - tier_of(board, x[0]) if need_up else 0,
                                  -gain(rooms, x[0], x[1]), pref.index(x[1]), -tier_of(board, x[0])))
         return cand[0] if cand else None
 
-    # 3.0.6 (round 14, owner: "it wants me to upgrade the flesh surgeon, that's like way low priority, I'm saving the
-    # upgrade for the next corruption chamber upgrade"; "the t3/t4 barracks and synthflesh were useless and offered
-    # no reward ... not worth upgrading"; "why is it suggesting I upgrade the generator/dynamo?"): an Upgrade goes to
+    # 3.0.6 (round 14: the Flesh Surgeon is low priority and the upgrade is kept for the next Corruption Chamber;
+    # tier 3-4 Barracks and Synthflesh gave no reward; the Generator and Dynamo are not worth upgrading): an
+    # Upgrade goes to
     # a room that pays (the Corruption Chamber first); a Corruption Chamber in hand keeps one Upgrade back for it; the
     # Flesh Surgeon only when no Corruption Chamber is in play; no use = keep it for next run
     cc_hand = sum(1 for h in hand if h and h == ("room", "Corruption Chamber")) + \
@@ -1226,8 +1226,8 @@ def full_plan(board, cards=(), medals=(), medal_rooms=(), prev=()):
                      "Keep the Upgrade for next run: nothing here pays for it.")
     if "Juatalotli's Medallion" in held and rooms:
         # (owner: upgrade the Corruption Chamber to tier 3, then lock it - the room that pays, highest tier first)
-        # 3.0.6 (owner: "upgrade corruption chamber and lock it so I get 2 runs out of it which is 2 guaranteed
-        # architect's orbs"): a Corruption Chamber, else a paying room at tier 3; nothing like that = keep it
+        # 3.0.6 (upgrade the Corruption Chamber and lock it: two runs, two guaranteed Architect's Orbs): a Corruption
+        # Chamber, else a paying room at tier 3; nothing like that = keep it
         ok = [x for x in rooms.items() if x[1] == "Corruption Chamber" or
               (x[1] in pref and x[1] not in UPGRADE_LOW and tier_of(board, x[0]) >= 3)]
         lk = max(ok, key=lambda x: (x[1] == "Corruption Chamber", tier_of(board, x[0]),
@@ -1244,14 +1244,14 @@ def full_plan(board, cards=(), medals=(), medal_rooms=(), prev=()):
                for f in card_fams)
     if card_fams and "Puhuarte's Medallion" in held and not pays:
         notes.append("Nothing in your cards pays: reroll them (Puhuarte's Medallion).")
-    # (owner: AuDHD - one line, not five): the medallions kept for a later run, together
+    # (one line, not five): the medallions kept for a later run, together
     keep_meds = [n.split("Keep the ")[1].split(" medallion")[0] for n in notes
                  if n.startswith("Keep the ") and " medallion" in n]
     if len(keep_meds) > 1:
         notes = [n for n in notes if not (n.startswith("Keep the ") and " medallion" in n)]
         notes.append("Keep for next run: " + ", ".join(keep_meds) + " medallions.")
-    # 3.0.6 (owner: "we need to factor for chains/snakes and have a more clear method of explaining what we're doing
-    # to place those, with built in protections of the x rooms not to connect to"): one plain line per chain
+    # 3.0.6 (chains need a clearer explanation of what is being placed, with protection for the x rooms that must not
+    # connect): one plain line per chain
     for t, fam, why in plan:
         if why.startswith("beside ") and fam in ROOMS and len(chains) < 4:
             chains.append(f"{fam} beside the {why[7:]}: they raise each other.")

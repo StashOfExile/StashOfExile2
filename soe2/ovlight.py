@@ -1,4 +1,4 @@
-"""Light looks for the overlay (2.101.0, from the mockups - feedback: "a lightweight one is needed desperately").
+"""Light looks for the overlay (2.101.0, from the mockups - feedback: a lightweight one is badly needed).
 
 Four styles drawn with plain canvas lines and text - no Pillow artwork, nothing to re-render when the game window
 changes size - each as a Bar (resting on the XP bar) and a Panel (a card you place anywhere), in a set of colors:

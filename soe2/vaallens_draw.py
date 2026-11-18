@@ -1,5 +1,5 @@
-"""UI overhaul (feedback: "we need a better method of drawing the suggested paths on screen, right now it's very
-janky"): Vaal Lens's marks drawn as one smooth picture with real see-through edges.
+"""UI overhaul (feedback: a better method of drawing the suggested paths on screen is needed, the old one was
+janky): Vaal Lens's marks drawn as one smooth picture with real see-through edges.
 
 Why it looked rough: the marks were Tk canvas shapes on a window with one see-through color. Tk draws lines and
 dashes without smoothing, and a picture's soft edges can't fade into the game - they turn into a dark fringe.
@@ -127,7 +127,7 @@ def render(game, marks, P, icons=None, chain=None):
                             (a[0] + (b[0] - a[0]) * f1, a[1] + (b[1] - a[1]) * f1)],
                            fill=RED + (235,), width=max(3, int(4 * s * k)))
             x, y = L(c)
-            dd = max(8, int(16 * s * k))                # 3.0.6 (owner: "the x turned into a square"): two lines, not
+            dd = max(8, int(16 * s * k))                # 3.0.6 (the x turned into a square): two lines, not
             for a_, b_ in ((-dd, -dd), (-dd, dd)):      # a ✕ in a font that may not have it
                 d.line([(x + a_, y + b_), (x - a_, y - b_)], fill=RED + (255,), width=max(4, int(6 * s * k)))
             continue
@@ -138,7 +138,7 @@ def render(game, marks, P, icons=None, chain=None):
         d.line(poly + [poly[0]], fill=accent + (255 if now else 200,), width=max(3, int((6 if now else 3) * s * k)),
                joint="curve")
         x, y = L(c)
-        # 3.0.6 (owner: "the icons it drew are all fucky ... remove the icons and overlay a number"): no room
+        # 3.0.6 (the drawn icons looked wrong - remove them and overlay a number): no room
         # pictures - the step's number in the middle, the same number as on its card / medallion
         if m == "do":                                   # an Upgrade / Lock medallion's room: an arrow / a padlock
             u = hh * k * 0.42
