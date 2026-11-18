@@ -561,7 +561,9 @@ class TemplePage:
                 if not out or out[-1][0] != str(step):
                     n = sum(1 for _x, f, w in plan if f == "Path" and w == why)
                     tail = ", then kill him" if why == "the Architect" else ""
-                    out.append((str(step), f"Path to {why} ({n} tile{'s' if n != 1 else ''}){tail}"))
+                    tiles = f"{n} tile{'s' if n != 1 else ''}"
+                    out.append((str(step), f"Spare paths as filler ({tiles}): lost first when rooms destabilize"
+                                if why == "filler" else f"Path to {why} ({tiles}){tail}"))
                 continue
             if fam == "Key Room":
                 out.append((str(step), "Royal Access Chamber"))

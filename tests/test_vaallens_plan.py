@@ -35,7 +35,7 @@ class Priorities(unittest.TestCase):
         whys = [w for _t, f, w in r["plan"] if f == "Path"]
         self.assertEqual(whys[0], "Atziri")
         order = [w for k, w in enumerate(whys) if w not in whys[:k]]
-        self.assertEqual(order, ["Atziri", "the key room", "the Architect"])
+        self.assertEqual(order[:3], ["Atziri", "the key room", "the Architect"])
         self.assertGreater(len(set(VP.steps(r["plan"]))), 2, "Atziri, key room, Architect: separate steps")
 
     def test_atziri_first_even_without_a_key_room(self):
@@ -258,11 +258,26 @@ class OwnersBoard(unittest.TestCase):
                       (-3, 9): ("reward", "Reward", 1), (2, 9): ("reward", "Reward", 1)})
         return board(cells)
 
-    def test_rooms_that_gain_join_atziri(self):
+    def test_atziri_joined_by_paths_only(self):
+        # (owner: "it's better to use paths to connect to atziri's chamber at the end" - a room chain can break)
         r = VP.full_plan(self.b(), ["Path", "Bronzeworks", "Depot", "Path", "Guardhouse", "Path"])
         atz = [(t, f) for t, f, w in r["plan"] if w.endswith("Atziri")]
-        self.assertEqual(atz[0][0][0], 0, "up the gold path")
-        self.assertIn("Garrison", [f for _t, f in atz], "the Guardhouse joins Atziri beside the Commander")
+        self.assertEqual([f for _t, f in atz], ["Path"] * 3)
+        self.assertEqual([t for t, _f in atz], [(0, 7), (0, 8), (0, 9)], "up the gold path, path to path")
+
+    def test_a_path_never_starts_from_a_room(self):
+        b = self.b()
+        b[(0, 7)] = {"kind": "room", "name": "Garrison", "tier": 1}       # a room chain up the middle
+        b[(0, 8)] = {"kind": "room", "name": "Armoury", "tier": 1}
+        r = VP.full_plan(b, ["Path"] * 4)
+        net = VP.path_network(VP.names(b))
+        first = next(t for t, f, w in r["plan"] if f == "Path")
+        self.assertTrue(any(n in net for n in VP.near(first)), "the first path touches a path")
+
+    def test_spare_paths_become_filler(self):
+        # (owner: spare paths go down as filler - destabilization takes them before your rooms)
+        r = VP.full_plan(self.b(), ["Path"] * 6)
+        self.assertTrue(any(w == "filler" for _t, _f, w in r["plan"]))
 
     def test_both_upgrades_go_to_tier_2_first(self):
         meds = ["Quipolatl's Medallion", "Quipolatl's Medallion", "Juatalotli's Medallion"]

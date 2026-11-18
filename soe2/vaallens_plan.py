@@ -147,6 +147,19 @@ def network(taken):
     return seen
 
 
+def path_network(taken):
+    """3.0.6 (owner: "paths cannot connect to rooms by themselves, they need a path to connect to"): the entrance and
+    the path tiles joined to it through paths only - where a new path card can go next to."""
+    seen, q = {ENTRANCE}, deque([ENTRANCE])
+    while q:
+        c = q.popleft()
+        for n in near(c):
+            if n not in seen and taken.get(n) == "Path":
+                seen.add(n)
+                q.append(n)
+    return seen
+
+
 def spine(taken):
     """The gold path built so far plus what's left of it to Atziri (the route the rooms keep off)."""
     net = network(taken)
@@ -478,9 +491,12 @@ def path_to(b, goal, avoid=()):
 
 
 def _path_to(b, goal, avoid):
-    net = network(b)
-    if any(n in net for n in near(goal)):
+    # (3.0.6 owner: Atziri is joined by paths - "as soon as I end up ... having no rooms that can connect my chain to
+    # atziri I'm in trouble"; the key room and the Architect may be joined by a room too)
+    joined = path_network(b) if goal == ATZIRI else network(b)
+    if any(n in joined for n in near(goal)):
         return []
+    net = path_network(b)                              # (a new path goes next to a path)
     best, q = {c: None for c in net}, deque(sorted(net, key=lambda c: abs(c[0])))
     while q:
         c = q.popleft()
@@ -633,7 +649,8 @@ def full_plan(board, cards=(), medals=(), medal_rooms=(), prev=()):
             notes.append(f"No safe path to {why} yet.")
             return False
         for t in r:
-            j = joiner(t) if not touches_reward(b, t) else None
+            last = t == r[-1] and goal != ATZIRI       # (a path can't go on from a room: a room only ends a route)
+            j = joiner(t) if last and not touches_reward(b, t) else None
             if j:
                 use_room(j)
                 b[t] = j
@@ -642,8 +659,10 @@ def full_plan(board, cards=(), medals=(), medal_rooms=(), prev=()):
                 paths_left[0] -= 1
                 b[t] = "Path"
                 plan.append((t, "Path", why))
-            elif spare and VALUE.get(spare[0], 0) < PAYS and not touches_reward(b, t) and t not in LANE:
-                fam = spare.pop(0)
+            elif last and [f for f in spare if f not in KEEP_ALONE and VALUE.get(f, 0) < PAYS] and \
+                    not touches_reward(b, t) and t not in LANE:
+                fam = next(f for f in spare if f not in KEEP_ALONE and VALUE.get(f, 0) < PAYS)
+                spare.remove(fam)                      # (never a Commander: it waits for a Garrison)
                 if fam in room_cards:
                     room_cards.remove(fam)
                 b[t] = fam
@@ -750,6 +769,25 @@ def full_plan(board, cards=(), medals=(), medal_rooms=(), prev=()):
             med_left[fam] = med_left.get(fam, 0) - 1
         b[best[1]] = fam
         plan.append((best[1], fam, ("beside " + pals[0]) if pals else "joined to your rooms"))
+    # #5 (owner: "using up all of the cards in my hand and creating filler for when destabilization happens to reduce
+    # chances of my good rooms getting deleted, creating intentional loop of paths"): spare path cards, path to path
+    while paths_left[0] > 0:
+        pn = path_network(b)
+        best = None
+        for t in sorted({n for c in pn for n in near(c)}):
+            if b.get(t) or not inside(t) or t in (ATZIRI, ENTRANCE) or touches_reward(b, t) or t in keep:
+                continue
+            if arch is not None and t in near(arch) and sum(1 for n in near(arch) if not b.get(n)) <= 1:
+                continue                               # (his last free side)
+            s = sum(1 for n in near(t) if n in pn) * 3 - (5 if arch is None and quadrant(t) in ("top", "right")
+                                                            else 0) - abs(t[0]) * 0.1
+            if best is None or s > best[0]:
+                best = (s, t)
+        if best is None:
+            break
+        paths_left[0] -= 1
+        b[best[1]] = "Path"
+        plan.append((best[1], "Path", "filler"))
     if key_needed and arch is None and keyroom is None and not landing(b, "bottom"):
         notes.append("Keep the bottom quadrant clear: the key room needs a free spot there.")
     # medallions: where the upgrade and the lock go; a reroll when nothing in hand pays
