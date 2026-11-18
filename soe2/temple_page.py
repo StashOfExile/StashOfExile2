@@ -564,9 +564,9 @@ class TemplePage:
         """A medallion seen on the ground (the screen reader, in the temple) -> take it or leave it (an alert card,
         once a minute per name)."""
         from . import medallions as M
+        # (3.0.6 owner: "additional attempts to read that medallion also do nothing"): it was once a minute per
+        # name - from the timed reads; now each Read Key press is asked on purpose, so each one answers
         seen = getattr(self, "_tm_medal_said", {})
-        if time.time() - seen.get(name, 0.0) < 60:
-            return None
         have, most, hand = self.temple_medal_hand()
         st = TM.state()
         got = M.advice(name, hand, have, most, room, st["most"] if st else None)
