@@ -812,7 +812,9 @@ def full_plan(board, cards=(), medals=(), medal_rooms=(), prev=()):
             continue
         pals = [b.get(n) for n in near(best[1]) if b.get(n) in PARTNER.get(fam, ()) + tuple(TOUCH.get(fam, ()))]
         med = med_left.get(fam, 0) > card_left.get(fam, 0)          # (cards are placed first, medallions after)
-        if med and fam in ("Corruption Chamber", "Sacrificial Chamber") and not ups:
+        if med and fam in ("Corruption Chamber", "Sacrificial Chamber") and not ups and gain(b, best[1], fam) < 2:
+            # (two rooms beside it that raise it take it to tier 3 without an Upgrade - the owner's Alchemy Lab went
+            # 1 -> 3 between two Thaumaturges)
             # 3.0.6 (owner: "I need an upgrade medallion before placing the corruption chamber otherwise it's wasted")
             notes.append(f"Keep the {fam} medallion until you hold an Upgrade: it pays at tier 3.")
             med_left[fam] -= 1
@@ -894,8 +896,9 @@ def full_plan(board, cards=(), medals=(), medal_rooms=(), prev=()):
                 and not (need_up and tier_of(board, t) >= min(3, _tiers(f)))]
         # (3.0.6, owner's board: both tier-2 Smithies beside the Golem Works took the two upgrades) - closest to tier
         # 3 first, then a room in a chain (something beside it raises it), then the room that pays most
-        cand.sort(key=lambda x: (3 - tier_of(board, x[0]) if need_up else 0, -gain(rooms, x[0], x[1]),
-                                 pref.index(x[1]), -tier_of(board, x[0])))
+        # 3.0.6 (owner: "Corruption chamber takes upgrade + lock priority over everything else")
+        cand.sort(key=lambda x: (x[1] != "Corruption Chamber", 3 - tier_of(board, x[0]) if need_up else 0,
+                                 -gain(rooms, x[0], x[1]), pref.index(x[1]), -tier_of(board, x[0])))
         return cand[0] if cand else None
 
     for _k in range(held.count("Quipolatl's Medallion")):     # (3.0.6: each upgrade medallion held, its own room)
@@ -905,7 +908,7 @@ def full_plan(board, cards=(), medals=(), medal_rooms=(), prev=()):
         targets[up[0]] = ("Upgrade", up[1])
     if "Juatalotli's Medallion" in held and rooms:
         # (owner: upgrade the Corruption Chamber to tier 3, then lock it - the room that pays, highest tier first)
-        lk = max(rooms.items(), key=lambda x: (x[1] in UPGRADE_FIRST, tier_of(board, x[0]),
+        lk = max(rooms.items(), key=lambda x: (x[1] == "Corruption Chamber", x[1] in UPGRADE_FIRST, tier_of(board, x[0]),
                                                 -UPGRADE_FIRST.index(x[1]) if x[1] in UPGRADE_FIRST else 0))
         if lk[0] not in targets:
             targets[lk[0]] = ("Lock", lk[1])

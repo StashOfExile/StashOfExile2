@@ -80,6 +80,36 @@ def read_lines(img, game_h, ocr, want=lambda lines: True):
     return lines
 
 
+def text_by_color(img, ocr):
+    """3.0.6 (owner: "I got no read for this medallion" - a label over lava read as noise): the picture's gold text
+    (a medallion's name) and white text (what it does) read on their own, black on white -> more lines."""
+    import numpy as np
+    from PIL import Image
+    a = np.asarray(img.convert("RGB")).astype(np.int16)
+    gold = (a[..., 0] - a[..., 2] > 40) & (a[..., 0] > 120) & (a[..., 1] > 90)
+    white = a.min(axis=-1) > 150
+    out = []
+    for m in (gold, white):
+        g = Image.fromarray(np.where(m, 0, 255).astype("uint8"))
+        out += list(ocr(g.resize((g.width * 2, g.height * 2))))
+    return [(t, tuple(int(v / 2) for v in b) if b else b) for t, b in out]
+
+
+# what a medallion's label says it does -> the medallion (when its name doesn't read)
+DOES = (("PREVENT THE NEXT DESTABIL", "Juatalotli's Medallion"), ("ADD ROOM", "Uromoti's Medallion"))
+
+
+def medal_names(lines):
+    """-> [(name, room)] read on a medallion's label: by its name, else by what it says it does."""
+    from . import medallions as M
+    med = M.parse(lines or [])
+    names = list(dict.fromkeys(n for n, _b in med["names"]))
+    if not names:
+        text = " ".join(" ".join(str(t).upper().split()) for t, _b in lines or [])
+        names = [n for k, n in DOES if k in text][:1]
+    return [(n, med["room"]) for n in names], med
+
+
 class HoverPage:
     """Mixed into App."""
 
@@ -107,26 +137,28 @@ class HoverPage:
             img = SR.capture(box, "Vaal Lens")
             if img is None:
                 return []
-            return read_lines(img, g[3], RM.ocr)
+            lines = read_lines(img, g[3], RM.ocr)
+            from . import medallions as M
+            if not M.parse(lines)["names"]:
+                lines = lines + text_by_color(img, RM.ocr)      # (the same picture, gold and white text alone)
+            return lines
 
         def found(lines):
             """(the read mark) A medallion's name."""
             if not lines:
                 return False
-            from . import medallions as M
-            med = M.parse(lines)
-            return bool(med["count"] or med["names"])
+            got, med = medal_names(lines)
+            return bool(med["count"] or got)
         work.found = found
 
         def done(lines):
             # 2.142.0 Vaal Lens: a medallion's name on screen in the temple (its label or tooltip), the
             # Medallions panel closed -> take it or leave it
-            from . import medallions as M
-            med = M.parse(lines or [])
-            buglog.debug("Vaal Lens", "under the mouse: " + (", ".join(n for n, _b in med["names"]) or
+            got, med = medal_names(lines)
+            buglog.debug("Vaal Lens", "under the mouse: " + (", ".join(n for n, _r in got) or
                                                              f"no medallion name ({len(lines or [])} lines)")
                          + (f" · room {med['room']}" if med.get("room") else ""))    # (game text only)
             if not med["count"]:
-                for name in dict.fromkeys(n for n, _b in med["names"]):
-                    self.temple_medal_drop(name, med["room"])
+                for name, room in got:
+                    self.temple_medal_drop(name, room)
         return "Vaal Lens", work, done

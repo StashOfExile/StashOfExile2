@@ -474,7 +474,7 @@ class TemplePage:
             vec = M.feat(full.crop((ib[0] - gx, ib[1] - gy, ib[2] - gx, ib[3] - gy)))
             boxes.append(sl)
             vecs.append(vec)
-            who = M.identify(vec, icons)
+            who = M.identify_at(lambda b: full.crop((b[0] - gx, b[1] - gy, b[2] - gx, b[3] - gy)), ib, icons, s)
             if who is None:                                 # 2.142.1: a room medallion shows its room's icon
                 room = M.room_from_icon(full, sl, origin=(gx, gy))
                 who = f"Uromoti's Medallion: {room}" if room else None
@@ -538,11 +538,15 @@ class TemplePage:
         old = c.get("medals") or {}
         vecs = list(medal.get("vecs") or [])
         was = getattr(self, "_tm_medal_vecs", None) or []
-        if old.get("have") == have and len(old.get("hand") or []) == len(hand) and len(was) == len(vecs):
+        if old.get("have") == have and len(old.get("hand") or []) == len(hand) and (len(was) == len(vecs) or
+                                                                                   medal.get("learn")):
             # 3.0.6: a slot known stays known (same count) - only while its picture is the same (owner: a
             # Zantipi's swapped for a Synthflesh Lab at 6/6 was still called "Waystone modifier")
-            hand = [h or (o if w is not None and float(v @ w) >= 0.95 else None)
-                    for h, o, v, w in zip(hand, old["hand"], vecs, was)]
+            # (owner: "when the medallions label blocks the others it 'forgets' them"): a slot under the hover
+            # label keeps its name - a slot whose own picture now names a different medallion takes that one
+            covered = bool(medal.get("learn"))
+            hand = [h or (o if covered or (w is not None and float(v @ w) >= 0.95) else None)
+                    for h, o, v, w in zip(hand, old["hand"], vecs, list(was) + [None] * len(vecs))]
         self._tm_medal_vecs = vecs
         buglog.debug("Vaal Lens", f"medallions {have}/{most}: " + ", ".join(h or "?" for h in hand))
         self.tm_medal_boxes = list(zip(hand, medal.get("boxes") or []))     # 3.0.6: where each slot is (its step)

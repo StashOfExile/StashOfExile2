@@ -363,3 +363,19 @@ class ClearMarks(unittest.TestCase):
         a.temple_marks_clear()
         self.assertEqual(hid, [1])
         self.assertEqual(a.tm_marks, {})
+
+
+class CorruptionFirst(unittest.TestCase):
+    def test_upgrade_and_lock_go_to_the_corruption_chamber(self):
+        # (owner: "Corruption chamber takes upgrade + lock priority over everything else")
+        b = board({**BASE, (1, 3): ("room", "Corruption Chamber", 2), (1, 4): ("room", "Thaumaturge", 1),
+                   (-2, 5): ("room", "Smithy", 3), (-2, 4): ("room", "Golem Works", 1)})
+        r = VP.full_plan(b, ["Path"], ["Quipolatl's Medallion", "Juatalotli's Medallion"])
+        self.assertEqual(r["targets"].get((1, 3)), ("Upgrade", "Corruption Chamber"))
+        self.assertTrue(any("Lock the Corruption Chamber" in n for n in r["notes"]))
+
+    def test_two_raisers_make_a_corruption_chamber_worth_placing(self):
+        b = board({**BASE, (1, 3): ("room", "Thaumaturge", 1), (2, 2): ("room", "Thaumaturge", 1),
+                   (1, 2): ("path", None, 1), (-1, 2): ("key", "Key Room", 1)})
+        r = VP.full_plan(b, [], ["Uromoti's Medallion: Corruption Chamber"], ["Corruption Chamber"])
+        self.assertIn("Corruption Chamber", [f for _t, f, _w in r["plan"]], "beside two Thaumaturges: tier 3")

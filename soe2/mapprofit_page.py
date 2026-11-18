@@ -89,7 +89,20 @@ class MapProfitPage:
         if not self.mp_on() or getattr(self, "br_area", None) not in ("hideout", "town"):
             return None
         from . import topup as TU
-        counts, unknown = MP.identify(res.get("cells") or [], TU.learned(), self.mp_refs())
+        refs = self.mp_refs()
+        if refs is None:
+            # 3.0.6 (owner's map: "2 not known", +0 div): the pictures weren't built yet on the first read after the
+            # app started - built now, once, so this read counts
+            try:
+                from . import favours as FV
+                from .wealth import WPRICES
+                refs = self.mp_refs_v = FV.build_refs(FV.ninja_items(getattr(WPRICES, "parts", None)), exchange=True)
+                self.mp_refs_at = time.time()
+            except Exception:
+                buglog.caught()
+        counts, unknown = MP.identify(res.get("cells") or [], TU.learned(), refs)
+        buglog.debug("Map profit", "read: " + (", ".join(f"{n} {k}" for n, k in sorted(counts.items())) or "nothing")
+                     + f" · {unknown} not known")                  # (game item names and counts only)
         counts = MP.exchange_only(counts, self.mp_price)
         # 3.0.6 (owner: "make sure it's excluding the persistent items from top up supplies"): what you keep in your
         # inventory for Top Up Reminders isn't loot - topping it up from your stash would count as profit

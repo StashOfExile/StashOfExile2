@@ -240,7 +240,28 @@ def learn(user_path, name, vec, keep=4):
         json.dump(data, f)
 
 
-def identify(vec, icons):
+SHIFT = 10                       # 3.0.6: how far (px at 1440p) a slot's picture is looked for round where it should be
+SHIFT_STEP = 2
+
+
+def identify_at(crop, box, icons, scale=1.0):
+    """3.0.6 (owner: "it's still telling me medallions not known, how the hell is that possible, we have so much
+    data"): a slot's picture matched only where the slot was worked out to be - 4 px off (the title read a little
+    wider) and nothing matched. Now looked for round that spot: crop(box) -> PIL picture; the best name over every
+    small shift, or None."""
+    best = (None, -1.0)
+    r = max(1, int(round(SHIFT * scale)))
+    st = max(1, int(round(SHIFT_STEP * scale)))
+    for dy in range(-r, r + 1, st):
+        for dx in range(-r, r + 1, st):
+            b = (box[0] + dx, box[1] + dy, box[2] + dx, box[3] + dy)
+            name, score = identify(feat(crop(b)), icons, scored=True)
+            if name is not None and score > best[1]:
+                best = (name, score)
+    return best[0]
+
+
+def identify(vec, icons, scored=False):
     """-> the name whose icon matches best (MATCH or closer, and clearly ahead of any other name), or None.
     3.0.6 (owner's panel: a slot learned while hovered - it glows - matched its plain self at 0.90, under the old
     0.93, so it fell back to "not known"): MATCH 0.86 with a lead of MARGIN over the next name."""
@@ -252,10 +273,10 @@ def identify(vec, icons):
                 best[name] = s
     order = sorted(best.items(), key=lambda x: -x[1])
     if not order or order[0][1] < MATCH:
-        return None
+        return (None, 0.0) if scored else None
     if len(order) > 1 and order[0][1] - order[1][1] < MARGIN and base(order[0][0])[0] != base(order[1][0])[0]:
-        return None
-    return order[0][0]
+        return (None, 0.0) if scored else None
+    return (order[0][0], order[0][1]) if scored else order[0][0]
 
 
 # 2.142.1 (feedback: "the room card medallions have matching icons to the regular cards and room tiles"): a slot not
