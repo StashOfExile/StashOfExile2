@@ -131,6 +131,8 @@ class MapProfitPage:
         snap = {"t": time.time(), "counts": counts, "unknown": unknown}
         pend = getattr(self, "mp_pending", None)
         if pend is not None:
+            snap["after_map"] = True          # (the read that counts a map - you stash after it: see mp_area)
+        if pend is not None:
             t0 = pend.setdefault("visit_t0", snap["t"])
             vis = pend.setdefault("visit", {})
             if snap["t"] - t0 <= MP.ARRIVE_SECS:
@@ -265,6 +267,10 @@ class MapProfitPage:
             cells[iid] = img
         dlg.mp_pics = pics                                   # (Tk forgets a picture nobody holds)
         total()
+        if (pend.get("before") or {}).get("stashed") and not pend.get("est"):
+            tk.Label(dlg, text="Counted from your Top Up supplies: you stashed the rest after the last map's read.",
+                     bg=C["panel2"], fg=C["muted"], justify="left", anchor="w", wraplength=520).pack(fill="x",
+                                                                                                    pady=(8, 0))
         if pend.get("est"):
             tk.Label(dlg, text="≈ No read before this map: everything but your Top Up supplies counts as its loot.",
                      bg=C["panel2"], fg=C["muted"], justify="left", anchor="w", wraplength=520).pack(fill="x",
@@ -338,12 +344,18 @@ class MapProfitPage:
         self.mp_rev = dlg
         return dlg
 
-    def mp_home_base(self):
-        """What you went into the map with: the last clear look, plus anything a later covered look saw more of."""
+    def mp_home_base(self, stashed=False):
+        """What you went into the map with: the last clear look, plus anything a later covered look saw more of.
+
+        stashed (a new map): 3.0.6 (owner: yes - "the next map should count from your Top Up supplies only" when the
+        last read was the one that counted the map before - the Back card says to stash all but supplies after it):
+        that read's items are taken as stashed, so a Scrap picked up again counts."""
         home = getattr(self, "mp_home", None)
         cov = getattr(self, "mp_home_cov", None) or {}
         if home is None and not cov:
             return None
+        if stashed and home is not None and home.get("after_map"):
+            home = dict(home, counts={}, stashed=True)
         counts = dict((home or {}).get("counts") or {})
         for k, n in cov.items():
             counts[k] = max(counts.get(k, 0), n)
@@ -500,7 +512,7 @@ class MapProfitPage:
                 self.mp_run, self.mp_pending = pend, None
                 return
             self.mp_done()                                  # (another map: the last one is done)
-            home = self.mp_home_base()
+            home = self.mp_home_base(stashed=True)
             if home is not None and now - home["t"] < MP.BEFORE_SECS:
                 self._mp_n = getattr(self, "_mp_n", 0) + 1
                 self.mp_run = {"before": home, "seg_before": dict(home["counts"]), "gain": {}, "start": now,

@@ -238,3 +238,26 @@ class SuppliesAboveKeep(unittest.TestCase):
         self.assertEqual(MP.grade(["Greater Exalted Orb"], "", known), ["Greater Exalted Orb"])
         self.assertEqual(MP.grade(["Exalted Orb"], "III", known), ["Perfect Exalted Orb"])
         self.assertEqual(MP.grade(["Divine Orb"], "II", {"Divine Orb": 1}), ["Divine Orb"])
+
+
+class StashedAfterRead(unittest.TestCase):
+    """Owner: yes - after the read that counts a map you stash; the next map counts from Top Up supplies only."""
+
+    def test_an_item_picked_up_again_counts(self):
+        a = App()
+        logged = []
+        seq = [{"Divine Orb": 1}, {"Divine Orb": 1}, {"Divine Orb": 1}]
+        with mock.patch.object(MP, "identify", lambda *x, **k: (dict(seq.pop(0)), 0)), \
+                mock.patch.object(MP, "log_add", logged.append), \
+                mock.patch.object(TU, "learned", lambda: {}), \
+                mock.patch.object(TU, "cfg", lambda: {"items": []}), \
+                mock.patch.object(MapProfitPage, "mp_review", lambda *x: None):
+            a.mp_seen({"cells": [1]})                                        # before map 1
+            a.mp_area("map", "hideout", ("A", 1), False)
+            a.mp_area("hideout", "map", None, True)
+            a.mp_seen({"cells": [1]})                                        # map 1's read - then stashed
+            a.mp_area("map", "hideout", ("B", 2), False)                     # map 2 (map 1 done)
+            a.mp_area("hideout", "map", None, True)
+            a.mp_seen({"cells": [1]})                                        # a Scrap again
+            e = a.mp_done()
+        self.assertEqual([(r[0], r[2] - r[1]) for r in e["rows"]], [("Divine Orb", 1)])
