@@ -74,7 +74,8 @@ def read_lines(img, game_h, ocr, want=lambda lines: True):
         k = 2 if cut.height < game_h * 0.25 else 1
         if k > 1:
             cut = cut.resize((cut.width * 2, cut.height * 2))
-        lines = [(t, tuple(int(v / k) for v in b)) for t, b in ocr(cut)]
+        # (3.0.6: the boxes are in the part's own pixels, like those of the whole-part read below)
+        lines = [(t, tuple(int(v / k) + tip[i % 2] for i, v in enumerate(b))) for t, b in ocr(cut)]
     if not lines or not want(lines):
         lines = lines + list(ocr(img))
     return lines
@@ -95,8 +96,43 @@ def text_by_color(img, ocr):
     return [(t, tuple(int(v / 2) for v in b) if b else b) for t, b in out]
 
 
-# what a medallion's label says it does -> the medallion (when its name doesn't read)
-DOES = (("PREVENT THE NEXT DESTABIL", "Juatalotli's Medallion"), ("ADD ROOM", "Uromoti's Medallion"))
+# what a medallion's label says it does -> the medallion (when its name doesn't read). 3.0.6: compared by letters only
+# (a comma or a semicolon read inside the line - "PREVENT THE, NEXT DESTABILISATION", "ADD, ROOM;" - hid it), and the
+# two more tooltips whose name line was lost to the frame (Estazunti's, Hayoxi's) are known by their own words too.
+DOES = (("PREVENTTHENEXTDESTABIL", "Juatalotli's Medallion"), ("USETOADDROOM", "Uromoti's Medallion"),
+        ("ADDITIONALRESTRICTEDROOM", "Estazunti's Medallion"), ("USETOREROLLARESTRICTEDROOM", "Hayoxi's Medallion"))
+
+
+def title_above(img, lines, ocr, game_h):
+    """3.0.6 (a medallion's name line was lost on its own - Estazunti's tooltip read as noise in the one big read):
+    the tooltip's title bar sits just above its first "Use to ..." line - that strip read on its own, bigger, from
+    the same picture. -> the strip's lines ([] when there is no "Use to" line or nothing is read)."""
+    from . import medallions as M
+    anchors = [b for t, b in lines or [] if b and "USETO" in M.letters(t)[:8]]
+    if not anchors:
+        return []
+    b = min(anchors, key=lambda a: a[1])
+    h = game_h
+    band = (max(0, b[0] - int(0.08 * h)), max(0, b[1] - int(0.075 * h)), min(img.width, b[2] + int(0.08 * h)),
+            max(1, b[1] - int(0.004 * h)))
+    if band[2] <= band[0] or band[3] <= band[1]:
+        return []
+    cut = img.crop(band)
+    out = ocr(cut.resize((cut.width * 2, cut.height * 2)))
+    return [(t, tuple(band[i % 2] + int(v / 2) for i, v in enumerate(bb))) for t, bb in out]
+
+
+def read_medals(img, game_h, ocr):
+    """The part round the mouse (one cut of the press's picture) -> its text lines, read as far as a medallion's name
+    needs: the tooltip, the whole part, the gold and white text alone, then the title strip above "Use to ..."."""
+    from . import medallions as M
+    lines = read_lines(img, game_h, ocr)
+    text = " ".join(str(t).upper() for t, _b in lines)
+    if not M.parse(lines)["names"] and any(w in text for w in ("MEDALL", "ROOM:", "SUMMON")):
+        lines = lines + text_by_color(img, ocr)          # (the same picture, gold and white text alone)
+    if not M.parse(lines)["names"]:
+        lines = lines + title_above(img, lines, ocr, game_h)
+    return lines
 
 
 def medal_names(lines):
@@ -105,7 +141,7 @@ def medal_names(lines):
     med = M.parse(lines or [])
     names = list(dict.fromkeys(n for n, _b in med["names"]))
     if not names:
-        text = " ".join(" ".join(str(t).upper().split()) for t, _b in lines or [])
+        text = "".join(M.letters(t) for t, _b in lines or [])
         names = [n for k, n in DOES if k in text][:1]
     return [(n, med["room"]) for n in names], med
 
@@ -141,12 +177,7 @@ class HoverPage:
             img = SR.capture(box, "Vaal Lens")
             if img is None:
                 return []
-            lines = read_lines(img, g[3], RM.ocr)
-            from . import medallions as M
-            text = " ".join(str(t).upper() for t, _b in lines)
-            if not M.parse(lines)["names"] and any(w in text for w in ("MEDALL", "ROOM:", "SUMMON")):
-                lines = lines + text_by_color(img, RM.ocr)      # (the same picture, gold and white text alone)
-            return lines
+            return read_medals(img, g[3], RM.ocr)
 
         def found(lines):
             """(the read mark) A medallion's name."""

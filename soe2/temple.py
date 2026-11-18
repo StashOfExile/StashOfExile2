@@ -46,12 +46,18 @@ def console_box(game):
 
 def parse_console(lines, most=None):
     """OCR lines of the console's count -> (have, most) from "18/60", or None. The most must make sense (10-200,
-    and the same as the last read when there is one) and have <= most."""
+    and the same as the last read when there is one) and have <= most.
+    3.0.6 (the log: "18/60", "12/60" and "15/60" read as ".418/60", ".412/60", ".415/60" - the small icon beside the
+    count read as a dot and a 4): a count of three digits that can't be (more than the most) is read without its
+    first digit, when what is left is two digits that fit - a lone digit left would be a guess, so it stays unread."""
     for text, _box in lines or []:
         m = CONSOLE_LINE.search(" ".join(str(text).split()).replace(" / ", "/"))
         if not m:
             continue
-        have, top = int(m.group(1)), int(m.group(2))
+        digits, top = m.group(1), int(m.group(2))
+        have = int(digits)
+        if len(digits) == 3 and have > top and digits[1] != "0":
+            have = int(digits[1:])
         if 10 <= top <= 200 and 0 <= have <= top and (most is None or top == most):
             return have, top
     return None

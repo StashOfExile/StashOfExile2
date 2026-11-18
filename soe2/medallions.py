@@ -32,8 +32,15 @@ MEDALLIONS = {
 HIGH_ROOMS = ("Corruption Chamber", "Sacrificial Chamber", "Thaumaturge", "Alchemy Lab", "Smithy")
 LOW_ROOMS = ("Armoury", "Garrison", "Spymaster")       # rooms that mostly raise others - the first to let go
 _KEYS = {re.sub(r"[^A-Z]", "", n.upper()): n for n in MEDALLIONS}
-_ROOM = re.compile(r"ADD\s*ROOM\s*[:;]?\s*(.+)", re.I)
-_COUNT = re.compile(r"MEDALLIONS?\s*\(?\s*(\d)\s*[/|l]\s*(\d)\s*\)?", re.I)
+_ROOM = re.compile(r"ADD\W{0,2}ROOM\s*[:;]?\s*(.+)", re.I)      # (3.0.6: "ADD, ROOM; ARMOURY" - a comma read inside)
+# 3.0.6 (owner's panels read by Tesseract: "MEDALLIONS 5 (6/6)" - the icon beside the title read as a character -,
+# "MEDALLIONS 66) >]" - the bracket and the slash lost, "WORKSHOP MEDALLIONS (4/6)" - the room card's name on the same
+# line): the count is looked for straight after the word, with up to two stray characters between
+_COUNT = re.compile(r"MEDALLIONS?\s*(?:\S{1,2}\s+)?\(?\s*(\d)\s*[/|l]\s*(\d)\s*\)?(.*)$", re.I)
+_COUNT_NO_SLASH = re.compile(r"MEDALLIONS?\s*(?:\S{1,2}\s+)?\(?\s*(\d)(\d)\s*\)(.*)$", re.I)
+HEAD_BEFORE = 30                 # most letters a title line may carry in front of the word (a neighbor's name)
+HEAD_AFTER = 6                   # ... and after the count (the arrow button: ">!", "|", "Pl") - more is a sentence
+                                 # (the app's own "Medallions 6/6: Lock, Upgrade ..." line)
 
 
 def letters(t):
@@ -42,7 +49,9 @@ def letters(t):
 
 def name_of(text):
     """An OCR line -> the medallion's name in it, or None (letters only, so "Zantipi's Medallion" and
-    "ZANTIPIS MEDALLION" both match; a near miss of one letter too)."""
+    "ZANTIPIS MEDALLION" both match; a near miss of a letter or two too).
+    3.0.6: the best stretch of the line is compared (an icon or a frame piece read as a few letters in front of the
+    name, or a letter doubled in it: "ESTAZUNTI rs MEDALLION"); a name needs a clear lead over every other name."""
     L = letters(text)
     if "MEDALLION" not in L:
         return None
@@ -50,8 +59,34 @@ def name_of(text):
         if k in L:
             return n
     import difflib
-    m = difflib.get_close_matches(L[:len(L)], list(_KEYS), 1, 0.88)
-    return _KEYS[m[0]] if m else None
+    scored = []
+    for k, n in _KEYS.items():
+        best = difflib.SequenceMatcher(None, L, k).ratio()
+        if len(L) > len(k) + 2:
+            for w in (len(k) - 1, len(k), len(k) + 1):
+                for a in range(0, len(L) - w + 1):
+                    best = max(best, difflib.SequenceMatcher(None, L[a:a + w], k).ratio())
+        scored.append((best, n))
+    scored.sort(reverse=True)
+    if scored[0][0] >= 0.88 and scored[0][0] - scored[1][0] >= 0.05:
+        return scored[0][1]
+    return None
+
+
+def head_count(text):
+    """A line -> (have, most, how far into the line the word starts, 0-1) of a "Medallions (n/m)" title, or None."""
+    t = " ".join(str(text).split())
+    for rx in (_COUNT, _COUNT_NO_SLASH):
+        m = rx.search(t)
+        if not m:
+            continue
+        before, after = letters(t[:m.start()]), letters(m.group(3))
+        if len(before) > HEAD_BEFORE or len(after) > HEAD_AFTER:
+            continue
+        have, most = int(m.group(1)), int(m.group(2))
+        if 0 <= have <= most <= 6:
+            return have, most, m.start() / max(1, len(t))
+    return None
 
 
 def parse(lines):
@@ -60,11 +95,12 @@ def parse(lines):
     out = {"names": [], "count": None, "head": None, "room": None}
     for text, box in lines or []:
         t = " ".join(str(text).split())
-        m = _COUNT.search(t)
-        if m and "MEDALLIONS" in letters(t) and len(letters(t)) <= 12:
-            have, most = int(m.group(1)), int(m.group(2))
-            if 0 <= have <= most <= 6:
-                out["count"], out["head"] = (have, most), box
+        hc = head_count(t)
+        if hc:
+            out["count"] = hc[:2]
+            if box and hc[2] > 0.02:       # (a neighbor's name in front: the title's left edge is where the word starts)
+                box = (int(box[0] + (box[2] - box[0]) * hc[2]),) + tuple(box[1:])
+            out["head"] = box
             continue
         n = name_of(t)
         if n:

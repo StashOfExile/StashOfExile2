@@ -100,8 +100,20 @@ ONE_X = re.compile(r"^[lI|i!]\s?[x×х](?=\s)")     # 2.129.0 (its log: 3 of 5 l
 QTY_LETTERS = re.compile(r"^([0-9IlOo|]{2,4})\s?[xX×х](?=\s)")
 
 
+# 3.0.6 (its log: 'fly lx Warding Rune of Armature' - a few stray letters before the count): up to 8 characters of
+# noise in front of a count that starts the line's real text
+QTY_AFTER_NOISE = re.compile(r"^.{1,8}?\s([0-9IlOo|]{1,4})\s?[xX×х](?=\s)")
+
+
 def _fix_qty(t):
     m = QTY_LETTERS.match(t)
+    if not m:
+        n = QTY_AFTER_NOISE.match(t)
+        if n and re.search(r"[0-9Il|]", n.group(1)[0]) and not re.search(r"[A-Za-z]{4}", t[:n.start(1)]):
+            t = ONE_X.sub("1x", t[n.start(1):])
+            m = QTY_LETTERS.match(t)
+            if not m:
+                return t
     if not m or not re.search(r"[0-9Il|]", m.group(1)[0]):
         return t
     digits = m.group(1).translate(str.maketrans("IlOo|", "11001"))
@@ -131,7 +143,9 @@ class Names:
         for k in self.keys:
             self.by_first.setdefault(k[:1], []).append(k)
 
-    def match(self, text):
+    def match(self, text, cut_ok=False):
+        """cut_ok (3.0.6, a line with an amount - a reward - cut short by the book's edge: "2x Exalted"): the line may
+        be the start of exactly one name, whole words only."""
         low = text.lower()
         if len(low) < 4:
             return None
@@ -144,6 +158,10 @@ class Names:
         for h in hits:
             if same_ending(low, h):
                 return self.exact[h]
+        if cut_ok and len(low) >= 7:
+            starts = [k for k in self.keys if k.startswith(low + " ")]
+            if len(starts) == 1:
+                return self.exact[starts[0]]
         return None
 
 
@@ -165,6 +183,10 @@ def explicit_qty(text):
 GEM_LINE = re.compile(r"^(Skill|Support|Spirit)(?:\s+Level\s+(\d+))?\s*:\s*(.{3,})$", re.I)
 # 2.130.4 (its log: 'Level 20: POWered by Verisium' - the word Skill hidden under the runeshapes): a level with no kind
 LEVEL_LINE = re.compile(r"^Level\s+(\d+)\s*:\s*(.{3,})$", re.I)
+# 3.0.6 (its log: 'S ill Level 20: Rain of Blades', "' JUå@Skill Level 20: Rain of Blad" - the kind word broken or with
+# stray marks before it): a level with its colon, after up to two short fragments or a few stray marks
+LEVEL_AFTER_NOISE = re.compile(r"^(?:\W*[^\W\d_]{1,5}\s+){1,2}Level\s+(\d+)\s*:\s*(.{3,})$|^.{1,8}?(?:Skill|Support|Spirit)"
+                               r"\s+Level\s+(\d+)\s*:\s*(.{3,})$", re.I)
 
 
 def gem_line(text):
@@ -174,8 +196,40 @@ def gem_line(text):
     m = GEM_LINE.match(t)
     if not m:
         lv = LEVEL_LINE.match(t)
-        return ("skill", int(lv.group(1)), fix_case(lv.group(2).strip())) if lv else None
+        if lv:
+            return ("skill", int(lv.group(1)), fix_case(lv.group(2).strip()))
+        nz = LEVEL_AFTER_NOISE.match(t)
+        if nz:
+            lvl, nm = (nz.group(1), nz.group(2)) if nz.group(1) else (nz.group(3), nz.group(4))
+            return ("skill", int(lvl), fix_case(nm.strip()))
+        return None
     return m.group(1).lower(), (int(m.group(2)) if m.group(2) else None), fix_case(m.group(3).strip())
+
+
+def snap_gem(name, vocab):
+    """3.0.6 (its log: gem names read "Rain of Blade", "Wardbound Minion", "Skyfall ill", "Animus Exchan e"): a gem name
+    -> the name the trade site lists (vocab: its names), when one is a clear match - the same name in other letters
+    case, or (0.9 close, with a lead over the next) a near one, also without a short stray word at the end or with a
+    split last word joined. Otherwise the name as read (a search for it just finds nothing)."""
+    if not vocab or not name:
+        return name
+    by_low = {str(v).casefold(): v for v in vocab}
+    words = name.split()
+    tries = [name]
+    if len(words) > 1 and len(words[-1]) <= 3:
+        tries.append(" ".join(words[:-1]))
+        if len(words) > 2:
+            tries.append(" ".join(words[:-2] + [words[-2] + words[-1]]))
+    for t in tries:
+        low = t.casefold()
+        if low in by_low:
+            return by_low[low]
+        if len(low) < 6:
+            continue
+        sc = sorted(((difflib.SequenceMatcher(None, low, k).ratio(), k) for k in by_low), reverse=True)[:2]
+        if sc and sc[0][0] >= 0.9 and (len(sc) < 2 or sc[0][0] - sc[1][0] >= 0.04):
+            return by_low[sc[0][1]]
+    return name
 
 
 def fix_case(name):
@@ -198,7 +252,7 @@ def unique_line(text):
     return m.group(1).strip().lower() if m else None
 
 
-def price_lines(lines, names, value_of, gem_value=None, unique_pool=None):
+def price_lines(lines, names, value_of, gem_value=None, unique_pool=None, gem_vocab=None):
     """[(text, box)] from OCR -> [{"text", "name", "qty", "each", "total", "box"}] for the lines that are items
     (value_of(name) -> divines each, or None when poe.ninja has no price). A reward line poe.ninja doesn't know at
     all is kept too, with "unknown": True and no price. 2.130.0: a gem line ("Skill Level 20: Repulsion") is priced
@@ -213,13 +267,14 @@ def price_lines(lines, names, value_of, gem_value=None, unique_pool=None):
             continue
         gl = gem_line(text) if gem_value else None
         if gl:
+            gl = (gl[0], gl[1], snap_gem(gl[2], gem_vocab))
             each, pending = gem_value(*gl)
             out.append({"text": text, "name": gl[2] + (f" (level {gl[1]})" if gl[1] else ""), "qty": 1,
                         "each": each, "total": each, "box": box, "gem": True, "pending": pending,
                         "unknown": each is None and not pending})
             continue
         base, qty = split_qty(text)
-        name = names.match(base)
+        name = names.match(base, cut_ok=explicit_qty(text))
         if not name:
             # 2.40.0: a reward line poe.ninja doesn't list (e.g. Warding Rune of Obsession) - still tagged, as
             # "no price", so you can see it was read (only lines with an amount: junk never has one)

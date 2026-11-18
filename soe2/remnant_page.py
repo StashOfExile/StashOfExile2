@@ -301,8 +301,9 @@ class RemnantPage:
                 self.remnant_prefetch(league)
             names, value_of = self.remnant_names_values(league, fetch=not held)
             cache = self.rm_names = ((league, getattr(WPRICES, "ts", 0)), names, value_of, time.time())
+        from . import gamedata
         return RM.price_lines(lines, cache[1], cache[2], lambda k, lv, n: self.remnant_gem_value(k, lv, n, league),
-                              self.remnant_unique_pool)
+                              self.remnant_unique_pool, gem_vocab=gamedata.TRADE_ITEMS.get("bases") or None)
 
     POOL_SHOWN = 3                                    # the most valuable uniques named on a "Unique Ring" line
 
