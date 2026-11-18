@@ -440,6 +440,7 @@ PARTNER.setdefault("Synthflesh Lab", ("Flesh Surgeon",))
 # rooms that others are placed beside: placed first, so their partners have room
 FIRST = ("Thaumaturge", "Synthflesh Lab", "Smithy", "Corruption Chamber", "Sacrificial Chamber", "Alchemy Lab",
          "Flesh Surgeon", "Generator", "Golem Works", "Armoury", "Garrison", "Commander", "Spymaster")
+KEEP_ALONE = ("Commander",)      # (owner) placed only beside a Garrison: a tier-3 Commander drops medallions best
 UPGRADE_FIRST = ("Corruption Chamber", "Sacrificial Chamber", "Flesh Surgeon", "Alchemy Lab", "Smithy",
                  "Synthflesh Lab", "Generator", "Garrison")
 
@@ -605,6 +606,15 @@ def full_plan(board, cards=(), medals=(), medal_rooms=()):
             notes.append("No free spot for the key room: placed now, it opens on the next run.")
     # 3. the rooms in hand, the ones others go beside first
     fams = list(spare)                                 # (the room cards not used to join something)
+    from collections import Counter
+    card_left = Counter(h[1] for h in hand if h and h[0] == "room")
+    med_left = Counter(f for f in medal_rooms if f)
+    for _t, f, w in plan:                              # (a room already used to join something)
+        if w.startswith("joins "):
+            if card_left.get(f, 0) > 0:
+                card_left[f] -= 1
+            else:
+                med_left[f] -= 1
     order = sorted(fams, key=lambda f: (FIRST.index(f) if f in FIRST else 99, -VALUE.get(f, 0)))
     rest = list(order)
     for fam in order:
@@ -616,8 +626,24 @@ def full_plan(board, cards=(), medals=(), medal_rooms=()):
                 best = (s, t)
         if best is None:
             continue
-        b[best[1]] = fam
         pals = [b.get(n) for n in near(best[1]) if b.get(n) in PARTNER.get(fam, ()) + tuple(TOUCH.get(fam, ()))]
+        med = med_left.get(fam, 0) > card_left.get(fam, 0)          # (cards are placed first, medallions after)
+        if not pals and (med or fam in KEEP_ALONE):
+            # 3.0.6 (owner: "commanders should be saved for the next run (especially if it's a medallion, it can be
+            # paired with a garrison ...)"): a medallion room - or a Commander - with nothing beside it to raise it
+            # waits for a run where it has its partner
+            mate = (sorted(TOUCH.get(fam) or ()) or list(PARTNER.get(fam) or ()) or ["partner"])[0]
+            notes.append(f"Keep the {fam}{' medallion' if med else ''} for a run with a {mate} to sit beside.")
+            if med:
+                med_left[fam] -= 1
+            else:
+                card_left[fam] -= 1
+            continue
+        if card_left.get(fam, 0) > 0:
+            card_left[fam] -= 1
+        else:
+            med_left[fam] = med_left.get(fam, 0) - 1
+        b[best[1]] = fam
         plan.append((best[1], fam, ("beside " + pals[0]) if pals else "joined to your rooms"))
     if key_needed and arch is None and keyroom is None and not landing(b, "bottom"):
         notes.append("Keep the bottom quadrant clear: the key room needs a free spot there.")

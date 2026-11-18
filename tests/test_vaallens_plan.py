@@ -207,3 +207,18 @@ class UsesWhatYouHave(unittest.TestCase):
         self.assertIn((-1, 3), VP.network(VP.names(b)))
         self.assertFalse([w for _t, _f, w in VP.full_plan(b, ["Path"])["plan"] if w == "the key room"],
                          "already joined through it")
+
+
+class KeepForNextRun(unittest.TestCase):
+    """3.0.6 (owner): a Commander - card or medallion - alone is kept for a run with a Garrison; beside one it goes."""
+
+    def test_lone_commander_medallion_is_kept(self):
+        r = VP.full_plan(board(BASE), [], [], ["Commander"])
+        self.assertFalse([1 for _t, f, _w in r["plan"] if f == "Commander"])
+        self.assertIn("Keep the Commander medallion for a run with a Garrison to sit beside.", r["notes"])
+
+    def test_commander_beside_a_garrison_goes(self):
+        b = board({**BASE, (-1, 2): ("room", "Garrison", 1)})
+        r = VP.full_plan(b, [], [], ["Commander"])
+        t = next(t for t, f, _w in r["plan"] if f == "Commander")
+        self.assertIn((-1, 2), VP.near(t))

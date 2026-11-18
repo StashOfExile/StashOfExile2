@@ -17,7 +17,10 @@ FILE = "bulk_prices.json"          # {league: {exchange id: [divines each, ts, o
                                    # asked, too few offers (kept like a price, so a restart doesn't ask again at once)
 MAX_AGE = 3600
 MIN_OFFERS = 3
-HAVE = ("divine", "exalted")
+HAVE = ("chaos", "divine")
+# 3.0.6 (a user's 17 Greater Essence of Battle at 12 div each - 6 sell for 1 chaos; owner: "check the div price and
+# chaos price and go with the lower cost one" - on a slim market someone lists an item that isn't sold for divines at an
+# absurd divine price): both are asked, each needs MIN_OFFERS offers, and the cheaper one (in divines) is the price.
 
 
 def ids_from_static(static):
@@ -57,15 +60,15 @@ def _cache():
 def cached(league, xid, max_age=MAX_AGE):
     """-> (divines each, offers, currency) from the last hour, or None."""
     hit = _cache().get(league, {}).get(xid)
-    if hit and hit[0] is not None and time.time() - hit[1] < max_age:
+    if hit and hit[0] is not None and time.time() - hit[1] < max_age and (hit[2] or 0) >= MIN_OFFERS:
         return hit[0], hit[2], hit[3] if len(hit) > 3 else "divine"
-    return None
+    return None                                     # (3.0.6: a price from fewer than MIN_OFFERS offers isn't one)
 
 
 def missed(league, xid, max_age=MAX_AGE * 6):
     """3.0.4: asked within max_age and the exchange had too few offers -> True."""
     hit = _cache().get(league, {}).get(xid)
-    return bool(hit and hit[0] is None and time.time() - hit[1] < max_age)
+    return bool(hit and (hit[0] is None or (hit[2] or 0) < MIN_OFFERS) and time.time() - hit[1] < max_age)
 
 
 def per_unit(result):
@@ -112,12 +115,11 @@ def price(league, xid, to_div, call_=None):
     for have in HAVE:
         prices = search(league, xid, have, call_)
         p = robust(prices)
-        if p is not None:
-            d = p if have == "divine" else to_div(p, have)
-            if d is not None:
-                best = (d, len(prices), have)
-                if len(prices) >= MIN_OFFERS:
-                    break
+        if p is None or len(prices) < MIN_OFFERS:
+            continue                                # (too few offers in this currency: one seller isn't a price)
+        d = p if have == "divine" else to_div(p, have)
+        if d is not None and (best is None or d < best[0]):
+            best = (d, len(prices), have)          # the cheaper of the chaos and the divine price
     c = _cache()
     if best is None:
         c.setdefault(league, {})[xid] = [None, time.time(), 0, None]
