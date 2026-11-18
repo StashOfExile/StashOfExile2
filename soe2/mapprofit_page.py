@@ -142,8 +142,11 @@ class MapProfitPage:
             self.mp_check_done()
             self.mp_paint()
             self.mp_read_card(pend)
-        if not res.get("covered"):
-            self.mp_home = snap                             # (what you'd go into the next map with)
+        if not res.get("covered") or pend is not None:
+            # (what you'd go into the next map with. 3.0.6: the read that counts a map is that too, covered or not -
+            # the owner's reads are mostly with the mouse over the inventory, so no clear one came, and covered looks
+            # from maps ago (a Scrap since stashed) were still counted as "went in with")
+            self.mp_home = snap
             self.mp_home_cov = {}
         else:
             # 2.132.6 (feedback: "counted omen of answered prayers as profit that I had in my inventory that I brought
@@ -513,6 +516,7 @@ class MapProfitPage:
                 return
             self.mp_done()                                  # (another map: the last one is done)
             home = self.mp_home_base(stashed=True)
+            self.mp_home_cov = {}                           # (used up: a later map starts from its own looks)
             if home is not None and now - home["t"] < MP.BEFORE_SECS:
                 self._mp_n = getattr(self, "_mp_n", 0) + 1
                 self.mp_run = {"before": home, "seg_before": dict(home["counts"]), "gain": {}, "start": now,

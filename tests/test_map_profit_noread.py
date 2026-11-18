@@ -290,3 +290,27 @@ class EscHides(unittest.TestCase):
         f = Fake()
         RealApp.esc_hide_tags(f)
         self.assertEqual(hid, ["rm", "fv"])
+
+
+class CoveredReads(unittest.TestCase):
+    """Owner's run: every read with the mouse over the inventory (covered); a Scrap from maps ago, since stashed,
+    was still taken as 'went in with', so the new one wasn't counted."""
+
+    def test_covered_reads_only(self):
+        a = App()
+        logged = []
+        seq = [{"Divine Orb": 2}, {"Divine Orb": 2}, {"Divine Orb": 1}]
+        with mock.patch.object(MP, "identify", lambda *x, **k: (dict(seq.pop(0)), 0)), \
+                mock.patch.object(MP, "log_add", logged.append), \
+                mock.patch.object(TU, "learned", lambda: {}), \
+                mock.patch.object(TU, "cfg", lambda: {"items": []}), \
+                mock.patch.object(MapProfitPage, "mp_review", lambda *x: None):
+            a.mp_seen({"cells": [1], "covered": True})                       # before map 1 (covered)
+            a.mp_area("map", "hideout", ("A", 1), False)
+            a.mp_area("hideout", "map", None, True)
+            a.mp_seen({"cells": [1], "covered": True})                       # map 1's read - then stashed
+            a.mp_area("map", "hideout", ("B", 2), False)
+            a.mp_area("hideout", "map", None, True)
+            a.mp_seen({"cells": [1], "covered": True})                       # one picked up in map 2
+            e = a.mp_done()
+        self.assertEqual([(r[0], r[2] - r[1]) for r in e["rows"]], [("Divine Orb", 1)])
