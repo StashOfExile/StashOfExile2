@@ -524,7 +524,6 @@ class WealthStore:
 
 
 PRICES_VERSION = 3          # 3.0.4: each line's 7-day price line (sparkline) is kept too
-BULK_TRIED = set()          # 2.114.3: names the bulk exchange was asked about this run (no answer = too few offers)
 
 
 def _num(x):
@@ -833,7 +832,7 @@ class WealthPrices:
 
     def trend(self, it):
         """3.0.4: (change % over 7 days, [points]) in divines for this item, or None (no poe.ninja line for it,
-        priced by the trade site's exchange, or another league's prices)."""
+        or another league's prices)."""
         if not self.for_league() or it["frame"] in (1, 2):
             return None
         tn, ts = getattr(self, "trend_by_name", {}), getattr(self, "trend_by_slug", {})
@@ -881,45 +880,11 @@ class WealthPrices:
             hit = getattr(self, "by_slug", {}).get(slug(n))
             if hit:
                 return hit
-        from . import bulk                                      # 2.72.1: not on poe.ninja - the bulk exchange's
-        for n in names:                                         # price from the last hour (wealth_bulk_fill)
-            xid = bulk.exchange_id(n)
-            hit = bulk.cached(SETTINGS.get("league") or self.league or "", xid, max_age=6 * 3600) if xid else None
-            if hit:
-                return hit[0], bulk.text(hit)
-        return None, None
-
-    def bulk_missing(self, items, limit=None):
-        """2.72.1: the stackables poe.ninja has no price for that the bulk exchange knows -> [(name, exchange id)].
-        2.114.3 (feedback: scanned items weren't in the total): every one, not the first 30 - a scan of eight tabs
-        has a hundred or more."""
-        from . import bulk
-        out, seen = [], set()
-        for it in items:
-            if it.get("frame") in (1, 2, 3) or self.value(it)[0] is not None:
-                continue
-            for n in [x for x in (it.get("type"), it.get("base")) if x]:
-                xid = bulk.exchange_id(n)
-                if xid and (n in BULK_TRIED or bulk.missed(SETTINGS.get("league") or self.league or "", xid)):
-                    break                                       # 3.0.4: asked already - too few offers
-                if xid and xid not in seen:
-                    seen.add(xid)
-                    out.append((n, xid))
-                    break
-            if limit and len(out) >= limit:
-                break
-        return out
+        return None, None                                       # 3.0.6: not on poe.ninja - no price (owner: no guessing)
 
     def why_unpriced(self, it):
-        """2.114.3: why a stackable has no price - asked the bulk exchange yet or not."""
-        from . import bulk
-        names = [x for x in (it.get("type"), it.get("base")) if x]
-        if not any(bulk.exchange_id(n) for n in names):
-            return "not on poe.ninja or the trade site's exchange"
-        lg = SETTINGS.get("league") or self.league or ""
-        if any(n in BULK_TRIED or bulk.missed(lg, bulk.exchange_id(n)) for n in names if bulk.exchange_id(n)):
-            return "too few offers on poe.ninja or the trade site's exchange"
-        return "not on poe.ninja - asking the trade site's exchange…"
+        """Why a stackable has no price (3.0.6: poe.ninja is the only source)."""
+        return "not found on poe.ninja"
 
 
 def rare_sig(it):
@@ -948,7 +913,7 @@ def rares_to_price(items, league, now=None):
 
 def wealth_rows(items, prices):
     """-> ([(item, divines each or None, divines total or None, source)], total, priced count). 3.0.4 (owner):
-    never a price typed by hand - poe.ninja, else the trade site's exchange, else no price found."""
+    never a price typed by hand - poe.ninja, else no price (not found on poe.ninja)."""
     rows, total, priced = [], 0.0, 0
     for it in items:
         each, src = prices.value(it)

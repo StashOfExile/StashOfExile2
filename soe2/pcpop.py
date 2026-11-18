@@ -189,7 +189,7 @@ class PricePopup:
         box = tk.Frame(inner, bg=P.get("field", P["bg"]), highlightthickness=1, highlightbackground=P["line"])
         box.pack(fill="x", padx=16, pady=(8, 0))
         if each is None:
-            lab(box, "No price on poe.ninja or the bulk exchange right now.", padx=8, pady=8)
+            lab(box, "Not found on poe.ninja.", padx=8, pady=8)
             return
         lab(box, "1 ≈ " + fmt_div(each), fg=P["big"], size=16, bold=True, font=head, padx=8, pady=(8, 0))
         worth, buys = RATES.common(each, RATES.key(name.replace(" ", "-")))

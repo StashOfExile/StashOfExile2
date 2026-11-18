@@ -226,6 +226,12 @@ Versions follow Semantic Versioning 2.0.0, always written in full: 2.10.0 adds f
 
 ## ▶ Next up
 
+### Rule: prices for currency-type items come from poe.ninja only (owner, 2026-11-18)
+"The bulk exchange is not a valid method of checking any prices ... player set, not supply and demand pricing like the
+currency exchange uses." An item poe.ninja doesn't price shows "not found on poe.ninja" and is left out of totals - no
+bulk item exchange price, no guess. **Applies to the planned essence price checker** and anything else that prices
+stackables (Wealth, League Plan, Map Profit, Strat costs).
+
 ### Pass: every helper's alerts after the policy changes (owner, 2026-11-18)
 Some on-screen alerts still point at features removed for GGG policy compliance (automatic screen reads, timers that
 read) or removed in the 3.0.x cleanup. One helper at a time (Breach, Ritual, Expedition, Temple, Trial of the Sekhemas,

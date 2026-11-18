@@ -25,6 +25,13 @@ DOCS = ("README.md", "TOS.md", "linux/README.md", "themes/README.md", "strats/RE
 
 # (version, what it was, words a person read, names in the code / settings keys[, pending])
 REMOVED = [
+    ("3.0.6", "Wealth / League Plan prices from the trade site's bulk exchange for items poe.ninja doesn't list "
+              "(owner: \"player-set prices skew the data; only poe.ninja\" - an item poe.ninja doesn't list is not "
+              "found on poe.ninja and left out of the total)",
+     ("bulk exchange (", "asking the trade site's exchange", "too few offers on poe.ninja or the trade site's exchange",
+      "or the bulk exchange", "else the trade site's exchange"),
+     ("bulk_missing", "BULK_TRIED", "wealth_bulk_fill", "_w_bulk_running", "_w_bulk_left", "bulk_prices.json",
+      "bulk.price", "bulk.cached", "bulk.missed", "bulk.search", "bulk.text", "bulk.exchange_id", "ids_from_static")),
     ("3.0.6", "the Ritual helper's counter read: Read Key read \"2/4\" and the tribute off the screen (owner: \"ritual "
               "reminders can be removed since they can't be automated, it defeats the purpose, reading / identifying "
               "rituals can be removed since it can't be automated\" - can't be automated under GGG policy), the "

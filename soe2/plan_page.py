@@ -340,7 +340,7 @@ class GamePlanPage:
         P2 = C["panel2"]
         o, box = chrome_section(parent, "Stockpile", "What to buy and sit on. Have = what you type "
                                                                        "(Enter keeps it); Now = poe.ninja for your "
-                                                                       "league (or the bulk exchange).", wrap=True)
+                                                                       "league.", wrap=True)
         o.pack(fill="x", pady=(0, 12))
         self.gp_stock_box = tk.Frame(box, bg=P2)
         self.gp_stock_box.pack(fill="x")
@@ -420,13 +420,7 @@ class GamePlanPage:
         """Its price in divines - always your league's (2.73.4), or None."""
         try:
             from .wealth import WPRICES
-            from . import bulk
-            each = WPRICES.named(name)
-            if each is None:
-                xid = bulk.exchange_id(name)
-                hit = bulk.cached(SETTINGS.get("league") or "", xid, max_age=6 * 3600) if xid else None
-                each = hit[0] if hit else None
-            return each
+            return WPRICES.named(name)
         except Exception:
             return None
 

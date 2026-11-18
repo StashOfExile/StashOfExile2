@@ -385,8 +385,8 @@ class WealthPage:
         ("Count by hand", "For a currency Scan stash can't read (More ▾): press it, then hover each stack in game "
                          "and press Ctrl+C - stacks of the same currency add up. Double-click a quantity to change "
                          "it; select rows (Ctrl+A for all) and press Delete to remove them."),
-        ("Prices", "Currency, fragments and other stackables come from poe.ninja, else the trade site's exchange. An "
-                   "item neither has a price for says No price found and isn't in the total."),
+        ("Prices", "Currency, fragments and other stackables come from poe.ninja. An item "
+                   "poe.ninja doesn't list says not found on poe.ninja and isn't in the total."),
         ("Total and What moved it", "Total is everything added up; the chart shows it over time (Daily = the change "
                                     "per day). What moved it splits the week's change into prices and amounts, and "
                                     "shows each item's week (click it)."),
@@ -1151,48 +1151,7 @@ class WealthPage:
             msg = "Prices updated." if not WPRICES.errors else "Prices updated, but some poe.ninja categories failed."
             self.w_msg.config(text=msg, fg=C["green"] if not WPRICES.errors else C["good"])
             self.refresh_wealth(force=True)
-            self.wealth_bulk_fill()                       # 2.72.1: then the bulk exchange, for what poe.ninja lacks
-        elif kind == "bulk":
-            self.refresh_wealth(force=True)
         self.wealth_buttons()
-
-    def wealth_bulk_fill(self):
-        """2.72.1: stackables poe.ninja has no price for, priced from the trade site's bulk exchange - in the
-        background, one search each (rate-limited like every trade-site request), kept an hour."""
-        if getattr(self, "_w_bulk_running", False):
-            return
-        todo = WPRICES.bulk_missing(WEALTH.all_items())
-        if not todo:
-            return
-        self._w_bulk_running = True
-        self._w_bulk_left = len(todo)
-        league = SETTINGS.get("league") or WPRICES.league or ""        # 2.73.4: always your league
-
-        def work():
-            from . import bulk
-            from .rates import RATES
-            from .wealth import BULK_TRIED
-            got = 0
-            try:
-                for i, (name, xid) in enumerate(todo, 1):
-                    try:
-                        if bulk.price(league, xid, lambda a, c: RATES.to_div(a, c, league)):
-                            got += 1
-                    except Exception:
-                        buglog.caught()
-                    BULK_TRIED.add(name)
-                    self._w_bulk_left = len(todo) - i
-                    if i % 5 == 0:                       # (the list fills in as it goes)
-                        self.ui_q.put(("wealth", "bulk"))
-            finally:
-                self._w_bulk_running = False
-                self._w_bulk_left = 0
-                try:                                     # 2.114.3: the total counts them - the snapshot taken before
-                    WEALTH.snapshot(league, WPRICES, "prices", replace=True)    # they had prices is replaced
-                except Exception:
-                    buglog.caught()
-                self.ui_q.put(("wealth", "bulk"))
-        threading.Thread(target=work, daemon=True).start()
 
     def wealth_buttons(self):
         s = WEALTH_SYNC["cur"]
@@ -1265,10 +1224,8 @@ class WealthPage:
         if rows:
             facts.append(f"{priced} of {len(rows)} items priced (all in divines)."
                          + (f" {len(rows) - priced} without a price aren't in the total." if priced < len(rows) else ""))
-        if getattr(self, "_w_bulk_running", False):                 # 2.114.3
-            facts.append(f"Asking the trade site's exchange for the rest ({getattr(self, '_w_bulk_left', 0)} left)…")
         if WPRICES.ts:
-            facts.append(f"Prices from poe.ninja (the rest from the trade site's exchange), {self._w_ago(WPRICES.ts)}.")
+            facts.append(f"Prices from poe.ninja, {self._w_ago(WPRICES.ts)}.")
         if WPRICES.errors:
             facts.append(f"{len(WPRICES.errors)} poe.ninja categories failed last time.")
         if delta:
@@ -1280,9 +1237,6 @@ class WealthPage:
         self.wealth_moved()
         self.wealth_draw_chart()
         self.wealth_fill_items()
-        if (not getattr(self, "_w_bulk_running", False) and any(e is None for _i, e, _t, _s in rows)
-                and WPRICES.ts):                             # 3.0.4: after a restart, ask the exchange for the
-            self.root.after(500, self.wealth_bulk_fill)     # rest - not only after a price update
 
     def wealth_tiles(self, rows, total, priced, delta, eq, last_count):
         """UI overhaul: Stash worth, the change, the same in Exalted, and when you last counted - with how each was
@@ -1296,7 +1250,7 @@ class WealthPage:
         tiles.set([
             Tile("Stash worth", fmt_div(total) if rows else "—",
                  f"{priced:,} of {len(rows):,} items priced" if rows else "Press Scan stash to start", "text_muted",
-                 "Each item's price (poe.ninja, else the trade site's exchange) times how many you hold, added up. "
+                 "Each item's price (from poe.ninja) times how many you hold, added up. "
                  "Items without a price aren't in it."),
             Tile("Change", delta or "—", (f"▲ Up {since}" if up else f"▼ Down {since}") if delta else
                  "Shows from your second scan", ("good" if up else "bad") if delta else "text_muted",

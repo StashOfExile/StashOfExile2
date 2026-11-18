@@ -2996,23 +2996,19 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         return parse_item(text) or waystone.parse_waystone(text) or gear.parse_gear(text)
 
     def stack_price(self, name, qty, loud=False):
-        """2.72.1: a copied stack -> its worth in the status line: poe.ninja's price, or (not listed there) the trade
-        site's bulk exchange (one search, kept an hour). In the background; nothing is added to the list."""
+        """2.72.1: a copied stack -> its worth in the status line: poe.ninja's price (3.0.6: the only source). In the
+        background; nothing is added to the list."""
         def work():
-            from . import bulk
             from .wealth import WPRICES
-            league = SETTINGS.get("league") or WPRICES.league or ""     # 2.73.4: always your league
             each, src = WPRICES.named(name), "poe.ninja"
             if each is None:
-                xid = bulk.exchange_id(name)
-                hit = bulk.price(league, xid, lambda a, c: RATES.to_div(a, c, league)) if xid else None
-                each, src = (hit[0], bulk.text(hit)) if hit else (None, None)
+                each, src = None, None
             self.ui_q.put(("stack_priced", name, qty, each, src, loud))
         threading.Thread(target=work, daemon=True).start()
 
     def ev_stack_priced(self, name, qty, each, src, loud=False):
         if each is None:
-            msg = f"{name}: no price on poe.ninja or the bulk exchange right now."
+            msg = f"{name}: not found on poe.ninja."
         elif qty == 1:
             msg = f"{name}: {fmt_div(each)} ({src})."
         else:
