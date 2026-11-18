@@ -262,6 +262,13 @@ def _ritual_only_favours_306(S):
         r.pop(k, None)
 
 
+def _breach_reminder_follows_helper(S):
+    """Hiveblood's leave reminder is part of the helper being on: its own setting (leave_reminder) is gone."""
+    b = S.get("breach_alert")
+    if isinstance(b, dict):
+        b.pop("leave_reminder", None)
+
+
 def _look_key_default(S):
     """GGG policy, owner decision: the Read Key is Ctrl+Shift+R as the app comes. A Read Key that is unset (or was the
     old Tab, cleared by look_key_dedicated) becomes it; a key you picked is kept. A person with an older install is
@@ -334,6 +341,7 @@ STEPS = (
     ("read_key_name", "3.0.1", "settings", _read_key_name, None),
     ("strats_find_306", "3.0.6", "settings", _strats_find_306, None),
     ("ritual_only_favours_306", "3.0.6", "settings", _ritual_only_favours_306, None),
+    ("breach_reminder_follows_helper", "3.0.6", "settings", _breach_reminder_follows_helper, None),
 )
 
 

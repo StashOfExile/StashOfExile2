@@ -256,6 +256,10 @@ REMOVED = [
      ("How searches are made", "Re-check a learned mod after", "Learn new mods in the background",
       "Skip a search the Mod Book already agrees on"),
      ("memory_shortcut", "model_shortcut")),
+    ("3.0.6", "The Remind column in Helpers: the Breach leave reminder follows the Breach helper being on "
+              "(owner: In Maps On should give the reminders)",
+     ("Remind me when I leave the map with it unfinished\"",),
+     ("leave_reminder", "al_leave", "alerts_leave_changed")),
     ("2.106.0", "Wealth's public stash tabs (Scan stash replaces them)", ("Sync stash tabs",), ("w_sync_btn",), True),
 ]
 ABSENT = re.compile(r"\bnot\b|\bgone\b|\bremoved\b|\bno longer\b|\.pop\(|\bdel\b|None\)", re.I)

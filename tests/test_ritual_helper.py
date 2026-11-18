@@ -152,7 +152,7 @@ class Panel(unittest.TestCase):
         self.fail("no Ritual row")
 
     def test_the_ritual_row(self):
-        words, (_rl, _sw, cell, oc, rs, tbt) = self.row()
+        words, (_rl, _sw, cell, oc, tbt) = self.row()
         said = " ".join(texts(cell) + texts(oc)).lower()
         self.assertIn("favours window open", said)
         self.assertIn("filter in the ritual window", said)
@@ -161,8 +161,42 @@ class Panel(unittest.TestCase):
         self.assertEqual(self.app.al_rows["ritual"]["chips"], [], "Favours prices is the helper itself: no 2nd switch")
         for name in ("Favours prices", "Ritual Identifier", "On screen"):
             self.assertNotIn(name, self.app.al_chips, name)
-        self.assertFalse(isinstance(rs, ttk.Checkbutton), "no leave reminder")
         self.assertFalse(isinstance(tbt, ttk.Button), "nothing to test: no Test button")
+
+    def test_helpers_table_has_no_remind_column(self):
+        said = [t for t in texts(self.app.al_table)]
+        self.assertIn("Options", said)
+        self.assertNotIn("Remind", said)
+        self.assertNotIn("leave_reminder", self.app.breach_cfg())
+        self.assertFalse(hasattr(self.app, "al_leave"))
+
+    def test_breach_reminder_follows_the_helper(self):
+        from unittest import mock
+        cfg = self.app.breach_cfg()
+        old = dict(cfg)
+        seen = []
+        try:
+            with mock.patch.object(self.app, "breach_alert", lambda **k: seen.append(k.get("level"))), \
+                    mock.patch.object(self.app, "fl_area", lambda *a: None), \
+                    mock.patch.object(self.app, "mp_area", lambda *a: None), \
+                    mock.patch.object(self.app, "back_card", lambda *a: None), \
+                    mock.patch.object(self.app, "break_check", lambda *a, **k: None):
+                for on, want in ((True, ["leave"]), (False, [])):
+                    cfg.update(on=on, pending="almost")
+                    seen.clear()
+                    self.app.br_area, self.app.br_relog = "map", False
+                    self.app.breach_area("hideout")
+                    self.assertEqual(seen, want, f"helper on={on}")
+        finally:
+            cfg.clear()
+            cfg.update(old)
+
+    def test_breach_reminder_setting_dropped(self):
+        S = {"breach_alert": {"on": True, "sound": True, "leave_reminder": False}}
+        MG._breach_reminder_follows_helper(S)
+        self.assertEqual(S["breach_alert"], {"on": True, "sound": True})
+        MG._breach_reminder_follows_helper({})
+        self.assertIn("breach_reminder_follows_helper", [s[0] for s in MG.STEPS])
 
     def test_favours_follows_the_helper(self):
         from soe2.config import SETTINGS

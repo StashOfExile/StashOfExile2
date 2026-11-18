@@ -158,7 +158,6 @@ class AlertsPage:
         c = SETTINGS.setdefault("breach_alert", {})
         c.setdefault("on", True)     # 2.118.0: on by default (a new install; yours is kept)
         c.setdefault("sound", True)
-        c.setdefault("leave_reminder", True)       # 2.11.0
         c.setdefault("pending", None)              # 2.11.0: "almost" / "full" since the last warning, until the tree
         return c
 
@@ -209,7 +208,7 @@ class AlertsPage:
 
     def build_alerts_panel(self, parent):
         """2.112.0 (rework): one row per helper, the same columns for all - on / off, the name with what it does and
-        what it's doing now, its own options (chips), Remind, and Test / Open. Grouped: In maps, Play, Trading, Misc. A
+        what it's doing now, its own options (chips), and Test / Open. Grouped: In maps, Play, Trading, Misc. A
         search box first, then the groups as chips; one Sound switch for every helper's alert sits above the table."""
         self.alerts_init()
         P2 = C["panel2"]
@@ -306,15 +305,15 @@ class AlertsPage:
         tbl.grid_columnconfigure(1, minsize=300)
         tbl.grid_columnconfigure(2, weight=1)
         heads_ = {}
-        for c, t in ((0, "On / off"), (1, "Helper"), (2, "Options"), (3, "Remind")):
+        for c, t in ((0, "On / off"), (1, "Helper"), (2, "Options")):
             heads_[c] = tk.Label(tbl, text=t, bg=P2, fg=C["muted"], font=sm)
-            heads_[c].grid(row=0, column=c, sticky="w" if c < 3 else "", padx=(0, 12), pady=(0, 4))
+            heads_[c].grid(row=0, column=c, sticky="w", padx=(0, 12), pady=(0, 4))
         r_ = [1]
         self.al_find, self.al_heads, opt_cells = [], {}, []
 
         def rule():
             f = tk.Frame(tbl, bg=C["line"], height=1)
-            f.grid(row=r_[0], column=0, columnspan=5, sticky="ew")
+            f.grid(row=r_[0], column=0, columnspan=4, sticky="ew")
             r_[0] += 1
             return f
 
@@ -373,7 +372,6 @@ class AlertsPage:
         beta = set(_FEAT.BETA_HELPERS)
         # 2.119.0 (UX pass): what each one does, in one gray line under its name (it was only a tooltip)
         blurb = {k: ("Beta · " if k in beta else "") + what[k] for k in names}
-        self.al_leave = tk.BooleanVar(value=bool(self.breach_cfg().get("leave_reminder", True)))
         self.al_rru = tk.BooleanVar(value=bool(self.remnant_cfg().get("rumours", True)))
         self.al_rtips = tk.BooleanVar(value=bool(self.remnant_cfg().get("tips", True)))
         from .temple import cfg as _TMc
@@ -392,7 +390,6 @@ class AlertsPage:
                          f"gets the island it leads to and your Map Library rank for it."),
                         ("Runeshape tips", self.al_rtips, lambda: self.remnant_tips_changed(self.al_rtips.get()),
                          "A small list next to the prices: the runeshapes players rate best for loot (S and A tier).")]}
-        remind = {"breach": (self.al_leave, self.alerts_leave_changed)}
 
         def more_opts(key, oc):
             """The options that aren't on / off chips: a list, a choice, a link. -> [(words, widget)]"""
@@ -456,7 +453,7 @@ class AlertsPage:
         for group, keys in self.HELPER_GROUPS:
             hr = rule()
             hl = tk.Label(tbl, text=group.upper(), bg=P2, fg=C["muted"], font=("Segoe UI", 9, "bold"))
-            hl.grid(row=r_[0], column=0, columnspan=5, sticky="w", pady=(8, 2))
+            hl.grid(row=r_[0], column=0, columnspan=4, sticky="w", pady=(8, 2))
             self.al_heads[group] = (hr, hl)
             r_[0] += 1
             for key in keys:
@@ -497,26 +494,19 @@ class AlertsPage:
                     oc.grid_configure(sticky="ew")      # four chips were cut off)
                     flowify(oc, vgap=4)
                     opt_cells.append((oc, r))
-                if key in remind:
-                    rv, rcmd = remind[key]
-                    rs = ttk.Checkbutton(tbl, variable=rv, style=CB, command=rcmd)
-                    Tooltip(rs, "Remind me when I leave the map with it unfinished")
-                else:
-                    rs = tk.Label(tbl, text="-", bg=P2, fg=C["muted"])
-                rs.grid(row=r, column=3, padx=(0, 12))
                 if key in tests:                        # (a helper with nothing to test - Ritual - has no button)
                     tbt = ttk.Button(tbl, text="Open" if key in ("focus", "campaign", "music", "mapprofit") else "Test",
                                      command=tests[key], width=6)
                 else:
                     tbt = tk.Label(tbl, text="-", bg=P2, fg=C["muted"])
-                tbt.grid(row=r, column=4, sticky="e")
+                tbt.grid(row=r, column=3, sticky="e")
                 if key in test_tips and key in tests:
                     Tooltip(tbt, test_tips[key])
                 r_[0] += 2                              # (D3: the row after is where the options go when it's narrow)
                 snd = tk.BooleanVar(value=True)
                 self.al_rows[key] = {"dot": dot, "on": on, "sound": snd, "status": st, "what": what[key], "note": "",
                                      "row": cell, "switch": sw, "grid": True, "chips": mine}
-                self.al_find.append((key, group, " ".join(words).lower(), (rl, sw, cell, oc, rs, tbt)))
+                self.al_find.append((key, group, " ".join(words).lower(), (rl, sw, cell, oc, tbt)))
         def narrow_table(_e=None, state={"narrow": None}):
             """D3: under 900 px each helper's options go on the row under its description (as in the mockup); the
             Options column heading goes with them."""
@@ -528,7 +518,7 @@ class AlertsPage:
             for oc_, r0 in opt_cells:
                 vis = bool(oc_.grid_info())
                 if narrow:
-                    oc_.grid(row=r0 + 1, column=1, columnspan=3, sticky="ew", padx=(0, 12), pady=(0, 8))
+                    oc_.grid(row=r0 + 1, column=1, columnspan=2, sticky="ew", padx=(0, 12), pady=(0, 8))
                 else:
                     oc_.grid(row=r0, column=2, columnspan=1, sticky="ew", padx=(0, 12), pady=0)
                 if not vis:
@@ -801,10 +791,6 @@ class AlertsPage:
         cfg["sound"] = bool(r["sound"].get())
         save_json("settings.json", SETTINGS)
 
-    def alerts_leave_changed(self):
-        self.breach_cfg()["leave_reminder"] = bool(self.al_leave.get())
-        save_json("settings.json", SETTINGS)
-
     def ritual_filter_state(self):
         """The state beside the button: ✓ On / ✗ Off / ? Not found (read from the game's file - that line only)."""
         from . import ritual_filter as RF
@@ -1053,8 +1039,7 @@ class AlertsPage:
         elif self.br_win is not None:
             btxt = f"Warned at {time.strftime('%H:%M', time.localtime(max(self.br_last.values() or [time.time()])))}"
         elif self.breach_cfg().get("pending"):
-            btxt = ("On - Hiveblood is waiting to be spent" + (": you'll be reminded when you leave the map"
-                                                              if self.breach_cfg().get("leave_reminder", True) else ""))
+            btxt = ("On - Hiveblood is waiting to be spent" + ": you'll be reminded when you leave the map")
         else:
             btxt = "On - Watching for Hiveblood messages."
         rtxt = self.ritual_text(rows["ritual"])
@@ -1296,7 +1281,7 @@ class AlertsPage:
         if left and relog:          # 2.130.2 (feedback): out through the character screen (died, switched character,
             buglog.debug("leave check", "skipped: came back through the character screen")   # logged out) - the
             left = False            # map is still there to go back to; no reminder for leaving it
-        if left and cfg.get("on") and cfg.get("pending") and cfg.get("leave_reminder", True):
+        if left and cfg.get("on") and cfg.get("pending"):
             self.breach_alert(level="leave")
         try:
             self.mp_area(kind, before, where, left)          # 2.132.0: Map profit - a map's before / after
