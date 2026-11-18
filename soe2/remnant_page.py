@@ -513,10 +513,10 @@ class RemnantPage:
         box.pack()
         tk.Label(box, text="Runeshapes for loot", bg=BG, fg=P["head"] if skinned() else TXT,
                  font=("Segoe UI", small, "bold"), anchor="w").pack(fill="x")
-        for tier in ("S", "A", "B", "C", "D"):                 # 2.40.0: every runeshape, best first
+        for tier in RM.TIER_ORDER:                            # 2.40.0: every runeshape, best first (3.0.6: SS-C)
             names = [(n, why) for tr, n, why in RM.RUNE_TIERS if tr == tier]
             bg, fg = RM.TIER_LOOK[tier]
-            if tier in ("S", "A"):                            # the picks: one line each, with what they do
+            if tier in ("SS", "S", "A"):                      # the picks: one line each, with what they do
                 for name, why in names:
                     row = tk.Frame(box, bg=BG)
                     row.pack(fill="x")
@@ -533,7 +533,7 @@ class RemnantPage:
                 tk.Label(row, text="  ·  ".join(n for n, _w in names), bg=BG, fg=MUT if tier == "C" else TXT if parchment() else fg,
                          font=("Segoe UI", small), anchor="w", justify="left",
                          wraplength=int(abs(size) * 24)).pack(side="left", padx=(8, 0))
-        tk.Label(box, text=f"S-A: players' picks · B-D: grouped by effect ({RM.RUNE_TIPS_UPDATED})", bg=BG,
+        tk.Label(box, text=f"Players' tier list · purple runes B, blue C ({RM.RUNE_TIPS_UPDATED})", bg=BG,
                  fg=MUT,
                  font=("Segoe UI", small), anchor="w").pack(fill="x", pady=(2, 0))
         never = tk.Label(box, text="Never show again", bg=BG, fg=MUT, cursor="hand2",      # 2.98.6 (feedback)

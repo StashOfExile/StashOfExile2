@@ -40,54 +40,48 @@ JUNK = re.compile(r"[^\w' ()\-:,.]+")
 #   "danger" runes Moon, Toxic, Bloodletting; arena hazards Earth; Life flagged for poor loot; Protective awkward),
 #   (timesaver.gg credit removed 2026-11-17: its guides are a currency-seller blog with "Buy now" boxes.)
 # Effect lines are the game's own rune text (RePoE poe2 export, keywords.json).
-# S and A are epoe.io's picks (guide reviewed for 0.5.5e). B-D are grouped from each rune's effect: B = some upside
-# (more kills, XP), C = only makes monsters tougher, D = hazards / dangerous.
-# 2026-11-17 re-check: Bond A -> C. epoe.io (https://epoe.io/blog/path-of-exile-2-expedition-guide) does not rank it A
-# and says to skip Bond setups (encounters ending early reported); it was only in A through the timesaver.gg page.
-# Still uncertain (no allowed source ranks them): Rebirth / Wisdom / Ward in B (epoe.io lists Rebirth and Ward only as
-# "approach with caution"), Moon / Toxic / Bloodletting in D (epoe.io: caution), Earth / Sky / Tidal in D (hazards by
-# their game text only), Oath in S (epoe.io: S but conditional on handling its summoner).
-# 2026-11-18 re-check (epoe.io + poe.gnejs.app/poe2/expedition/runes, both crediting Cutedog_'s sheet): Moon / Toxic /
-# Bloodletting / Earth stay D (epoe: hazards, dangerous); Rebirth / Ward stay B (low confidence); Oath stays S (0.5.5:
-# its immunity became more Ward - S for builds that handle the summoner). Wisdom / Sky / Tidal: still no source.
-# Bond is contested: gnejs ranks it 2nd, epoe says skip - kept in C until the owner decides.
+# 2026-11-18 (owner): a player tier list the owner found, confirmed by a friend who farms it (its reasons are left out:
+# screen clutter). SS Opulent; S Power, Death, Bond, Oath; A Time, Rebirth; B the other purple runes; C the remaining
+# blue runes. Purple = poe2db's "RemnantRareRune..." ids (https://poe2db.tw/Power_Rune), blue = "RemnantRune...".
+# 0.5.5: Oath no longer makes its monster immune - it gains more Ward instead. No D tier any more.
 RUNE_TIPS_UPDATED = "Nov 2026"
-RUNE_TIERS = [   # (2.130.4, feedback: C and D in alphabetical order - S-B stay in the players' order)
-    ("S", "Opulent", "increased monster rarity"),
+RUNE_TIERS = [   # (C in alphabetical order - SS-B stay in the players' order)
+    ("SS", "Opulent", "increased monster rarity"),
     ("S", "Power", "runic mods become empowered"),
-    ("S", "Oath", "a monster summons allies"),
+    ("S", "Death", "slain monsters may merge, stronger"),
+    ("S", "Bond", "rares may transfer a mod"),
+    ("S", "Oath", "a monster summons allies, more Ward"),
     ("A", "Time", "slain monsters may respawn rarer"),
-    ("A", "Death", "slain monsters may merge, stronger"),
-    ("A", "Soul", "union of souls"),
-    ("B", "Rebirth", "chance to rebirth on death"),
-    ("B", "Wisdom", "increased experience"),
+    ("A", "Rebirth", "chance to rebirth on death"),
+    ("B", "Soul", "union of souls"),
+    ("B", "Life", "shared life"),
     ("B", "Ward", "protected by runic ward"),
+    ("B", "Earth", "conjures earthly spires"),
+    ("B", "Sky", "conjures elemental tornados"),
     ("C", "Adaptive", "adaptation"),
     ("C", "Arcane", "extra energy shield, stunning nova"),
-    ("C", "Bond", "rares may transfer a mod - encounters may end early, skip"),
+    ("C", "Bloodletting", "life leech, corrupted blood on hit"),
     ("C", "Celestial", "fire / cold / lightning explosion on death"),
     ("C", "Cold", "extra cold damage"),
     ("C", "Cyclonic", "exposure, armour break, wither on hit"),
     ("C", "Electrocuting", "extra lightning, electrocutes, shocked ground"),
     ("C", "Fire", "extra fire damage"),
-    ("C", "Life", "shared life - poor loot reported"),
     ("C", "Lightning", "extra lightning damage"),
     ("C", "Momentum", "faster, cannot be slowed"),
+    ("C", "Moon", "conjures moon beams"),
     ("C", "Prismatic", "all damage can shock / chill / ignite, more resists"),
-    ("C", "Protective", "periodic Verisium shields - awkward"),
+    ("C", "Protective", "periodic Verisium shields"),
     ("C", "Rage", "periodically enrage"),
     ("C", "Stone", "armoured, stun threshold, earthly prison"),
     ("C", "Tempest", "immune to shock / chill, more of both"),
+    ("C", "Tidal", "conjures tidal waves"),
+    ("C", "Toxic", "poison, toxic volatiles on death"),
     ("C", "Vision", "reflect curses, shock, chill"),
     ("C", "Volcanic", "extra fire, can ignite, ignited ground"),
-    ("D", "Bloodletting", "life leech, corrupted blood on hit"),
-    ("D", "Earth", "conjures earthly spires (hazard)"),
-    ("D", "Moon", "conjures moon beams (hazard)"),
-    ("D", "Sky", "conjures elemental tornados (hazard)"),
-    ("D", "Tidal", "conjures tidal waves (hazard)"),
-    ("D", "Toxic", "poison, toxic volatiles on death"),
+    ("C", "Wisdom", "increased experience"),
 ]
-TIER_LOOK = {"S": ("#2a2108", "#ffd25a"), "A": ("#16213a", "#9fc2ff"), "B": ("#13241a", "#7fd9a0"),
+TIER_ORDER = ("SS", "S", "A", "B", "C")
+TIER_LOOK = {"SS": ("#3a2c06", "#fff0a0"), "S": ("#2a2108", "#ffd25a"), "A": ("#16213a", "#9fc2ff"), "B": ("#13241a", "#7fd9a0"),
              "C": ("#1c1c24", "#b4bccb"), "D": ("#2a1012", "#ff8a80")}
 
 
