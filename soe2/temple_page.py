@@ -158,6 +158,8 @@ class TemplePage:
                         if len(by_row) > len(named):
                             named = by_row
                         board["cards"] = [n for n, _y in named]
+                        # 3.0.7: each Path card's shape, off its art (where it can go: the game never turns it)
+                        board["card_shapes"] = V.path_shapes(pic, named, 2)
                         # 3.0.6 (owner: inside the temple, V opens the console only to look - no Room Cards list):
                         # with no list there's nothing to place, so no plan (the Architect's reward rooms bring it)
                         board["placing"] = bool(named) or any(
@@ -338,6 +340,7 @@ class TemplePage:
             full = {"plan": [], "targets": {}, "notes": []}
         plan = self._temple_plan_steady(full["plan"], board)
         self.tm_plan, self.tm_targets, self.tm_notes = plan, full["targets"], full["notes"]
+        self.tm_chains, self.tm_path_cards = full.get("chains") or [], full.get("path_cards") or {}
         if seen and board.get("lit") and VP.card(board.get("card")) == ("path", None):
             # 3.0.6 (owner: "It wants me to place a path where I cannot place a path"): a path card's shape decides
             # where it fits - the game lights those squares; none of the planned ones lit = this card doesn't fit
@@ -422,7 +425,15 @@ class TemplePage:
         rows = [(VP.card(n), xy) for n, xy in (board or {}).get("card_rows") or []]
         slots = [(M.base(h)[1] if h else None, box) for h, box in getattr(self, "tm_medal_boxes", None) or []]
         used, out = set(), {}
+        by_card = getattr(self, "tm_path_cards", None) or {}
         for step, (_t, fam, _w) in zip(VP.steps(plan), plan):
+            k = by_card.get(_t) if fam == "Path" else None
+            if k is not None and k < len(rows) and ("c", k) not in used:
+                # 3.0.7: the Path card whose shape fits that square - not just the next one in the list
+                used.add(("c", k))
+                x, y = rows[k][1]
+                out[("@", int(x), int(y))] = ("lbl", step)
+                continue
             rw = VP.card(fam) if fam not in ("Path", "Key Room") else None
             want = ("path", None) if fam == "Path" else ("key", None) if fam == "Key Room" else \
                 rw if rw and rw[0] == "reward" else ("room", fam)
@@ -463,11 +474,15 @@ class TemplePage:
         if not got["head"]:
             return {"open": False, "names": got["names"], "room": got["room"]}
         s = V.placing(g)[0]
+        icons = M.known_icons(self._temple_medal_file())
+        dx, dy = M.align(lambda b: full.crop((b[0] - gx, b[1] - gy, b[2] - gx, b[3] - gy)), got["head"], icons, s)
+        if dx or dy:                                        # 3.0.6: the title's box was off - the slots follow the
+            h = got["head"]                                 # pictures
+            got["head"] = (h[0] + dx, h[1] + dy, h[2] + dx, h[3] + dy)
         filled = [sl for sl in M.slots(got["head"], s, 6) if M.slot_filled(
             full.crop(tuple(int(v) - o for v, o in zip(M.icon_box(sl), (gx, gy, gx, gy)))))]
         have = len(filled)
         most = got["count"][1] if got["count"] else max(have, (TM.cfg().get("medals") or {}).get("most") or 0, 3)
-        icons = M.known_icons(self._temple_medal_file())
         hand, learn, pics, boxes, vecs = [], None, {}, [], []
         for k, sl in enumerate(filled):
             ib = M.icon_box(sl)
@@ -629,6 +644,8 @@ class TemplePage:
             out.append((str(step), src))
         for _t, (word, fam) in (getattr(self, "tm_targets", None) or {}).items():
             out.append(("▲" if word == "Upgrade" else "■", f"{word}: {fam}"))
+        # 3.0.7 (owner: "a more clear method of explaining what we're doing to place those"): one line per chain
+        out += [("→", c) for c in (getattr(self, "tm_chains", None) or [])[:3]]
         if not getattr(self, "tm_targets", None):
             pays = [fam for _t, fam, _w in plan if fam in ("Corruption Chamber", "Sacrificial Chamber", "Alchemy Lab")]
             if pays:
@@ -647,12 +664,13 @@ class TemplePage:
             return f"Medallions: open them (V) and press {self.look_key_text()}."
         # 3.0.6 (owner: "one vertical list instead of a wall of text, a list only of the names"): a room medallion by
         # its room, the rest by what they do (Lock, Upgrade ...)
-        known = [self._temple_medal_say(h) for h in hand[:have] if h]
+        known = [self._temple_medal_say(h, sum(1 for x in hand[:k] if x == h))
+                 for k, h in enumerate(hand[:have]) if h]
         unknown = have - len(known)
         tail = [f"? {unknown} not known yet"] if unknown else []        # (owner: "stop asking me to teach it")
         return "\n".join([f"Medallions {have}/{most}"] + known + tail)
 
-    def _temple_medal_say(self, h):
+    def _temple_medal_say(self, h, k=0):
         """3.0.6 (owner: "factor for the medallions in hand at the same time, if they should be used or saved"): one
         medallion -> its name, then use (where) or keep - from this read's plan."""
         from . import medallions as M, vaallens_plan as VP
@@ -661,17 +679,24 @@ class TemplePage:
         plan = getattr(self, "tm_plan", None) or []
         notes = " ".join(getattr(self, "tm_notes", None) or [])
         if room:
-            st = next((s for s, (_t, f, w) in zip(VP.steps(plan), plan) if f == room), None)
-            if st is not None:
-                return f"{word} · use: step {st}"
-            return f"{word} · keep" if room in notes else word
+            # (3.0.7: a room card of that kind is placed first - the medallions take the steps after it)
+            cards = sum(1 for n in (getattr(self, "tm_board", None) or {}).get("cards") or []
+                        if VP.card(n) == ("room", room))
+            sts = [s for s, (_t, f, w) in zip(VP.steps(plan), plan) if f == room][cards:]
+            if k < len(sts):
+                return f"{word} · use: step {sts[k]}"
+            return f"{word} · keep for next run"        # (3.0.7 owner: "I'm saving my medallions for next run")
         short = M.MEDALLIONS.get(name, (name,))[0]
-        for _t, (w, fam) in (getattr(self, "tm_targets", None) or {}).items():
-            if w == short:
-                return f"{word} · use on {fam}"
+        # 3.0.7 (owner's two Upgrades both said "use on Flesh Surgeon" - the board had two marks): the k-th medallion
+        # of a kind -> the k-th target of its kind
+        on = [fam for _t, (w, fam) in (getattr(self, "tm_targets", None) or {}).items() if w == short]
+        if k < len(on):
+            return f"{word} · use on {on[k]}"
+        if short in ("Upgrade", "Lock") and "Corruption Chamber" in notes and f"Keep the {short}" in notes:
+            return f"{word} · keep for the Corruption Chamber"
         if name == "Puhuarte's Medallion" and "reroll" in notes.lower():
             return f"{word} · use now"
-        return f"{word} · keep"
+        return f"{word} · keep for next run"
 
     def temple_pad_show(self):
         if self.temple_pad_shown():

@@ -420,3 +420,230 @@ class Placement(unittest.TestCase):
         self.assertFalse(VP.can_place({(1, 3): "Smithy"}, (2, 3), "Garrison"))
         self.assertTrue(VP.can_place({(1, 3): "Commander"}, (2, 3), "Garrison"))
         self.assertTrue(VP.can_place({(1, 3): "Path"}, (2, 3), "Garrison"))
+
+
+# ---------------------------------------------------------------- 3.0.7 round 14 (the owner's run, 15 screenshots)
+R = ("reward", "Reward", 1)
+WALLS = [(-4, 9), (-3, 9), (2, 9), (3, 9), (4, 9), (4, 8), (-4, 7), (4, 7), (-4, 6), (-4, 5), (4, 5), (-4, 4),
+         (-4, 3), (4, 3), (-4, 1), (-3, 1), (-2, 1), (2, 1), (4, 1)]
+T_NE = {"NE", "SW", "SE"}                       # the owner's T card (round 14, picture 1)
+CORNER = {"NE", "SE"}
+STRAIGHT = {"NW", "SE"}
+HAT = {"SW", "SE"}
+
+
+def run1():
+    """Picture 1: the gold path to row 5, rooms up the middle to the Flesh Surgeon, a reward room beside Atziri's
+    doorstep, the Architect at (2, 6)."""
+    c = {(0, j): ("path", None, 1) for j in range(1, 6)}
+    c.update({(-1, 4): ("path", None, 1), (-1, 5): ("path", None, 1), (-1, 6): ("path", None, 1),
+              (0, 6): ("room", "Golem Works", 2), (0, 7): ("room", "Synthflesh Lab", 2),
+              (0, 8): ("room", "Flesh Surgeon", 2), (-1, 7): ("room", "Transcendent Barracks", 3),
+              (1, 7): ("room", "Transcendent Barracks", 2), (-2, 6): ("room", "Generator", 1),
+              (-2, 5): ("room", "Smithy", 4), (-2, 4): ("room", "Golem Works", 1), (-2, 3): ("key", "Key Room", 1),
+              (1, 4): ("room", "Thaumaturge", 1), (2, 4): ("room", "Corruption Chamber", 3),
+              (1, 5): ("room", "Golem Works", 1), (2, 6): ("architect", "Architect", 1), (-1, 9): R})
+    c.update({w: R for w in WALLS})
+    return board(c)
+
+
+def after_close():
+    """Picture 6: what the close left - the gold path, two paths left of it, the Flesh Surgeon chain to Atziri."""
+    c = {(0, j): ("path", None, 1) for j in range(1, 6)}
+    c.update({(-1, 5): ("path", None, 1), (-1, 6): ("path", None, 1), (0, 7): ("room", "Synthflesh Lab", 2),
+              (0, 8): ("room", "Flesh Surgeon", 2), (0, 9): ("room", "Synthflesh Lab", 2),
+              (-1, 7): ("room", "Transcendent Barracks", 2), (2, 6): ("architect", "Architect", 1)})
+    c.update({w: R for w in WALLS})
+    return board(c)
+
+
+class PathShapes(unittest.TestCase):
+    """3 pictures: the T card lit the 3 squares north-west of the gold path, none south-east (no turning); rooms
+    lit on both sides (the gold path's tiles take a neighbor on either side)."""
+    def test_a_path_card_goes_as_drawn(self):
+        b = VP.names(run1())
+        for t in ((-1, 1), (-1, 2), (-1, 3)):
+            self.assertTrue(VP.path_fits(b, t, T_NE), t)
+        for t in ((1, 1), (1, 2), (1, 3)):
+            self.assertFalse(VP.path_fits(b, t, T_NE), f"{t}: its closed side faces the gold path")
+        self.assertTrue(VP.path_fits(b, (1, 2), None), "shape not read: any way")
+
+    def test_no_path_square_the_game_would_not_light(self):
+        b = run1()
+        b["card_shapes"] = [None, None, T_NE, None, CORNER]
+        r = VP.full_plan(b, ["Prosthetic Research", "Workshop", "Path", "Guardhouse", "Path"])
+        names = dict(VP.names(b))
+        for t, f, _w in r["plan"]:
+            if f == "Path":
+                k = r["path_cards"][t]
+                self.assertTrue(VP.path_fits(names, t, b["card_shapes"][k]), t)
+            names[t] = "Path" if f == "Path" else f
+        self.assertNotIn((1, 3), [t for t, f, _w in r["plan"] if f == "Path"], "the square the owner couldn't use")
+
+    def test_each_path_card_where_its_shape_fits(self):
+        # (picture 7 -> 8: a straight and a corner made the path to the Architect)
+        b = after_close()
+        b["card_shapes"] = [STRAIGHT, HAT]
+        r = VP.full_plan(b, ["Path", "Path"])
+        arch = [(t, r["path_cards"][t]) for t, f, w in r["plan"] if f == "Path" and w == "the Architect"]
+        self.assertEqual({t for t, _k in arch}, {(0, 6), (1, 6)})
+        names = VP.names(b)
+        for t, k in arch:
+            names = dict(names)
+            self.assertTrue(VP.path_fits(names, t, b["card_shapes"][k]))
+            names[t] = "Path"
+        self.assertTrue(any(c.startswith("Path to the Architect: 2 paths") for c in r["chains"]))
+
+    def test_shape_read_from_the_card_art(self):
+        from PIL import Image
+        from soe2 import vaallens as V
+        im = Image.new("RGB", (480, 300), (22, 22, 23))              # the dark tiled backing
+        y = 150
+        for side, (dx, dy) in (("NE", (1, -1)), ("SE", (1, 1)), ("SW", (-1, 1))):
+            for t in range(0, 34):                                   # floor out to three sides (a T)
+                x0 = V.CARD_MID_X + dx * V.CARD_HALF[0] * t / 33
+                y0 = y + dy * V.CARD_HALF[1] * t / 33
+                im.paste((40, 33, 25), (int(x0) - 4, int(y0) - 4, int(x0) + 5, int(y0) + 5))
+        self.assertEqual(V.path_shape(im, y, 1.0), frozenset(T_NE))
+        self.assertIsNone(V.path_shape(Image.new("RGB", (480, 300), (22, 22, 23)), y, 1.0))
+
+
+class AtziriFirst(unittest.TestCase):
+    """2 pictures (1 -> 3, and the later run): the owner joined Atziri with a Prosthetic Research beside his Flesh
+    Surgeon, on her doorstep beside a reward room - the only way in."""
+    def test_her_doorstep_beside_a_reward_room(self):
+        r = VP.full_plan(run1(), ["Prosthetic Research", "Workshop", "Path", "Guardhouse", "Path"])
+        self.assertEqual(r["plan"][0], ((0, 9), "Synthflesh Lab", "joins Atziri"))
+        self.assertEqual(VP.steps(r["plan"])[0], 1)
+        self.assertIn("Chain to Atziri: 1 room.", r["chains"])
+
+    def test_doorstep_not_crossed_out(self):
+        b = run1()
+        m = VP.marks(b, [(0, 9), (1, 8)], ("room", "Synthflesh Lab"))
+        self.assertNotEqual(m.get((0, 9), ("",))[0], "x")
+
+    def test_joined_by_a_room_is_joined(self):
+        r = VP.full_plan(after_close(), ["Path"])
+        self.assertFalse([w for _t, _f, w in r["plan"] if "Atziri" in w])
+        self.assertFalse(any("Atziri" in n and "path" in n.lower() and "No safe" in n for n in r["notes"]))
+
+    def test_chain_never_touches_an_x_square(self):
+        # (owner: "built in protections of the x rooms not to connect to") - a reward room beside the only way up
+        c = {(0, j): ("path", None, 1) for j in range(1, 7)}
+        c.update({(0, 7): ("room", "Garrison", 1), (1, 8): R, (-1, 8): R})
+        b = board(c)
+        r = VP.full_plan(b, ["Guardhouse", "Commander's Chamber", "Depot"])
+        names = VP.names(b)
+        for t, _f, w in r["plan"]:
+            if t != VP.DOOR:
+                self.assertFalse(VP.touches_reward(names, t), f"{t} ({w}) touches a reward room")
+
+
+class Upgrades(unittest.TestCase):
+    """Owner: "it also wants me to upgrade the flesh surgeon, that's like way low priority, I'm saving the upgrade
+    for the next corruption chamber upgrade"; "the t3/t4 barracks and synthflesh were useless"; "why is it suggesting
+    I upgrade the generator/dynamo?" (3 pictures)."""
+    def test_kept_for_the_corruption_chamber(self):
+        meds = ["Quipolatl's Medallion", "Uromoti's Medallion: Generator", "Uromoti's Medallion: Thaumaturge",
+                "Quipolatl's Medallion", "Uromoti's Medallion: Thaumaturge",
+                "Uromoti's Medallion: Corruption Chamber"]
+        r = VP.full_plan(after_close(), ["Path"], meds, ["Generator", "Thaumaturge", "Thaumaturge",
+                                                         "Corruption Chamber"])
+        self.assertEqual(r["targets"], {}, "no Upgrade on the Flesh Surgeon or the Synthflesh Lab")
+        self.assertIn("Keep the Upgrade for the Corruption Chamber.", r["notes"])
+
+    def test_never_on_rooms_that_only_add_monsters(self):
+        b = board({**BASE, (1, 2): ("room", "Synthflesh Lab", 1), (-1, 2): ("room", "Generator", 1),
+                   (1, 3): ("room", "Transcendent Barracks", 2), (-1, 3): ("room", "Garrison", 1)})
+        r = VP.full_plan(b, [], ["Quipolatl's Medallion", "Juatalotli's Medallion"])
+        self.assertEqual(r["targets"], {})
+        self.assertIn("Keep the Upgrade for next run: nothing here pays for it.", r["notes"])
+        self.assertIn("Keep the Lock for next run: nothing here pays for it.", r["notes"])
+
+    def test_unread_medallions_keep_it_off_the_flesh_surgeon(self):
+        r = VP.full_plan(after_close(), [], ["Quipolatl's Medallion", None, None])
+        self.assertEqual(r["targets"], {})
+
+    def test_two_upgrades_each_name_their_own_room(self):
+        from soe2.temple_page import TemplePage
+
+        class A(TemplePage):
+            pass
+        a = A()
+        a.tm_plan, a.tm_notes = [], []
+        a.tm_targets = {(1, 3): ("Upgrade", "Corruption Chamber"), (-2, 5): ("Upgrade", "Smithy")}
+        up = "Quipolatl's Medallion"
+        self.assertEqual(a._temple_medal_say(up, 0), "Upgrade · use on Corruption Chamber")
+        self.assertEqual(a._temple_medal_say(up, 1), "Upgrade · use on Smithy")
+        self.assertEqual(a._temple_medal_say(up, 2), "Upgrade · keep for next run")
+
+
+class CorruptionChain(unittest.TestCase):
+    """Owner: "I will place the corruption chamber and thaumaturge, upgrade corruption chamber and lock it so I get
+    2 runs out of it which is 2 guaranteed architect's orbs" (2 pictures)."""
+    MEDS = ["Uromoti's Medallion: Thaumaturge", "Uromoti's Medallion: Corruption Chamber", "Quipolatl's Medallion"]
+
+    def test_waits_for_an_upgrade_and_a_lock(self):
+        r = VP.full_plan(board(dict(BASE)), [], self.MEDS, ["Thaumaturge", "Corruption Chamber"])
+        self.assertNotIn("Corruption Chamber", [f for _t, f, _w in r["plan"]])
+        self.assertNotIn("Thaumaturge", [f for _t, f, _w in r["plan"]], "no Thaumaturge left alone")
+        self.assertTrue(any("2 runs" in n and "Architect" in n for n in r["notes"]))
+
+    def test_goes_down_together_with_both(self):
+        r = VP.full_plan(board(dict(BASE)), [], self.MEDS + ["Juatalotli's Medallion"],
+                         ["Thaumaturge", "Corruption Chamber"])
+        got = {f: t for t, f, _w in r["plan"]}
+        self.assertIn("Thaumaturge", got)
+        self.assertIn("Corruption Chamber", got)
+        self.assertIn(got["Corruption Chamber"], VP.near(got["Thaumaturge"]))
+        self.assertTrue(any("Corruption Chamber beside the Thaumaturge" in c for c in r["chains"]))
+
+    def test_no_clean_square_both_wait(self):
+        # (picture 11: the only square beside the Thaumaturge's spots loops back into the gold path)
+        c = {(0, j): ("path", None, 1) for j in range(1, 7)}
+        c.update({(-1, 6): ("path", None, 1), (0, 7): ("room", "Synthflesh Lab", 3), (0, 8): ("room", "Flesh Surgeon", 4),
+                  (-1, 7): ("room", "Transcendent Barracks", 3), (-2, 6): ("room", "Generator", 1),
+                  (2, 6): ("architect", "Architect", 1), (2, 4): ("key", "Key Room", 1), (2, 3): R, (-2, 3): R})
+        c.update({w: R for w in WALLS})
+        meds = self.MEDS + ["Juatalotli's Medallion", "Uromoti's Medallion: Thaumaturge"]
+        r = VP.full_plan(board(c), ["Path", "Prosthetic Research"], meds,
+                         ["Thaumaturge", "Corruption Chamber", "Thaumaturge"])
+        fams = [f for _t, f, _w in r["plan"]]
+        self.assertNotIn("Thaumaturge", fams)
+        self.assertNotIn("Corruption Chamber", fams)
+
+
+class ArchitectsCards(unittest.TestCase):
+    """Owner (3 pictures): "where the key room is by itself and has an option to connect a reward room to it, it's
+    okay to place it beside it as long as it doesn't connect to other reward rooms. I will take a currency vault";
+    "I also placed a currency vault on the opposite side because I can safely access it and connect to it next run
+    without breaking my outside 'block' rooms along the walls"."""
+    def b(self):
+        c = {(0, j): ("path", None, 1) for j in range(1, 7)}
+        c.update({(-1, 6): ("path", None, 1), (1, 6): ("path", None, 1), (0, 7): ("room", "Synthflesh Lab", 3),
+                  (0, 8): ("room", "Flesh Surgeon", 4), (0, 9): ("room", "Synthflesh Lab", 2),
+                  (-2, 6): ("room", "Generator", 1), (2, 6): ("architect", "Architect", 1)})
+        c.update({w: R for w in WALLS})
+        b = board(c)
+        b["lit"], b["card"] = [(-2, 3), (2, 4)], "Royal Access Chamber"
+        return b
+
+    CARDS = ["Royal Access Chamber", "Vault of Reverence", "Kishara's Vault", "Kishara's Vault", "Jiquani's Vault"]
+
+    def test_key_room_on_a_lit_square_currency_vault_beside_it(self):
+        r = VP.full_plan(self.b(), self.CARDS)
+        self.assertEqual(r["plan"][0], ((2, 4), "Key Room", "the key room"), "the bottom one of the lit squares")
+        self.assertEqual(r["plan"][1], ((2, 3), "Kishara's Vault", "beside the key room: joins with it"))
+        self.assertFalse([f for _t, f, _w in r["plan"] if f == "Path"], "no path at his console")
+
+    def test_vaults_a_later_path_reaches_safely(self):
+        b = self.b()
+        r = VP.full_plan(b, self.CARDS)
+        names = dict(VP.names(b))
+        third = r["plan"][2]
+        self.assertEqual(third[1], "Kishara's Vault", "a currency vault where he can reach it")
+        for t, f, _w in r["plan"][:3]:
+            names[t] = "Reward" if f != "Key Room" else "Key Room"
+        names.pop(third[0])
+        self.assertTrue(VP.reachable_later(names, third[0]))
+        self.assertFalse(VP.reachable_later(names, (-4, 8)), "between two wall reward rooms: opens them too")

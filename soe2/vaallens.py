@@ -666,6 +666,36 @@ def card_rows_read(img, ocr, lines=None):
     return out
 
 
+# 3.0.7 (round 14): a Path card's shape, from its art - the corridor's floor (brown: red well above blue) runs out to
+# each side it opens to; a closed side is the dark tiled backing (red = blue). Measured on 9 Path cards in 6 of the
+# owner's pictures (straight, corner, T; lit and dim): open sides 8-11 apart, closed 0-1, at 70% of the way out.
+CARD_MID_X = 378                         # the card diamond's middle (1440p, from the card list box's left)
+CARD_HALF = (36, 31)                     # center -> the middle of a side (x, y)
+FLOOR_RB = 4
+
+
+def path_shape(img, y, s):
+    """The card list's picture, a Path card's row middle y (in it) and its scale -> frozenset of the sides its
+    corridor opens to ("NE", "SE", "SW", "NW"), or None (fewer than two read: not sure)."""
+    a = np.asarray(img.convert("RGB")).astype(np.float32)
+    out = set()
+    for side, (dx, dy) in (("NE", (1, -1)), ("SE", (1, 1)), ("SW", (-1, 1)), ("NW", (-1, -1))):
+        x0, y0 = (CARD_MID_X + dx * CARD_HALF[0] * 0.7) * s, y + dy * CARD_HALF[1] * 0.7 * s
+        r = max(1, round(2 * s))
+        p = a[max(0, int(y0) - r):int(y0) + r + 1, max(0, int(x0) - r):int(x0) + r + 1].reshape(-1, 3)
+        if p.size and float((p[:, 0] - p[:, 2]).mean()) >= FLOOR_RB:
+            out.add(side)
+    return frozenset(out) if 2 <= len(out) <= 4 else None
+
+
+def path_shapes(img, names, up=1.0):
+    """The card list's picture and its cards [(name, y middle at `up` times)] -> a shape per card (None for a room
+    card, or a Path card not read)."""
+    from . import vaallens_plan as VP
+    s = img.height / (CARD_BOX[3] - CARD_BOX[1])
+    return [path_shape(img, y / up, s) if VP.card(n) == ("path", None) else None for n, y in names]
+
+
 def card_pick(img, lines, up=1.0):
     """The card list's picture and its OCR lines (read at `up` times its size) -> the picked card's name: the one
     whose diamond glows (gold share well above the others), or the only card. None: not known."""
