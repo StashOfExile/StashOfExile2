@@ -146,6 +146,20 @@ def find_card(img, game_h):
     return (x0 * SCALE, y0 * SCALE, (x1 + 1) * SCALE, (y1 + 1) * SCALE)
 
 
+PART_MIN = 5                   # 3.0.6: a line the reader cut short ("least..." for "It's dry at least...")
+
+
+def part_match(line, taken=()):
+    """A cut-short line -> (rumor, island) when its letters (PART_MIN or more, or by shape) are the start or the end
+    of exactly one rumor not found yet - never a guess between two."""
+    s, sh = squash(line), shape(line)
+    if len(s) < PART_MIN:
+        return None
+    hits = [(r, i) for k, r, i in _KEYS if i not in taken and
+            (k.endswith(s) or k.startswith(s) or _SHAPES[i].endswith(sh) or _SHAPES[i].startswith(sh))]
+    return hits[0] if len(hits) == 1 else None
+
+
 def rows(lines):
     """OCR lines of the card -> [(rumor, island, line box)] for the lines that are rumors (the header and the
     Requires line aren't). 2.113.1 (feedback: the middle one of three was missed): a rumor no single line matches is
@@ -157,6 +171,13 @@ def rows(lines):
         if hit and hit[1] not in seen:
             seen.add(hit[1])
             out.append((hit[0], hit[1], box))
+    if len(out) < 3:
+        for text, box in lines:                             # (3.0.6: a line read only in part)
+            hit = None if match(text) else part_match(text, seen)
+            if hit and not any(a in squash(text) for a in ("rumour", "rumor", "logbook", "requires", "chart")):
+                seen.add(hit[1])
+                out.append((hit[0], hit[1], box))
+        out.sort(key=lambda x: (x[2][1], x[2][0]))
     if len(out) < 3 and lines:
         parts = [(shape(t), b) for t, b in lines]           # (2.113.2: by shape - see SHAPE)
         full = "".join(p for p, _b in parts)

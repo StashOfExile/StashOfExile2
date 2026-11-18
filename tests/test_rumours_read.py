@@ -22,3 +22,15 @@ class Misreads(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CutShort(unittest.TestCase):
+    def test_a_line_read_in_part(self):
+        lines = [("USE A LOGBOOK TO CHART THE AREA", (0, 0, 9, 9)), ("RUMOURS?", (0, 10, 9, 19)),
+                 ("SomedQiw' Osho...", (0, 20, 9, 29)), ("Cold as ice...", (0, 30, 9, 39)), ("least...", (0, 40, 9, 49))]
+        got = [r[0] for r in R.rows(lines)]
+        self.assertEqual(got, ["Somethin' fishy...", "Cold as ice...", "It's dry at least..."])
+        self.assertEqual(len(R.rows(lines)), 3)
+
+    def test_two_fits_is_no_guess(self):
+        self.assertIsNone(R.part_match("fall..."))          # Fallen stars / Origin of the fall / The last to fall
