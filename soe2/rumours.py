@@ -33,6 +33,8 @@ RUMOURS = [
     ("The last to fall...", "Mournful Cliffside"),
 ]
 MATCH = 0.72
+LEAD = 0.12                    # 3.0.6: "Somethin' fishy..." read as "Somedtviw' Osho..." scored 0.77, the next rumor
+#                                0.62 - just under the old 0.15 lead; other lines stay under 0.56 (see SHAPE)
 WHOLE_MATCH = 0.8              # 2.113.1: in the card's whole text (stricter - more to match against)
 SCALE = 8                       # the screen is searched at 1/8 size
 MIN_AREA = 0.02                 # the card's parchment, as a share of (game height)^2
@@ -85,7 +87,7 @@ def match(line):
     scores.sort(reverse=True)
     best = scores[0]
     lead = best[0] - (scores[1][0] if len(scores) > 1 else 0.0)
-    return (best[1], best[2]) if best[0] >= MATCH and lead >= 0.15 else None
+    return (best[1], best[2]) if best[0] >= MATCH and lead >= LEAD else None
 
 
 # 2.123.5 (feedback: the panel showed in a hideout with a lit tan floor - the floor passed the parchment color test and
