@@ -13,16 +13,16 @@ from .style import Tooltip
 
 # (label, key): the helpers switched on / off, then the tools' menus on the bar
 # 2.131.1: every helper, as a chip. Owner: in the same groups and order as Overlay › Helpers (AlertsPage.HELPER_GROUPS)
-QUICK_LABELS = {"breach": "Breach", "ritual": "Ritual", "remnant": "Expedition",
-                "temple": "Temple", "desecrate": "Desecration", "campaign": "Campaign", "focus": "League Plan",
-                "topup": "Top Up", "breaks": "Breaks", "mapprofit": "Map profit", "whispers": "Whispers",
-                "music": "Music", "sekhemas": "Sekhemas"}
+def _labels():
+    """3.0.6 audit (one name per feature): a chip says its helper's name, as Overlay › Helpers does."""
+    from .alerts_page import AlertsPage
+    return AlertsPage.HELPER_NAMES
 
 
 def quick_groups():
     """[(group, ((label, key), ...))] - Overlay › Helpers' groups, in its order."""
     from .alerts_page import AlertsPage
-    return [(g, tuple((QUICK_LABELS[k], k) for k in ks)) for g, ks in AlertsPage.HELPER_GROUPS]
+    return [(g, tuple((_labels()[k], k) for k in ks)) for g, ks in AlertsPage.HELPER_GROUPS]
 
 
 QUICK_HELPERS = tuple(x for _g, items in quick_groups() for x in items)

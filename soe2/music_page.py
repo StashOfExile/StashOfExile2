@@ -28,6 +28,17 @@ class MusicPage:
         if v is not None and bool(v.get()) != bool(on):
             v.set(bool(on))
 
+    def music_open(self):
+        """Overlay › Helpers' Open: on, and its window in front (3.0.6 audit: when it was on already, Open did nothing)."""
+        self.music_set(True)
+        w = getattr(self, "mu_win", None)
+        try:
+            if w is not None and w.winfo_exists():
+                w.deiconify()
+                w.lift()
+        except (tk.TclError, AttributeError):
+            pass
+
     def music_shown(self):
         w = getattr(self, "mu_win", None)
         try:

@@ -16,6 +16,7 @@ from .style import C, Tooltip
 MOVING = "moving"
 HIST_SECS = 20                      # 2.131.2: recent looks kept to find the taught cell without the hover glow
 REFINE_SAME = TU.SAME * 3       # (the glow changes it this much at most)
+TEACH_WARN_SECS = 600                 # 3.0.6: a copy this soon after an inventory read is a teach - say why not
 TEACH_SECS = 120                    # the Top Up key teaches from the last Read Key read this recent
 CARD_COLOR = "#8ec5ff"
 BACK_SECS = 30                      # the Back from a map card waits this long (a click on it closes it: not now)
@@ -286,10 +287,19 @@ class TopUpPage:
         the mouse, add it to your list (keep = a full stack). -> True if learned."""
         last = getattr(self, "tu_last", None) or {}
         topup = bool(TU.cfg().get("on"))
-        if not (topup or self.mp_on()) or not last.get("open") or time.time() - last.get("t", 0) > TEACH_SECS:
+        if not (topup or self.mp_on()):
+            return False
+        age = time.time() - last.get("t", 0)
+        teaching = last.get("open") and age <= TEACH_WARN_SECS     # (3.0.6: a copy soon after an inventory read)
+        if not last.get("open") or age > TEACH_SECS:
+            if teaching and TU.item_name(text):           # (a supply copied - not gear: then it's a teach)
+                self._tu_teach_card(f"Press {self.look_key_text()} with your inventory open again, then copy the "
+                                    f"item within {TEACH_SECS // 60} min.", ok=False)
             return False
         got = TU.item_name(text)
         if not got:
+            self._tu_teach_card("Not learned: only currency and supplies (keys, tablets, runes...) can be taught.",
+                                ok=False)
             return False
         name, count = got
         try:
@@ -301,10 +311,16 @@ class TopUpPage:
         cs = (r - l_) / TU.COLS
         c, row = int((mx - l_) // cs), int((my - t) // cs)
         if not (0 <= row < TU.ROWS and 0 <= c < TU.COLS):
+            self._tu_teach_card(f"Not learned: hover {name} in your inventory (not the stash) when you copy it.",
+                                ok=False)
             return False
         cell = TU.split(last["img"])[(row, c)]
         if not TU.learn(name, cell):
+            buglog.debug("Top Up", f"teach {name}: its slot ({row}, {c}) was empty at the last read")
+            self._tu_teach_card(f"Not learned: {name}'s slot was empty when you pressed {self.look_key_text()}. "
+                                f"Press it again, then copy {name}.", ok=False)
             return False
+        buglog.debug("Top Up", f"taught {name} at ({row}, {c})")
         s0 = TU.sig(cell)
         plain = self._tu_plain((row, c), s0, [h for h in getattr(self, "tu_hist", [])
                                               if time.time() - h.get("t", 0) <= HIST_SECS])
@@ -324,13 +340,27 @@ class TopUpPage:
         if not topup:                                      # (2.132.6: taught for Map profit only - not a Top Up item)
             self.tu_last = dict(last, thumb=None)
             self.status_text, self.status_until = f"Map profit: learned {name}.", time.time() + 6
+            self._tu_teach_card(f"Map profit knows {name} now.")
             return True
         self.tu_last = dict(last, thumb=None)          # (read it again with this item known)
         self.status_text, self.status_until = (f"Top Up: learned {name} - set how many to keep in Items…" +
-                                               ("" if plain is not None else " (move the mouse off it for a moment)")), \
+                                               ("" if plain is not None else f" (move the mouse off it, then press {self.look_key_text()})")), \
             time.time() + 8
+        self._tu_teach_card(f"{name} is in Top Up Reminders now" + ("." if plain is not None else
+                            f" - move the mouse off it, then press {self.look_key_text()}."))
         self.topup_paint_list()
         return True
+
+    def _tu_teach_card(self, text, ok=True):
+        """3.0.6 (owner: "I did a ctrl+c like it said and it didn't do shit"): teaching an item says so over the
+        game - learned, or why not (it only said so in the app's status bar)."""
+        try:
+            from . import alertcard
+            from .alerts_page import game_rect
+            alertcard.show(self.root, "Item learned" if ok else "Item not learned", text, color=CARD_COLOR,
+                           mark="✓" if ok else "!", secs=6, game=game_rect(), tag="Top Up", rank=3)
+        except Exception:
+            buglog.caught()
 
     def topup_take_supplies(self):
         """2.131.2 (request: move League Plan's map supplies into Top Up): the supplies you listed there join your
@@ -499,8 +529,9 @@ class TopUpPage:
         tk.Label(top, text="Your items", bg=P2, fg=C["text"], font=("Segoe UI", 12, "bold")).pack(side="left")
         tip = tk.Label(top, text="ⓘ", bg=P2, fg=C["muted"], cursor="question_arrow")
         tip.pack(side="left", padx=8)
-        Tooltip(tip, "In hideout or town, opening your inventory with less than Keep (minus Remind when) shows one "
-                     "card. Seen: what your inventory held the last time it was open (every stack added up).")
+        Tooltip(tip, f"In hideout or town, open your inventory and press {self.look_key_text()}: less than Keep "
+                     "(minus Remind when) shows one card. Seen: what your inventory held at that read (every stack "
+                     "added up).")
         tk.Label(inner, text="Keep at least this many of each in your inventory.", bg=P2, fg=C["muted"],
                  anchor="w").pack(fill="x", pady=(2, 8))
         # 2.131.2: Remind when - "30% below" Keep, like the price checks' "10% below"

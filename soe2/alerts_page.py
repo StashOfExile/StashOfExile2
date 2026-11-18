@@ -126,8 +126,8 @@ def breach_level(text):
 HELPERS_LABEL = "HELPERS"           # 2.132.6 (feedback: "Instead of saying Ritual: or Temple: it should say Helpers:")
 LOOK = "{look}"                     # GGG policy (Nov 2026): the Read Key's name goes here (look_page.LookPage)
 HELPER_BLURBS = {"breach": "An alert card when your Hiveblood is almost full, and when it's full.",
-                 "ritual": f"Press {LOOK} in a map: reads the Ritual counter once. Reminds you if you leave with rituals "
-                           f"left.",
+                 "ritual": f"Press {LOOK} in a map: reads the Ritual counter once. Once read, reminds you if you leave "
+                           f"with rituals left.",
                  "remnant": f"Press {LOOK} with an Expedition remnant's book open: prices each reward once, beside its "
                             f"line.",
                  "focus": "Your League Plan over the game: the goal you're on, and pokes when it matters.",
@@ -265,9 +265,10 @@ class AlertsPage:
                      ("Play", ("desecrate", "campaign", "focus", "topup", "breaks", "mapprofit")),
                      ("Trading", ("whispers",)),
                      ("Misc", ("music",)))
+    # 3.0.6 audit (one name per feature): the names.py names - the table, Quick settings' chips and Setup use these
     HELPER_NAMES = {"breach": "Breach", "ritual": "Ritual", "remnant": "Expedition",
-                    "focus": "League Plan", "campaign": "Campaign", "whispers": "Trade whispers",
-                    "desecrate": "Desecration", "temple": "Temple", "music": "Music",
+                    "focus": "League Plan", "campaign": "Campaign Helper", "whispers": "Trade Whisper Watcher",
+                    "desecrate": "Desecration Helper", "temple": "Temple Helper", "music": "Music Controls",
                     "topup": "Top Up Reminders", "breaks": "Break reminders", "mapprofit": "Map profit",
                     "sekhemas": "Trial of the Sekhemas"}
 
@@ -344,7 +345,7 @@ class AlertsPage:
         tb = ttk.Button(top, text="Test", command=self.alert_card_test, width=6)
         tb.pack(side="left", padx=(8, 0))
         flowify(top)                                           # D3: wraps at Drawer width
-        Tooltip(wcb, "Where every helper's alert card shows over the game.")
+        Tooltip(wcb, "Where every helper's alert card shows over the game (trade whisper cards stay at the top).")
         Tooltip(scb, "How big the alert card is.")
         Tooltip(tb, "Shows a sample alert card over the game.")
         self.al_card_where, self.al_card_size = wcb, scb
@@ -416,7 +417,7 @@ class AlertsPage:
                  "ritual": self.alerts_test_ritual, "remnant": self.alerts_test_remnant,
                  "focus": lambda: self.ov_intro_setup("focus"), "campaign": lambda: self.camp_route_show(),
                  "whispers": lambda: self.ww_show_test(), "desecrate": self.alerts_test_desecrate,
-                 "temple": self.temple_pad_test, "music": lambda: self.music_set(True),
+                 "temple": self.temple_pad_test, "music": self.music_open,
                  "breaks": lambda: self.break_check(force=True), "topup": lambda: self.topup_remind(force=True),
                  "mapprofit": self.mp_list_open, "sekhemas": self.sek_test}
         test_tips = {"breaks": "Shows the next reminder now.", "topup": "Shows the reminder now, with what it last saw.",
@@ -494,8 +495,8 @@ class AlertsPage:
                 Tooltip(ib, "Your items and how many of each to keep.")
                 info(oc, f"Back from a map, a card asks you to open your inventory and press "
                          f"{self.look_key_text()}: that one read checks your top ups (and counts the map's loot when "
-                         f"Map profit is on). Hover an item in your inventory and press {self.topup_key_text()} to "
-                         f"track it.").pack(side="left", padx=(8, 0))
+                         f"Map profit is on). To track an item: after that read, hover it in your inventory and press "
+                         f"{self.topup_key_text()}.").pack(side="left", padx=(8, 0))
                 out.append("Items")
             elif key == "mapprofit":                              # 2.132.0: Map profit
                 info(oc, f"Back from a map, a card asks you to open your inventory and press "
@@ -772,8 +773,9 @@ class AlertsPage:
             _W.save()
             if want:
                 self.breach_start()                           # (the helpers' Client.txt reader)
-            else:
-                self.breach_stop()
+            elif not self.log_wanted():                       # 3.0.6 audit: off stops the reader only - a Breach
+                self.br_reader = None                         # card on screen stays (breach_stop closed it)
+                self.alerts_refresh()
             self._helper_needs_overlay(want, "The Trade Whisper Watcher")
         if rows:
             self.alerts_refresh()
@@ -806,7 +808,7 @@ class AlertsPage:
 
     def ww_show(self, who, trade, test=False):
         """A card at the top of the game: who wants what, for how much, where it is in your tab. It stays until you
-        close it or for its time (Settings: 20 s), several stack; the overlay's own look. Nothing is saved."""
+        close it or for its time (20 s), several stack; the overlay's own look. Nothing is saved."""
         from . import whispers as W
         from .overlaywin import OverlayWindow, pal
         if not test and not self.ov_enabled():
@@ -1064,7 +1066,7 @@ class AlertsPage:
     def ritual_status(self):
         if not self.ritual_cfg().get("on"):
             return "off"
-        return "warn" if getattr(self, "rt_problem", None) else "on"
+        return "on"
 
     def ritual_look_job(self, ctx):
         """A Read Key press in a map or the campaign: the Ritual counter and the tribute, from the press's one
@@ -1090,7 +1092,6 @@ class AlertsPage:
         from .ritual_alert import STATE
         if res is None:
             return
-        self.rt_problem = None
         STATE.read_at = time.time()
         STATE.seen = res["kind"]
         STATE.count = res["val"] if res["kind"] == "ok" else None
@@ -1297,8 +1298,6 @@ class AlertsPage:
             return txt
         if not self.ritual_cfg().get("on"):
             return row["what"]
-        if getattr(self, "rt_problem", None):
-            return "Screen read problem: " + self.rt_problem
         count = self.ritual_estimate(getattr(self, "rt_map", None))
         if count and getattr(self, "br_area", None) == "map":
             d, t = count

@@ -53,6 +53,8 @@ class TemplePage:
     def temple_area(self, area_id):
         """Every area change: in the temple -> the notepad shows (when it's on); anywhere else -> it goes."""
         here = str(area_id or "") in TM.TEMPLE_AREAS
+        if str(area_id or "") != getattr(self, "tm_area", ""):   # 3.0.6 audit: a new area - last run's board,
+            self.temple_board_forget()                            # plan and marks are gone (read again)
         self.tm_in_temple = here
         self.tm_area = str(area_id or "")
         if str(area_id or "") == TM.RUN_AREA:                # 2.136.1: a run spends crystals - the number is old now
@@ -68,6 +70,17 @@ class TemplePage:
             self.temple_pad_show()
         elif not here:
             self.temple_pad_close()
+
+    def temple_board_forget(self):
+        """What the last read saw of the Console: forgotten (a new area) - the marks go until the next press."""
+        self.tm_board, self.tm_plan, self.tm_marks, self.tm_pick = None, [], {}, None
+        self._tm_hist, self._tm_plan_shown, self._tm_plan_next = {}, None, None
+        mk = getattr(self, "tm_marks_win", None)
+        if mk is not None:
+            try:
+                mk.hide()
+            except Exception:
+                buglog.caught()
 
     def temple_marks_tick(self):
         """Every 2 s in a temple area (nothing is read): Vaal Lens' marks show only while the game is in front."""
@@ -257,10 +270,10 @@ class TemplePage:
         if self.tm_board_open or was:
             self.temple_pad_refresh()
 
-    def _temple_steady(self, board, V, keep=3):
-        """UI overhaul (feedback: "the suggestions alternate between options in a very confusing way"): one read of a
-        tile can be off (a hover, an animation) - each tile shows what most of its last 3 reads said, and a tile read
-        as "unknown" keeps what it was. So the plan only changes when the board really does (a card placed)."""
+    def _temple_steady(self, board, V, keep=1):
+        """UI overhaul (feedback: "the suggestions alternate between options in a very confusing way"): a tile read
+        as "unknown" keeps what it was. 3.0.6 audit: one read per Read Key press - each press's read counts at once
+        (it took the most of the last 3 reads, from when the board was read on a timer: a card placed took 2 presses)."""
         hist = self.__dict__.setdefault("_tm_hist", {})
         for c in V.CELLS:
             cell = board.get(c)
@@ -312,21 +325,10 @@ class TemplePage:
             buglog.caught()
 
     def _temple_plan_steady(self, plan, board):
-        """UI overhaul: a new plan shows once two reads in a row agree on it (a card picked shows at once)."""
-        key = repr(plan)
-        if not plan or (board or {}).get("lit"):
-            self._tm_plan_shown, self._tm_plan_next = (key, plan), None
-            return plan
-        shown = getattr(self, "_tm_plan_shown", None)
-        if shown is None or shown[0] == key:
-            self._tm_plan_shown, self._tm_plan_next = (key, plan), None
-            return plan
-        nxt = getattr(self, "_tm_plan_next", None)
-        if nxt == key:
-            self._tm_plan_shown, self._tm_plan_next = (key, plan), None
-            return plan
-        self._tm_plan_next = key
-        return shown[1]
+        """3.0.6 audit: each press's plan shows at once (it waited for two reads in a row to agree - from the timed
+        reads; with one read per press that took two presses)."""
+        self._tm_plan_shown, self._tm_plan_next = (repr(plan), plan), None
+        return plan
 
     def _temple_medal_look(self, full, g, ptr):
         """(a background thread) The game's picture -> what the Medallions panel shows: {"count", "hand" (names by
@@ -602,8 +604,8 @@ class TemplePage:
         f10 = (P["font"], self.ov_font(10))
         wrap = max(180, int(TM.cfg().get("pad_w") or 300) - 24)
         if not getattr(self, "tm_board", None):
-            tk.Label(box, text="Open the Temple Console.", bg=P["bg"], fg=P["muted"], font=f10, anchor="w").pack(
-                fill="x")
+            tk.Label(box, text=f"Open the Temple Console, then press {self.look_key_text()}.", bg=P["bg"],
+                     fg=P["muted"], font=f10, anchor="w", wraplength=wrap, justify="left").pack(fill="x")
             return
         plan = self.temple_plan_lines()
         if not plan:

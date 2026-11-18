@@ -96,7 +96,8 @@ class HoverPage:
     def hover_look_job(self, ctx):
         """A Read Key press in a map: the tooltip round the mouse -> a Ritual Altar's type; in the temple, a
         medallion's name (Vaal Lens)."""
-        if ctx["area"] not in ("map", None) or not self.hover_wanted():
+        # 3.0.6 audit: Vaal Ruins is a town to the app (a hub) - a medallion there is read too
+        if (ctx["area"] not in ("map", None) and not self.hover_medals()) or not self.hover_wanted():
             return None
         from . import screenread as SR
         g, ptr = ctx["g"], ctx["ptr"]

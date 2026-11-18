@@ -919,10 +919,6 @@ class CampaignUI:
 
     def _camp_splits_page(self, page, P):
         bg = P["bg"]
-        if not CP.cfg()["splits"]:
-            tk.Label(page, text="The act timer is off (Overlay › Options › Campaign).", bg=bg, fg=P["muted"],
-                     font=(P["font"], self.ov_font(10))).pack(anchor="w")
-            return
         g = tk.Frame(page, bg=bg)
         g.pack(fill="x")
         for c, h in enumerate(("ACT", "THIS RUN", "BEST", "+/-")):
