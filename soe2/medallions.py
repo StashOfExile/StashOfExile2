@@ -122,7 +122,7 @@ def advice(new, hand, have, most, room=None, crystals_most=None):
     if len(known) < have:
         if known and w <= min(worth(h, None, crystals_most, most)[0] for h in known) and w <= 1:
             return "skip", f"{new}: {why}. Weaker than what you hold."
-        return "learn", f"{new}: {why}. Medallions full: press V and hover each so Vaal Lens knows them."
+        return "learn", f"{new}: {why}. Medallions full: press V, hover each and press the Read Key so Vaal Lens knows them."
     worst = min(known, key=lambda h: worth(h, None, crystals_most, most)[0])
     ww, wwhy = worth(worst, None, crystals_most, most)
     if w > ww:

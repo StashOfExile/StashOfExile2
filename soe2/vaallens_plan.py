@@ -326,11 +326,11 @@ def architect_chain(board):
 def steps(plan):
     """The step number of each planned tile: the Architect's path is one step (however many tiles), each room one."""
     out, k, prev = [], 0, None
-    for _t, fam, _w in plan:
-        if not (fam == "Path" and prev == "Path"):
+    for _t, fam, why in plan:
+        if not (fam == "Path" and prev == ("Path", why)):    # (3.0.6: a path to the key room, then to Atziri: 2 steps)
             k += 1
         out.append(k)
-        prev = fam
+        prev = (fam, why)
     return out
 
 
@@ -407,7 +407,225 @@ def with_plan(marks, plan, lit, what, card=None):
         best = next((t for t, (m, _w) in marks.items() if m == "1"), None)
         if best is not None:
             out[best] = ("now", (None, key))
+    shown = set()
     for k, (t, f, _w) in enumerate(plan):
         if t not in out:
-            out[t] = ("p", (st[k], "path" if f == "Path" else f))
+            num = st[k] if st[k] not in shown else None     # (3.0.6: a path's step number on its first tile only)
+            shown.add(st[k])
+            out[t] = ("p", (num, "path" if f == "Path" else ("Royal Access Chamber" if f == "Key Room" else f)))
     return out
+
+
+# ================================================================ 3.0.6 the full plan (owner's rules, TEMPLE_RULES.md)
+# One Read Key press reads the board, the cards and the medallions; this lays out everything in order:
+#   1. the key room (Royal Access Chamber) joined, and Atziri joined - nothing comes before this
+#   2. a path to the Architect (kill him: his restricted cards bring the key room)
+#   3. every room in hand: chains in the LEFT quadrant, the BOTTOM one kept free for the key room, TOP and RIGHT kept
+#      free for the Architect (he lands on either), no loops (rooms joined in a circle destabilize more), never
+#      beside a reward room, a Generator only on a path
+#   + medallions: where the upgrade and the lock go, a reroll when the hand pays nothing.
+# The quadrants are split by the gold path (i = 0) and the middle row (j = 5), as on the owner's screenshot:
+# left = i < 0, j < 5 · top = i < 0, j > 5 · right = i > 0, j > 5 · bottom = i > 0, j < 5.
+
+VALUE = {"Thaumaturge": 10, "Corruption Chamber": 9, "Sacrificial Chamber": 8, "Flesh Surgeon": 8, "Alchemy Lab": 7,
+         "Synthflesh Lab": 6, "Smithy": 6, "Generator": 5, "Golem Works": 4, "Armoury": 4, "Garrison": 3,
+         "Commander": 3, "Spymaster": 2, "Transcendent Barracks": 2, "Sealed Vault": 1}
+PAYS = 6                                     # a room worth placing for itself (VALUE >= PAYS) - below that, filler
+PARTNER.setdefault("Flesh Surgeon", ("Synthflesh Lab",))      # owner: tier-3 Flesh Surgeon (limbs) beside Synthflesh
+PARTNER.setdefault("Synthflesh Lab", ("Flesh Surgeon",))
+# rooms that others are placed beside: placed first, so their partners have room
+FIRST = ("Thaumaturge", "Synthflesh Lab", "Smithy", "Corruption Chamber", "Sacrificial Chamber", "Alchemy Lab",
+         "Flesh Surgeon", "Generator", "Golem Works", "Armoury", "Garrison", "Commander", "Spymaster")
+UPGRADE_FIRST = ("Corruption Chamber", "Sacrificial Chamber", "Flesh Surgeon", "Alchemy Lab", "Smithy",
+                 "Synthflesh Lab", "Generator", "Garrison")
+
+
+def quadrant(t):
+    """'left' | 'top' | 'right' | 'bottom' | None (the gold path's column, the middle row, the entrance, Atziri)."""
+    i, j = t
+    if i == 0 or j == 5 or t in (ATZIRI, ENTRANCE) or not inside(t):
+        return None
+    if i < 0:
+        return "left" if j < 5 else "top"
+    return "bottom" if j < 5 else "right"
+
+
+def _loops(b, t):
+    """Placing t closes a circle: two of its neighbors are already joined to each other (through the network)."""
+    net = network(b)
+    return sum(1 for n in near(t) if n in net and b.get(n) not in (None, "?")) >= 2
+
+
+def path_to(b, goal):
+    """The free tiles a path needs from your joined tiles to goal (fewest, none beside a reward room, off the
+    Architect's and the key room's landing squares when it can); [] already joined; None no safe way."""
+    net = network(b)
+    if any(n in net for n in near(goal)):
+        return []
+    best, q = {c: None for c in net}, deque(sorted(net, key=lambda c: abs(c[0])))
+    while q:
+        c = q.popleft()
+        for n in near(c):
+            if n in best:
+                continue
+            if n == goal:
+                out, k = [], c
+                while k is not None and k not in net:
+                    out.append(k)
+                    k = best[k]
+                return out[::-1]
+            if b.get(n) or n in (ATZIRI, ENTRANCE) or touches_reward(b, n):
+                continue
+            best[n] = c
+            q.append(n)
+    return None
+
+
+def tier_of(board, t):
+    return ((board or {}).get(t) or {}).get("tier") or 1
+
+
+def _tiers(fam):
+    return len(ROOMS.get(fam, ())) or 1
+
+
+def landing(b, quad):
+    """A free tile in quad with all four sides free and no reward room beside it (where the game can drop the key
+    room / the Architect without forcing it in), the most open first; None: no clean spot."""
+    best = None
+    for t in [c for c in ((i, j) for i in range(-4, 5) for j in range(1, 10)) if quadrant(c) == quad]:
+        if b.get(t) or touches_reward(b, t):
+            continue
+        free = sum(1 for n in near(t) if not b.get(n))
+        if free < len(near(t)):
+            continue
+        score = free - abs(t[0] - (2 if quad in ("bottom", "right") else -2)) * 0.1
+        if best is None or score > best[0]:
+            best = (score, t)
+    return best[1] if best else None
+
+
+def _room_score(b, t, fam, rest, lane, arch, key_needed):
+    """How good t is for a room of fam (None: not allowed). rest: rooms still to place (their partners count)."""
+    if b.get(t) or t in (ATZIRI, ENTRANCE) or not inside(t) or touches_reward(b, t) or t in lane:
+        return None
+    if not any(n in network(b) for n in near(t)):
+        return None
+    if fam == "Generator" and not any(b.get(n) in ("Path", "Entrance") for n in near(t)):
+        return None                                   # (cheat sheet: a Generator must be joined to a path)
+    nb = [b.get(n) for n in near(t)]
+    pals = sum(1 for x in nb if x in PARTNER.get(fam, ()))
+    friends = sum(1 for x in nb if x in TOUCH.get(fam, ()))
+    wanted = [p for p in PARTNER.get(fam, ()) if p in rest]
+    nb_ = dict(b)
+    nb_[t] = fam                                      # free sides a partner can take later without closing a loop
+    room = sum(1 for n in near(t) if _safe(nb_, n, lane) and not _loops(nb_, n))
+    score = pals * 12 + friends * 6 + min(room, len(wanted)) * 4
+    q = quadrant(t)
+    score += {"left": 8, None: 0}.get(q, 0)
+    if q == "bottom" and key_needed:
+        score -= 25                                   # the key room's landing quadrant
+    if q in ("top", "right"):
+        score -= 20                                   # the Architect's (he switches sides run to run)
+    if arch and any(n == arch for n in near(t)):
+        score -= 40                                   # his one free square on each side
+    if _loops(b, t):
+        score -= 30
+    return score - abs(t[0]) * 0.1
+
+
+def full_plan(board, cards=(), medals=(), medal_rooms=()):
+    """board: a read board; cards: the room card names in the list; medals: medallion names held (None = not known);
+    medal_rooms: room families the medallions add. -> {"plan": [(tile, family, why)] in order, "targets":
+    {tile: ("Upgrade" | "Lock", family)}, "notes": [str]}."""
+    from . import medallions as M
+    taken = names(board)
+    b = dict(taken)
+    lane = spine(taken)
+    plan, notes, targets = [], [], {}
+    keyroom = next((c for c, v in taken.items() if v == "Key Room"), None)
+    arch = next((c for c, v in taken.items() if v == "Architect"), None)
+    hand = [card(n) for n in cards or ()]
+    key_card = any(h and h[0] == "key" for h in hand)
+
+    def add_path(goal, why):
+        r = path_to(b, goal)
+        if r is None:
+            notes.append(f"No safe path to {why} yet.")
+            return False
+        for t in r:
+            b[t] = "Path"
+            plan.append((t, "Path", why))
+        return True
+
+    # 1. the key room and Atziri, before anything else
+    if keyroom is not None:
+        add_path(keyroom, "the key room")
+        add_path(ATZIRI, "Atziri")
+    # 2. the Architect
+    if arch is not None:
+        add_path(arch, "the Architect")
+    # the key room card in hand (after the Architect): a clean spot in the bottom quadrant
+    key_needed = keyroom is None
+    if key_card:
+        spot = landing(b, "bottom") or next((t for t in (landing(b, q) for q in ("left", "top", "right")) if t), None)
+        if spot and any(n in network(b) for n in near(spot)):
+            b[spot] = "Key Room"
+            plan.append((spot, "Key Room", "the key room"))
+            key_needed = False
+        elif spot:
+            r = path_to(b, spot)
+            for t in r or []:
+                b[t] = "Path"
+                plan.append((t, "Path", "the key room"))
+            if r is not None:
+                b[spot] = "Key Room"
+                plan.append((spot, "Key Room", "the key room"))
+                key_needed = False
+        else:
+            notes.append("No free spot for the key room: placed now, it opens on the next run.")
+    # 3. the rooms in hand, the ones others go beside first
+    fams = [h[1] for h in hand if h and h[0] == "room"] + [f for f in medal_rooms if f]
+    order = sorted(fams, key=lambda f: (FIRST.index(f) if f in FIRST else 99, -VALUE.get(f, 0)))
+    rest = list(order)
+    for fam in order:
+        rest.remove(fam)
+        best = None
+        for t in {n for c in network(b) for n in near(c)}:
+            s = _room_score(b, t, fam, rest, lane, arch, key_needed)
+            if s is not None and (best is None or s > best[0]):
+                best = (s, t)
+        if best is None:
+            continue
+        b[best[1]] = fam
+        pals = [b.get(n) for n in near(best[1]) if b.get(n) in PARTNER.get(fam, ()) + tuple(TOUCH.get(fam, ()))]
+        plan.append((best[1], fam, ("beside " + pals[0]) if pals else "joined to your rooms"))
+    if key_needed and arch is None and keyroom is None and not landing(b, "bottom"):
+        notes.append("Keep the bottom quadrant clear: the key room needs a free spot there.")
+    # medallions: where the upgrade and the lock go; a reroll when nothing in hand pays
+    held = [M.base(m)[0] for m in medals or () if m]
+    rooms = {t: v for t, v in b.items() if v in ROOMS}
+
+    def best_room(pref, need_up):
+        cand = [(t, f) for t, f in rooms.items() if f in pref and not (need_up and tier_of(board, t) >= min(3, _tiers(f)))]
+        cand.sort(key=lambda x: (pref.index(x[1]), -tier_of(board, x[0])))
+        return cand[0] if cand else None
+
+    if "Quipolatl's Medallion" in held:
+        up = best_room(UPGRADE_FIRST, True)
+        if up:
+            targets[up[0]] = ("Upgrade", up[1])
+    if "Juatalotli's Medallion" in held and rooms:
+        # (owner: upgrade the Corruption Chamber to tier 3, then lock it - the room that pays, highest tier first)
+        lk = max(rooms.items(), key=lambda x: (x[1] in UPGRADE_FIRST, tier_of(board, x[0]),
+                                                -UPGRADE_FIRST.index(x[1]) if x[1] in UPGRADE_FIRST else 0))
+        if lk[0] not in targets:
+            targets[lk[0]] = ("Lock", lk[1])
+        else:
+            notes.append(f"Lock the {lk[1]} after its upgrade.")
+    card_fams = [h[1] for h in hand if h and h[0] == "room"]
+    pays = any(VALUE.get(f, 0) >= PAYS or any(v in TOUCH.get(f, ()) or v in PARTNER.get(f, ()) for v in rooms.values())
+               for f in card_fams)
+    if card_fams and "Puhuarte's Medallion" in held and not pays:
+        notes.append("Nothing in your cards pays: reroll them (Puhuarte's Medallion).")
+    return {"plan": plan, "targets": targets, "notes": notes}

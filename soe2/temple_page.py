@@ -296,16 +296,27 @@ class TemplePage:
         marks = {}
         board = board if board is not None else getattr(self, "tm_board", None)
         seen = bool(board and V.seen(board) and self.temple_pad_shown())
-        # 2.142.0: the hand's plan - the room cards in the list and the rooms your medallions add
-        plan = VP.hand_plan(board, self.temple_hand_rooms(board)) if seen else []
-        plan = self._temple_plan_steady(plan, board)
-        self.tm_plan = plan
+        # 3.0.6 (owner, TEMPLE_RULES.md): the full plan - key room and Atziri, the Architect, then every room in hand
+        # by quadrant; and where the upgrade and the lock medallions go
+        if seen:
+            from . import medallions as M
+            have, _most, medals = self.temple_medal_hand()
+            medals = medals[:have or 0]
+            full = VP.full_plan(board, board.get("cards") or [], medals,
+                                [M.base(h)[1] for h in medals if h and M.base(h)[1]])
+        else:
+            full = {"plan": [], "targets": {}, "notes": []}
+        plan = self._temple_plan_steady(full["plan"], board)
+        self.tm_plan, self.tm_targets, self.tm_notes = plan, full["targets"], full["notes"]
         if seen and board.get("lit"):
             what = VP.card(board.get("card"))
             marks = VP.marks(board, board["lit"], what)
             marks = VP.with_plan(marks, plan, board["lit"], what, board.get("card"))
         elif seen:
             marks = VP.with_plan({}, plan, (), None)
+        for t, (word, fam) in (self.tm_targets if seen else {}).items():
+            if t not in marks or marks[t][0] == "p":
+                marks[t] = ("do", (word, fam))           # (an upgrade / lock medallion: which room it goes on)
         self.tm_marks = marks
         self.tm_pick = (board or {}).get("card") if marks and board.get("lit") else None
         mk = getattr(self, "tm_marks_win", None)
@@ -436,11 +447,10 @@ class TemplePage:
         return out
 
     def temple_plan_lines(self):
-        """-> [(mark, text)]: "1  Thaumaturge's Laboratory" ... in the board's order, then upgrade and lock."""
+        """-> [(mark, text)]: the plan's steps in order ("1  Path to the key room (2 tiles)", "2  Thaumaturge's
+        Laboratory" ...), then where the medallions go, then the notes (3.0.6, TEMPLE_RULES.md)."""
         from . import medallions as M, vaallens_plan as VP
         plan = getattr(self, "tm_plan", None) or []
-        if not plan:
-            return []
         board = getattr(self, "tm_board", None) or {}
         cards = {}
         for n in board.get("cards") or []:
@@ -449,19 +459,40 @@ class TemplePage:
                 cards.setdefault(what[1], VP.card_title(n))
         hand = self.temple_medal_hand()[2]
         out = []
-        n_path = sum(1 for _t, f, _w in plan if f == "Path")
-        for step, (_t, fam, _why) in zip(VP.steps(plan), plan):
-            if fam == "Path":                               # 2.143.0: the Architect first - one step
+        for step, (_t, fam, why) in zip(VP.steps(plan), plan):
+            if fam == "Path":
                 if not out or out[-1][0] != str(step):
-                    out.append((str(step), f"Path to the Architect ({n_path} tile{'s' if n_path != 1 else ''}), "
-                                                           "then kill him"))
+                    n = sum(1 for _x, f, w in plan if f == "Path" and w == why)
+                    tail = ", then kill him" if why == "the Architect" else ""
+                    out.append((str(step), f"Path to {why} ({n} tile{'s' if n != 1 else ''}){tail}"))
+                continue
+            if fam == "Key Room":
+                out.append((str(step), "Royal Access Chamber"))
                 continue
             src = cards.get(fam) or (fam + (" (medallion)" if any(M.base(h)[1] == fam for h in hand) else ""))
             out.append((str(step), src))
-        pays = [fam for _t, fam, _w in plan if fam in ("Corruption Chamber", "Sacrificial Chamber", "Alchemy Lab")]
-        if pays:
-            out += [st for st in VP.combo(pays[0], hand) if st[0] != "+"]
+        for _t, (word, fam) in (getattr(self, "tm_targets", None) or {}).items():
+            out.append(("▲" if word == "Upgrade" else "■", f"{word}: {fam}"))
+        if not getattr(self, "tm_targets", None):
+            pays = [fam for _t, fam, _w in plan if fam in ("Corruption Chamber", "Sacrificial Chamber", "Alchemy Lab")]
+            if pays:
+                out += [st for st in VP.combo(pays[0], hand) if st[0] != "+"]
+        out += [("!", n) for n in getattr(self, "tm_notes", None) or []]
         return out
+
+    def temple_medal_line(self):
+        """The card's medallions line: "Medallions 3/6: Lock, Upgrade, 1 not known" (3.0.6, owner: "medallion card not
+        seen") - or how to read them."""
+        from . import medallions as M
+        have, most, hand = self.temple_medal_hand()
+        if not most:
+            return f"Medallions: open them (V) and press {self.look_key_text()}."
+        known = [M.MEDALLIONS.get(M.base(h)[0], (M.base(h)[0],))[0] + (f" ({M.base(h)[1]})" if M.base(h)[1] else "")
+                 for h in hand[:have] if h]
+        unknown = have - len(known)
+        tail = f"{unknown} not known - hover it, press {self.look_key_text()}" if unknown else ""
+        return f"Medallions {have}/{most}: " + ", ".join(known + ([tail] if tail else [])) if have else \
+            f"Medallions 0/{most}"
 
     def temple_pad_show(self):
         if self.temple_pad_shown():
@@ -611,6 +642,8 @@ class TemplePage:
         if not plan:
             tk.Label(box, text="Nothing to plan with these cards.", bg=P["bg"], fg=P["muted"], font=f10,
                      anchor="w").pack(fill="x")
+        tk.Label(box, text=self.temple_medal_line(), bg=P["bg"], fg=P["muted"], font=f10, anchor="w",
+                 justify="left", wraplength=wrap).pack(fill="x", side="bottom", pady=(8, 0))
         for mark, text in plan:
             tk.Label(box, text=f"{mark}  {text}", bg=P["bg"], fg=P["text"], font=f10, anchor="w", justify="left",
                      wraplength=wrap).pack(fill="x")

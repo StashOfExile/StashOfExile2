@@ -141,6 +141,9 @@ class Marks:
                     cv.create_line(x + a, y + b, x - a, y - b, fill=warn, width=max(3, int(6 * s)), capstyle="round")
                 continue
             step, room = what
+            word = step if m == "do" else None          # 3.0.6: an Upgrade / Lock medallion's room: a word badge
+            if word:
+                step = None
             if m == "now":
                 cv.create_polygon(*pts, fill="", outline=accent, width=max(3, int(7 * s)))
             else:
@@ -160,6 +163,15 @@ class Marks:
             if pic is None:                                 # (no picture yet: the room's name, short)
                 cv.create_text(x, y, text=str(room or "")[:12], fill=accent, font=(fam, small, "bold"),
                                width=int(hw * 1.6), justify="center")
+            if word:
+                f_ = (fam, small, "bold")
+                tid = cv.create_text(x, y + hh * 0.62, text=word, fill=accent, font=f_)
+                bb = cv.bbox(tid)
+                if bb:
+                    pad = max(4, int(8 * s))
+                    rid = cv.create_rectangle(bb[0] - pad, bb[1] - 2, bb[2] + pad, bb[3] + 2, fill=bg, outline=accent,
+                                              width=2)
+                    cv.tag_raise(tid, rid)
             if step:
                 r = max(9, int(17 * s))
                 bx, by = x, y - hh + r * 0.4

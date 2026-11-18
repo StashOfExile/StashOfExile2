@@ -101,10 +101,9 @@ def render(game, marks, P, icons=None, chain=None):
         d.line(line, fill=core + (200,), width=max(2, width // 3), joint="curve")
 
     d = ImageDraw.Draw(img)
-    big = _font(max(14, int(34 * s * k)))
     small = _font(max(10, int(18 * s * k)))
     side = max(16, int(hh * 1.1 * k))
-    badges = []
+    badges, wbadges = [], []
     for t, (m, what) in marks.items():
         c = at(t)
         if m == "x":                                    # touches a reward room: red, dashed edge and a ✕ (not color
@@ -122,9 +121,14 @@ def render(game, marks, P, icons=None, chain=None):
                             (a[0] + (b[0] - a[0]) * f1, a[1] + (b[1] - a[1]) * f1)],
                            fill=RED + (235,), width=max(3, int(4 * s * k)))
             x, y = L(c)
-            d.text((x, y), "✕", fill=RED + (255,), font=big, anchor="mm")
+            dd = max(8, int(16 * s * k))                # 3.0.6 (owner: "the x turned into a square"): two lines, not
+            for a_, b_ in ((-dd, -dd), (-dd, dd)):      # a ✕ in a font that may not have it
+                d.line([(x + a_, y + b_), (x - a_, y - b_)], fill=RED + (255,), width=max(4, int(6 * s * k)))
             continue
         step, room = what
+        word = step if m == "do" else None              # 3.0.6: an Upgrade / Lock medallion's room: a word badge
+        if word:
+            step = None
         now = m == "now"
         poly = diamond(c, 0.94)
         d.polygon(poly, fill=accent + (70 if now else 34,))
@@ -152,6 +156,8 @@ def render(game, marks, P, icons=None, chain=None):
             d.multiline_text((x, y), "\n".join(lines), fill=accent + (255,), font=f, anchor="mm", align="center")
         if step:
             badges.append((x, y - hh * k * 0.94, str(step)))
+        if word:
+            wbadges.append((x, y + hh * k * 0.62, word))
 
     # step numbers last, on top: a dark disc with a soft shadow and the accent ring
     if badges:
@@ -168,6 +174,15 @@ def render(game, marks, P, icons=None, chain=None):
                       width=max(2, int(2.5 * k)))
             d.text((bx, by), n, fill=accent + (255,), font=small, anchor="mm")
 
+    if wbadges:                                         # the medallion words: a dark pill with the accent ring
+        d = ImageDraw.Draw(img)
+        f = _font(max(10, int(16 * s * k)))
+        for bx, by, w_ in wbadges:
+            tw = d.textlength(w_, font=f)
+            ph, pw = max(10, int(14 * s * k)), tw / 2 + max(8, int(10 * s * k))
+            d.rounded_rectangle((bx - pw, by - ph, bx + pw, by + ph), radius=ph, fill=bg + (240,),
+                                outline=accent + (255,), width=max(2, int(2.5 * k)))
+            d.text((bx, by), w_, fill=accent + (255,), font=f, anchor="mm")
     return img.resize((W, H), Image.LANCZOS), (x0, y0)
 
 
