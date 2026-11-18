@@ -91,8 +91,11 @@ class HoverPage:
         # 3.0.6 audit: Vaal Ruins is a town to the app (a hub) - a medallion there is read too
         if not self.hover_medals():
             return None
-        from . import screenread as SR
+        from . import screenread as SR, vaallens as V
         g, ptr = ctx["g"], ctx["ptr"]
+        mb = V.side_box(g, V.MEDAL_BOX, right=True)
+        if ptr and mb[0] <= ptr[0] <= mb[2] and mb[1] <= ptr[1] <= mb[3]:
+            return None          # 3.0.6 (owner): a medallion in your panel at the console - no take it / leave it
         box = region(ptr, g)
         if box[2] <= box[0] or box[3] <= box[1]:
             return None

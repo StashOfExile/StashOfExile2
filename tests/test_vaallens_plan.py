@@ -136,11 +136,11 @@ class Draw(unittest.TestCase):
         self.assertIsNotNone(img)
         self.assertGreater(img.getbbox()[2], 0)
 
-    def test_path_number_on_its_first_tile(self):
+    def test_path_number_on_every_tile(self):
         plan = [((0, 4), "Path", "the Architect"), ((0, 5), "Path", "the Architect"), ((-1, 4), "Thaumaturge", "x")]
         out = VP.with_plan({}, plan, (), None)
         self.assertEqual(out[(0, 4)][1][0], 1)
-        self.assertIsNone(out[(0, 5)][1][0])
+        self.assertEqual(out[(0, 5)][1][0], 1, "every path tile numbered (one path card each)")
         self.assertEqual(out[(-1, 4)][1][0], 2)
 
 
@@ -155,6 +155,8 @@ class Numbers(unittest.TestCase):
     def test_card_title_snaps_ocr(self):
         self.assertEqual(VP.card_title("Wor Kshop"), "Workshop")
         self.assertEqual(VP.card_title("SEALED VAULT"), "Sealed Vault")
+        self.assertEqual(VP.card("PATH >"), ("path", None))
+        self.assertEqual(VP.card("Path"), ("path", None))
 
     def test_medallion_slots_right_column_first(self):
         from soe2 import medallions as M

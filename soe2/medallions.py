@@ -176,7 +176,8 @@ def feat(img):
 
 
 SEEDS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "templates", "medallion_icons.json")
-MATCH = 0.93
+MATCH = 0.86
+MARGIN = 0.04
 
 
 def _load(path):
@@ -213,14 +214,21 @@ def learn(user_path, name, vec, keep=4):
 
 
 def identify(vec, icons):
-    """-> the name whose icon matches best (MATCH or closer), or None."""
-    best, who = MATCH, None
+    """-> the name whose icon matches best (MATCH or closer, and clearly ahead of any other name), or None.
+    3.0.6 (owner's panel: a slot learned while hovered - it glows - matched its plain self at 0.90, under the old
+    0.93, so it fell back to "not known"): MATCH 0.86 with a lead of MARGIN over the next name."""
+    best = {}
     for name, vs in icons.items():
         for v in vs:
             s = float(np.dot(vec, v))
-            if s > best:
-                best, who = s, name
-    return who
+            if s > best.get(name, -1.0):
+                best[name] = s
+    order = sorted(best.items(), key=lambda x: -x[1])
+    if not order or order[0][1] < MATCH:
+        return None
+    if len(order) > 1 and order[0][1] - order[1][1] < MARGIN and base(order[0][0])[0] != base(order[1][0])[0]:
+        return None
+    return order[0][0]
 
 
 # 2.142.1 (feedback: "the room card medallions have matching icons to the regular cards and room tiles"): a slot not

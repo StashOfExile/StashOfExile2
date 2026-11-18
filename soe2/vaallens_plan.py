@@ -69,8 +69,8 @@ def card(name):
         return None
     if difflib.get_close_matches(low, (KEY,), 1, 0.85):
         return ("key", None)
-    if difflib.get_close_matches(low, PATHS, 1, 0.85):
-        return ("path", None)
+    if difflib.get_close_matches(low, PATHS, 1, 0.85) or (low.split() or [""])[0].strip(".,:;'\"|>") in PATHS:
+        return ("path", None)                       # (3.0.6: "PATH >" - OCR takes in the card's art: still a path)
     m = difflib.get_close_matches(low, list(FAMILY), 1, 0.85)
     return ("room", FAMILY[m[0]]) if m else None
 
@@ -412,12 +412,9 @@ def with_plan(marks, plan, lit, what, card=None):
         best = next((t for t, (m, _w) in marks.items() if m == "1"), None)
         if best is not None:
             out[best] = ("now", (None, key))
-    shown = set()
     for k, (t, f, _w) in enumerate(plan):
-        if t not in out:
-            num = st[k] if st[k] not in shown else None     # (3.0.6: a path's step number on its first tile only)
-            shown.add(st[k])
-            out[t] = ("p", (num, "path" if f == "Path" else ("Royal Access Chamber" if f == "Key Room" else f)))
+        if t not in out:                    # (3.0.6 owner: every tile numbered - one path card per path tile)
+            out[t] = ("p", (st[k], "path" if f == "Path" else ("Royal Access Chamber" if f == "Key Room" else f)))
     return out
 
 

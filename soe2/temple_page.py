@@ -274,7 +274,8 @@ class TemplePage:
             n = V.summary(board)
             if n != getattr(self, "_tm_board_said", None):
                 self._tm_board_said = n
-                buglog.debug("Vaal Lens", "board " + " ".join(f"{k}={v}" for k, v in sorted(n.items())))
+                buglog.debug("Vaal Lens", "board " + " ".join(f"{k}={v}" for k, v in sorted(n.items())) +
+                             " | cards: " + ", ".join(board.get("cards") or []))
         self.temple_marks_sync(board)
         if self.tm_board_open or was:
             self.temple_pad_refresh()
@@ -455,6 +456,10 @@ class TemplePage:
             icons.update(medal["icons"])
             self.tm_icons = icons
         have, most = medal["count"]
+        old = c.get("medals") or {}
+        if old.get("have") == have and len(old.get("hand") or []) == len(hand):
+            hand = [h or o for h, o in zip(hand, old["hand"])]   # 3.0.6: a slot known stays known (same count)
+        buglog.debug("Vaal Lens", f"medallions {have}/{most}: " + ", ".join(h or "?" for h in hand))
         self.tm_medal_boxes = list(zip(hand, medal.get("boxes") or []))     # 3.0.6: where each slot is (its step)
         new = {"have": have, "most": most, "hand": hand}
         if new != c.get("medals"):
