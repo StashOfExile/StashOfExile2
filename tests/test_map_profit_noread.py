@@ -135,6 +135,12 @@ class LearnedItems(unittest.TestCase):
         from soe2 import topup as TU
         self.assertIn("6", TU.digit_templates())
 
+    def test_every_digit_ships(self):
+        # (a stack of 5 was read as 3: there was no picture of a 5)
+        from soe2 import topup as TU
+        TU._TPL.clear()
+        self.assertEqual(sorted(TU.digit_templates()), list("0123456789"))
+
 
 class Restart(unittest.TestCase):
     """3.0.6 (restarting the program mid-run broke the profit count for that map)."""
