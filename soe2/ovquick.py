@@ -30,6 +30,7 @@ QUICK_BAR = (("Notes", "notes"), ("Calc", "calc"), ("Regex", "regex"), ("Rates",
 HIDECAP = "Hide all overlay information from screen captures"      # (names.py: one name)
 # 2.124.0 (feedback: each toggle should say what it is on hover): the one-line tips (the helpers' come from
 # alerts_page.HELPER_BLURBS - the same line as on Helpers)
+HIDECAP_TIP = "Whether screenshots and streams show the overlay. Click to change it in Options"
 QUICK_TIPS = {"Style": "How the overlay looks over the game",
               "Reload Overlay": "Reload Overlay: builds the overlay again - for when something looks stuck or wrong",
               "Layout": "Panel: a card you place anywhere. Bar: on the game's XP bar",
@@ -38,8 +39,7 @@ QUICK_TIPS = {"Style": "How the overlay looks over the game",
               "Place": "Where the overlay sits: the Bar on the XP bar or at the top, the Panel left or right. Picking "
                        "one puts it there, wherever you dragged it",
               "Click-through": "Clicks go through the overlay to the game",
-              "Hide all overlay information from screen captures": "On: screenshots, recordings and streams show "
-                                                                   "nothing over the game. Off: they show it all",
+              "Hide all overlay information from screen captures": HIDECAP_TIP,
               "notes": "Notes ▾ on the overlay: your own notes in a window over the game",
               "calc": "Calc ▾ on the overlay: a small calculator over the game",
               "regex": "Regex ▾ on the overlay: your saved stash searches, one click to copy",
@@ -226,7 +226,13 @@ class OverlayQuick:
         self.ovq_lock = row("Lock position", cfg.get("mlocked"), self._ovq_lock)
         self.ovq_ct = row("Click-through", self.click_through_on(), self.ov_click_through_set)
         # 3.0.6 (owner): the capture switch here too - the same setting as Overlay › Options and Helpers
-        self.ovq_hidecap = row(HIDECAP, self.overlay_hide_capture(), self.ov_hidecap_set)
+        # 3.0.6: a read-out, not a switch - the one switch is in Overlay > Options
+        self.ovq_hidecap = tk.Label(body, text=self.ov_hidecap_text(), bg=P1, fg=Q["text"], font=(F, 10), anchor="w",
+                                    cursor="hand2")
+        self.ovq_hidecap.pack(anchor="w", pady=2)
+        self.ovq_hidecap.bind("<Button-1>", lambda _e: (self.ov_quick_close(), self.app_show(focus=True, why="overlay"),
+                                                        self.ovh_open("Options")))
+        Tooltip(self.ovq_hidecap, QUICK_TIPS[HIDECAP])
         self.ovq_chips = {}
         sections = [("HELPERS", None)] + [(g, items) for g, items in quick_groups()] + [("ON THE BAR", QUICK_BAR)]
         for title, items in sections:

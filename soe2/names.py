@@ -44,8 +44,9 @@ FEATURES = (
                                 # a one-line card
     "Map profit",               # 2.132.0 what each map earned, from your inventory (Overlay › Helpers)
     "Alerts show",              # 2.131.0 Overlay › Helpers: where and how big the alert card is
-    "Hide all overlay information from screen captures",   # 3.0.6 one switch: Overlay › Options, Helpers, Quick
-                                # settings (was "Hide the overlay from screen captures", the bar only)
+    "Hide all overlay information from screen captures",   # 3.0.6 one switch, in Overlay › Options (Helpers and
+                                # Quick settings show its state and link there; was "Hide the overlay from screen
+                                # captures", the bar only)
     "Data folder",              # 2.131.0 where your settings and lists live (Settings › Advanced)
     "Setup",                    # the first start's questions, one a screen: features, the Overlay, its helpers
                                 # (2.131.0 - UI overhaul: the Feature Picker; Settings › General › Run setup again)
