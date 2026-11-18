@@ -844,7 +844,7 @@ class OverlayWindow(tk.Toplevel):
 
 class LinesWindow(tk.Toplevel):
     """Round 18 (owner bug: a black box beside the campaign line over the XP bar, still there with the color key set
-    and read back): the overlay's lines (Campaign, Ritual, NOW) in their own small borderless window, centered over
+    and read back): the overlay's lines (Campaign, NOW) in their own small borderless window, centered over
     the bar and as wide as the lines - so nothing round them needs a see-through color. It goes where the bar goes
     (moved, dragged, locked, a new Layout or spot), shows and hides with it (the game in front or not), keeps its
     opacity, click-through and capture setting, and stays over it (topmost, never takes the keyboard).

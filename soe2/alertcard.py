@@ -331,8 +331,8 @@ def card(root):
 def show(root, title, sub="", color="#ffb347", mark="!", secs=8, game=None, on_close=None, tag="", rank=5, vital=False):
     """An alert -> its Row (reads like the card's window). Joins the card when one is up. game: (x, y, w, h) of the
     game (None: the screen). tag: the helper's name, shown on its row when there are more than one. rank: lower is
-    more urgent (it goes higher). vital: something to do before it's too late (Hiveblood, End Delirium, rituals,
-    tribute) - its words are red."""
+    more urgent (it goes higher). vital: something to do before it's too late (Hiveblood, End Delirium)
+    - its words are red."""
     if game is None:
         game = (0, 0, root.winfo_screenwidth(), root.winfo_screenheight())
     cd = card(root)

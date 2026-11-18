@@ -446,7 +446,7 @@ class MergedOverlay:
         """(Re)build the one window from what's on. -> the window, or None when nothing is on. 2.74.0: then
         click-through, as the lock says."""
         w = self._merged_build()
-        if w is not None:                                    # 2.124.0: the NOW / Campaign / Ritual lines, on top -
+        if w is not None:                                    # 2.124.0: the NOW / Campaign lines, on top -
             def gb():                                        # 2.133.1: once the window is laid out (after_idle), so
                 if getattr(self, "mg_win", None) is not w:   # nothing forces a layout flush (a theme change froze
                     return                                   # Windows in one)
@@ -471,25 +471,13 @@ class MergedOverlay:
 
     def overlay_hide_capture(self):
         """2.85.2 (feedback: "Ritual alerts aren't working, maybe because the overlay is in the position of where the
-        ritual (x/3) counter is"): the bar is left out of screen captures, so the Ritual / Delirium watchers see the
-        game's counters under it. Its own switch (Overlay › Options), on by default; off = screenshots
-        and streams show the bar."""
+        ritual (x/3) counter is"): the bar is left out of screen captures so a read sees the game's counters under it.
+        Its own switch (Overlay › Options); off = screenshots and streams show the bar."""
         cfg = self.tracker_cfg()
-        # 2.129.4 (feedback: the line said 0 of 3 after 2 were done - the overlay's Ritual line covers the game's
-        # counter, so a read never saw it change): in a Ritual map the bar is left out of captures by itself, so a
-        # Read Key press sees the counter (and the tribute) under it. A Ritual map is known from the game's log (a
-        # ritual started) or a counter read - never from Map Content (owner decision). Elsewhere screenshots and
-        # streams show it.
-        # 2.136.1 (feedback: "see through the overlay (the same way ritual does) and read the crystal count"): in a temple
+        # 2.136.1 (feedback: "see through the overlay and read the crystal count"): in a temple
         # area with the Temple Helper on, the Temple Console's count under the bar is read.
         try:
             if getattr(self, "tm_in_temple", False) and self.temple_on():
-                return True
-        except Exception:
-            buglog.caught()
-        try:
-            if self.ritual_cfg().get("on") and getattr(self, "br_area", None) in ("map", None) and \
-                    (getattr(self, "rt_map", None) or self.ritual_log_counts()[0]):
                 return True
         except Exception:
             buglog.caught()

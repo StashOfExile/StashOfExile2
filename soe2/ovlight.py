@@ -5,7 +5,7 @@ changes size - each as a Bar (resting on the XP bar) and a Panel (a card you pla
   hairline  no box: outlined text and one thin accent line, on one row
   slate     a flat box with thin dividers; a switch that's on is underlined (a bar on its left in the Panel)
   flanks    (shown as Split) no box: the numbers beside the life orb, the switches beside the mana orb - the middle stays clear
-  micro     the smallest: the times, the rank and the switches as lettered squares (Ritual shows its count, 2/3)
+  micro     the smallest: the times, the rank and the switches as lettered squares
 "Classic" is the stone-and-bronze look of before (hudart.py). Overlay › Look: Style, then
 Colors ("Exile Gold" is the Bar's own colors; the others are the theme packs'; "Follow the app theme").
 The same parts as Classic: the timer and its ⏸ / ▶, the map's time, where you are, its rank (click to rank), Maps,

@@ -33,7 +33,7 @@ GGG's rule for tools: *"Reading from the screen or clipboard may only be perform
 - **One read per key press.** Holding a key reads once. Each read shows the read mark (👁) for a second and writes a line in the app's log.
 - **Your screen: only on the Read Key.** **Ctrl+Shift+R** as the app comes (Settings › Keybinds). One picture of the game window; every helper that applies where you are reads its part, then it's dropped. Clear the key and nothing reads the screen.
 - **Your clipboard: only on a copy key.** The price check key (Ctrl+D), Ctrl+Alt+C for Bulk Pricing, the Top Up key: one read, 0.2 s after the press. A chat command key reads it once, to put your text back. Ctrl+V in one of the app's boxes. Nothing watches the clipboard.
-- **The game's log (Client.txt)** is followed all the time: where you are, Breach warnings, rituals started, whispers.
+- **The game's log (Client.txt)** is followed all the time: where you are, Breach warnings, whispers.
 - **Never** the game's memory, files or network traffic. The game client is never changed.
 - **Never a macro.** After your key press the app does at most one thing in the game: the game's own item copy, or one chat command. The mouse is never moved or clicked for you.
 - The trade site is searched only for what you started, well inside its limits, with a User-Agent that says who is asking. Rates come from poe.ninja.
@@ -62,7 +62,7 @@ This product isn't affiliated with or endorsed by Grinding Gear Games in any way
 
 **Overlay** (over the game, Bar or Panel layout)
 - **Session timer**, Notes, Calc, Regex and Rates menus, the **Price check overlay**.
-- Helpers - press your **Read Key** where one applies: **Ritual** (counter, Favours prices, Ritual Identifier), **Expedition** (remnant rewards, Island rumors), **Desecration Helper**, **Temple Helper** (BETA, Vaal Lens), **Trial of the Sekhemas** (BETA), **Back from a map** (Map profit, Top Up Reminders).
+- Helpers - press your **Read Key** where one applies: **Ritual** (Favours prices, and Filter in the Ritual window), **Expedition** (remnant rewards, Island rumors), **Desecration Helper**, **Temple Helper** (BETA, Vaal Lens), **Trial of the Sekhemas** (BETA), **Back from a map** (Map profit, Top Up Reminders).
 - From the game's log: **Breach**, **Campaign Helper** and the **Campaign Bar**, **Trade whispers**, **Break reminders**. Plus **Music Controls**.
 
 ## Window: Drawer or Full window

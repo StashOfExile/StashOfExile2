@@ -36,7 +36,6 @@ PAGES = {
 FEATURES = (
     "Alert card",               # 2.131.0 every helper's alert over the game (alertcard.py); 2.131.6: was "calm alert card"
     "Regex keys",               # 2.132.6 a key types 1-4 Regex favorites in the stash search, one per press
-    "Ritual Identifier",        # 2.132.3 hover a Ritual Altar: its type, loot and danger (2.132.4: a Ritual helper option)
     "Temple Helper",
     "Music Controls",
     "Vaal Lens",                # 2.140.0 a card in Vaal Ruins and the temple: crystals, the console's board, notes
@@ -69,7 +68,8 @@ FEATURES = (
                                 # nothing a helper could use (readmark.READING / READ_NOTHING)
     "Desecration Helper",       # at The Well of Souls
     "Exchange Helper",
-    "Favours prices",           # the Ritual helper: prices on the Favours window's rewards
+    "Favours prices",           # what the Ritual helper does: prices on the Favours window's rewards (3.0.6: not a
+                                # separate switch - the Ritual helper on = Favours prices on)
     "Filter in the Ritual window",   # the Ritual helper: the game's hidden setting that applies your filter there
     "Mechanic Helper",
     "Quick settings",           # the overlay's ⚙

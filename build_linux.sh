@@ -31,7 +31,7 @@ for t in tesseract grim socat xdotool; do command -v "$t" >/dev/null || echo "no
   --add-data "cxnames.json:." --add-data "gamedb.json:." --add-data "gamedb_hide.json:." --add-data "atlasmasters.json:." --add-data "moneymakers.json:." --add-data "mapdata.json:." --add-data "campaign.json:." \
   --add-data "crafthelper.json:." --add-data "tierdata.json:." --add-data "themes:themes" \
   --add-data "stashofexile2.ico:." \
-  --add-data "soe2/templates:soe2/templates" --add-data "soe2/ritual_glyphs.json:soe2" \
+  --add-data "soe2/templates:soe2/templates" \
   --add-data "soe2/sekhemas.json:soe2" --add-data "soe2/fonts:soe2/fonts" --add-data "linux/fonts.conf:linux" \
   --hidden-import PIL._tkinter_finder --hidden-import cv2 --hidden-import mss --hidden-import numpy \
   --collect-submodules Xlib --hidden-import pystray._xorg --hidden-import pystray._base \

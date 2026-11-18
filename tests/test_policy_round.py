@@ -1,9 +1,9 @@
 """Owner decisions (GGG policy round, Nov 2026): what's gone stays gone, and what's left reads only on the Read Key.
 
   * Temple: no Vaal Beacon read, no crystals on the overlay, no Crystals full card - the Temple Console only.
-  * Maps: Map Content is never read (no Ritual all-done tick, no Expedition mark); Ritual follows the game's log.
+  * Maps: Map Content is never read (no Ritual all-done tick, no Expedition mark); Ritual only prices Favours.
   * Map profit + Top Up Reminders: one Back from a map card; one press counts the map and checks the top ups.
-  * Ritual Identifier, Favours prices, Expedition prices, Island rumors: each a Read Key job, nothing else calls it.
+  * Favours prices, Expedition prices, Island rumors: each a Read Key job, nothing else calls it.
   * Each helper's one line names the current Read Key; Settings › About has GGG's notice word for word.
   * The settings gear is drawn in the color it's given.
 
@@ -21,7 +21,6 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
 from soe2 import alerts_page as AP       # noqa: E402
-from soe2 import ritual_alert as RA      # noqa: E402
 from soe2 import remnant as RM           # noqa: E402
 from soe2 import temple as TM            # noqa: E402
 from soe2.hover_page import HoverPage    # noqa: E402
@@ -64,43 +63,13 @@ class TempleConsoleOnly(unittest.TestCase):
 
 class NoMapContent(unittest.TestCase):
     def test_ritual_reads_no_map_content(self):
-        self.assertFalse(hasattr(RA, "content_state"))
-        self.assertFalse(hasattr(RA.RitualState(), "content"))
         self.assertFalse(os.path.exists(os.path.join(ROOT, "soe2", "templates", "ritual_content.png")))
-
-    def test_ritual_look_takes_two_parts_only(self):
-        import numpy as np
-        from PIL import Image
-        asked = []
-
-        def capture(box, purpose):
-            asked.append(box)
-            return Image.fromarray(np.zeros((max(1, box[3] - box[1]), max(1, box[2] - box[0]), 3), np.uint8))
-        with mock.patch("soe2.screenread.capture", capture):
-            got = RA.look((0, 0, 2560, 1440), tribute=False)
-        self.assertEqual(len(asked), 1, "the counter's corner only - never Map Content")
-        self.assertNotIn("content", got)
+        self.assertFalse(os.path.exists(os.path.join(ROOT, "soe2", "ritual_alert.py")), "the counter reader is gone")
 
     def test_expedition_mark_gone(self):
         for gone in ("has_marker", "marker_rect", "MARKER_B64"):
             self.assertFalse(hasattr(RM, gone), f"remnant.{gone} is gone (removed)")
         self.assertNotIn("rm_mark_check", source("rumours_page.py") + source("remnant_page.py"))
-
-    def test_ritual_line_from_the_log(self):
-        class App(AP.AlertsPage):
-            br_area = "map"
-            rt_map = None
-            rt_base = (0, 0)
-            rt_log = {"starts": 2, "disrupted": 0, "last": 0.0}
-
-            def ritual_cfg(self):
-                return {"on": True, "readout": True}
-
-            def look_key_text(self):
-                return "your Read Key (Ctrl+Shift+R)"
-        txt = App().ritual_readout()
-        self.assertIn("2 rituals started", txt)
-        self.assertIn("Ctrl+Shift+R", txt)
 
 
 class BackFromAMap(unittest.TestCase):
@@ -168,7 +137,7 @@ class BackFromAMap(unittest.TestCase):
 
 
 class LookKeyOnly(unittest.TestCase):
-    JOBS = ("ritual_look_job", "hover_look_job", "temple_console_job", "remnant_look_job", "favours_look_job",
+    JOBS = ("hover_look_job", "temple_console_job", "remnant_look_job", "favours_look_job",
             "ru_look_job", "ws_look_job", "topup_look_job")
 
     def test_each_job_is_called_only_from_the_look_key(self):
@@ -181,8 +150,7 @@ class LookKeyOnly(unittest.TestCase):
             self.assertEqual(callers, ["look_page.py"], f"{job} is reached only from look_page.look_jobs")
 
     def test_no_timer_in_the_readers(self):
-        for f in ("hover_page.py", "ritualid_page.py", "ritualid.py", "favours.py", "rumours.py", "ritual_alert.py",
-                  "temple.py"):
+        for f in ("hover_page.py", "favours.py", "rumours.py", "temple.py"):
             s = source(f)
             self.assertNotRegex(s, r"\.after\(|after_idle|threading\.|Thread\(", f"{f}: nothing on a timer or thread")
 
@@ -268,11 +236,11 @@ class LookClear(unittest.TestCase):
                 done.append(self.name)
 
         class App(ReadMarkPage):
-            tm_marks_win, rid_win, read_mark = Hide("vaal lens marks"), Hide("ritual card"), Hide("read mark")
+            tm_marks_win, read_mark = Hide("vaal lens marks"), Hide("read mark")
         for fn in ReadMarkPage.LOOK_DRAWN:
             setattr(App, fn, lambda self, n=fn: done.append(n))
         App().ev_look_clear()
-        self.assertEqual(set(done), set(ReadMarkPage.LOOK_DRAWN) | {"vaal lens marks", "ritual card", "read mark"})
+        self.assertEqual(set(done), set(ReadMarkPage.LOOK_DRAWN) | {"vaal lens marks", "read mark"})
 
     def test_esc_is_never_swallowed(self):
         from unittest import mock

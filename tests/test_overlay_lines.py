@@ -1,5 +1,5 @@
 """The overlay's lines over the XP bar (Round 18, owner bug: a black box beside the campaign line, even with the color
-key set and read back): the Campaign / Ritual / NOW lines are drawn in their own small borderless window
+key set and read back): the Campaign / NOW lines are drawn in their own small borderless window
 (overlaywin.LinesWindow), centered over the bar with both ends clear - there is no see-through color round them, so
 no black box. It moves, shows, hides and fades with the bar and takes its click-through and capture setting.
 The see-through color itself (soe2/layered.py) stays for a boxless Style and the Vaal Lens marks: a fake user32

@@ -30,7 +30,7 @@ from datetime import datetime
 LINE = re.compile(r"^(\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2}) \S+ \S+ \[(\w+) Client \d+\] (.*)$")
 AREA = re.compile(r'Generating level (\d+) area "([^"]+)" with seed (\d+)')
 SCENE = re.compile(r"\[SCENE\] Set Source \[(.+)\]")
-# 2.130.2 (feedback: died, exited to character selection, came back on another character - the Ritual reminder came):
+# 2.130.2 (feedback: died, exited to character selection, came back on another character - a reminder came):
 # going through the character screen connects to the login server again (seen in a real log, Nov 2026):
 #   ... [INFO Client 17636] Async connecting to wdc.login.pathofexile2.com:21268
 LOGIN = re.compile(r"^Async connecting to \S*login\.", re.I)
@@ -50,11 +50,6 @@ BREACH_WARN = re.compile(r"^: <brequelwarning>\{([^}]*)\}")
 #   ... : <brequelwarning>{Cannot store any more Hiveblood! Go to the Genesis Tree to consume it.}   (2.10.0)
 #   ... [WARN Client 27512] "BrequelTreeBreachstonesSlot" is missing from ...   (logged while the Brequel tree is open)
 BREQUEL_TREE = re.compile(r'^"BrequelTree')
-# GGG policy (Nov 2026): the Ritual helper reads the screen only on a key press, so the log fills in between - a ritual
-# starting logs its monsters' debug lines ("Metadata/Monsters/LeagueRitual/..."), and a failed one says so:
-#   ... [INFO Client 21412] : The ritual has been disrupted!
-RITUAL_START = re.compile(r"Metadata/Monsters/LeagueRitual", re.I)
-RITUAL_DISRUPTED = re.compile(r"The ritual has been disrupted", re.I)
 
 LOOKBACK = 256 * 1024          # bytes read before the end at start-up, to find the area you are in now
 
@@ -225,10 +220,6 @@ def parse(line):
         return "breach", ts, {"text": b.group(1).strip()}
     if BREQUEL_TREE.search(text):
         return "brequel_tree", ts, {}
-    if RITUAL_DISRUPTED.search(text):
-        return "ritual", ts, {"what": "disrupted"}
-    if RITUAL_START.search(text):
-        return "ritual", ts, {"what": "start"}
     if text.startswith("@From "):                       # 2.98.1: a whisper TO you (Trade Whisper Watcher)
         from .whispers import parse_from
         w = parse_from(text)

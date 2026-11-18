@@ -1,7 +1,7 @@
-"""2.128.0 Favours prices in the app (the Ritual helper's option): the read on a Read Key press (GGG policy, Nov 2026 -
+"""2.128.0 Favours prices in the app (what the Ritual helper does): the read on a Read Key press (GGG policy, Nov 2026 -
 it was a watcher thread), the price tags over the game, and learning a reward's picture when you price check it. The
 reading itself is in favours.py. (The tribute reminder needed the window watched until it closed: it's gone.)
-Switch: Overlay › Helpers › Ritual › Favours prices (on with the Ritual helper)."""
+Switch: Overlay › Helpers › Ritual (3.0.6: Favours prices is not a switch of its own - the helper on is it on)."""
 import os
 import threading
 import time
@@ -10,7 +10,7 @@ from tkinter import font as tkfont
 
 from . import buglog
 from . import favours as FV
-from .config import P, SETTINGS, save_json
+from .config import P
 from .pricefmt import fmt_short
 
 LEARN_SECS = 120               # a price check this soon after the last read teaches a reward's picture
@@ -32,15 +32,8 @@ def fv_log(line):
 
 class FavoursPage:
     def favours_on(self):
-        c = self.ritual_cfg()
         from . import features as FEAT
-        return bool(c.get("on") and c.setdefault("favours", True) and FEAT.on("overlay"))
-
-    def favours_changed(self, on):
-        self.ritual_cfg()["favours"] = bool(on)
-        save_json("settings.json", SETTINGS)
-        if not on:
-            self.favours_hide()
+        return bool(self.ritual_cfg().get("on") and FEAT.on("overlay"))
 
     # ---------------------------------------------------------------- the pictures to compare with
     def favours_refs(self, fetch=False):

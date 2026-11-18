@@ -28,7 +28,7 @@ from soe2 import config, gamesearch, names                 # noqa: E402
 
 FILES = ("gamedata.json", "searchdata.json", "modlists.json", "regexdata.json", "mapdata.json", "trialdata.json", "anointdata.json", "atlasmasters.json",
          "campaign.json", "crafthelper.json", "soe2/moneymakers.py", "soe2/waystone.py", "soe2/vaallens_plan.py",
-         "soe2/medallions.py", "soe2/ritualid.py", "soe2/sekhemas.json", "tests/fixtures/gamedb_samples.txt")
+         "soe2/medallions.py", "soe2/ritualaltars.py", "soe2/sekhemas.json", "tests/fixtures/gamedb_samples.txt")
 
 
 def copy_root():

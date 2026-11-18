@@ -127,7 +127,7 @@ class ReadMarkPage:
     def ev_look_clear(self):
         """Esc while the game is in front: every tag, card and mark the Read Key put over the game goes - Expedition
         prices and Runeshapes, Favours, Island Rumors, Desecration tiers, the Vaal Lens card and its marks, the
-        Ritual Identifier's card, the Trial of the Sekhemas legend and the read mark."""
+        Trial of the Sekhemas legend and the read mark."""
         for fn in self.LOOK_DRAWN:
             try:
                 getattr(self, fn)()
@@ -136,13 +136,11 @@ class ReadMarkPage:
             except Exception:
                 buglog.caught()
         mk = getattr(self, "tm_marks_win", None)
-        for w in (mk, getattr(self, "rid_win", None)):
-            try:
-                if w is not None:
-                    (w.hide if w is mk else w.destroy)()
-            except Exception:
-                buglog.caught()
-        self.rid_win = None
+        try:
+            if mk is not None:
+                mk.hide()
+        except Exception:
+            buglog.caught()
         mark = getattr(self, "read_mark", None)
         if mark is not None:
             mark.hide()

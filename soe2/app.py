@@ -75,10 +75,9 @@ from .features_page import FeaturesPage     # 2.131.0: Setup and Settings › Ge
 from .topup_page import TopUpPage           # 2.131.0: Top Up Reminders
 from .mapprofit_page import MapProfitPage   # 2.132.0: Map profit
 from .temple_page import TemplePage         # 2.132.1: Temple Helper
-from .ritualid_page import RitualIdPage     # 2.132.3: Ritual Identifier
 from .sekhemas_page import SekhemasPage     # Trial of the Sekhemas (BETA)
 from .share_page import SharePage           # 2.132.6: shared Regex / trade favorites
-from .hover_page import HoverPage           # 2.132.3: one look round the mouse (Temple, Ritual Identifier)
+from .hover_page import HoverPage           # 2.132.3: one look round the mouse (Vaal Lens)
 from .ledger_page import LedgerPage           # 2.45.0: Money Makers > Strat Tracker
 from .feedback_page import FeedbackPage       # 2.48.0: the update badge and Report a bug (taskbar)
 from .feed_page import FeedPage               # 2.51.0: Mod book › Manual feed
@@ -274,7 +273,7 @@ def _box_line(cv, enabled):
 KIND_WORD = {"Implicit": "Implicit", "Enchant": "Enchant", "Rune": "Rune"}
 
 
-class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage, BoardModPage, LeaderboardPage, WellSoulsPage, RumoursPage, ListKeys, AlertsPage, AboutPage, TabReaderPage, SearchOptsPage, ExchangePage, WealthPage, LibraryPage, RegexPage, UtilitiesPage, TrackerPage, SearchPage, CalcOverlay, InsightsPage, MoneyMakersPage, MapLibraryPage, RemnantPage, FavoursPage, LedgerPage, FeedbackPage, FeedPage, MergedOverlay, LightOverlay, GamePlanPage, FocusPokes, OverlayHelp, OverlayParts, CampaignUI, OverlayRates, CommunityPage, RateModsPage, StashScanPage, OverlayQuick, FeaturesPage, TopUpPage, MapProfitPage, TemplePage, RitualIdPage, SekhemasPage, HoverPage, SharePage, MusicPage, OverlayA8, LookPage, ReadMarkPage, DrawerHost):
+class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage, BoardModPage, LeaderboardPage, WellSoulsPage, RumoursPage, ListKeys, AlertsPage, AboutPage, TabReaderPage, SearchOptsPage, ExchangePage, WealthPage, LibraryPage, RegexPage, UtilitiesPage, TrackerPage, SearchPage, CalcOverlay, InsightsPage, MoneyMakersPage, MapLibraryPage, RemnantPage, FavoursPage, LedgerPage, FeedbackPage, FeedPage, MergedOverlay, LightOverlay, GamePlanPage, FocusPokes, OverlayHelp, OverlayParts, CampaignUI, OverlayRates, CommunityPage, RateModsPage, StashScanPage, OverlayQuick, FeaturesPage, TopUpPage, MapProfitPage, TemplePage, SekhemasPage, HoverPage, SharePage, MusicPage, OverlayA8, LookPage, ReadMarkPage, DrawerHost):
     COLS = [("added", "#", 46, "e"), ("name", "Item", 220, "w"), ("type", "Type", 110, "w"), ("mark", "Status", 90, "center"),
             ("est", "Price", 110, "e"), ("conf", "Confidence", 95, "center"), ("listings", "Listings", 70, "e"), ("priced", "Priced at", 130, "w"),
             ("match", "How it was priced", 300, "w"), ("vmods", "★", 60, "center"),
@@ -1343,7 +1342,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         """A new install starts quiet: the overlay's Sound switch (every helper's alert) and League Plan's Soft sound
         are off until you turn them on. Someone updating keeps what they had (only a fresh install comes here)."""
         SETTINGS.setdefault("helpers_sound", False)
-        for key in ("breach_alert", "ritual_alert", "whispers"):
+        for key in ("breach_alert", "whispers"):
             c = SETTINGS.setdefault(key, {})
             if isinstance(c, dict):
                 c.setdefault("sound", False)

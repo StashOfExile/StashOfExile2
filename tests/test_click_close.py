@@ -1,6 +1,6 @@
 """Click to close (owner: "make this universal for anything we draw on screen like that"): every card or panel the app
 draws over the game that only shows something closes on a click anywhere on it, as the alert card does - the Trial
-of the Sekhemas legend, Island rumors, the Desecration Helper's notice (the read mark, Ritual Identifier, Back from a
+of the Sekhemas legend, Island rumors, the Desecration Helper's notice (the read mark, Back from a
 map, Top Up and every helper alert are alert cards already). Overlays with their own controls are left alone.
 
     python3.12 -m unittest tests.test_click_close          (or tests/runall.sh)"""

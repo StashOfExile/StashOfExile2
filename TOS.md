@@ -48,10 +48,9 @@ also ask for this notice, word for word, and a User-Agent that says how to reach
    boxes. Never a copy made in another program, never on a click, and nothing watches the clipboard (the 150 ms
    copy-counter timer is gone). Each read shows the **read mark** for a second (over the game and on the status
    line: "👁 Screen read once: Ritual, Temple") and writes a line in the app's log. Anything that needs watching
-   between presses comes from Client.txt, or doesn't exist (the Favours tribute reminder, the Delirium helper
-   and Fast Beacon Read are gone for this reason). In maps nothing looks at the screen on entering one or to tell
-   that it's done: Map Content's icons are never read - the helpers there follow Client.txt (area changes, rituals
-   started / disrupted) and read only what you press the Read Key for.
+   between presses comes from Client.txt, or doesn't exist (the Favours tribute reminder, the Ritual helper's counting, reminder and
+   altar identifying, the Delirium helper and Fast Beacon Read are gone for this reason). In maps nothing looks at the screen on entering one or to tell
+   that it's done: Map Content's icons are never read - the helpers there follow Client.txt (area changes) and read only what you press the Read Key for.
 3. **Never touch the game client.** No reading or writing its memory, no injecting code, no hooking its graphics, no
    reading or changing its network traffic.
 4. **The app's only input to the game:** after *your* key press, one game action - the game's own item copy
@@ -62,11 +61,11 @@ also ask for this notice, word for word, and a User-Agent that says how to reach
 
    | What | Trigger (and only this) | Who uses it |
    |---|---|---|
-   | Your screen (one picture of the game window, kept in memory) | one per press of your Read Key in the game - a key only for this, Ctrl+Shift+R as the app comes; held = one; no Read Key (cleared) = never | Ritual counter and tribute (never Map Content); Temple (the Temple Console's crystal count and board, Vaal Lens); Ritual Identifier; Expedition reward book; Favours prices; Island rumors; Desecration Helper; Top Up Reminders and Map profit; Trial of the Sekhemas (is the trial map open, and a hovered affliction or boon's name); Scan stash (once Start reading armed it) |
+   | Your screen (one picture of the game window, kept in memory) | one per press of your Read Key in the game - a key only for this, Ctrl+Shift+R as the app comes; held = one; no Read Key (cleared) = never | Temple (the Temple Console's crystal count and board, Vaal Lens); Expedition reward book; Favours prices (the Ritual helper); Island rumors; Desecration Helper; Top Up Reminders and Map profit; Trial of the Sekhemas (is the trial map open, and a hovered affliction or boon's name); Scan stash (once Start reading armed it) |
    | Your clipboard's text | one per copy key pressed in the game, 0.2 s after it, no retry: Ctrl+C / Ctrl+Alt+C (only when something takes it: Bulk Pricing, the Strat Tracker's boxes, Price Checks or Top Up on Ctrl+C, Wealth's Count by hand), the price check key, the Top Up key | Price Checks, Bulk Pricing, Wealth's Count by hand, Top Up teaching, Map profit, the Strat Tracker, Mod Book › Manual feed |
    | Your clipboard's text | one per chat command key press (before the command is pasted - to put your text back; a mouse-button chat key reads nothing and doesn't put it back) | chat commands |
    | Your clipboard's text or picture | one per Ctrl+V / Shift+Insert in one of the app's boxes (Tk's own paste in text boxes; Favorites' list, the Strat Tracker's item and Atlas steps, Craft Helper's and Regex's check boxes) | what you paste |
-   | Client.txt (the game's log) | all the time, new lines only | area changes, Breach warnings, rituals started / disrupted, whispers, deaths, levels |
+   | Client.txt (the game's log) | all the time, new lines only | area changes, Breach warnings, whispers, deaths, levels |
 
    **Everything else that could look like reading the screen or clipboard** (audited Nov 2026 - none of it is the
    screen's content or the clipboard's content):

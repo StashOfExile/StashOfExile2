@@ -54,7 +54,6 @@ class OverlayQuick:
         SETTINGS["helpers_sound"] = on
         try:
             self.breach_cfg()["sound"] = on
-            self.ritual_cfg()["sound"] = on
         except Exception:
             buglog.caught()
         save_json("settings.json", SETTINGS)
@@ -64,7 +63,7 @@ class OverlayQuick:
             _W.save()
         except Exception:
             buglog.caught()
-        for key in ("breach", "ritual", "whispers"):
+        for key in ("breach", "whispers"):
             r = (getattr(self, "al_rows", None) or {}).get(key)
             if r is not None:
                 r["sound"].set(on)

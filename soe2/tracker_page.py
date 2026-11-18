@@ -585,8 +585,8 @@ class TrackerPage:
             ("Hide the overlay from screen captures", self.tk_hidecap,
              lambda: self.ov_hidecap_set(bool(self.tk_hidecap.get())),
              "Screenshots, recordings and streams won't show it.",
-             "Screenshots, recordings and streams won't show the overlay. Off: they show it - except in a Ritual "
-             "map, where it's left out by itself so a Read Key read sees the game's counters under it."),
+             "Screenshots, recordings and streams won't show the overlay. Off: they show it - except in a temple, "
+             "where it's left out by itself so a Read Key read sees the Temple Console's count under it."),
             ("Start a session with StashOfExile2", self.tk_auto, self.tracker_options_changed,
              "The Session timer starts by itself when the app starts.")), min_w=380)
         from .style import Tooltip
@@ -1316,7 +1316,6 @@ class TrackerPage:
             zt = _CP.zone_time()
             texts.update(map=f"Zone: {fmt_time(zt) if zt is not None else '-'}", where="", rank="", maps="", avg="")
         texts["focus"] = self.focus_line()[0]                 # 2.73.0: League Focus's line
-        texts["ritual"] = self.ritual_readout()               # 2.118.0: the Ritual line (count, tribute)
         try:
             texts["profit"] = self.mp_bar_text()              # 2.132.0: Map profit's part on the bar
         except Exception:

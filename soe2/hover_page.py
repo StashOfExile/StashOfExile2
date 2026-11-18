@@ -1,13 +1,9 @@
-"""2.132.3 One read round the mouse for the helpers that read a tooltip: the Ritual Identifier (a Ritual Altar's type)
-and, in the temple, Vaal Lens (a medallion's name on the ground). One picture and one text read feeds both.
+"""2.132.3 One read round the mouse for the helper that reads a tooltip: in the temple, Vaal Lens (a medallion's name
+on the ground). (3.0.6: the Ritual Identifier is gone - it couldn't be automated under GGG policy.)
 GGG policy (Nov 2026: "Reading from the screen ... may only be performed once per manual key press"): it reads when
 you press your Read Key with the tooltip on screen - the part round the mouse, from the press's one picture
 (screenread.py). It never reads by itself. (Owner decision: the Temple Helper's Vaal Beacon tooltip read and Map
 Content's Temple icon are gone - the Temple Console gives the crystals.)"""
-import time
-
-from . import buglog
-from . import ritualid as RID
 
 AROUND = (0.25, 0.38, 0.06)        # the part looked at: half its width, up and down from the mouse (parts of the game)
 # A tooltip is found by its long straight edges (a cheap check), then only it is read, made bigger.
@@ -66,9 +62,8 @@ def find_tooltip(rgb, game_h, xstep=2):
 
 def read_lines(img, game_h, ocr, want=lambda lines: True):
     """The part round the mouse (one cut of the press's picture) -> its text lines: the tooltip's frame found and read
-    on its own, bigger; Round 18 (feedback: a Ritual Altar hovered and the Read Key pressed showed nothing): when that
-    isn't what's wanted (no tooltip found, or the frame found was another box - an altar's name not in it), the whole
-    part is read too (the same picture - no second screen read)."""
+    on its own, bigger; Round 18: when that isn't what's wanted (no tooltip found, or the frame found was another
+    box), the whole part is read too (the same picture - no second screen read)."""
     import numpy as np
     lines = []
     tip = find_tooltip(np.asarray(img), game_h)
@@ -87,62 +82,43 @@ class HoverPage:
     """Mixed into App."""
 
     def hover_medals(self):
-        """Vaal Lens in the temple: a medallion's name under the mouse -> take it or leave it."""
+        """Vaal Lens in the temple (and Vaal Ruins): a medallion's name under the mouse -> take it or leave it."""
         return bool(getattr(self, "tm_in_temple", False) and self.temple_pad_on())
 
-    def hover_wanted(self):
-        return self.ritid_on() or self.hover_medals()
-
     def hover_look_job(self, ctx):
-        """A Read Key press in a map: the tooltip round the mouse -> a Ritual Altar's type; in the temple, a
-        medallion's name (Vaal Lens)."""
+        """A Read Key press in the temple (or Vaal Ruins): the tooltip round the mouse -> a medallion's name (Vaal
+        Lens)."""
         # 3.0.6 audit: Vaal Ruins is a town to the app (a hub) - a medallion there is read too
-        if (ctx["area"] not in ("map", None) and not self.hover_medals()) or not self.hover_wanted():
+        if not self.hover_medals():
             return None
         from . import screenread as SR
         g, ptr = ctx["g"], ctx["ptr"]
         box = region(ptr, g)
         if box[2] <= box[0] or box[3] <= box[1]:
             return None
-        names = [n for n, on in (("Ritual Identifier", self.ritid_on()), ("Vaal Lens", self.hover_medals())) if on]
 
         def work():
             from . import remnant as RM
-            img = SR.capture(box, ", ".join(names))
+            img = SR.capture(box, "Vaal Lens")
             if img is None:
                 return []
-            return read_lines(img, g[3], RM.ocr, want=lambda ls: bool(RID.parse(ls)) if self.ritid_on() else True)
+            return read_lines(img, g[3], RM.ocr)
 
         def found(lines):
-            """(the read mark) An altar's type, or a medallion's name."""
+            """(the read mark) A medallion's name."""
             if not lines:
                 return False
-            if self.ritid_on() and RID.parse(lines):
-                return True
-            if self.hover_medals():
-                from . import medallions as M
-                med = M.parse(lines)
-                return bool(med["count"] or med["names"])
-            return False
+            from . import medallions as M
+            med = M.parse(lines)
+            return bool(med["count"] or med["names"])
         work.found = found
 
         def done(lines):
-            lines = lines or []
             # 2.142.0 Vaal Lens: a medallion's name on screen in the temple (its label or tooltip), the
             # Medallions panel closed -> take it or leave it
-            if self.hover_medals():
-                from . import medallions as M
-                med = M.parse(lines)
-                if not med["count"]:
-                    for name in dict.fromkeys(n for n, _b in med["names"]):
-                        self.temple_medal_drop(name, med["room"])
-            if self.ritid_on():
-                key = RID.parse(lines)
-                self.ritid_seen(key)
-                if not key:                                 # 2.138.0: Debug mode - an altar seen but its type not read
-                    seen = [RID.letters(t) for t, _b in lines if "RITUAL" in RID.letters(t)]
-                    seen = [s for s in seen if "REWARD" not in s]
-                    if seen and time.time() - getattr(self, "_rid_said", 0.0) > 30:
-                        self._rid_said = time.time()
-                        buglog.debug("Ritual", "altar seen, type not read: " + " | ".join(s[:40] for s in seen[:3]))
-        return names[0], work, done
+            from . import medallions as M
+            med = M.parse(lines or [])
+            if not med["count"]:
+                for name in dict.fromkeys(n for n, _b in med["names"]):
+                    self.temple_medal_drop(name, med["room"])
+        return "Vaal Lens", work, done

@@ -5,7 +5,7 @@
     Click it to rank the map. "Ask me to rank maps I haven't ranked" (on by default): leaving a map you haven't
     ranked, a small card asks - S A B C D Avoid, Not now, or Never for this map. Feedback: "isolate the Map
     Tier/rating piece on the overlay and add an option ... to prompt a user to give unrated maps a rating".
-  * The lines - League Plan's NOW line, the Campaign Helper's (2.77.0) and Ritual's (2.118.0). 2.124.0: drawn at
+  * The lines - League Plan's NOW line, and the Campaign Helper's (2.77.0). 2.124.0: drawn at
     the top of the overlay's own window (they had their own small bar), which grows upward by their height - the bar
     never moves. Feedback: "instead of having it as an isolated separate bar, can we just have it combine".
 
@@ -148,19 +148,13 @@ class OverlayParts:
 
     # ================================================================ the goal bar
     def goalbar_rows(self):
-        """What the goal bar holds, top to bottom: 'campaign' (2.77.0, while you're in the campaign), 'ritual' (2.118.0,
-        in a map with Ritual), 'focus'."""
+        """What the goal bar holds, top to bottom: 'campaign' (2.77.0, while you're in the campaign), 'focus'."""
         rows = []
         try:
             if self.camp_on_bar() and not self.camp_in_card():     # (the Panel: the line is in its card)
                 rows.append("campaign")
         except Exception:
             self.log_error("the campaign line")
-        try:
-            if self.ritual_readout():
-                rows.append("ritual")
-        except Exception:
-            buglog.caught()
         if self.focus_line()[0]:
             rows.append("focus")
         return rows
@@ -269,8 +263,8 @@ class OverlayParts:
         return cv
 
     def _goalbar_build_now(self, settled=False):
-        """2.124.0 (feedback: "instead of an isolated separate bar, can we just have it combine"): the Campaign,
-        Ritual and NOW lines are drawn at the top of the overlay's own window, as wide as it, and the window grows
+        """2.124.0 (feedback: "instead of an isolated separate bar, can we just have it combine"): the Campaign
+        and NOW lines are drawn at the top of the overlay's own window, as wide as it, and the window grows
         upward by their height - the bar itself never moves. (Was its own small window, docked or dragged.)
         -> the lines' canvas or None."""
         import tkinter.font as tkfont
@@ -379,19 +373,6 @@ class OverlayParts:
             cv.create_line(lft, e, rgt, e, fill=P["line"], tags=("mg",))
         if "campaign" in rows:
             self.camp_draw_row(cv, P, lft, rgt, mids[rows.index("campaign")], f, n=camp_n, lh=lh)
-        if "ritual" in rows:                                  # 2.118.0: the Ritual line
-            mid = mids[rows.index("ritual")]
-            fm = tkfont.Font(root=cv, family=P["font"], size=self._hf(10))
-            tag = "▸ " + self.ritual_line_label()             # 2.132.2: RITUAL / TEMPLE / IN MAP
-            cv.create_text(lft, mid, text=tag, anchor="w", fill=P["head"],
-                           font=(P["hfont"], self._hf(9), "bold"), tags=("mg", "rit"))
-            # 2.137.1 (feedback: "it shows HELPERSCrystals"): the gap is measured on the tag itself, in its own font
-            tf = tkfont.Font(root=cv, family=P["hfont"], size=self._hf(9), weight="bold")
-            rt = self._mg_text(cv, P, lft + tf.measure(tag + "  ") + 6, mid, "ritual", f)
-            cv.addtag_withtag("rit", rt.item)
-            rt.config(text=self.ritual_readout())
-            if light:
-                self._lt_halo_tags(cv, P, ("rit",))
         if "focus" not in rows:
             return self._goalbar_show(main, cv, H, geo)
         mid = mids[rows.index("focus")]

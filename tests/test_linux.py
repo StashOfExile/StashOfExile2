@@ -207,7 +207,7 @@ class Ocr(unittest.TestCase):
     @unittest.skipUnless(LINUX, "Linux")
     def test_no_picture_for_text_only_helpers(self):
         from soe2.look_page import LookPage
-        names = ("ritual_look_job", "hover_look_job", "temple_console_job", "remnant_look_job", "favours_look_job",
+        names = ("hover_look_job", "temple_console_job", "remnant_look_job", "favours_look_job",
                  "ru_look_job", "ws_look_job", "topup_look_job", "sekhemas_look_job")
         App = type("App", (LookPage,), {n: (lambda n: lambda self, ctx: (n, None, None))(n) for n in names})
         OE.TESS[0] = ""
@@ -215,7 +215,7 @@ class Ocr(unittest.TestCase):
         got = [j[0] for j in App().look_jobs({"area": "map"})]
         self.assertNotIn("hover_look_job", got)
         self.assertNotIn("temple_console_job", got)
-        self.assertIn("ritual_look_job", got, "picture matching helpers still apply")
+        self.assertIn("favours_look_job", got, "picture matching helpers still apply")
         self.assertIn("sekhemas_look_job", got)
         OE.TESS[0] = "/usr/bin/tesseract"
         self.assertEqual(len(App().look_jobs({"area": "map"})), len(names))

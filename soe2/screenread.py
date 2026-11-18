@@ -373,7 +373,7 @@ def capture(region, purpose, now=None):
             COUNT["shots"] += 1
             if g["shot"] is None:                   # (Linux: the capture tool gave nothing - no retry)
                 return None
-        for p in str(purpose or "").split(", "):        # ("Temple, Ritual Identifier": two helpers, one part)
+        for p in str(purpose or "").split(", "):        # ("Temple, Vaal Lens": two helpers, one part)
             if p and p not in g["for"]:
                 g["for"].append(p)
         bx, by, br, bb = g["box"]

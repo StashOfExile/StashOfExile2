@@ -247,6 +247,21 @@ def _delirium_gone(S):
             tr["bar"].pop("delirium", None)
 
 
+def _ritual_only_favours_306(S):
+    """3.0.6 (owner: reminders, counting and identifying rituals can't be automated under GGG policy): the Ritual helper
+    keeps Favours prices only. Gone: the counter's readout (ritual_alert.readout), the leave reminder
+    (leave_reminder), the Ritual Identifier (identify) and the helper's alert sound (sound). Favours prices was its
+    own switch (favours): it is the helper now - someone who had the helper on with Favours prices off turns the
+    helper off (it would price again otherwise)."""
+    r = S.get("ritual_alert")
+    if not isinstance(r, dict):
+        return
+    if r.pop("favours", True) is False:
+        r["on"] = False
+    for k in ("readout", "leave_reminder", "identify", "sound"):
+        r.pop(k, None)
+
+
 def _look_key_default(S):
     """GGG policy, owner decision: the Read Key is Ctrl+Shift+R as the app comes. A Read Key that is unset (or was the
     old Tab, cleared by look_key_dedicated) becomes it; a key you picked is kept. A person with an older install is
@@ -318,6 +333,7 @@ STEPS = (
     ("look_key_default", "GGG policy", "settings", _look_key_default, None),
     ("read_key_name", "3.0.1", "settings", _read_key_name, None),
     ("strats_find_306", "3.0.6", "settings", _strats_find_306, None),
+    ("ritual_only_favours_306", "3.0.6", "settings", _ritual_only_favours_306, None),
 )
 
 

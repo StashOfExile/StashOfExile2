@@ -22,7 +22,6 @@ from soe2.hover_page import HoverPage                     # noqa: E402
 from soe2.look_page import LookPage                       # noqa: E402
 from soe2.mapprofit_page import MapProfitPage             # noqa: E402
 from soe2.remnant_page import RemnantPage                 # noqa: E402
-from soe2.ritualid_page import RitualIdPage               # noqa: E402
 from soe2.rumours_page import RumoursPage                 # noqa: E402
 from soe2.sekhemas_page import SekhemasPage               # noqa: E402
 from soe2.stashscan_page import StashScanPage             # noqa: E402
@@ -35,7 +34,7 @@ AREAS = ("map", "hideout", "town", "other", None)
 
 
 class App(LookPage, AP.AlertsPage, HoverPage, TemplePage, RemnantPage, FavoursPage, RumoursPage, WellSoulsPage,
-          TopUpPage, SekhemasPage, StashScanPage, RitualIdPage, MapProfitPage):
+          TopUpPage, SekhemasPage, StashScanPage, MapProfitPage):
     """Every Read Key helper of the app (look_page.look_jobs' list), without windows."""
     mm_sync = True
 
@@ -128,33 +127,22 @@ class NothingToRead(Base):
 
     def test_one_helper_applies_one_picture_and_the_card(self):
         self.all_off()
-        SETTINGS["ritual_alert"] = {"on": True, "identify": False, "favours": False}
+        SETTINGS["ritual_alert"] = {"on": True}
         app = App()
         app.br_area = "map"
         names = [n for n, _w, _d in app.look_jobs(ctx("map"))]
-        self.assertEqual(names, ["Ritual"])
-        with mock.patch("soe2.ritual_alert.look", lambda g, tribute=True: SR.capture((0, 0, 50, 50), "Ritual")
-                        and {"kind": "none", "val": None, "tribute": None}), \
-                mock.patch.object(App, "ritual_seen", lambda self: None, create=True):
-            self.assertEqual(self.press(app), ["Ritual"])
+        self.assertEqual(names, ["Favours prices"])
+        self.assertEqual(self.press(app), ["Favours prices"])
         self.assertEqual(len(self.shots), 1, "one picture")
-        self.assertEqual(self.said, [("screen", "Ctrl+Shift+R", ["Ritual", SR.NOTHING])],
-                         "the card: a read happened (no counter seen: nothing found)")
-        self.assertEqual(app.look_jobs(ctx("hideout")), [], "Ritual is for maps: not in your hideout")
-        self.said.clear()
-        with mock.patch("soe2.ritual_alert.look", lambda g, tribute=True: SR.capture((0, 0, 50, 50), "Ritual")
-                        and {"kind": "ok", "val": (2, 5), "tribute": None}), \
-                mock.patch.object(App, "ritual_seen", lambda self: None, create=True):
-            self.assertEqual(self.press(app), ["Ritual"])
-        self.assertEqual(self.said, [("screen", "Ctrl+Shift+R", ["Ritual"])], "the counter seen: a plain read")
+        self.assertEqual(self.said, [("screen", "Ctrl+Shift+R", ["Favours prices", SR.NOTHING])],
+                         "the card: a read happened (no Favours window seen: nothing found)")
 
     def test_a_helper_that_cannot_read_does_not_apply(self):
         self.all_off()
-        SETTINGS["ritual_alert"] = {"on": True, "identify": False, "favours": True}
+        SETTINGS["ritual_alert"] = {"on": True}
         app = App()
-        with mock.patch("soe2.ritual_alert.template", lambda: None), \
-                mock.patch("soe2.favours.title_template", lambda: None):
-            self.assertEqual(app.look_jobs(ctx("map")), [], "no icon / title to look for: nothing to read")
+        with mock.patch("soe2.favours.title_template", lambda: None):
+            self.assertEqual(app.look_jobs(ctx("map")), [], "no window title to look for: nothing to read")
             app.br_area = "map"
             self.assertEqual(self.press(app), [])
         self.assertEqual((self.shots, self.said), ([], []))
@@ -231,8 +219,7 @@ class WhereYouAre(Base):
         self.assertIn("at the character screen", self.lines[-1])
 
     def test_ritual_helpers_only_where_they_belong(self):
-        """With the Ritual helpers on: maps (and the campaign for the counter) only - a hideout or town press reads
-        nothing for them."""
+        """With the Ritual helper on: maps only - a hideout or town press reads nothing for it."""
         self.all_off()
         SETTINGS["ritual_alert"] = {"on": True}
         app = App()

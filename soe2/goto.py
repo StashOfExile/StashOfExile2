@@ -15,7 +15,7 @@ KIND_ORDER = {"Page": 0, "Feature": 1, "Tab": 2, "Part": 3, "Setting": 4}
 OV = ("tracker", "Helpers")          # nav phase 2: Overlay › Helpers (was the Overlay Settings page)
 # where each named feature (names.FEATURES) lives: (page key, its tab or None) - a "settings" key means a Settings tab
 FEATURE_AT = {
-    "Alert card": OV, "Ritual Identifier": OV, "Temple Helper": OV, "Music Controls": OV, "Vaal Lens": OV,
+    "Alert card": OV, "Temple Helper": OV, "Music Controls": OV, "Vaal Lens": OV,
     "Map profit": OV, "Alerts show": OV, "Top Up Reminders": OV, "Break reminders": OV,
     "Campaign Helper": OV, "Desecration Helper": OV, "Exchange Helper": ("rates", "Exchange Helper"), "Mechanic Helper": OV,
     "Favours prices": OV, "Filter in the Ritual window": OV,

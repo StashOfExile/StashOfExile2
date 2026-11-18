@@ -1,7 +1,7 @@
 """Build gamedb.json - the offline game database inside Game Search (tablets, waystones, Atlas masters, Vaal Temple,
 pinnacles and areas, Trial of the Sekhemas, Trial of Chaos, Ritual altars, leagues). Only facts from the game's own files: the RePoE
 exports already in the repo (modlists.json, regexdata.json, mapdata.json, trialdata.json), gamedata.json, searchdata.json (the game's
-text), and a few names that live in the app's code (soe2/ritualid.py, medallions.py, vaallens_plan.py, moneymakers.py,
+text), and a few names that live in the app's code (soe2/ritualaltars.py, medallions.py, vaallens_plan.py, moneymakers.py,
 waystone.py). No community opinions (ratings, tier lists, "why" lines) and nothing is looked up when the app runs.
 
     py tools/build_gamedb.py                 build, verify, write gamedb.json (refuses to write if a check fails)
@@ -471,10 +471,10 @@ class Build:
     # ---------------------------------------------------------------- Ritual altars
     def altars(self):
         G = "Ritual Altars"
-        T = py_const(self.root, "soe2/ritualid.py", "TYPES")
+        T = py_const(self.root, "soe2/ritualaltars.py", "TYPES")
         for key, (name, loot, danger) in T.items():
             self.add(f"ritual-altar/{key}", f"{name} Ritual Altar", G, "Ritual Altar", "ritual, altar, " + name.lower(),
-                     [danger, ("Reward", loot.rstrip(" ↑"))], "soe2/ritualid.py TYPES", "0.5.2")
+                     [danger, ("Reward", loot.rstrip(" ↑"))], "soe2/ritualaltars.py TYPES", "0.5.2")
 
     # ---------------------------------------------------------------- Leagues
     def leagues(self):

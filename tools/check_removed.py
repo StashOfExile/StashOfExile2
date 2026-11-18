@@ -25,6 +25,30 @@ DOCS = ("README.md", "TOS.md", "linux/README.md", "themes/README.md", "strats/RE
 
 # (version, what it was, words a person read, names in the code / settings keys[, pending])
 REMOVED = [
+    ("3.0.6", "the Ritual helper's counter read: Read Key read \"2/4\" and the tribute off the screen (owner: \"ritual "
+              "reminders can be removed since they can't be automated, it defeats the purpose, reading / identifying "
+              "rituals can be removed since it can't be automated\" - can't be automated under GGG policy), the "
+              "Ritual line over the overlay's bar (On screen) and what Client.txt's ritual lines fed it; the Ritual "
+              "helper keeps only Favours prices and Filter in the Ritual window",
+     ("rituals done", "rituals started", "to read the counter", "Ritual counter", "On the overlay in Ritual maps",
+      "Ritual leave check"),
+     ("ritual_look_job", "ritual_look_done", "ritual_seen", "ritual_estimate", "ritual_log", "ritual_log_counts",
+      "ritual_readout", "ritual_readout_sync", "ritual_readout_changed", "_ritual_part", "ritual_line_label",
+      "RitualState", "RITUAL_START", "RITUAL_DISRUPTED", "al_rshow", "rt_map", "rt_log", "rt_base", "hud_rect",
+      "hud_prep", "hud_number", "HUD_BOX", "read_counter", "find_icon", "ritual_icon.png", "ritual_glyphs.json",
+      "readout")),
+    ("3.0.6", "the Ritual leave reminder: the Rituals not done alert card when you left a map with rituals left "
+              "(owner: reminders can't be automated - the count came from a screen read)",
+     ("Rituals not done", "Remind me when I leave the map with it unfinished (Ritual)"),
+     ("alerts_ritual_leave_changed", "alerts_test_ritual", "al_rleave")),
+    ("3.0.6", "the Ritual Identifier: hover a Ritual Altar and press the Read Key - its type, loot and danger on an "
+              "alert card (owner: can't be automated under GGG policy). Vaal Lens's medallion read stays",
+     ("Ritual Identifier", "Ritual type", "Hover a Ritual Altar"),
+     ("ritid_on", "ritid_changed", "ritid_seen", "ritid_alert", "rid_told", "rid_win", "RitualIdPage", "al_rid",
+      "hover_wanted")),
+    ("3.0.6", "Favours prices as its own switch under the Ritual helper (one place: the Ritual helper on is Favours "
+              "prices on)",
+     (), ("favours_changed", "al_rfav")),
     ("3.0.6", "Strat Tracker's empty page: Make my first setup (it's ＋ New strat, the same page as Find's)",
      ("Make my first setup",), ()),
     ("3.0.6", "Farming Strategies' pickers to the approved mockup v3: Waystone by hand's Top numbers (now Waystone "
