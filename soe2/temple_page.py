@@ -647,10 +647,31 @@ class TemplePage:
             return f"Medallions: open them (V) and press {self.look_key_text()}."
         # 3.0.6 (owner: "one vertical list instead of a wall of text, a list only of the names"): a room medallion by
         # its room, the rest by what they do (Lock, Upgrade ...)
-        known = [M.base(h)[1] or M.MEDALLIONS.get(M.base(h)[0], (M.base(h)[0],))[0] for h in hand[:have] if h]
+        known = [self._temple_medal_say(h) for h in hand[:have] if h]
         unknown = have - len(known)
         tail = [f"? {unknown} not known yet"] if unknown else []        # (owner: "stop asking me to teach it")
         return "\n".join([f"Medallions {have}/{most}"] + known + tail)
+
+    def _temple_medal_say(self, h):
+        """3.0.6 (owner: "factor for the medallions in hand at the same time, if they should be used or saved"): one
+        medallion -> its name, then use (where) or keep - from this read's plan."""
+        from . import medallions as M, vaallens_plan as VP
+        name, room = M.base(h)
+        word = room or M.MEDALLIONS.get(name, (name,))[0]
+        plan = getattr(self, "tm_plan", None) or []
+        notes = " ".join(getattr(self, "tm_notes", None) or [])
+        if room:
+            st = next((s for s, (_t, f, w) in zip(VP.steps(plan), plan) if f == room), None)
+            if st is not None:
+                return f"{word} · use: step {st}"
+            return f"{word} · keep" if room in notes else word
+        short = M.MEDALLIONS.get(name, (name,))[0]
+        for _t, (w, fam) in (getattr(self, "tm_targets", None) or {}).items():
+            if w == short:
+                return f"{word} · use on {fam}"
+        if name == "Puhuarte's Medallion" and "reroll" in notes.lower():
+            return f"{word} · use now"
+        return f"{word} · keep"
 
     def temple_pad_show(self):
         if self.temple_pad_shown():
@@ -690,8 +711,19 @@ class TemplePage:
         tk.Frame(body, bg=P["head"], height=2).pack(fill="x", pady=(8, 0))
         hd = tk.Frame(body, bg=P["bg"])
         hd.pack(fill="x", pady=(8, 0))
-        tk.Label(hd, text="THE PLAN", bg=P["bg"], fg=P["muted"], font=(P["font"], self.ov_font(8), "bold"),
-                 anchor="w").pack(side="left")
+        # 3.0.6 (owner: "9/10 people aren't going to read the plan (keep it for the 1/10)" - the numbers on the cards
+        # and the board are the plan): the written steps fold away, closed until opened
+        c.setdefault("plan_open", False)
+        pfold = tk.Label(hd, text="THE PLAN ▾" if c["plan_open"] else "THE PLAN ▸", bg=P["bg"], fg=P["muted"],
+                         font=(P["font"], self.ov_font(8), "bold"), anchor="w", cursor="hand2")
+        pfold.pack(side="left")
+
+        def plan_flip(_e=None):
+            c["plan_open"] = not c.get("plan_open")
+            save_json("settings.json", SETTINGS)
+            pfold.config(text="THE PLAN ▾" if c["plan_open"] else "THE PLAN ▸")
+            self.temple_pad_refresh()
+        pfold.bind("<Button-1>", plan_flip)
         tip = tk.Label(hd, text=" ⓘ", bg=P["bg"], fg=P["muted"], font=(P["font"], self.ov_font(8)))
         tip.pack(side="left")
         from .style import Tooltip
@@ -797,14 +829,16 @@ class TemplePage:
                      fg=P["muted"], font=f10, anchor="w", wraplength=wrap, justify="left").pack(fill="x")
             return
         plan = self.temple_plan_lines()
-        if not plan and (self.tm_board or {}).get("placing") is False:
+        if not TM.cfg().get("plan_open"):
+            plan = []                                      # (folded: the numbers on the board say it)
+        elif not plan and (self.tm_board or {}).get("placing") is False:
             tk.Label(box, text="No Room Cards open: nothing to place. Your medallions are below.", bg=P["bg"],
                      fg=P["muted"], font=f10, anchor="w", wraplength=wrap, justify="left").pack(fill="x")
-        elif not plan:
+        elif not plan and TM.cfg().get("plan_open"):
             tk.Label(box, text="Nothing to plan with these cards.", bg=P["bg"], fg=P["muted"], font=f10,
                      anchor="w").pack(fill="x")
-        tk.Label(box, text=self.temple_medal_line(), bg=P["bg"], fg=P["muted"], font=f10, anchor="w",
-                 justify="left", wraplength=wrap).pack(fill="x", side="bottom", pady=(8, 0))
+        tk.Label(box, text=self.temple_medal_line(), bg=P["bg"], fg=P["text"], font=f10, anchor="w",
+                 justify="left", wraplength=wrap).pack(fill="x", side="bottom", pady=(4, 0))
         for mark, text in plan:
             tk.Label(box, text=f"{mark}  {text}", bg=P["bg"], fg=P["text"], font=f10, anchor="w", justify="left",
                      wraplength=wrap).pack(fill="x")

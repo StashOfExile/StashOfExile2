@@ -262,12 +262,6 @@ class AlertsPage:
         snd = ttk.Checkbutton(top, text="Sound", variable=self.al_sound_all, style=CB, command=self.alerts_sound_all)
         snd.pack(side="right")
         Tooltip(snd, "Every helper's alert sound, on or off.")
-        # 3.0.6 (owner): the capture switch has one home, Overlay > Options; here a read-out that opens it
-        from .ovquick import HIDECAP_TIP
-        self.al_hidecap = tk.Label(top, text=self.ov_hidecap_text(), bg=P2, fg=C["text"], font=sm, cursor="hand2")
-        self.al_hidecap.pack(side="right", padx=(0, 16))
-        self.al_hidecap.bind("<Button-1>", lambda _e: self.ovh_open("Options"))
-        Tooltip(self.al_hidecap, HIDECAP_TIP)
         # 2.131.0: where the alert card shows and how big - one place for every helper's alert
         from . import alertcard as _AC
         acf = _AC.cfg()

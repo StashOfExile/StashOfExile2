@@ -642,24 +642,8 @@ class TrackerPage:
                 v.set(bool(on))
         except tk.TclError:
             pass
-        self.ov_hidecap_refresh()
         self.tracker_save()
         self.overlay_click_through()
-
-    def ov_hidecap_text(self):
-        """3.0.6: the read-out for Helpers and Quick settings (a mark and a word, never color alone)."""
-        return ("\u2713 Hidden from captures: On" if self.overlay_hide_capture()
-                else "\u25cb Hidden from captures: Off")
-
-    def ov_hidecap_refresh(self):
-        """3.0.6: every read-out follows the switch in Options."""
-        for name in ("al_hidecap", "ovq_hidecap"):
-            w = getattr(self, name, None)
-            try:
-                if w is not None and w.winfo_exists():
-                    w.config(text=self.ov_hidecap_text())
-            except tk.TclError:
-                pass
 
     def ov_click_through_set(self, on):
         """Click-through: clicks go through the overlay's bar to the game (Options and Quick settings)."""
