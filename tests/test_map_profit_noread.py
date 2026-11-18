@@ -37,7 +37,7 @@ class NoReadBefore(unittest.TestCase):
         a = App()
         logged = []
         inv = {"Exalted Orb": 20, "Divine Orb": 2, "Vaal Orb": 10}
-        with mock.patch.object(MP, "identify", lambda *x: (dict(inv), 0)), \
+        with mock.patch.object(MP, "identify", lambda *x, **k: (dict(inv), 0)), \
                 mock.patch.object(MP, "log_add", logged.append), \
                 mock.patch.object(TU, "learned", lambda: {}), \
                 mock.patch.object(TU, "cfg", lambda: {"items": [{"name": "Exalted Orb"}, {"name": "Vaal Orb"}]}):
@@ -63,7 +63,7 @@ class ReadCard(unittest.TestCase):
         a.root = None
         shown = []
         inv = {"Divine Orb": 2}
-        with mock.patch.object(MP, "identify", lambda *x: (dict(inv), 1)), \
+        with mock.patch.object(MP, "identify", lambda *x, **k: (dict(inv), 1)), \
                 mock.patch.object(TU, "learned", lambda: {}), \
                 mock.patch.object(TU, "cfg", lambda: {"items": []}), \
                 mock.patch("soe2.alertcard.show", lambda *x, **k: shown.append(x) or None), \
@@ -76,3 +76,31 @@ class ReadCard(unittest.TestCase):
         self.assertIn("Map counted", title)
         self.assertIn("Divine Orb +2", line)
         self.assertIn("1 not known", line)
+
+
+class LearnedItems(unittest.TestCase):
+    """3.0.6 (owner: "missing things we've already learned for stash scan"): no stack number = not currency,
+    look-alikes count as the cheaper one."""
+
+    def test_no_stack_number_is_skipped_not_unknown(self):
+        from soe2 import mapprofit as MP
+        info = {}
+        got, unknown = MP.identify([{"sig": None, "count": 1, "shown": False, "img": object()}], {}, refs=None,
+                                   info=info)
+        self.assertEqual((got, unknown, info["skipped"]), ({}, 0, 1))
+
+    def test_look_alikes_count_as_the_cheaper(self):
+        from unittest import mock
+        from soe2 import mapprofit as MP
+        cells = [{"sig": None, "count": 1, "shown": True, "img": object()}]
+        info = {}
+        price = {"Perfect Essence of Abrasion": 2.0, "Perfect Essence of Enhancement": 0.5}.get
+        with mock.patch.object(MP, "fv_match", return_value=["Perfect Essence of Abrasion",
+                                                             "Perfect Essence of Enhancement"]):
+            got, unknown = MP.identify(cells, {}, refs=object(), price=price, info=info)
+        self.assertEqual(got, {"Perfect Essence of Enhancement": 1})
+        self.assertIn("Perfect Essence of Enhancement", info["alike"])
+
+    def test_six_is_read(self):
+        from soe2 import topup as TU
+        self.assertIn("6", TU.digit_templates())

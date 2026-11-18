@@ -143,7 +143,29 @@ def feats(bgr):
         n = float(np.sqrt((a * a).sum())) or 1.0
         out.append((a / n).ravel())
     out.append(hue(im))
+    out.append(tint(im))
     return tuple(out)
+
+
+def tint(bgr):
+    """3.0.6: the art's own average color (Lab), or None - the colors above take the overall tint out, so look-alike
+    items in other tints (the Perfect Essences: one crystal, many colors) scored the same."""
+    cv2, np = _cv()
+    a = bgr.astype(np.float32)
+    ring = np.concatenate([a[:2].reshape(-1, 3), a[-2:].reshape(-1, 3), a[:, :2].reshape(-1, 3), a[:, -2:].reshape(-1, 3)])
+    m = np.sqrt(((a - np.median(ring, 0)) ** 2).sum(-1)) > 25
+    h, w = m.shape
+    m[:int(h * 0.42), :int(w * 0.5)] = False                     # (the stack number's corner)
+    if m.sum() < 20:
+        return None
+    return cv2.cvtColor(bgr, cv2.COLOR_BGR2LAB).astype(np.float32)[m].mean(0)
+
+
+def tint_gap(fa, fb):
+    """How far apart two cells' tints are (Lab), or None."""
+    _cv2, np = _cv()
+    a, b = (fa[4] if len(fa) > 4 else None), (fb[4] if len(fb) > 4 else None)
+    return float(np.linalg.norm(a - b)) if a is not None and b is not None else None
 
 
 def hue(bgr):
@@ -309,6 +331,27 @@ class Refs:
         return None, top, top - nxt
 
 
+    def alike(self, f):
+        """3.0.6 (owner: "missing things we've already learned for stash scan"): when best() can't pick, the items this
+        could be - learned pictures only, each very close (MATCH_SURE, within MATCH_BY of the top) and in the same
+        tint (TINT_MAX). -> [names], best first: one = that item; more = look-alikes (Perfect Essence of Abrasion /
+        Enhancement - the same white crystal)."""
+        got = self.ranked(f, 8, refs=True)
+        if not got or got[0][0] < MATCH_SURE:
+            return []
+        top = got[0][0]
+        out = []
+        for sc, name, src, cf, rf in got:
+            if sc < top - MATCH_BY or src not in ("learned", "shipped") or sc < MATCH_SURE:
+                continue
+            gap = tint_gap(cf, rf)
+            if gap is None or gap <= TINT_MAX:
+                out.append(name)
+        return out
+
+
+TINT_MAX = 15.0                   # 3.0.6: the right item's tint was 0.1-6.5 away on the owner's inventory, the wrong
+#                                   Perfect Essences 17-84 (two white ones 9 and 11: both kept, counted at the lower)
 TWIN = 0.86                       # 2.130.4: an unknown cell this like a known one in the same window is the same item
 
 

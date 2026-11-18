@@ -207,6 +207,12 @@ def _blobs(band, n):
 
 def read_count(cell, tpls=None):
     """A cell -> (count, sure). No count shown: (1, True). A count it can't read: (None, False)."""
+    return _read(cell, tpls)[:2]
+
+
+def _read(cell, tpls=None):
+    """-> (count, sure, shown): shown = a stack number is drawn (3.0.6: gear, jewels and waystones show none - so
+    they're never taken for currency)."""
     cv2, np = _cv()
     band, _x0, _y0 = _band(cell)
     n = cell.width
@@ -229,7 +235,7 @@ def read_count(cell, tpls=None):
             picked.append(h)
     picked.sort(key=lambda p: p[1])
     if not picked or picked[0][1] > 0.16 * n:      # nothing that starts where a count does
-        return (None, False) if _blobs(band, n) else (1, True)
+        return (None, False, True) if _blobs(band, n) else (1, True, False)
     run = [picked[0]]
     for p in picked[1:]:                           # side by side, on one line - a hit further on is the icon
         last = run[-1]
@@ -240,8 +246,8 @@ def read_count(cell, tpls=None):
     end = run[-1][1] + run[-1][3]
     rest = [b for b in _blobs(band, n) if b[0] >= end - 1 and b[0] - end <= 0.04 * n]
     if rest:                                       # a digit right after them the templates don't know: unsure
-        return None, False
-    return int("".join(p[4] for p in run)), True
+        return None, False, True
+    return int("".join(p[4] for p in run)), True, True
 
 
 def learn_digits(cell, count):
@@ -295,18 +301,19 @@ def ocr_count(cell):
 
 # ---------------------------------------------------------------- reading the whole grid
 def scan(grid_img, tpls=None, ocr=None):
-    """The grid (PIL) -> [{"cell": (r, c), "sig", "count", "sure"}] for every cell that holds something."""
+    """The grid (PIL) -> [{"cell": (r, c), "sig", "count", "sure", "shown"}] for every cell that holds something
+    (shown: a stack number is drawn on it)."""
     tpls = digit_templates() if tpls is None else tpls
     out = []
     for rc, cell in split(grid_img).items():
         if empty(cell):
             continue
-        n, sure = read_count(cell, tpls)
+        n, sure, shown = _read(cell, tpls)
         if not sure and ocr is not False:
             n2 = (ocr or ocr_count)(cell)
             if n2 is not None:
                 n, sure = n2, True
-        out.append({"cell": rc, "sig": sig(cell), "count": n, "sure": sure, "img": cell})
+        out.append({"cell": rc, "sig": sig(cell), "count": n, "sure": sure, "shown": shown, "img": cell})
     return out
 
 

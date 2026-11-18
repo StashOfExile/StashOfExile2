@@ -35,34 +35,55 @@ def cfg():
 
 
 # ---------------------------------------------------------------- naming what the inventory holds
-def fv_match(cell, refs):
+def fv_match(cell, refs, alike=False):
     """A Top Up cell (PIL) -> the exchange item Scan stash learned it to be, or None (the Favours pictures, cut to
-    the item's art so a stash slot and an inventory cell line up)."""
+    the item's art so a stash slot and an inventory cell line up). alike=True: [names] - the one item, or the
+    look-alikes it could be (Refs.alike), [] for none."""
     try:
         import numpy as np
         from . import favours as FV
         bgr = np.asarray(cell.convert("RGB"))[:, :, ::-1].copy()
         h, w = bgr.shape[:2]
         e = max(1, int(round(FV.EDGE * w / FV.CELL)))
-        name, _score, _margin = refs.best({"box": FV.feats(FV.art_box(bgr[e:h - e, e:w - e]))})
-        return name
+        f = {"box": FV.feats(FV.art_box(bgr[e:h - e, e:w - e]))}
+        name, _score, _margin = refs.best(f)
+        if not alike:
+            return name
+        return [name] if name else refs.alike(f)
     except Exception:
         buglog.caught()
-        return None
+        return [] if alike else None
 
 
-def identify(cells, taught, refs=None):
-    """Top Up's cells -> ({name: count}, how many cells it couldn't name). Taught pictures first, then Scan stash's."""
+def identify(cells, taught, refs=None, price=None, info=None):
+    """Top Up's cells -> ({name: count}, how many cells it couldn't name). Taught pictures first, then Scan stash's.
+
+    3.0.6 (owner: "missing things we've already learned for stash scan"): a cell with no stack number (gear, a jewel,
+    a waystone) is never currency - skipped, not "not known" (a sword's corner was counted as an Idol). Look-alikes
+    (two Perfect Essences in one white) count as the one worth less (price(name) -> each). info: a dict that gets
+    "skipped" (no stack number) and "alike" {counted name: [the look-alikes]}."""
     from . import topup as TU
-    out, unknown = {}, 0
+    out, unknown, skipped, alike = {}, 0, 0, {}
     for c in cells or []:
         name = TU.which(c["sig"], taught) if taught else None
+        if name is None and c.get("shown") is False:
+            skipped += 1
+            continue
         if name is None and refs is not None and c.get("img") is not None:
-            name = fv_match(c["img"], refs)
+            names = fv_match(c["img"], refs, alike=True)
+            if len(names) > 1:
+                priced = [(price(n), n) for n in names] if price else []
+                priced = sorted(p for p in priced if p[0] is not None)
+                name = priced[0][1] if priced else names[0]
+                alike[name] = names
+            elif names:
+                name = names[0]
         if name is None:
             unknown += 1
             continue
         out[name] = out.get(name, 0) + (c["count"] if c.get("count") is not None else 1)
+    if info is not None:
+        info.update(skipped=skipped, alike=alike)
     return out, unknown
 
 

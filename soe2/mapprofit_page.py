@@ -100,9 +100,11 @@ class MapProfitPage:
                 self.mp_refs_at = time.time()
             except Exception:
                 buglog.caught()
-        counts, unknown = MP.identify(res.get("cells") or [], TU.learned(), refs)
+        info = {}
+        counts, unknown = MP.identify(res.get("cells") or [], TU.learned(), refs, price=self.mp_price, info=info)
         buglog.debug("Map profit", "read: " + (", ".join(f"{n} {k}" for n, k in sorted(counts.items())) or "nothing")
-                     + f" · {unknown} not known")                  # (game item names and counts only)
+                     + f" · {unknown} not known · {info.get('skipped', 0)} without a stack number"
+                     + "".join(f" · {n} = one of {len(v)} look-alikes" for n, v in (info.get("alike") or {}).items()))
         counts = MP.exchange_only(counts, self.mp_price)
         # 3.0.6 (owner: "make sure it's excluding the persistent items from top up supplies"): what you keep in your
         # inventory for Top Up Reminders isn't loot - topping it up from your stash would count as profit
@@ -117,6 +119,7 @@ class MapProfitPage:
                 for k, n in counts.items():
                     vis[k] = max(vis.get(k, 0), n)
             pend["unknown"] = max(pend.get("unknown", 0), unknown)
+            pend.setdefault("alike", {}).update(info.get("alike") or {})
             self.mp_check_done()
             self.mp_paint()
             self.mp_read_card(pend)
@@ -143,11 +146,14 @@ class MapProfitPage:
             from .pricefmt import fmt_div
             e = self._mp_entry(pend)
             rows = sorted(e.get("rows") or [], key=lambda r: -(r[2] - r[1]) * r[3])
-            parts = [f"{n} +{a - b}" for n, b, a, _each in rows[:4]]
+            alike = pend.get("alike") or {}
+            parts = [("≈ " if n in alike else "") + f"{n} +{a - b}" for n, b, a, _each in rows[:4]]
             if len(rows) > 4:
                 parts.append(f"+{len(rows) - 4} more")
             if e.get("unknown"):
                 parts.append(f"{e['unknown']} not known")
+            if any(n in alike for n, *_r in rows[:4]):
+                parts.append("≈ looks like another item too: counted as the cheaper one")
             title = ("≈ " if pend.get("est") else "") + f"Map counted: {MP.signed(e['div'], fmt_div)}"
             from . import alertcard
             from .alerts_page import game_rect
