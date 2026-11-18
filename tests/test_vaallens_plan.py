@@ -392,3 +392,12 @@ class Destabilisation(unittest.TestCase):
         r = VP.full_plan(b, ["Path"] * 8 + ["Royal Access Chamber"])
         fill = [t for t, f, w in r["plan"] if w == "filler"]
         self.assertTrue(any(t in VP.near((1, 3)) for t in fill), "a filler path beside the Corruption Chamber")
+
+
+class ArchitectConsole(unittest.TestCase):
+    def test_only_his_cards_no_medallion_advice(self):
+        r = VP.full_plan(board(dict(BASE)), ["Jiquani's Vault", "Vault of Reverence", "Extraction Chamber"],
+                         ["Juatalotli's Medallion", "Quipolatl's Medallion"])
+        self.assertEqual(r["targets"], {})
+        self.assertEqual(len(r["plan"]), 3, "each restricted card gets a spot")
+        self.assertTrue(all("reward" in w for _t, _f, w in r["plan"]))

@@ -634,6 +634,14 @@ def full_plan(board, cards=(), medals=(), medal_rooms=(), prev=()):
     keyroom = next((c for c, v in taken.items() if v == "Key Room"), None)
     arch = next((c for c, v in taken.items() if v == "Architect"), None)
     hand = [card(n) for n in cards or ()]
+    # 3.0.6 (owner: "it's still making lock/whatever suggestions at the architect's console, I cannot perform any
+    # actions except placing the special reward room cards"): his console - only restricted cards (vaults, the key
+    # room, an Extraction Chamber ...); a card name not known there is one of his too
+    restricted = bool(hand) and any(h and h[0] in ("reward", "key") for h in hand) and \
+        not any(h and h[0] in ("path", "room") for h in hand)
+    if restricted:
+        hand = [h if h else ("reward", card_title(n)) for h, n in zip(hand, cards)]
+        medals, medal_rooms = (), ()
     key_card = any(h and h[0] == "key" for h in hand)
     paths_left = [sum(1 for h in hand if h and h[0] == "path")]
     # (3.0.6 owner: "it needs to use what I have") - a tile with no path card left takes a room card instead (the
@@ -861,15 +869,23 @@ def full_plan(board, cards=(), medals=(), medal_rooms=(), prev=()):
     for h in hand:
         if not (h and h[0] == "reward"):
             continue
-        spot = next((t for t in sorted(((s * 4, j) for s in (-1, 1) for j in range(1, 10)),
-                                       key=lambda t: (-sum(1 for n in near(t) if not b.get(n)), abs(t[1] - 5)))
-                     if not b.get(t) and not any(b.get(n) for n in near(t)) and t not in keep), None)
+        # (a side-wall square first; walls full: any square) - touching no path or room, so it isn't open yet
+        # (an open restricted room always goes on exit); beside another reward room is fine
+        def free_of_yours(t):
+            return not b.get(t) and inside(t) and t not in keep and t not in LANE and \
+                not any(b.get(n) not in (None, "Reward") or n in (ENTRANCE, ATZIRI) for n in near(t))
+        cells = [(i, j) for i in range(-4, 5) for j in range(1, 10)]
+        spot = next((t for t in sorted(cells, key=lambda t: (abs(t[0]) != 4, -sum(1 for n in near(t) if not b.get(n)),
+                                                            abs(t[1] - 5)))
+                     if free_of_yours(t)), None)
         if spot is None:
-            if not any(n.startswith("No free side-wall square") for n in notes):
-                notes.append("No free side-wall square for your vault cards: one that touches nothing.")
+            if not any(n.startswith("No free square") for n in notes):
+                notes.append("No free square away from your paths for the vault cards.")
             continue
         b[spot] = "Reward"
         plan.append((spot, h[1], "a reward room: touches nothing"))
+    if restricted:                                   # (nothing else can be done at his console)
+        return {"plan": plan, "targets": {}, "notes": notes[:2]}
     # conversions (cheat sheet)
     for t, fam, _w in list(plan):
         if fam in ("Synthflesh Lab", "Spymaster") and "Garrison" in [b.get(n) for n in near(t)]:
