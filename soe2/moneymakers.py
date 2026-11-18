@@ -748,8 +748,14 @@ def unique_tablets():
                 add(ln[0], ln[1] or "Tablet")
     except Exception:
         pass
+    for name in GONE_TABLETS:
+        out.pop(name, None)
     _UNIQ.update(key=key, out=dict(sorted(out.items())))
     return dict(_UNIQ["out"])
+
+
+# 3.0.6: unique tablets the game no longer has - the game data snapshot still lists them
+GONE_TABLETS = ("Forgotten By Time",)
 
 
 def unique_from_text(text):

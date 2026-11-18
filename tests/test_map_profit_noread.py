@@ -95,9 +95,8 @@ class ReadCard(unittest.TestCase):
             dlg = a.mp_rev
             tv = next(w for w in dlg.winfo_children()[2].winfo_children() if w.winfo_class() == "Treeview")
             names = [tv.item(i, "text") for i in tv.get_children()]
-            self.assertEqual(names, ["Divine Orb", "? not known"])
+            self.assertEqual(names, ["Divine Orb"])           # (no "? not known" rows: currency it knows only)
             save = [b for b in dlg.winfo_children()[-1].winfo_children() if b.cget("text") == "Save"][0]
-            tv.delete(tv.get_children()[1])
             save.invoke()
             self.assertEqual(a.mp_pending["fix"], {"Divine Orb": 2})
         finally:

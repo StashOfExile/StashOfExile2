@@ -5,7 +5,12 @@ name: Checks
 
 on:
   pull_request:
+  push:
+    branches: [main]
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   checks:
@@ -19,6 +24,10 @@ jobs:
           python-version: "3.12"
       - name: GGG ToS safety check (TOS.md)
         run: python tools/check_tos.py
+      - name: Screen reads only on a Read Key press (GGG policy)
+        run: python tools/check_screenread.py
+      - name: No currency-seller or banned sites
+        run: python tools/check_rmt.py
       - name: Version agrees everywhere
         run: python tools/check_version.py
       - name: Design tokens (text sizes, spacing)

@@ -204,7 +204,7 @@ class MapProfitPage:
             except tk.TclError:
                 pass
         gain = {k: n for k, n in self._mp_gain(pend).items() if n > 0}
-        unknown = list(getattr(self, "_mp_unknown", None) or [])
+        unknown = []                  # 3.0.6: only currency it knows is listed - no "? not known" rows to name
         par = self.root
         dlg = tk.Toplevel(par)
         dlg.title("Map Profit - check what it counted")
@@ -212,7 +212,7 @@ class MapProfitPage:
         dlg.mp_edited = False
         head = tk.Label(dlg, bg=C["panel2"], fg=C["text"], anchor="w", justify="left", font=("Segoe UI", 12, "bold"))
         head.pack(fill="x")
-        tk.Label(dlg, text="What this map gave you. Double-click a number to fix it, or a ? to name it. Delete drops "
+        tk.Label(dlg, text="What this map gave you. Double-click a number to fix it. Delete drops "
                            "a row.", bg=C["panel2"], fg=C["muted"], justify="left", anchor="w",
                  wraplength=520).pack(fill="x", pady=(2, 0))
         f = tk.Frame(dlg, bg=C["panel2"])

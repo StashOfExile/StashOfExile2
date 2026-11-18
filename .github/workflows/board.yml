@@ -5,6 +5,9 @@ on:
     branches: [main]
     paths: ["board/**", ".github/workflows/board.yml"]
   workflow_dispatch:
+permissions:
+  contents: read
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
