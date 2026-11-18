@@ -606,6 +606,21 @@ def gain(b, t, fam):
     return sum(1 for n in near(t) if b.get(n) in ROOMS and (b[n] in TOUCH.get(fam, ()) or fam in TOUCH.get(b[n], ())))
 
 
+def _ends(b, t):
+    """How many placed tiles (or the entrance) t touches: 1 = a dead end."""
+    return sum(1 for n in near(t) if n == ENTRANCE or b.get(n) not in (None, "Reward", "Atziri", "Architect"))
+
+
+def _worth_keeping(b, t, board):
+    fam = b.get(t)
+    return fam in ROOMS and (VALUE.get(fam, 0) >= PAYS or tier_of(board, t) >= 3)
+
+
+def dead_ends(b, board):
+    """3.0.6: valuable rooms (they pay, or tier 3+) at a dead end - the tiles destabilisation takes most."""
+    return [t for t, f in b.items() if f in ROOMS and _worth_keeping(b, t, board) and _ends(b, t) <= 1]
+
+
 def full_plan(board, cards=(), medals=(), medal_rooms=(), prev=()):
     """board: a read board; cards: the room card names in the list; medals: medallion names held (None = not known);
     medal_rooms: room families the medallions add; prev: the last plan's steps for this board (kept while they still
@@ -870,8 +885,14 @@ def full_plan(board, cards=(), medals=(), medal_rooms=(), prev=()):
                 continue
             if arch is not None and t in near(arch) and sum(1 for n in near(arch) if not b.get(n)) <= 1:
                 continue                               # (his last free side)
-            s = sum(1 for n in near(t) if n in pn) * 3 - (5 if arch is None and quadrant(t) in ("top", "right")
-                                                            else 0) - abs(t[0]) * 0.1
+            # 3.0.6, from 12 destabilisations on the owner's boards (Temple Watcher shots): a dead end (one
+            # neighbor) was lost 67% of the time, a tile in the middle of a chain 28%; nothing was ever left cut
+            # off. So a spare path goes where it turns a valuable room's dead end into a middle (a guard) - else
+            # out on its own as a dead end of its own (a decoy: it draws the loss), not into a loop
+            guard = sum(1 for n in near(t) if b.get(n) in ROOMS and _worth_keeping(b, n, board) and
+                        _ends(b, n) <= 1)
+            s = guard * 12 + (3 if _ends(b, t) == 0 else 0) - sum(1 for n in near(t) if n in pn) * 2 - \
+                (5 if arch is None and quadrant(t) in ("top", "right") else 0) - abs(t[0]) * 0.1
             if best is None or s > best[0]:
                 best = (s, t)
         if best is None:
@@ -881,6 +902,11 @@ def full_plan(board, cards=(), medals=(), medal_rooms=(), prev=()):
         plan.append((best[1], "Path", "filler"))
     if key_needed and arch is None and keyroom is None and not landing(b, "bottom"):
         notes.append("Keep the bottom quadrant clear: the key room needs a free spot there.")
+    left = dead_ends(b, board)
+    if left:
+        fams = sorted({b[t] for t in left})
+        notes.insert(0, f"{', '.join(fams)} at a dead end: dead ends are lost most - put a cheap room or a path "
+                        f"beside it, or lock it.")
     # medallions: where the upgrade and the lock go; a reroll when nothing in hand pays
     held = [M.base(m)[0] for m in medals or () if m]
     rooms = {t: v for t, v in taken.items() if v in ROOMS}      # (placed rooms only: a medallion goes on a real one)

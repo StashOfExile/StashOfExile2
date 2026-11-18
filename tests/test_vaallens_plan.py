@@ -379,3 +379,16 @@ class CorruptionFirst(unittest.TestCase):
                    (1, 2): ("path", None, 1), (-1, 2): ("key", "Key Room", 1)})
         r = VP.full_plan(b, [], ["Uromoti's Medallion: Corruption Chamber"], ["Corruption Chamber"])
         self.assertIn("Corruption Chamber", [f for _t, f, _w in r["plan"]], "beside two Thaumaturges: tier 3")
+
+
+class Destabilisation(unittest.TestCase):
+    """3.0.6, measured on the owner's boards: dead ends are lost most; a spare path guards a valuable dead end."""
+    def test_spare_path_guards_a_dead_end(self):
+        cells = {(0, j): ("path", None, 1) for j in range(1, 6)}
+        cells[(1, 3)] = ("room", "Corruption Chamber", 3)            # touches only the gold path: a dead end
+        cells[(-2, 9)] = ("reward", "Reward", 1)
+        b = board(cells)
+        self.assertEqual(VP.dead_ends(VP.names(b), b), [(1, 3)])
+        r = VP.full_plan(b, ["Path"] * 8 + ["Royal Access Chamber"])
+        fill = [t for t, f, w in r["plan"] if w == "filler"]
+        self.assertTrue(any(t in VP.near((1, 3)) for t in fill), "a filler path beside the Corruption Chamber")
