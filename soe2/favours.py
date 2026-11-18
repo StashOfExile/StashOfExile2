@@ -88,7 +88,8 @@ def find_window(gray, tpl, game_h=None, game_w=None):
     s = h / BASE_H
     t = cv2.resize(tpl, None, fx=s, fy=s, interpolation=cv2.INTER_AREA) if abs(s - 1) > 0.01 else tpl
     x0, y0 = int(w * TITLE_SEARCH[0]), int(h * TITLE_SEARCH[1])
-    area = gray[y0:min(gray.shape[0], int(h * TITLE_SEARCH[3])), x0:min(gray.shape[1], int(w * TITLE_SEARCH[2]))]
+    x1 = min(int(w * TITLE_SEARCH[2]), int(h * 16 / 9 * TITLE_SEARCH[2]))   # 3.0.6: the window is left-anchored -
+    area = gray[y0:min(gray.shape[0], int(h * TITLE_SEARCH[3])), x0:min(gray.shape[1], x1)]   # ultrawide: same reach
     if area.shape[0] < t.shape[0] or area.shape[1] < t.shape[1]:
         return None
     r = cv2.matchTemplate(area, t, cv2.TM_CCOEFF_NORMED)

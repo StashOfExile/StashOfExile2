@@ -726,5 +726,31 @@ class Updates(unittest.TestCase):
             self.assertIsNone(U.pick_asset({"assets": rel["assets"][:1]}, frozen=True), "never the Windows exe")
 
 
+
+class SwayWindows(unittest.TestCase):
+    """sway: the game's rectangle from swaymsg's window tree (content only: no title bar), the focused window."""
+    TREE = {"nodes": [{"nodes": [{"nodes": [
+        {"nodes": [], "floating_nodes": [], "app_id": None, "pid": 7, "name": "Path of Exile 2", "focused": True,
+         "rect": {"x": 1920, "y": 0, "width": 3440, "height": 1440},
+         "window_rect": {"x": 0, "y": 0, "width": 3440, "height": 1440},
+         "window_properties": {"class": "steam_app_2694490"}},
+        {"nodes": [], "floating_nodes": [], "app_id": "foot", "name": "term", "focused": False,
+         "rect": {"x": 0, "y": 0, "width": 800, "height": 600}, "window_rect": {"x": 2, "y": 20, "width": 796,
+                                                                                  "height": 578}}]}]}]}
+
+    def test_windows_and_game_rect(self):
+        ws = L.sway_windows(self.TREE)
+        self.assertEqual(len(ws), 2)
+        game = next(w for w in ws if L.is_game(w))
+        self.assertEqual((game["at"], game["size"], game["focused"]), ([1920, 0], [3440, 1440], True))
+        term = next(w for w in ws if w["class"] == "foot")
+        self.assertEqual((term["at"], term["size"]), ([2, 20], [796, 578]))
+        with mock.patch.object(L, "sway_available", return_value=True), \
+                mock.patch.object(L, "hypr_socket", return_value=None), \
+                mock.patch.object(L, "sway_windows", return_value=ws):
+            self.assertEqual(L.game_rect(), (1920, 0, 3440, 1440))
+            self.assertTrue(L.game_active())
+            self.assertTrue(L.can_tell())
+
 if __name__ == "__main__":
     unittest.main()

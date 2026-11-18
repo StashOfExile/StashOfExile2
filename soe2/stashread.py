@@ -137,7 +137,8 @@ def locate(bgr, game_h, tabs=None):
     "score" stays the plain edge match (is a stash there at all); "scores" are the weighed ones (which tab)."""
     cv2, np = _np()
     w = WORK_H / float(game_h)
-    left = bgr[:, :max(1, int(bgr.shape[1] * 0.6))]
+    left = bgr[:, :max(1, min(bgr.shape[1], int(game_h * 1.07)))]      # (the panel is at the left edge: 0.6 of a
+    #                                                  16:9 width = 1.07 heights - not of an ultrawide's width)
     e = _edges(left, w)
     k0 = game_h / 1440.0
     per = {}

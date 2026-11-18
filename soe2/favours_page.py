@@ -62,7 +62,7 @@ class FavoursPage:
         from . import screenread as SR
         g = ctx["g"]
         gx, gy, gw, gh = g
-        w, h = int(gw * GRAB[0]), int(gh * GRAB[1])
+        w, h = min(gw, int(GRAB[0] * gh * 16 / 9)), int(gh * GRAB[1])   # 3.0.6: left-anchored - ultrawide too
 
         def work():
             import cv2

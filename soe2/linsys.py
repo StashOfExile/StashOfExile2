@@ -19,6 +19,7 @@ import os
 import re
 import shutil
 import socket
+import subprocess
 import threading
 import time
 
@@ -190,6 +191,43 @@ def hypr(cmd, timeout=0.3):
         return None
 
 
+# ================================================================ sway (i3 IPC through swaymsg)
+def sway_available():
+    """Running under sway (its socket is set) and swaymsg is on PATH."""
+    return bool(os.environ.get("SWAYSOCK")) and which("swaymsg") is not None
+
+
+def sway_windows(tree=None):
+    """sway's window tree (swaymsg -t get_tree) -> [{"class", "title", "at", "size", "focused"}] for every window,
+    with the content's place on the desktop (a title bar or border is left out). Nothing: []."""
+    if tree is None:
+        try:
+            out = subprocess.run(["swaymsg", "-t", "get_tree", "-r"], capture_output=True, timeout=1.0)
+            tree = json.loads(out.stdout.decode("utf-8", "replace") or "null") if out.returncode == 0 else None
+        except (OSError, ValueError, subprocess.SubprocessError):
+            return []
+    found = []
+
+    def walk(n):
+        if not isinstance(n, dict):
+            return
+        kids = list(n.get("nodes") or []) + list(n.get("floating_nodes") or [])
+        if not kids and (n.get("app_id") or n.get("window_properties") or n.get("pid")):
+            r, wr = n.get("rect") or {}, n.get("window_rect") or {}
+            wp = n.get("window_properties") or {}
+            try:
+                found.append({"class": wp.get("class") or n.get("app_id") or "", "initialClass": wp.get("class") or "",
+                              "title": str(n.get("name") or ""), "focused": bool(n.get("focused")),
+                              "at": [int(r["x"]) + int(wr.get("x", 0)), int(r["y"]) + int(wr.get("y", 0))],
+                              "size": [int(wr.get("width") or r["width"]), int(wr.get("height") or r["height"])]})
+            except (KeyError, TypeError, ValueError):
+                pass
+        for k in kids:
+            walk(k)
+    walk(tree)
+    return found
+
+
 # ================================================================ X11 / XWayland (EWMH)
 _X = {"d": None, "tried": False, "atoms": {}}
 _XLOCK = threading.RLock()
@@ -286,7 +324,7 @@ def x_can_tell():
 
 def can_tell():
     """Can the app tell which window is in front - Hyprland's socket, or the X11 hints?"""
-    return hypr_socket() is not None or x_can_tell()
+    return hypr_socket() is not None or sway_available() or x_can_tell()
 
 
 def x_systray():
@@ -336,6 +374,8 @@ def active_window():
     if hypr_socket() is not None:
         w = hypr("j/activewindow")
         return w if isinstance(w, dict) and w else None
+    if sway_available():
+        return next((w for w in sway_windows() if w["focused"]), None)
     if x_can_tell():
         return x_active_window()
     return None
@@ -347,6 +387,8 @@ def game_window(title=GAME_TITLE):
         if not isinstance(clients, list):
             return None
         return next((c for c in clients if is_game(c, title)), None)
+    if sway_available():
+        return next((w for w in sway_windows() if is_game(w, title)), None)
     if x_can_tell():
         return next((c for c in x_clients() if is_game(c, title)), None)
     return None

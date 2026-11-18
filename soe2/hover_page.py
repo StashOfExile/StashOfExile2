@@ -7,7 +7,7 @@ Content's Temple icon are gone - the Temple Console gives the crystals.)"""
 
 from . import buglog
 
-AROUND = (0.25, 0.38, 0.06)        # the part looked at: half its width, up and down from the mouse (parts of the game)
+AROUND = (0.444, 0.38, 0.06)       # the part looked at: half its width, up and down from the mouse (game heights)
 # A tooltip is found by its long straight edges (a cheap check), then only it is read, made bigger.
 EDGE_LONG = 0.20                    # a tooltip edge: a straight line at least this long (x the game's height) ...
 EDGE_FILL = 0.85                    # ... unbroken for this much of it ...
@@ -19,7 +19,7 @@ def region(pointer, game):
     """The mouse (x, y) and the game (x, y, w, h) -> (left, top, right, bottom) round the mouse, inside the game."""
     gx, gy, gw, gh = game
     px, py = pointer
-    hw = int(AROUND[0] * gw)
+    hw = int(AROUND[0] * gh)               # (heights, not widths: an ultrawide window doesn't make a tooltip wider)
     left, right = max(gx, px - hw), min(gx + gw, px + hw)
     top, bottom = max(gy, py - int(AROUND[1] * gh)), min(gy + gh, py + int(AROUND[2] * gh))
     return left, top, right, bottom

@@ -31,14 +31,17 @@ def cfg():
 # 2.136.1 (feedback: "when I'm in the Vaal ruins, it should be able to see through the overlay (the same way ritual
 # does) and read the crystal count at the bottom of the screen"): the Temple Console prints "18/60" under its Run
 # Temple button. Read there (parts of the game; measured on 1080p and 1440p shots) on a Read Key press in a temple area.
-CONSOLE_BOX = (0.465, 0.942, 0.555, 0.978)
+CONSOLE_BOX = (-0.0622, 0.942, 0.0978, 0.978)    # x from the game's middle, in game heights (2560x1440: 0.465-0.555 of
+#                                                the width); y in heights from the top. The console is drawn in the
+#                                                middle whatever the window's width (ultrawide, 2560x1080 ...).
 CONSOLE_LINE = re.compile(r"(?<!\d)(\d{1,3})\s*[/|l]\s*(\d{2,3})(?!\d)")
 
 
 def console_box(game):
     gx, gy, gw, gh = game
     a = CONSOLE_BOX
-    return gx + int(gw * a[0]), gy + int(gh * a[1]), gx + int(gw * a[2]), gy + int(gh * a[3])
+    mid = gx + gw / 2.0
+    return int(mid + gh * a[0]), gy + int(gh * a[1]), int(mid + gh * a[2]), gy + int(gh * a[3])
 
 
 def parse_console(lines, most=None):

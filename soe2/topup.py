@@ -196,13 +196,14 @@ def _band(cell):
     return _white(cell)[y0:y1, x0:x1], x0, y0
 
 
-def _blobs(band, n):
-    """Digit-sized white shapes near the count's place (a count the templates don't know)."""
+def _blobs(band, n, maxx=0.22, maxw=0.2):
+    """Digit-sized white shapes near the count's place (a count the templates don't know). maxx: how far right (cell
+    widths) one may start - the first digit starts near the left; a digit after it (rest) may start anywhere."""
     cv2, np = _cv()
     k, _lab, st, _c = cv2.connectedComponentsWithStats((band > 0).astype(np.uint8), 8)
     return [tuple(int(v) for v in st[i][:4]) for i in range(1, k)
-            if 0.15 * n <= st[i][3] <= 0.27 * n and st[i][0] <= 0.22 * n and 0.04 * n <= st[i][1] <= 0.16 * n
-            and 0.04 * n <= st[i][2] <= 0.2 * n]
+            if 0.15 * n <= st[i][3] <= 0.27 * n and st[i][0] <= maxx * n and 0.04 * n <= st[i][1] <= 0.16 * n
+            and 0.04 * n <= st[i][2] <= maxw * n]
 
 
 def read_count(cell, tpls=None):
@@ -219,15 +220,19 @@ def _read(cell, tpls=None):
     tpls = digit_templates() if tpls is None else tpls
     k = n / 70.2
     hits = []                                      # (score, x, y, w, digit)
-    for d, pics in tpls.items():
-        for t in pics:
-            tt = cv2.resize(t, None, fx=k, fy=k, interpolation=cv2.INTER_AREA) if abs(k - 1) > 0.02 else t
-            if tt.shape[0] > band.shape[0] or tt.shape[1] > band.shape[1]:
-                continue
-            res = cv2.matchTemplate(band, tt, cv2.TM_CCOEFF_NORMED)
-            ys, xs = np.where(res >= DIGIT_MIN)
-            for yy, xx in zip(ys, xs):
-                hits.append((float(res[yy, xx]), int(xx), int(yy), tt.shape[1], d))
+    # away from 1440p the game's digits are a little thinner than the shipped ones scaled (1080p: a 7 scores 0.58 at
+    # the plain scale, 0.68 at 0.9 of it): a second, slightly smaller size is tried there too
+    for f in ((1.0,) if abs(k - 1) <= 0.02 else (1.0, 0.9)):
+        for d, pics in tpls.items():
+            for t in pics:
+                tt = cv2.resize(t, None, fx=k * f, fy=k * f, interpolation=cv2.INTER_AREA) \
+                    if abs(k * f - 1) > 0.02 else t
+                if tt.shape[0] > band.shape[0] or tt.shape[1] > band.shape[1]:
+                    continue
+                res = cv2.matchTemplate(band, tt, cv2.TM_CCOEFF_NORMED)
+                ys, xs = np.where(res >= DIGIT_MIN)
+                for yy, xx in zip(ys, xs):
+                    hits.append((float(res[yy, xx]), int(xx), int(yy), tt.shape[1], d))
     hits.sort(reverse=True)
     picked = []
     for h in hits:                                 # best first; no two digits overlap much (a 1 inside a 0's side)
@@ -244,7 +249,8 @@ def _read(cell, tpls=None):
         else:
             break
     end = run[-1][1] + run[-1][3]
-    rest = [b for b in _blobs(band, n) if b[0] >= end - 1 and b[0] - end <= 0.04 * n]
+    rest = [b for b in _blobs(band, n, 1.0, 0.15) if b[0] >= end - 1 and b[0] - end <= 0.04 * n
+            and abs(b[1] - run[0][2]) <= 0.06 * n]      # (on the digits' line: art next to the count isn't a digit)
     if rest:                                       # a digit right after them the templates don't know: unsure
         return None, False, True
     return int("".join(p[4] for p in run)), True, True
