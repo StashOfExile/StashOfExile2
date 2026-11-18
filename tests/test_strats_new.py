@@ -68,7 +68,7 @@ class Data(unittest.TestCase):
         self.assertIn("masters", MM.validate(dict(NOW, masters={"Nobody": ["x"]}))[0])
         self.assertEqual([len(d) for d in MM.MASTERS.values()], [12, 12, 12])
         self.assertEqual(MM.MASTERS["Doryani's Science"][:6], ("Evolutionary Pressure", "Stitch the Flesh",
-                                                               "Refined Formula", "Disengaged Safeties",
+                                                               "Archaic Corruption", "Disengaged Safeties",
                                                                "Improved Calibration", "Careful Procurement"),
                          "the game's order: 3 across, 4 down")
 
@@ -266,7 +266,7 @@ class Page(unittest.TestCase):
         a.mm_nw["name"].var.set(name)
         a.mm_new_pick("mech", "Breach")
         a.mm_new_pick("budget", "Mid budget")
-        for c in ("Refined Formula", "Improved Calibration"):
+        for c in ("Archaic Corruption", "Improved Calibration"):
             a.mm_new_master("Doryani's Science", c)
         a.mm_nw["steps"][0].var.set("Put your atlas points into Breach.")
         a.mm_nw["loot"].var.set("Breach splinters, Catalysts")
@@ -328,10 +328,10 @@ class Page(unittest.TestCase):
         self.pump()
         self.assertIn("nw_mswitch", cv.find_all() and [t_ for i in cv.find_all() for t_ in cv.gettags(i)],
                       "says that ticking here switches the master")
-        self.assertEqual(a.mm_new_master("Doryani's Science", "Refined Formula"), "switch")
-        self.assertEqual(a.mm_nd["masters"], {"Doryani's Science": ["Refined Formula"]}, "one master a strat")
+        self.assertEqual(a.mm_new_master("Doryani's Science", "Archaic Corruption"), "switch")
+        self.assertEqual(a.mm_nd["masters"], {"Doryani's Science": ["Archaic Corruption"]}, "one master a strat")
         self.pump()
-        self.assertIn("1 · Refined Formula".split(" · ")[1], self.words(cv), "the picks, numbered")
+        self.assertIn("1 · Archaic Corruption".split(" · ")[1], self.words(cv), "the picks, numbered")
         self.assertIn("one more point", self.words(cv))
         cv.acts["am_clear"]()
         self.assertEqual(a.mm_nd["masters"], {})
@@ -514,7 +514,7 @@ class Page(unittest.TestCase):
         self.assertEqual(MM.validate(s), [])
         self.assertEqual(s["league"], "Forbidden Rites")
         self.assertEqual(s["patch"], "0.5.5")
-        self.assertEqual(s["masters"], {"Doryani's Science": ["Refined Formula", "Improved Calibration"]})
+        self.assertEqual(s["masters"], {"Doryani's Science": ["Archaic Corruption", "Improved Calibration"]})
         self.assertEqual((s["category"], s["type"]), ("Mapping", "Breach"))
         self.assertEqual((s["thoughts_per_click"], s["clicks_per_hour"]), MM.EFFORTS["Easy"])
         self.assertIn("Mid budget", s["tags"])
@@ -956,3 +956,12 @@ class Page(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RenamedChoice(unittest.TestCase):
+    def test_refined_formula_is_archaic_corruption(self):
+        from soe2 import moneymakers as M
+        old = {"name": "x", "category": "Mapping", "type": "Juiced mapping", "clicks_per_hour": "Steady",
+               "masters": {"Doryani's Science": ["Refined Formula", "Improved Calibration"]}}
+        self.assertEqual(M.migrate(old)["masters"], {"Doryani's Science": ["Archaic Corruption", "Improved Calibration"]})
+        self.assertIn("Archaic Corruption", M.MASTERS["Doryani's Science"])

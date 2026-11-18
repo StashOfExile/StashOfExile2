@@ -1,5 +1,5 @@
 {
- "version": 1,
+ "version": 2,
  "game_version": "not stated on the pages (poe2db.tw fetched 2026-11-17; RePoE poe2 export is 0.5.5.9 but has no master choice data)",
  "masters": {
   "Doryani's Science": {
@@ -11,9 +11,9 @@
     "text": "Your Maps have an additional Revival, up to 6",
     "source": "https://poe2db.tw/us/Doryanis_Science"
    },
-   "Refined Formula": {
+   "Archaic Corruption": {
     "text": "Monsters released from Essences become Corrupted",
-    "source": "https://poe2db.tw/th/Masters_of_the_Atlas"
+    "source": "https://poe2db.tw/us/Doryanis_Science"
    },
    "Disengaged Safeties": {
     "text": "Map Areas are Irradiated",
@@ -154,7 +154,6 @@
   }
  },
  "conflicts": [
-  "Refined Formula: the English poe2db Doryani's Science page (https://poe2db.tw/us/Doryanis_Science) has no 'Refined Formula' but a Tier 1 'Archaic Corruption' with the same effect text; only the Thai poe2db page (https://poe2db.tw/th/Masters_of_the_Atlas) still lists 'Refined Formula'. The name in the app (MASTERS) is probably the old name of Archaic Corruption.",
   "In the Wrong Hands: poe2db spells it 'In The Wrong Hands'; the app's spelling is kept.",
   "RePoE poe2 0.5.5.9 (data/passive_skill_trees/Atlas.json, stat_translations/atlas_stat_descriptions.json) has the Atlas tree but none of the master choices; poe2db is the only source used."
  ],

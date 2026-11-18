@@ -281,12 +281,25 @@ def retag(s):
     return dict(s, tags=list(dict.fromkeys(t for t in new if t)))
 
 
+# 3.0.6: master choices the game renamed (owner checked in game) - a saved strat keeps its pick
+CHOICE_RENAMED = {"Refined Formula": "Archaic Corruption"}
+
+
+def _renamed_choices(s):
+    ms = s.get("masters")
+    if not isinstance(ms, dict) or not any(c in CHOICE_RENAMED for v in ms.values() if isinstance(v, list) for c in v):
+        return s
+    return dict(s, masters={m: [CHOICE_RENAMED.get(c, c) for c in v] if isinstance(v, list) else v
+                            for m, v in ms.items()})
+
+
 def migrate(s):
     """A strat written by 2.28.0 -> the 2.29.0 layout: a mechanic category becomes Mapping > that mechanic,
     typed clicks become a band, profit / investment get their new names, free tags that match the tag list stay
     (others move into Tips so nothing is lost)."""
     if not isinstance(s, dict):
         return s
+    s = _renamed_choices(s)
     if "type" in s and isinstance(s.get("clicks_per_hour"), str):
         s = retag(s)
         if any(isinstance(x, str) for x in s.get("sources") or []):      # (an older file's plain lines: a link is
@@ -577,7 +590,7 @@ def league_of(s):
 MASTER_PICKS = 4
 MASTER_COLS = 3
 MASTERS = {
-    "Doryani's Science": ("Evolutionary Pressure", "Stitch the Flesh", "Refined Formula", "Disengaged Safeties",
+    "Doryani's Science": ("Evolutionary Pressure", "Stitch the Flesh", "Archaic Corruption", "Disengaged Safeties",
                           "Improved Calibration", "Careful Procurement", "Mechanical Guardians", "Hidden Patterns",
                           "Volatile Connection", "Head of the Snake", "Dam the River", "Remnants of Greatness"),
     "Hilda's Hunting": ("Breeding Season", "Mighty Prey", "Scarred Lands", "Soul Eaters", "Dangerous Game",
