@@ -375,7 +375,9 @@ class TemplePage:
         slots = [(M.base(h)[1] if h else None, box) for h, box in getattr(self, "tm_medal_boxes", None) or []]
         used, out = set(), {}
         for step, (_t, fam, _w) in zip(VP.steps(plan), plan):
-            want = ("path", None) if fam == "Path" else ("key", None) if fam == "Key Room" else ("room", fam)
+            rw = VP.card(fam) if fam not in ("Path", "Key Room") else None
+            want = ("path", None) if fam == "Path" else ("key", None) if fam == "Key Room" else \
+                rw if rw and rw[0] == "reward" else ("room", fam)
             k = next((i for i, (w, _xy) in enumerate(rows) if w == want and ("c", i) not in used), None)
             if k is not None:
                 used.add(("c", k))

@@ -71,6 +71,9 @@ def card(name):
         return ("key", None)
     if difflib.get_close_matches(low, PATHS, 1, 0.85) or (low.split() or [""])[0].strip(".,:;'\"|>") in PATHS:
         return ("path", None)                       # (3.0.6: "PATH >" - OCR takes in the card's art: still a path)
+    if any(w in low for w in ("vault", "reliquary")) and low != "sealed vault":
+        # 3.0.6: the Architect's restricted reward cards (Kishara's Vault, Vault of Reverence ...)
+        return ("reward", " ".join(w[:1].upper() + w[1:] for w in low.strip(".,:;'\"|> ").split()))
     m = difflib.get_close_matches(low, list(FAMILY), 1, 0.85)
     if not m and len(low.split()) > 1 and len(low.split()[-1]) <= 2:
         return card(" ".join(low.split()[:-1]))     # (3.0.6: "DEPOT 4" - the card's art read as a short word)
@@ -560,13 +563,16 @@ def key_spot(b):
     return {t, *near(t)} if t else set()
 
 
-def _room_score(b, t, fam, rest, lane, arch, key_needed, keep=(), edges=()):
+def _room_score(b, t, fam, rest, lane, arch, key_needed, keep=(), edges=(), ups=0):
     """How good t is for a room of fam (None: not allowed). rest: rooms still to place (their partners count).
     keep: tiles held free for the key room; edges: filler squares on a bare outer wall (edge_blocks)."""
     if b.get(t) or t in (ATZIRI, ENTRANCE) or not inside(t) or touches_reward(b, t) or t in lane or t in keep:
         return None
     if not any(n in network(b) for n in near(t)):
         return None
+    nbs = [b.get(n) for n in near(t)]
+    if (fam == "Spymaster" and "Commander" in nbs) or (fam == "Commander" and "Spymaster" in nbs):
+        return None                                   # (cheat sheet: a Spymaster can't join a Commander)
     if fam == "Generator" and not any(b.get(n) in ("Path", "Entrance") for n in near(t)):
         return None                                   # (cheat sheet: a Generator must be joined to a path)
     nb = [b.get(n) for n in near(t)]
@@ -589,8 +595,9 @@ def _room_score(b, t, fam, rest, lane, arch, key_needed, keep=(), edges=()):
         score -= 40                                   # his one free square on each side
     if _loops(b, t):
         score -= 10 if pals or friends else 30          # (owner: a loop is worth it for a second tier-3 Smithy)
-        if any(n in LANE and b.get(n) == "Path" for n in near(t)):
-            score -= 40                                 # (owner: not "back into the main road down the middle")
+        if any(n in LANE and b.get(n) == "Path" for n in near(t)) and (friends < 2 or ups):
+            score -= 40                                 # (owner: not "back into the main road down the middle" -
+            #                                             unless it pays: his Golem Works beside three tier-3 Smithies)
     return score - abs(t[0]) * 0.1
 
 
@@ -643,8 +650,66 @@ def full_plan(board, cards=(), medals=(), medal_rooms=(), prev=()):
         if fam in spare:
             spare.remove(fam)
 
+    def chain_to(goal, why):
+        """3.0.6 (owner's board: not enough path cards, so a Garrison / Commander chain snaked up to Atziri, and one
+        more room after it "to hopefully preserve that chain"): rooms that raise each other, joined to anything."""
+        net = network(b)
+        best, q = {c: None for c in net}, deque(sorted(net))
+        end = None
+        while q and end is None:
+            c = q.popleft()
+            for n in near(c):
+                if n in best:
+                    continue
+                if n == goal:
+                    end = c
+                    break
+                if b.get(n) or n in (ATZIRI, ENTRANCE) or touches_reward(b, n) or n in keep:
+                    continue
+                best[n] = c
+                q.append(n)
+        if end is None or end in net:
+            return False
+        r, k = [], end
+        while k is not None and k not in net:
+            r.append(k)
+            k = best[k]
+        r = r[::-1]
+        trial, used = dict(b), []
+        left = list(room_cards)
+        for t in r:
+            fam = max((f for f in set(left) if gain(trial, t, f) >= 1 and VALUE.get(f, 0) < PAYS and not (
+                f in KEEP_ALONE and "Garrison" not in [trial.get(n) for n in near(t)])),
+                key=lambda f: (gain(trial, t, f), -VALUE.get(f, 0)), default=None)
+            if fam is None:
+                return False
+            left.remove(fam)
+            trial[t] = fam
+            used.append((t, fam))
+        for t, fam in used:
+            use_room(fam)
+            b[t] = fam
+            plan.append((t, fam, f"joins {why}"))
+        tip = used[-1][0]                              # (one more room beside the last one: it guards the chain)
+        for n in sorted(near(tip)):
+            if b.get(n) or not inside(n) or n in (ATZIRI, ENTRANCE) or touches_reward(b, n) or n in keep:
+                continue
+            fam = max((f for f in set(room_cards) if gain(b, n, f) >= 1 and not (
+                f in KEEP_ALONE and "Garrison" not in [b.get(x) for x in near(n)])),
+                      key=lambda f: gain(b, n, f), default=None)
+            if fam:
+                use_room(fam)
+                b[n] = fam
+                plan.append((n, fam, "guards the chain to Atziri"))
+                break
+        notes.append("Atziri is joined by rooms: one lost to destabilization cuts it. Use path cards when you "
+                     "have them.")
+        return True
+
     def add_path(goal, why):
         r = path_to(b, goal, keep)
+        if goal == ATZIRI and r and len(r) > paths_left[0] and chain_to(goal, why):
+            return True
         if r is None:
             notes.append(f"No safe path to {why} yet.")
             return False
@@ -732,6 +797,7 @@ def full_plan(board, cards=(), medals=(), medal_rooms=(), prev=()):
                 card_left[f] -= 1
             else:
                 med_left[f] -= 1
+    ups = sum(1 for m in medals or () if m and M.base(m)[0] == "Quipolatl's Medallion")
     order = sorted(fams, key=lambda f: (FIRST.index(f) if f in FIRST else 99, -VALUE.get(f, 0)))
     rest = list(order)
     for fam in order:
@@ -739,7 +805,7 @@ def full_plan(board, cards=(), medals=(), medal_rooms=(), prev=()):
         best = None
         edges = edge_blocks(b)
         for t in sorted({n for c in network(b) for n in near(c)}):
-            s = _room_score(b, t, fam, rest, lane, arch, key_needed, keep, edges)
+            s = _room_score(b, t, fam, rest, lane, arch, key_needed, keep, edges, ups)
             if s is not None and (best is None or s > best[0]):
                 best = (s, t)
         if best is None:
@@ -769,6 +835,23 @@ def full_plan(board, cards=(), medals=(), medal_rooms=(), prev=()):
             med_left[fam] = med_left.get(fam, 0) - 1
         b[best[1]] = fam
         plan.append((best[1], fam, ("beside " + pals[0]) if pals else "joined to your rooms"))
+    # the Architect's reward cards (owner's picture: the side walls, every other square): touching nothing at all
+    for h in hand:
+        if not (h and h[0] == "reward"):
+            continue
+        spot = next((t for t in sorted(((s * 4, j) for s in (-1, 1) for j in range(1, 10)),
+                                       key=lambda t: (-sum(1 for n in near(t) if not b.get(n)), abs(t[1] - 5)))
+                     if not b.get(t) and not any(b.get(n) for n in near(t)) and t not in keep), None)
+        if spot is None:
+            notes.append(f"No free side-wall square for {h[1]}: one that touches nothing.")
+            continue
+        b[spot] = "Reward"
+        plan.append((spot, h[1], "a reward room: touches nothing"))
+    # conversions (cheat sheet)
+    for t, fam, _w in list(plan):
+        if fam in ("Synthflesh Lab", "Spymaster") and "Garrison" in [b.get(n) for n in near(t)]:
+            notes.append(f"The {fam} turns the Garrison beside it into "
+                         f"{'Transcendent Barracks' if fam == 'Synthflesh Lab' else 'a Legion Barracks'}.")
     # #5 (owner: "using up all of the cards in my hand and creating filler for when destabilization happens to reduce
     # chances of my good rooms getting deleted, creating intentional loop of paths"): spare path cards, path to path
     while paths_left[0] > 0:
@@ -820,4 +903,10 @@ def full_plan(board, cards=(), medals=(), medal_rooms=(), prev=()):
                for f in card_fams)
     if card_fams and "Puhuarte's Medallion" in held and not pays:
         notes.append("Nothing in your cards pays: reroll them (Puhuarte's Medallion).")
+    # (owner: AuDHD - one line, not five): the medallions kept for a later run, together
+    keep_meds = [n.split("Keep the ")[1].split(" medallion")[0] for n in notes
+                 if n.startswith("Keep the ") and " medallion" in n]
+    if len(keep_meds) > 1:
+        notes = [n for n in notes if not (n.startswith("Keep the ") and " medallion" in n)]
+        notes.append("Keep for a later run (no partner here yet): " + ", ".join(keep_meds) + " medallions.")
     return {"plan": plan, "targets": targets, "notes": notes}

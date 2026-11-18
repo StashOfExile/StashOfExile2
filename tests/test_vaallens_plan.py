@@ -321,3 +321,27 @@ class KeyRoomPreview(unittest.TestCase):
         r = VP.full_plan(b, ["Royal Access Chamber", "Path", "Path"])
         self.assertEqual(r["plan"][0], ((2, 3), "Key Room", "the key room"))
         self.assertEqual(VP.steps(r["plan"])[0], 1)
+
+
+class OwnersRound2(unittest.TestCase):
+    def test_room_chain_to_atziri_when_paths_run_short(self):
+        # (owner: Garrison / Commander snaked up to Atziri, one more room after it to guard the chain)
+        cells = {(0, j): ("path", None, 1) for j in range(1, 7)}
+        cells.update({(0, 7): ("room", "Garrison", 1), (-4, 5): ("reward", "Reward", 1)})
+        r = VP.full_plan(board(cells), ["Guardhouse", "Commander's Chamber", "Guardhouse", "Commander's Chamber"])
+        whys = [w for _t, _f, w in r["plan"]]
+        self.assertIn("joins Atziri", whys)
+        self.assertIn("guards the chain to Atziri", whys)
+
+    def test_vault_card_on_a_side_wall_touching_nothing(self):
+        r = VP.full_plan(board(dict(BASE)), ["Kishara's Vault"])
+        t = next(t for t, f, w in r["plan"] if f == "Kishara's Vault")
+        self.assertEqual(abs(t[0]), 4)
+        self.assertFalse(any(VP.names(board(dict(BASE))).get(n) for n in VP.near(t)))
+
+    def test_spymaster_never_beside_a_commander(self):
+        b = board({**BASE, (-1, 3): ("room", "Commander", 1)})
+        r = VP.full_plan(b, ["Spymaster's Study"])
+        for t, f, _w in r["plan"]:
+            if f == "Spymaster":
+                self.assertNotIn((-1, 3), VP.near(t))
