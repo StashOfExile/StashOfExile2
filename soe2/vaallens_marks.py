@@ -136,7 +136,9 @@ class Marks:
             pts = (x, y - hh, x + hw, y, x, y + hh, x - hw, y)
             if m == "x":
                 cv.create_polygon(*pts, fill="", outline=warn, width=max(2, int(4 * s)), dash=(8, 6))
-                cv.create_text(x, y, text="✕", fill=warn, font=(fam, big, "bold"))
+                d = max(7, int(16 * s))                    # 3.0.6 (owner: "the x turned into a square"): drawn as
+                for a, b in ((-d, -d), (-d, d)):            # two lines - a theme's font may have no ✕ in it
+                    cv.create_line(x + a, y + b, x - a, y - b, fill=warn, width=max(3, int(6 * s)), capstyle="round")
                 continue
             step, room = what
             if m == "now":
