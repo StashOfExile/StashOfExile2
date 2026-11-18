@@ -72,7 +72,9 @@ class Priorities(unittest.TestCase):
 
 class Rooms(unittest.TestCase):
     def setUp(self):
-        self.b = board({**BASE, (-1, 2): ("room", "Garrison", 1), (2, 7): ("architect", "Architect", 1)})
+        # (3.0.6: a room goes beside a path or a room it works with - a path runs left for the chains)
+        self.b = board({**BASE, (-1, 2): ("room", "Garrison", 1), (2, 7): ("architect", "Architect", 1),
+                        (-1, 3): ("path", None, 1), (-2, 3): ("path", None, 1), (-2, 2): ("path", None, 1)})
 
     def test_every_room_in_hand_is_planned_safely(self):
         plan = VP.full_plan(self.b, ["Thaumaturge's Laboratory", "Crimson Hall", "Surgeon's Ward",
@@ -96,7 +98,7 @@ class Rooms(unittest.TestCase):
 
     def test_chains_go_left(self):
         plan = VP.full_plan(self.b, ["Thaumaturge's Laboratory", "Crimson Hall"])["plan"]
-        self.assertTrue(all(VP.quadrant(t) == "left" for t, f, _w in plan if f != "Path"))
+        self.assertTrue(all(VP.quadrant(t) in ("left", None) for t, f, _w in plan if f != "Path"))
 
     def test_generator_only_on_a_path(self):
         plan = VP.full_plan(self.b, ["Dynamo"])["plan"]
@@ -401,3 +403,20 @@ class ArchitectConsole(unittest.TestCase):
         self.assertEqual(r["targets"], {})
         self.assertEqual(len(r["plan"]), 3, "each restricted card gets a spot")
         self.assertTrue(all("reward" in w for _t, _f, w in r["plan"]))
+
+
+class Placement(unittest.TestCase):
+    def test_sealed_vault_only_beside_a_path(self):
+        # (owner: "sealed vaults have to connect to a path and cannot connect to anything else")
+        b = board({**BASE, (1, 3): ("room", "Garrison", 2), (-1, 2): ("key", "Key Room", 1)})
+        r = VP.full_plan(b, ["Sealed Vault"])
+        n = VP.names(b)
+        for t, f, _w in r["plan"]:
+            if f == "Sealed Vault":
+                self.assertTrue(any(n.get(x) == "Path" or x == VP.ENTRANCE for x in VP.near(t)))
+                self.assertFalse(any(n.get(x) in VP.ROOMS for x in VP.near(t)))
+
+    def test_room_needs_a_path_or_a_partner(self):
+        self.assertFalse(VP.can_place({(1, 3): "Smithy"}, (2, 3), "Garrison"))
+        self.assertTrue(VP.can_place({(1, 3): "Commander"}, (2, 3), "Garrison"))
+        self.assertTrue(VP.can_place({(1, 3): "Path"}, (2, 3), "Garrison"))

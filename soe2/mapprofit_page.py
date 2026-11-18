@@ -293,7 +293,10 @@ class MapProfitPage:
             self.mp_check_done()                            # (the bar redraws each second: a map can be done now)
         except Exception:
             buglog.caught()
-        e = getattr(self, "mp_last", None)
+        # 3.0.6 (owner: "Say a person wants their last maps profit because they're done running, will they never see
+        # it because they didn't open another map?"): the map you just read your inventory after shows at once - it
+        # still adds a second visit (a town trip) and is written down when you start another map or after a while
+        e = self.mp_so_far() or getattr(self, "mp_last", None)
         if e is None:
             last = MP.log_read(time.time() - 12 * 3600)
             e = self.mp_last = last[-1] if last else None
@@ -314,7 +317,7 @@ class MapProfitPage:
         out = []
         if so_far is not None:                              # 2.132.1: a town trip - it counts when you're done
             out.append(f"This map so far: {MP.signed(so_far['div'], fmt_div)}" +
-                       (f"  ·  {so_far['map']}" if so_far.get("map") else "") + "  (counted when you start another)")
+                       (f"  ·  {so_far['map']}" if so_far.get("map") else "") + f"  (final when you start another map, or in {MP.DONE_SECS // 60} min)")
             if e is None:
                 e = so_far
         mins = e.get("secs", 0) // 60

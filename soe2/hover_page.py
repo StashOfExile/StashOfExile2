@@ -123,6 +123,10 @@ class HoverPage:
         # 3.0.6 audit: Vaal Ruins is a town to the app (a hub) - a medallion there is read too
         if not self.hover_medals():
             return None
+        if ctx.get("area") in ("hideout", "town"):
+            # 3.0.6 (owner: "screen reading after a run takes so long"): medallions drop in the temple itself - a
+            # press in Vaal Ruins or your hideout (reading your inventory) doesn't read round the mouse too
+            return None
         from . import screenread as SR, vaallens as V
         g, ptr = ctx["g"], ctx["ptr"]
         mb = V.side_box(g, V.MEDAL_BOX, right=True)
@@ -139,7 +143,8 @@ class HoverPage:
                 return []
             lines = read_lines(img, g[3], RM.ocr)
             from . import medallions as M
-            if not M.parse(lines)["names"]:
+            text = " ".join(str(t).upper() for t, _b in lines)
+            if not M.parse(lines)["names"] and any(w in text for w in ("MEDALL", "ROOM:", "SUMMON")):
                 lines = lines + text_by_color(img, RM.ocr)      # (the same picture, gold and white text alone)
             return lines
 

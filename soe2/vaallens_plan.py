@@ -563,12 +563,29 @@ def key_spot(b):
     return {t, *near(t)} if t else set()
 
 
+PATH_ONLY = ("Sealed Vault", "Generator")       # (owner: "sealed vaults have to connect to a path and cannot connect
+#                                                 to anything else"; the cheat sheet: a Generator joins a path)
+
+
+def can_place(b, t, fam):
+    """3.0.6 (the game: a room goes beside a path, or beside a room it works with): may fam go on t?"""
+    for n in near(t):
+        v = b.get(n) if n != ENTRANCE else "Entrance"
+        if v in ("Path", "Entrance"):
+            return True
+        if fam not in PATH_ONLY and v in ROOMS and (v in TOUCH.get(fam, ()) or fam in TOUCH.get(v, ())):
+            return True
+    return False
+
+
 def _room_score(b, t, fam, rest, lane, arch, key_needed, keep=(), edges=(), ups=0):
     """How good t is for a room of fam (None: not allowed). rest: rooms still to place (their partners count).
     keep: tiles held free for the key room; edges: filler squares on a bare outer wall (edge_blocks)."""
     if b.get(t) or t in (ATZIRI, ENTRANCE) or not inside(t) or touches_reward(b, t) or t in lane or t in keep:
         return None
-    if not any(n in network(b) for n in near(t)):
+    if not any(n in network(b) for n in near(t)) or not can_place(b, t, fam):
+        return None
+    if fam == "Sealed Vault" and any(b.get(n) in ROOMS for n in near(t)):
         return None
     nbs = [b.get(n) for n in near(t)]
     if (fam == "Spymaster" and "Commander" in nbs) or (fam == "Commander" and "Spymaster" in nbs):
@@ -660,8 +677,7 @@ def full_plan(board, cards=(), medals=(), medal_rooms=(), prev=()):
             g = gain(b, t, fam)
             if fam in KEEP_ALONE and "Garrison" not in [b.get(n) for n in near(t)]:
                 continue
-            if g < (2 if VALUE.get(fam, 0) >= PAYS else 1) or (fam == "Generator" and not any(
-                    b.get(n) in ("Path", "Entrance") for n in near(t))):
+            if g < (2 if VALUE.get(fam, 0) >= PAYS else 1) or not can_place(b, t, fam):
                 continue
             score = g * 10 - VALUE.get(fam, 0)
             if best is None or score > best[0]:
@@ -701,7 +717,8 @@ def full_plan(board, cards=(), medals=(), medal_rooms=(), prev=()):
         trial, used = dict(b), []
         left = list(room_cards)
         for t in r:
-            fam = max((f for f in set(left) if gain(trial, t, f) >= 1 and VALUE.get(f, 0) < PAYS and not (
+            fam = max((f for f in set(left) if gain(trial, t, f) >= 1 and VALUE.get(f, 0) < PAYS and
+                       can_place(trial, t, f) and not (
                 f in KEEP_ALONE and "Garrison" not in [trial.get(n) for n in near(t)])),
                 key=lambda f: (gain(trial, t, f), -VALUE.get(f, 0)), default=None)
             if fam is None:
@@ -747,9 +764,9 @@ def full_plan(board, cards=(), medals=(), medal_rooms=(), prev=()):
                 paths_left[0] -= 1
                 b[t] = "Path"
                 plan.append((t, "Path", why))
-            elif last and [f for f in spare if f not in KEEP_ALONE and VALUE.get(f, 0) < PAYS] and \
-                    not touches_reward(b, t) and t not in LANE:
-                fam = next(f for f in spare if f not in KEEP_ALONE and VALUE.get(f, 0) < PAYS)
+            elif last and [f for f in spare if f not in KEEP_ALONE and VALUE.get(f, 0) < PAYS and
+                           can_place(b, t, f)] and not touches_reward(b, t) and t not in LANE:
+                fam = next(f for f in spare if f not in KEEP_ALONE and VALUE.get(f, 0) < PAYS and can_place(b, t, f))
                 spare.remove(fam)                      # (never a Commander: it waits for a Garrison)
                 if fam in room_cards:
                     room_cards.remove(fam)
