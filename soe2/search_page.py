@@ -128,6 +128,8 @@ class SearchPage:
         """The card's picture when the app knows one (the trade site's art: a tablet, a waystone, an item you priced)."""
         if not SETTINGS.get("pc_art", True) or not hasattr(self, "pc_art"):
             return None
+        if row.get("c") == "Jewel" and row.get("g") == "Jewels":
+            return None                          # 3.0.6 (owner): a base jewel's name matched other art - no picture
         from .pricecheck_page import art_url
         try:
             return self.pc_art(art_url(row["n"]), px=ICON)

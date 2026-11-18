@@ -17,7 +17,8 @@ NUM = re.compile(r"[+\-−]?\(?\d[\d,]*(?:\.\d+)?(?:\s?[\-–—]\s?\d[\d,]*(?:\
 ATTR = {"str_armour": "Strength", "dex_armour": "Dexterity", "int_armour": "Intelligence",
         "str_dex_armour": "Strength/Dexterity", "str_int_armour": "Strength/Intelligence",
         "dex_int_armour": "Dexterity/Intelligence", "str_dex_int_armour": "Strength/Dexterity/Intelligence",
-        "strjewel": "Strength", "dexjewel": "Dexterity", "intjewel": "Intelligence"}
+        "strjewel": "Strength", "dexjewel": "Dexterity", "intjewel": "Intelligence",
+        "str_radius_jewel": "Strength", "dex_radius_jewel": "Dexterity", "int_radius_jewel": "Intelligence"}
 WORDS = {"onehand": "One-Handed", "twohand": "Two-Handed", "ranged": "Ranged", "warstaff": "Quarterstaff",
          "sanctum_relic": "Relic", "small_sanctum_relic": "Small Relic", "medium_sanctum_relic": "Medium Relic",
          "large_sanctum_relic": "Large Relic"}
@@ -25,7 +26,7 @@ WORDS = {"onehand": "One-Handed", "twohand": "Two-Handed", "ranged": "Ranged", "
 NOT_SHOWN = ("Trade stat", "Implicit trade stat", "Trade filter")     # trade ids: not for reading
 _HIDDEN = re.compile(r"(_basetype$|^default$|^not_for_sale$|^demigods$|^no_\w+_mods$|^armour$|^weapon$|^one_hand_weapon$|"
                      r"^two_hand_weapon$|^tower_augment|^currency$|^str_shield$|^dex_shield$|^int_shield$|^metadata|"
-                     r"_armour$|^all_sentinels$|^sentinel_drone$|^ezomyte|^expedition_logbook$)")
+                     r"_armour$|^jewel$|^radius_jewel$|^\w+jewel$|^\w+_radius_jewel$|^all_sentinels$|^sentinel_drone$|^ezomyte|^expedition_logbook$)")
 
 
 def humanize(word):
@@ -38,10 +39,13 @@ def humanize(word):
 
 
 def attribute(tags):
+    """Every attribute the tags name, joined: a Diamond is 'Strength/Dexterity/Intelligence' (3.0.6: was the first)."""
+    out = []
     for t in tags:
-        if t in ATTR:
-            return ATTR[t]
-    return ""
+        for w in (ATTR.get(t) or "").split("/"):
+            if w and w not in out:
+                out.append(w)
+    return "/".join(out)
 
 
 def chips(tag_text, skip=()):
@@ -135,8 +139,10 @@ def card(it):
         props, req, lines, muted = parse_text(it.get("t") or "")
         attr = attribute(tags)
         kind = humanize(cls) if cls and " " not in cls and "(" not in cls else cls
+        if "radius_jewel" in tags:
+            kind = "Radius Jewel"                             # 3.0.6: Time-Lost jewels say so in words, not tag chips
         c = {"kind": kind + (f" · {attr}" if attr else ""), "props": props, "req": req, "lines": lines, "muted": muted,
-             "chips": chips(it.get("k"), skip=(cls, humanize(cls), attr)), "db": False}
+             "chips": chips(it.get("k"), skip=(cls, humanize(cls), *attr.split("/"))), "db": False}
         if it.get("g") == "Modifiers":                        # a mod row's tags are its stat group ids: one chip each is noise
             c["chips"] = c["chips"][:3]
     it["_card"] = c

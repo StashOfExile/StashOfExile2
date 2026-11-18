@@ -18,6 +18,9 @@ except ImportError:                 # older config
 _DATA = {"rows": None}
 
 
+JEWELS = "Jewels"
+
+
 def load():
     if _DATA["rows"] is not None:
         return _DATA
@@ -31,6 +34,13 @@ def load():
             rows.append({"n": n, "g": g, "c": c, "k": k, "t": t, "ln": n.lower(), "lk": (k or "").lower(),
                          "lt": (t or "").lower()})
         order = list(d.get("order") or [])
+        # 3.0.6 (owner): jewels get their own category, right after the rings and belts one
+        for r in rows:
+            if r["c"] == "Jewel" and r["g"] == "Jewellery & Belts":  # game text
+                r["g"] = JEWELS
+        if any(r["g"] == JEWELS for r in rows) and JEWELS not in order:
+            at = order.index("Jewellery & Belts") + 1 if "Jewellery & Belts" in order else len(order)  # game text
+            order.insert(at, JEWELS)
         rows += anoint_rows()
         db_rows, db_order = gamedb_rows()
         rows += db_rows
