@@ -54,3 +54,25 @@ class NoReadBefore(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ReadCard(unittest.TestCase):
+    def test_a_card_says_what_was_counted(self):
+        # 3.0.6 (owner: "we need some verification that it read the profits")
+        a = App()
+        a.root = None
+        shown = []
+        inv = {"Divine Orb": 2}
+        with mock.patch.object(MP, "identify", lambda *x: (dict(inv), 1)), \
+                mock.patch.object(TU, "learned", lambda: {}), \
+                mock.patch.object(TU, "cfg", lambda: {"items": []}), \
+                mock.patch("soe2.alertcard.show", lambda *x, **k: shown.append(x) or None), \
+                mock.patch("soe2.alerts_page.game_rect", lambda: (0, 0, 1920, 1080)):
+            a.mp_area("map", "hideout", ("MapSunTemple",), False)
+            a.mp_area("hideout", "map", None, True)
+            a.mp_seen({"cells": [1]})
+        self.assertTrue(shown)
+        title, line = shown[0][1], shown[0][2]
+        self.assertIn("Map counted", title)
+        self.assertIn("Divine Orb +2", line)
+        self.assertIn("1 not known", line)

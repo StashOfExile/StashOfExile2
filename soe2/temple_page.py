@@ -337,6 +337,13 @@ class TemplePage:
             full = {"plan": [], "targets": {}, "notes": []}
         plan = self._temple_plan_steady(full["plan"], board)
         self.tm_plan, self.tm_targets, self.tm_notes = plan, full["targets"], full["notes"]
+        if seen and board.get("lit") and VP.card(board.get("card")) == ("path", None):
+            # 3.0.6 (owner: "It wants me to place a path where I cannot place a path"): a path card's shape decides
+            # where it fits - the game lights those squares; none of the planned ones lit = this card doesn't fit
+            want = [t for t, f, _w in plan if f == "Path"]
+            if want and not set(want) & set(board["lit"]):
+                self.tm_notes = ["This Path card's shape doesn't fit the planned squares: pick your other Path "
+                                 "card."] + list(self.tm_notes)
         if seen and board.get("lit"):
             what = VP.card(board.get("card"))
             marks = VP.marks(board, board["lit"], what)
@@ -581,7 +588,9 @@ class TemplePage:
             pays = [fam for _t, fam, _w in plan if fam in ("Corruption Chamber", "Sacrificial Chamber", "Alchemy Lab")]
             if pays:
                 out += [st for st in VP.combo(pays[0], hand) if st[0] != "+"]
-        out += [("!", n) for n in getattr(self, "tm_notes", None) or []]
+        # 3.0.6 (owner: "most people probably aren't going to read the plan, it needs to be more concise"): the two
+        # notes that matter most
+        out += [("!", n) for n in (getattr(self, "tm_notes", None) or [])[:2]]
         return out
 
     def temple_medal_line(self):
@@ -591,12 +600,12 @@ class TemplePage:
         have, most, hand = self.temple_medal_hand()
         if not most:
             return f"Medallions: open them (V) and press {self.look_key_text()}."
-        known = [M.MEDALLIONS.get(M.base(h)[0], (M.base(h)[0],))[0] + (f" ({M.base(h)[1]})" if M.base(h)[1] else "")
-                 for h in hand[:have] if h]
+        # 3.0.6 (owner: "one vertical list instead of a wall of text, a list only of the names"): a room medallion by
+        # its room, the rest by what they do (Lock, Upgrade ...)
+        known = [M.base(h)[1] or M.MEDALLIONS.get(M.base(h)[0], (M.base(h)[0],))[0] for h in hand[:have] if h]
         unknown = have - len(known)
-        tail = f"{unknown} not known - hover it, press {self.look_key_text()}" if unknown else ""
-        return f"Medallions {have}/{most}: " + ", ".join(known + ([tail] if tail else [])) if have else \
-            f"Medallions 0/{most}"
+        tail = [f"? {unknown} not known: hover it, press {self.look_key_text()}"] if unknown else []
+        return "\n".join([f"Medallions {have}/{most}"] + known + tail)
 
     def temple_pad_show(self):
         if self.temple_pad_shown():

@@ -812,6 +812,11 @@ def full_plan(board, cards=(), medals=(), medal_rooms=(), prev=()):
             continue
         pals = [b.get(n) for n in near(best[1]) if b.get(n) in PARTNER.get(fam, ()) + tuple(TOUCH.get(fam, ()))]
         med = med_left.get(fam, 0) > card_left.get(fam, 0)          # (cards are placed first, medallions after)
+        if med and fam in ("Corruption Chamber", "Sacrificial Chamber") and not ups:
+            # 3.0.6 (owner: "I need an upgrade medallion before placing the corruption chamber otherwise it's wasted")
+            notes.append(f"Keep the {fam} medallion until you hold an Upgrade: it pays at tier 3.")
+            med_left[fam] -= 1
+            continue
         if med and pals and best[0] < 0:
             # 3.0.6 (owner: the Golem Works medallion would loop back into the gold path; the two tier-2 Smithies
             # beside it can take the upgrade medallions instead): only a loop left - it waits for a better board
@@ -843,7 +848,8 @@ def full_plan(board, cards=(), medals=(), medal_rooms=(), prev=()):
                                        key=lambda t: (-sum(1 for n in near(t) if not b.get(n)), abs(t[1] - 5)))
                      if not b.get(t) and not any(b.get(n) for n in near(t)) and t not in keep), None)
         if spot is None:
-            notes.append(f"No free side-wall square for {h[1]}: one that touches nothing.")
+            if not any(n.startswith("No free side-wall square") for n in notes):
+                notes.append("No free side-wall square for your vault cards: one that touches nothing.")
             continue
         b[spot] = "Reward"
         plan.append((spot, h[1], "a reward room: touches nothing"))
@@ -877,8 +883,15 @@ def full_plan(board, cards=(), medals=(), medal_rooms=(), prev=()):
     held = [M.base(m)[0] for m in medals or () if m]
     rooms = {t: v for t, v in taken.items() if v in ROOMS}      # (placed rooms only: a medallion goes on a real one)
 
+    def used_up(t, f):
+        """3.0.6 (owner: "if a room is a t2 without it's connected upgrade room, it means it was already upgraded with
+        a medallion and cannot be upgraded anymore unless via room connection"): higher than its neighbors make it."""
+        raised = sum(1 for n in near(t) if rooms.get(n) in TOUCH.get(f, ()))
+        return tier_of(board, t) > 1 + raised
+
     def best_room(pref, need_up):
-        cand = [(t, f) for t, f in rooms.items() if f in pref and t not in targets and not (need_up and tier_of(board, t) >= min(3, _tiers(f)))]
+        cand = [(t, f) for t, f in rooms.items() if f in pref and t not in targets and not (need_up and used_up(t, f))
+                and not (need_up and tier_of(board, t) >= min(3, _tiers(f)))]
         # (3.0.6, owner's board: both tier-2 Smithies beside the Golem Works took the two upgrades) - closest to tier
         # 3 first, then a room in a chain (something beside it raises it), then the room that pays most
         cand.sort(key=lambda x: (3 - tier_of(board, x[0]) if need_up else 0, -gain(rooms, x[0], x[1]),
@@ -908,5 +921,5 @@ def full_plan(board, cards=(), medals=(), medal_rooms=(), prev=()):
                  if n.startswith("Keep the ") and " medallion" in n]
     if len(keep_meds) > 1:
         notes = [n for n in notes if not (n.startswith("Keep the ") and " medallion" in n)]
-        notes.append("Keep for a later run (no partner here yet): " + ", ".join(keep_meds) + " medallions.")
+        notes.append("Keep for a later run: " + ", ".join(keep_meds) + " medallions.")
     return {"plan": plan, "targets": targets, "notes": notes}

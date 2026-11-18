@@ -306,6 +306,11 @@ class TopUpPage:
                                 ok=False)
             return False
         name, count = got
+        if not any(it.get("name") == name for it in TU.cfg()["items"]):
+            # 3.0.6 (owner: "How did those even get added to my top up list in the first place?!"): a copy no longer
+            # adds an item to your list - only + Add more on the Top Up page does; a copy teaches the picture of one
+            # already on it
+            return False
         try:
             from . import screenread as SR
             mx, my = SR.to_screen(self.root.winfo_pointerxy())      # (the look is in real pixels)
@@ -337,15 +342,12 @@ class TopUpPage:
                 TU.learn_digits(cell, count)
             except Exception:
                 buglog.caught()
-        items = TU.cfg()["items"]
-        if not any(it.get("name") == name for it in items):
-            items.append({"name": name, "keep": TU.full_stack(text) or 1})
         save_json("settings.json", SETTINGS)
         self.tu_last = dict(last, thumb=None)          # (read it again with this item known)
-        self.status_text, self.status_until = (f"Top Up: learned {name} - set how many to keep in Items…" +
+        self.status_text, self.status_until = (f"Top Up: learned {name}'s picture" +
                                                ("" if plain is not None else f" (move the mouse off it, then press {self.look_key_text()})")), \
             time.time() + 8
-        self._tu_teach_card(f"{name} is in Top Up Reminders now" + ("." if plain is not None else
+        self._tu_teach_card(f"Top Up knows {name}'s picture now" + ("." if plain is not None else
                             f" - move the mouse off it, then press {self.look_key_text()}."))
         self.topup_paint_list()
         return True

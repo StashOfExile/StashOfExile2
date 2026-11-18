@@ -30,6 +30,7 @@ MEDALLIONS = {
     "Zantipi's Medallion": ("Waystone modifier", "Adds a random waystone modifier to the temple", 1),
 }
 HIGH_ROOMS = ("Corruption Chamber", "Sacrificial Chamber", "Thaumaturge", "Alchemy Lab", "Smithy")
+LOW_ROOMS = ("Armoury", "Garrison", "Spymaster")       # rooms that mostly raise others - the first to let go
 _KEYS = {re.sub(r"[^A-Z]", "", n.upper()): n for n in MEDALLIONS}
 _ROOM = re.compile(r"ADD\s*ROOM\s*[:;]?\s*(.+)", re.I)
 _COUNT = re.compile(r"MEDALLIONS?\s*\(?\s*(\d)\s*[/|l]\s*(\d)\s*\)?", re.I)
@@ -93,6 +94,12 @@ def base(name):
     return n, (room or None)
 
 
+def short(name):
+    """A medallion -> the word players use: its room (Armoury) or what it does (Lock, Upgrade)."""
+    n, r = base(name)
+    return r or MEDALLIONS.get(n, (n,))[0]
+
+
 def worth(name, room=None, crystals_most=None, slots_most=None):
     """-> (0-10, why). Capacity ones are 0 once full; Uromoti's follows its room."""
     name, r = base(name)
@@ -105,6 +112,8 @@ def worth(name, room=None, crystals_most=None, slots_most=None):
     if name == "Uromoti's Medallion" and room:
         if room in HIGH_ROOMS:
             return 8, f"adds {room} (pays at tier 3)"
+        if room in LOW_ROOMS:                         # (3.0.6, owner's pick: the Armoury went to make room for a Lock)
+            return 4, f"adds {room}"
         return 5, f"adds {room}"
     return w, short.lower()
 
@@ -121,14 +130,14 @@ def advice(new, hand, have, most, room=None, crystals_most=None):
     if have < most:
         return "take", f"{new}: {why}. {most - have} slot{'s' if most - have != 1 else ''} free."
     known = [h for h in (hand or [])[:have] if h]
-    if len(known) < have:
-        if known and w <= min(worth(h, None, crystals_most, most)[0] for h in known) and w <= 1:
-            return "skip", f"{new}: {why}. Weaker than what you hold."
-        return "learn", f"{new}: {why}. Medallions full: press V, hover each and press the Read Key so Vaal Lens knows them."
+    if not known:
+        return "learn", f"{new}: {why}. Medallions full: open them (V) and press the Read Key so Vaal Lens knows them."
+    # 3.0.6 (owner: "nobody is going to manually read their medallions"): a slot not known yet doesn't stop the
+    # advice - the weakest one known is the one to let go
     worst = min(known, key=lambda h: worth(h, None, crystals_most, most)[0])
     ww, wwhy = worth(worst, None, crystals_most, most)
     if w > ww:
-        return "take", f"{new}: {why}. Use or destroy {worst} ({wwhy}) to make room."
+        return "take", f"{new}: {why}. Use or destroy your {short(worst)} medallion to make room."
     return "skip", f"{new}: {why}. Weaker than all you hold."
 
 

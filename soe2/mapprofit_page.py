@@ -106,6 +106,7 @@ class MapProfitPage:
             pend["unknown"] = max(pend.get("unknown", 0), unknown)
             self.mp_check_done()
             self.mp_paint()
+            self.mp_read_card(pend)
         if not res.get("covered"):
             self.mp_home = snap                             # (what you'd go into the next map with)
             self.mp_home_cov = {}
@@ -119,6 +120,31 @@ class MapProfitPage:
             for k, n in counts.items():
                 cov[k] = max(cov.get(k, 0), n)
         return snap
+
+    def mp_read_card(self, pend):
+        """3.0.6 (owner: "I have no idea if my profits were counted ... we need some verification that it read the
+        profits"): the read back from a map says what it counted - its total and its items, over the game."""
+        if pend is None or getattr(self, "mp_pending", None) is not pend:
+            return None
+        try:
+            from .pricefmt import fmt_div
+            e = self._mp_entry(pend)
+            rows = sorted(e.get("rows") or [], key=lambda r: -(r[2] - r[1]) * r[3])
+            parts = [f"{n} +{a - b}" for n, b, a, _each in rows[:4]]
+            if len(rows) > 4:
+                parts.append(f"+{len(rows) - 4} more")
+            if e.get("unknown"):
+                parts.append(f"{e['unknown']} not known")
+            title = ("≈ " if pend.get("est") else "") + f"Map counted: {MP.signed(e['div'], fmt_div)}"
+            from . import alertcard
+            from .alerts_page import game_rect
+            self.mp_card_win = alertcard.show(self.root, title, " · ".join(parts) or "Nothing new in your inventory",
+                                              color="#6fae6f", mark="✓", secs=8, game=game_rect(), tag="Map Profit",
+                                              rank=3)
+            return title
+        except Exception:
+            buglog.caught()
+            return None
 
     def mp_home_base(self):
         """What you went into the map with: the last clear look, plus anything a later covered look saw more of."""
