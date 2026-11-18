@@ -261,3 +261,32 @@ class StashedAfterRead(unittest.TestCase):
             a.mp_seen({"cells": [1]})                                        # a Scrap again
             e = a.mp_done()
         self.assertEqual([(r[0], r[2] - r[1]) for r in e["rows"]], [("Divine Orb", 1)])
+
+
+class FavoursJunk(unittest.TestCase):
+    def test_no_stack_number_no_question_tag(self):
+        # owner: "we don't need to identify junk uniques"
+        import numpy as np
+        from PIL import Image
+        from soe2 import favours as FV
+        from soe2.topup import _templates
+        way = np.asarray(Image.open(_templates() / "waystone_cell.png").convert("RGB"))[:, :, ::-1].copy()
+        img = np.zeros((200, 200, 3), np.uint8)
+        img[10:80, 10:80] = way
+        grid = (10, 10, 70, 70)
+        with mock.patch.object(FV, "cell_rect", lambda g, r, c: (10, 10, 70, 70)):
+            self.assertFalse(FV.has_stack_number(img, grid, 0, 0))
+
+
+class EscHides(unittest.TestCase):
+    def test_esc_hides_expedition_and_favours_tags(self):
+        from soe2.app import App as RealApp
+        hid = []
+
+        class Fake:
+            rm_win, fv_wins = [1], [1]
+            remnant_hide = lambda self: hid.append("rm")
+            favours_hide = lambda self: hid.append("fv")
+        f = Fake()
+        RealApp.esc_hide_tags(f)
+        self.assertEqual(hid, ["rm", "fv"])

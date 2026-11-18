@@ -108,7 +108,9 @@ class FavoursPage:
                 if top and top[0][0] > 0.45:                  # (2.129.0: the log says how close it came)
                     seen.append(f"{r},{c}: " + " / ".join(f"{n} {s_:.2f} {k}" for s_, n, k in top))
                 maybe = FV.maybe_names(top)                  # 3.0.6: close, but not sure - "? up to" its dearest
-                if maybe:
+                if maybe and not FV.has_stack_number(img, grid, r, c):
+                    maybe = []                               # (owner: "we don't need to identify junk uniques" -
+                if maybe:                                    # gear and a big item's pieces show no stack number)
                     maybes.append({"r": r, "c": c, "name": None, "maybe": maybe, "score": top[0][0],
                                    "box": FV.cell_rect(grid, r, c)})
             for name, sc, box in FV.find_belts(img, grid, occ, FV.belt_refs()):   # ★ Mageblood / Headhunter
@@ -169,7 +171,7 @@ class FavoursPage:
             if row.get("belt"):                           # 2.129.0: Mageblood / Headhunter - worth a look, no price
                 txt, fg, edge = "★ " + row["name"], WARM, WARM
             elif row.get("upto") is not None:             # 3.0.6: a look-alike - check it before you defer it
-                txt, fg, edge = "? up to " + fmt_short(row["upto"]), WARM, WARM
+                txt, fg, edge = "? check · up to " + fmt_short(row["upto"]), WARM, WARM
             elif row["each"] is None:
                 txt, fg, edge = "no price", MUT, EDGE
             else:

@@ -2723,9 +2723,27 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
             self.status_until = time.time() + 8
         return False
 
+    def esc_hide_tags(self):
+        """Esc in game: the Expedition and Favours tags go (Esc closes those windows). Hides only - nothing is read."""
+        for name in ("remnant_hide", "favours_hide"):
+            try:
+                if name == "remnant_hide" and getattr(self, "rm_win", None) is None:
+                    continue
+                if name == "favours_hide" and getattr(self, "fv_wins", None) is None:
+                    continue
+                getattr(self, name)()
+                if name == "remnant_hide":
+                    self.rm_auto_sig = None
+            except Exception:
+                buglog.caught()
+
     def copy_mark_check(self):
         """2.19.0: a fresh Ctrl+Alt+C (seen by the key watcher) -> a ring where the mouse is, for 10 seconds."""
         keys = getattr(self, "keys", None)
+        esc = getattr(keys, "esc_last", 0) if keys else 0
+        if esc and esc > getattr(self, "_esc_seen", 0):       # 3.0.6 (owner: "expedition helper staying on screen too
+            self._esc_seen = esc                              # long with no way to close it, it should disappear when I
+            self.esc_hide_tags()                              # press esc"): Esc closes the game's window - its tags go
         dbl = getattr(keys, "esc_double", 0) if keys else 0
         if dbl and dbl > getattr(self, "_esc_double_seen", 0):  # 2.25.0: Esc tapped twice clears every mark
             self._esc_double_seen = dbl

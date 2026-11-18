@@ -20,6 +20,7 @@ Only looks at the screen: no keys, no clicks, nothing sent to the game. Nothing 
 of items, and the log (ritual/favours_log.txt) says which item was found where and how sure."""
 import base64
 import os
+from . import buglog
 
 BASE_H = 1440
 TITLE_SEARCH = (0.0, 0.0, 0.62, 0.42)      # where the title can be: x0, y0, x1, y1 as parts of the game's size
@@ -43,6 +44,22 @@ def maybe_names(top):
     if not top or top[0][0] < MAYBE_MIN:
         return []
     return [n for s_, n, _k in top if s_ >= MAYBE_MIN and s_ >= top[0][0] - VETO_BY]
+
+
+def has_stack_number(img, grid, r, c):
+    """3.0.6: a Favours cell (BGR picture) shows a stack number ("1") - omens, currency; a unique, a ring or a big
+    item's piece shows none."""
+    try:
+        from PIL import Image
+        from . import topup as TU
+        x, y, w, h = cell_rect(grid, r, c)
+        cell = img[max(0, y):y + h, max(0, x):x + w]
+        if not cell.size:
+            return False
+        return bool(TU._read(Image.fromarray(cell[:, :, ::-1].copy()))[2])
+    except Exception:
+        buglog.caught()
+        return True
 
 
 MAYBE_MIN = 0.68                           # 3.0.6: the vetoed Sinistral Erasure 0.82 / 0.71; gear corners under 0.65
@@ -356,7 +373,7 @@ class Refs:
             return False
         for sc, _n, _s, cf, rf in got[1:]:
             h = hue_sim(cf, rf)
-            if sc >= top - VETO_BY and h is not None and h - h1 >= HUE_BY:
+            if sc >= max(top - VETO_BY, MAYBE_MIN) and h is not None and h - h1 >= HUE_BY:
                 return True
         return False
 
