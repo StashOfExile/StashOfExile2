@@ -17,6 +17,7 @@ How it reads:
      slot's top edge; the longest run of well-matched digits side by side, on one baseline, is the stack size.
 Needs OpenCV + numpy (the app ships both for the Expedition watcher)."""
 import base64
+import pathlib
 
 from .stashlayouts import ORDER, PANEL, TABS
 
@@ -313,22 +314,27 @@ def read_tab(bgr, game_h, want):
         n = read_number(bgr, r, dk)
         ic = _icon(bgr, r)
         name, _sc = _same_item(ic, icons)
+        slot = bgr[r[1]:r[1] + r[3], r[0]:r[0] + r[2]].copy()
         if n and name is not None:
             items.append((name, n))
         else:
-            wild.append((n, ic))
+            wild.append((n, ic, slot))
     return {"ok": True, "tab": want, "seen": want, "items": items, "unread": unread, "why": "",
             "icons": icons, "wild": wild, "pics": pics}
 
 
-def match_wild(wild, icons, keep=False):
+def match_wild(wild, icons, keep=False, pics=None):
     """Wildcard slots their own tab didn't match -> ([(name, count)], how many still unknown - or with keep, the
-    unknown [(count, picture)] themselves, to be named), matched with every tab read in the scan."""
+    unknown [(count, picture)] themselves, to be named), matched with every tab read in the scan. pics: filled with
+    {name: the slot's whole picture} for each one matched (3.0.6: so Map Profit knows it in your inventory too)."""
     got, unknown = [], []
-    for n, ic in wild:
+    for w in wild:
+        n, ic = w[0], w[1]
         name, _sc = _same_item(ic, icons)
         if n and name is not None:
             got.append((name, n))
+            if pics is not None and len(w) > 2 and w[2] is not None:
+                pics.setdefault(name, w[2])
         else:
             unknown.append((n, ic))
     return got, (unknown if keep else len(unknown))
@@ -337,12 +343,21 @@ def match_wild(wild, icons, keep=False):
 ICONS_FILE = "stash_icons.json"     # 2.114.3: pictures of items you named in a wildcard slot (40 x 26, on this PC)
 
 
+SHIPPED_ICONS = "stash_icons.json"  # 3.0.6: wildcard pictures shipped with the app (templates/: the Vaal currencies ...)
+
+
 def learned_icons():
-    """{name: picture} you've named before (Sacred Bloom ...) - an item's look, nothing about your stash."""
+    """{name: picture} you've named before (Sacred Bloom ...) - an item's look, nothing about your stash. 3.0.6
+    (owner: wildcard slots "need recognized ... regardless of their location"): the shipped ones first, yours over them."""
     cv2, np = _np()
+    import json
     from .config import load_json
     out = {}
-    for name, b in (load_json(ICONS_FILE, {}) or {}).items():
+    try:
+        shipped = json.loads((pathlib.Path(__file__).parent / "templates" / SHIPPED_ICONS).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        shipped = {}
+    for name, b in list(shipped.items()) + list((load_json(ICONS_FILE, {}) or {}).items()):
         try:
             out[name] = np.frombuffer(base64.b64decode(b), np.uint8).reshape(26, 40, 3).astype(np.float32)
         except Exception:

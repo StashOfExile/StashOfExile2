@@ -73,11 +73,18 @@ class StashScanPage:
         if ss is not None:                          # 2.114.3: wildcard slots matched against every tab read
             left = []
             icons = {**SR.learned_icons(), **(ss.get("icons") or {})}
+            wpics = {}
             for tab, wild in (ss.get("wild") or {}).items():
-                got, unk = SR.match_wild(wild, icons, keep=True)
+                got, unk = SR.match_wild(wild, icons, keep=True, pics=wpics)
                 ss["got"].setdefault(tab, []).extend(got)
                 left += [(tab, n, ic) for n, ic in unk]
             ss["wild_left"] = left                  # (named in the check window - then remembered)
+            if wpics:                               # 3.0.6: a wildcard item known by its picture teaches Map Profit
+                try:
+                    from . import favours as FV
+                    FV.learn_many(wpics)
+                except Exception:
+                    self.log_error("Favours pictures from the stash scan")
             ss.pop("icons", None)                   # (the tabs' pictures are dropped now)
             ss.pop("wild", None)
         if ss is None:

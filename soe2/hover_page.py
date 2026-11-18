@@ -5,6 +5,8 @@ you press your Read Key with the tooltip on screen - the part round the mouse, f
 (screenread.py). It never reads by itself. (Owner decision: the Temple Helper's Vaal Beacon tooltip read and Map
 Content's Temple icon are gone - the Temple Console gives the crystals.)"""
 
+from . import buglog
+
 AROUND = (0.25, 0.38, 0.06)        # the part looked at: half its width, up and down from the mouse (parts of the game)
 # A tooltip is found by its long straight edges (a cheap check), then only it is read, made bigger.
 EDGE_LONG = 0.20                    # a tooltip edge: a straight line at least this long (x the game's height) ...
@@ -121,6 +123,9 @@ class HoverPage:
             # Medallions panel closed -> take it or leave it
             from . import medallions as M
             med = M.parse(lines or [])
+            buglog.debug("Vaal Lens", "under the mouse: " + (", ".join(n for n, _b in med["names"]) or
+                                                             f"no medallion name ({len(lines or [])} lines)")
+                         + (f" · room {med['room']}" if med.get("room") else ""))    # (game text only)
             if not med["count"]:
                 for name in dict.fromkeys(n for n, _b in med["names"]):
                     self.temple_medal_drop(name, med["room"])

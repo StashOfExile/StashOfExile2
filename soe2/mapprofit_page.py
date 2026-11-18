@@ -294,8 +294,9 @@ class MapProfitPage:
         if e.get("est"):
             out.append("≈ No read before this map: all you came back with counts, except Top Up supplies")
         if e.get("unknown"):
-            out.append(f"{e['unknown']} item{'s' if e['unknown'] != 1 else ''} not known - teach with "
-                       f"{self.topup_key_text()} or Scan stash")
+            # 3.0.6 (owner: "remove the 'teach me a currency with ctrl+c'"): Scan stash teaches them by picture
+            out.append(f"{e['unknown']} item{'s' if e['unknown'] != 1 else ''} not known yet - Scan stash on Wealth "
+                       f"learns them")
         out.append("Currency Exchange items only, not your Top Up supplies · Exchange Rates prices · on your PC only")
         return out
 

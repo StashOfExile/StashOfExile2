@@ -291,8 +291,8 @@ class TopUpPage:
         the mouse, add it to your list (keep = a full stack). -> True if learned."""
         last = getattr(self, "tu_last", None) or {}
         topup = bool(TU.cfg().get("on"))
-        if not (topup or self.mp_on()):
-            return False
+        if not topup:                                      # (3.0.6 owner: no Ctrl+C teaching for Map Profit - it
+            return False                                   # knows items by picture, from Scan stash and the app)
         age = time.time() - last.get("t", 0)
         teaching = last.get("open") and age <= TEACH_WARN_SECS     # (3.0.6: a copy soon after an inventory read)
         if not last.get("open") or age > TEACH_SECS:
@@ -338,14 +338,9 @@ class TopUpPage:
             except Exception:
                 buglog.caught()
         items = TU.cfg()["items"]
-        if topup and not any(it.get("name") == name for it in items):
+        if not any(it.get("name") == name for it in items):
             items.append({"name": name, "keep": TU.full_stack(text) or 1})
         save_json("settings.json", SETTINGS)
-        if not topup:                                      # (2.132.6: taught for Map profit only - not a Top Up item)
-            self.tu_last = dict(last, thumb=None)
-            self.status_text, self.status_until = f"Map profit: learned {name}.", time.time() + 6
-            self._tu_teach_card(f"Map profit knows {name} now.")
-            return True
         self.tu_last = dict(last, thumb=None)          # (read it again with this item known)
         self.status_text, self.status_until = (f"Top Up: learned {name} - set how many to keep in Items…" +
                                                ("" if plain is not None else f" (move the mouse off it, then press {self.look_key_text()})")), \

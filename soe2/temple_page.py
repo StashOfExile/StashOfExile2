@@ -451,7 +451,8 @@ class TemplePage:
             what = VP.card(n)
             if what and what[0] == "room":
                 y1 = y / 2
-                feats.append((what[1], M.feat(pic.crop((int(cx - r), int(y1 - r), int(cx + r), int(y1 + r))))))
+                feats.append((what[1], M.feat(pic.crop((int(cx - r), int(y1 - r), int(cx + r), int(y1 + r))),
+                                              inner=False)))
         for k, (who, vec) in enumerate(zip(medal["hand"], medal.get("vecs") or [])):
             if who is not None or not feats:
                 continue
@@ -462,7 +463,7 @@ class TemplePage:
 
     def _temple_medal_file(self):
         from .config import P as data_file
-        return data_file("medallion_icons.json")
+        return data_file("medallion_icons_v2.json")       # (3.0.6: the middle of the icon - the old file is set aside)
 
     def temple_medal_seen(self, medal):
         """The panel read: the hand is kept (names only); a hovered slot teaches its picture."""
@@ -517,6 +518,8 @@ class TemplePage:
         have, most, hand = self.temple_medal_hand()
         st = TM.state()
         got = M.advice(name, hand, have, most, room, st["most"] if st else None)
+        buglog.debug("Vaal Lens", f"on the ground: {name}{' (' + room + ')' if room else ''} -> "
+                                  f"{got[0] if got else 'no advice'} ({have}/{most})")
         if not got:
             return None
         seen[name] = time.time()

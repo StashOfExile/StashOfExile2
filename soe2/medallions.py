@@ -171,9 +171,17 @@ def icon_box(slot):
     return int(l + ICON[0] * sx), int(t + ICON[1] * sy), int(l + ICON[2] * sx), int(t + ICON[3] * sy)
 
 
-def feat(img):
-    """A slot's icon (PIL) -> a unit vector: a 20x20 z-scored gray picture plus a coarse color share."""
+INNER = (0.25, 0.22)             # 3.0.6: the part of the icon box matched - the room's picture, not the gold diamond
+
+
+def feat(img, inner=True):
+    """A slot's icon (PIL) -> a unit vector: a 20x20 z-scored gray picture plus a coarse color share.
+    3.0.6 (owner: a Garrison medallion was named as another room): only the middle of the icon is compared - every
+    room medallion has the same gold diamond, which made two of them look 86% alike; the middle alone, 67% at most."""
     from PIL import Image
+    if inner:
+        w, h = img.size
+        img = img.crop((int(w * INNER[0]), int(h * INNER[1]), w - int(w * INNER[0]), h - int(h * INNER[1])))
     a = np.asarray(img.convert("RGB").resize((20, 20), Image.BILINEAR)).astype(np.float32)
     g = a.mean(axis=2)
     gx, gy = np.abs(np.diff(g, axis=1))[:-1, :], np.abs(np.diff(g, axis=0))[:, :-1]
