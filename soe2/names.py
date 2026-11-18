@@ -44,6 +44,8 @@ FEATURES = (
                                 # a one-line card
     "Map profit",               # 2.132.0 what each map earned, from your inventory (Overlay › Helpers)
     "Alerts show",              # 2.131.0 Overlay › Helpers: where and how big the alert card is
+    "Hide all overlay information from screen captures",   # 3.0.6 one switch: Overlay › Options, Helpers, Quick
+                                # settings (was "Hide the overlay from screen captures", the bar only)
     "Data folder",              # 2.131.0 where your settings and lists live (Settings › Advanced)
     "Setup",                    # the first start's questions, one a screen: features, the Overlay, its helpers
                                 # (2.131.0 - UI overhaul: the Feature Picker; Settings › General › Run setup again)
@@ -187,6 +189,7 @@ OLD = {
     "Read key": "Read Key",             # GGG policy: one name for the key the helpers read on (a name: Title Case)
     "Screen key": "Read Key",
     "Look key": "Read Key",             # 3.0.1 (owner: "ctrl + shift + r = Read. R for Read.")
+    "Hide the overlay from screen captures": "Hide all overlay information from screen captures",   # 3.0.6
     "Lucrative Strats": "Quick tips",   # 3.0.6 Farming Strategies: the tab folded into Find
     "Lucrative strats": "Quick tips",
     "Track in Strat Tracker": "Run this strat",

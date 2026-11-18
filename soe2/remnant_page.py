@@ -32,19 +32,45 @@ def capture_affinity(win, hide=True):
         buglog.caught()
 
 
+def capture_hidden():
+    """3.0.6 (owner: "all items should show on screen capture unless the user toggles the settings to hide from
+    screen captures"): Overlay › Options › Hide all overlay information from screen captures - one switch for every
+    window over the game. (A Read Key read always sees through them: screenread.see_through.)"""
+    return bool((SETTINGS.get("tracker") or {}).get("hide_capture", False))
+
+
 def no_capture(win):
-    """Windows 10 2004+: leave this window out of screen captures (WDA_EXCLUDEFROMCAPTURE), so the Auto watcher -
-    and any screenshot - sees the game, not our tags. Only hides it from captures; it changes nothing in the game."""
-    if sys.platform != "win32":
+    """A window over the game follows the one capture switch (3.0.6: it was always left out - a screenshot of an
+    alert card showed nothing)."""
+    capture_affinity(win, capture_hidden())
+
+
+def capture_rule_install(root):
+    """3.0.6: every window over the game - bar, alert cards, Vaal Lens, its marks, tags, the read mark - follows the
+    capture switch from the moment it shows (each Toplevel's <Map>)."""
+    if getattr(root, "_cap_rule", False):
         return
+    root._cap_rule = True
+
+    def mapped(e):
+        w = e.widget
+        try:
+            if isinstance(w, tk.Toplevel) and w.winfo_toplevel() is w:
+                capture_affinity(w, capture_hidden())
+        except Exception:
+            buglog.caught()
+    root.bind_class("Toplevel", "<Map>", mapped, add="+")
+
+
+def capture_rule_all(root):
+    """The switch changed: every open window over the game, now."""
+    def walk(w):
+        for c in w.winfo_children():
+            if isinstance(c, tk.Toplevel):
+                capture_affinity(c, capture_hidden())
+            walk(c)
     try:
-        import ctypes
-        u = ctypes.windll.user32
-        u.GetParent.restype = ctypes.c_void_p
-        u.GetParent.argtypes = [ctypes.c_void_p]
-        h = u.GetParent(win.winfo_id()) or win.winfo_id()
-        u.SetWindowDisplayAffinity.argtypes = [ctypes.c_void_p, ctypes.c_uint]
-        u.SetWindowDisplayAffinity(h, 0x11)
+        walk(root)
     except Exception:
         buglog.caught()
 

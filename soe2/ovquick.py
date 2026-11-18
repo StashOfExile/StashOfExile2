@@ -1,7 +1,7 @@
 """P4 (2.108.0, feedback: "a mini settings page over the game when we right click the cog wheel"): right-click the
 overlay's ⚙ = Quick settings, a small box over the game, above the cog and on the game's monitor. (2.119.0: either
 click - All settings… in it opens the Overlay page (Helpers) in the app.) Style (2.110.0 - the Overlay ON | OFF switch is gone from here), Sound,
-Lock position, Click-through (2.120.1; Hide the overlay from screen captures is in Overlay › Options), Helpers (2.118.0: each helper on / off - the bar has no switches for them any
+Lock position, Click-through, Hide all overlay information from screen captures (3.0.6), Helpers (2.118.0: each helper on / off - the bar has no switches for them any
 more) and On the bar (the tools' menus). Esc, ✕, a click elsewhere or the cog again closes it.
 GGG ToS: a window over the game; nothing is sent to the game."""
 import tkinter as tk
@@ -27,6 +27,7 @@ def quick_groups():
 
 QUICK_HELPERS = tuple(x for _g, items in quick_groups() for x in items)
 QUICK_BAR = (("Notes", "notes"), ("Calc", "calc"), ("Regex", "regex"), ("Rates", "rates"), ("App ▸", "app"))
+HIDECAP = "Hide all overlay information from screen captures"      # (names.py: one name)
 # 2.124.0 (feedback: each toggle should say what it is on hover): the one-line tips (the helpers' come from
 # alerts_page.HELPER_BLURBS - the same line as on Helpers)
 QUICK_TIPS = {"Style": "How the overlay looks over the game",
@@ -37,6 +38,8 @@ QUICK_TIPS = {"Style": "How the overlay looks over the game",
               "Place": "Where the overlay sits: the Bar on the XP bar or at the top, the Panel left or right. Picking "
                        "one puts it there, wherever you dragged it",
               "Click-through": "Clicks go through the overlay to the game",
+              "Hide all overlay information from screen captures": "On: screenshots, recordings and streams show "
+                                                                   "nothing over the game. Off: they show it all",
               "notes": "Notes ▾ on the overlay: your own notes in a window over the game",
               "calc": "Calc ▾ on the overlay: a small calculator over the game",
               "regex": "Regex ▾ on the overlay: your saved stash searches, one click to copy",
@@ -222,6 +225,8 @@ class OverlayQuick:
         # 2.120.1: Lock position and Click-through, as in Options (Hide from captures is in Settings › Advanced)
         self.ovq_lock = row("Lock position", cfg.get("mlocked"), self._ovq_lock)
         self.ovq_ct = row("Click-through", self.click_through_on(), self.ov_click_through_set)
+        # 3.0.6 (owner): the capture switch here too - the same setting as Overlay › Options and Helpers
+        self.ovq_hidecap = row(HIDECAP, self.overlay_hide_capture(), self.ov_hidecap_set)
         self.ovq_chips = {}
         sections = [("HELPERS", None)] + [(g, items) for g, items in quick_groups()] + [("ON THE BAR", QUICK_BAR)]
         for title, items in sections:

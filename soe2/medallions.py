@@ -155,6 +155,14 @@ def slots(head_screen, scale, n=6):
     return out
 
 
+def slot_filled(pic):
+    """A slot's icon crop -> True when a medallion is in it (3.0.6: an empty slot is near black: mean ~6, spread ~4;
+    a filled one 65+ / 44+ on the owner's 3/6, 4/6 and 6/6 panels)."""
+    from PIL import ImageStat
+    st = ImageStat.Stat(pic.convert("L"))
+    return st.mean[0] > 25 or st.stddev[0] > 15
+
+
 def icon_box(slot):
     l, t, r, b = slot
     sx, sy = (r - l) / SLOT[0], (b - t) / SLOT[1]

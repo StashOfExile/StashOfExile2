@@ -582,11 +582,11 @@ class TrackerPage:
              "Your clicks go through the overlay to the game.",
              "Your clicks go through the overlay to the game - its buttons can't be clicked then (the Pause key "
              "still works). Notes and the calculator always take clicks."),
-            ("Hide the overlay from screen captures", self.tk_hidecap,
+            ("Hide all overlay information from screen captures", self.tk_hidecap,
              lambda: self.ov_hidecap_set(bool(self.tk_hidecap.get())),
-             "Screenshots, recordings and streams won't show it.",
-             "Screenshots, recordings and streams won't show the overlay. Off: they show it - except in a temple, "
-             "where it's left out by itself so a Read Key read sees the Temple Console's count under it."),
+             "Screenshots, recordings and streams won't show anything over the game.",
+             "On: screenshots, recordings and streams show none of it - the bar, alert cards, Vaal Lens and its "
+             "marks, tags. Off: they show it all. Your Read Key reads see through it either way."),
             ("Start a session with StashOfExile2", self.tk_auto, self.tracker_options_changed,
              "The Session timer starts by itself when the app starts.")), min_w=380)
         from .style import Tooltip
@@ -636,9 +636,13 @@ class TrackerPage:
             self.overlay_click_through()
         except Exception:
             buglog.caught()
-        v = getattr(self, "tk_hidecap", None)
-        if v is not None and bool(v.get()) != bool(on):
-            v.set(bool(on))
+        for name in ("tk_hidecap", "al_hidecap", "ovq_hidecap"):    # (3.0.6: one switch in Options, Helpers, Quick)
+            v = getattr(self, name, None)
+            try:
+                if v is not None and bool(v.get()) != bool(on):
+                    v.set(bool(on))
+            except tk.TclError:
+                pass
         self.tracker_save()
         self.overlay_click_through()
 

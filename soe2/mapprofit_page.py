@@ -91,6 +91,10 @@ class MapProfitPage:
         from . import topup as TU
         counts, unknown = MP.identify(res.get("cells") or [], TU.learned(), self.mp_refs())
         counts = MP.exchange_only(counts, self.mp_price)
+        # 3.0.6 (owner: "make sure it's excluding the persistent items from top up supplies"): what you keep in your
+        # inventory for Top Up Reminders isn't loot - topping it up from your stash would count as profit
+        keep = {str(i.get("name") or "").lower() for i in TU.cfg().get("items") or []}
+        counts = {k: n for k, n in counts.items() if str(k).lower() not in keep}
         snap = {"t": time.time(), "counts": counts, "unknown": unknown}
         pend = getattr(self, "mp_pending", None)
         if pend is not None:
@@ -280,7 +284,7 @@ class MapProfitPage:
         if e.get("unknown"):
             out.append(f"{e['unknown']} item{'s' if e['unknown'] != 1 else ''} not known - teach with "
                        f"{self.topup_key_text()} or Scan stash")
-        out.append("Currency Exchange items only · Exchange Rates prices · on your PC only")
+        out.append("Currency Exchange items only, not your Top Up supplies · Exchange Rates prices · on your PC only")
         return out
 
     def mp_paint(self):

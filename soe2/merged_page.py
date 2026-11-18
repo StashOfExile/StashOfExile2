@@ -470,28 +470,20 @@ class MergedOverlay:
         return bool(self.tracker_cfg().get("click_through", False))
 
     def overlay_hide_capture(self):
-        """2.85.2 (feedback: "Ritual alerts aren't working, maybe because the overlay is in the position of where the
-        ritual (x/3) counter is"): the bar is left out of screen captures so a read sees the game's counters under it.
-        Its own switch (Overlay › Options); off = screenshots and streams show the bar."""
+        """Overlay › Options › Hide all overlay information from screen captures (3.0.6: one switch for every window
+        over the game; off = screenshots, recordings and streams show it all. A Read Key read sees through the
+        overlay by itself - screenread.see_through - so no area hides it any more)."""
         cfg = self.tracker_cfg()
-        # 2.136.1 (feedback: "see through the overlay and read the crystal count"): in a temple
-        # area with the Temple Helper on, the Temple Console's count under the bar is read.
-        try:
-            if getattr(self, "tm_in_temple", False) and self.temple_on():
-                return True
-        except Exception:
-            buglog.caught()
         if not cfg.get("hidecap_2891"):
-            # 2.89.1 (feedback): off for everyone, once - the Ritual /
-            # Delirium watchers ran all the time for anyone who had them on, so the bar was never in a screenshot.
-            # Turn it on again only if a watcher can't read a counter the bar covers.
-            cfg["hide_capture"], cfg["hidecap_2891"] = False, True
-        # 2.132.0 (feedback: "changed to just say 'Hide the overlay from screen captures'"): on = always left out
+            cfg["hide_capture"], cfg["hidecap_2891"] = False, True      # (2.89.1: off for everyone, once)
         return bool(cfg.get("hide_capture", False))
 
     def overlay_click_through(self):
         """The overlay's bar windows (not Notes or the calculator - you type in those)."""
-        from .remnant_page import capture_affinity
+        from .remnant_page import capture_affinity, capture_rule_all, capture_rule_install
+        capture_rule_install(self.root)
+        if self.overlay_hide_capture() != getattr(self, "_cap_hidden", None):
+            capture_rule_all(self.root)
         on, hide = self.click_through_on(), self.overlay_hide_capture()
         for w in (getattr(self, "mg_win", None), getattr(self, "mg_win2", None), getattr(self, "gb_win", None)):
             if w is None:

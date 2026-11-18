@@ -263,6 +263,14 @@ class AlertsPage:
         snd = ttk.Checkbutton(top, text="Sound", variable=self.al_sound_all, style=CB, command=self.alerts_sound_all)
         snd.pack(side="right")
         Tooltip(snd, "Every helper's alert sound, on or off.")
+        # 3.0.6 (owner: "the toggle should exist near the sound toggle"): the one capture switch, shared
+        from .ovquick import HIDECAP
+        self.al_hidecap = tk.BooleanVar(value=self.overlay_hide_capture())
+        hc = ttk.Checkbutton(top, text=HIDECAP, variable=self.al_hidecap, style=CB,
+                             command=lambda: self.ov_hidecap_set(bool(self.al_hidecap.get())))
+        hc.pack(side="right", padx=(0, 16))
+        Tooltip(hc, "On: screenshots, recordings and streams show nothing over the game. Off: they show it all. "
+                    "Your Read Key reads see through it either way.")
         # 2.131.0: where the alert card shows and how big - one place for every helper's alert
         from . import alertcard as _AC
         acf = _AC.cfg()

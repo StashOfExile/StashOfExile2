@@ -111,6 +111,8 @@ class TemplePage:
         # 2.140.0 Vaal Lens: the board is read while the card shows (GGG policy: each Read Key press).
         # 2.142.0: in the temple too (the console opens there), from one picture of the game; the Medallions panel
         # (V) is read each look while the card shows - its count, and a hovered slot's name with the slot under the mouse
+        if not self.temple_pad_shown() and self.temple_pad_on():
+            self.temple_pad_show()          # 3.0.6 (owner: "turned off after the run"): a press here brings it back
         lens = self.temple_pad_shown()
         lens_any = lens
         gx, gy, gw, gh = g
@@ -384,14 +386,23 @@ class TemplePage:
         gx, gy = g[0], g[1]
         mb = V.side_box(g, V.MEDAL_BOX, right=True)
         pic = full.crop((mb[0] - gx, mb[1] - gy, mb[2] - gx, mb[3] - gy))
-        got = M.parse([(t, (b[0] + mb[0], b[1] + mb[1], b[2] + mb[0], b[3] + mb[1])) for t, b in RM.ocr(pic) if b])
-        if not got["count"] or not got["head"]:
+        lines = [(t, (b[0] + mb[0], b[1] + mb[1], b[2] + mb[0], b[3] + mb[1])) for t, b in RM.ocr(pic) if b]
+        got = M.parse(lines)
+        if not got["head"]:
+            # 3.0.6 (owner's 6/6 panel read "MEDALLIONS (616)"): the title alone is enough - the slots are counted
+            # from the picture, not the number
+            got["head"] = next((b for t, b in lines if "MEDALLIONS" in M.letters(t) and len(M.letters(t)) <= 14),
+                               None)
+        if not got["head"]:
             return {"open": False, "names": got["names"], "room": got["room"]}
-        have, most = got["count"]
         s = V.placing(g)[0]
+        filled = [sl for sl in M.slots(got["head"], s, 6) if M.slot_filled(
+            full.crop(tuple(int(v) - o for v, o in zip(M.icon_box(sl), (gx, gy, gx, gy)))))]
+        have = len(filled)
+        most = got["count"][1] if got["count"] else max(have, (TM.cfg().get("medals") or {}).get("most") or 0, 3)
         icons = M.known_icons(self._temple_medal_file())
         hand, learn, pics, boxes, vecs = [], None, {}, [], []
-        for k, sl in enumerate(M.slots(got["head"], s, have)):
+        for k, sl in enumerate(filled):
             ib = M.icon_box(sl)
             vec = M.feat(full.crop((ib[0] - gx, ib[1] - gy, ib[2] - gx, ib[3] - gy)))
             boxes.append(sl)
