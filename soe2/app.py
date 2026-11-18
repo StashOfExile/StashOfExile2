@@ -2723,9 +2723,10 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
             self.status_until = time.time() + 8
         return False
 
-    def esc_hide_tags(self):
-        """Esc in game: the Expedition and Favours tags go (Esc closes those windows). Hides only - nothing is read."""
-        for name in ("remnant_hide", "favours_hide"):
+    def esc_hide_tags(self, only=None):
+        """Esc in game: the Expedition and Favours tags go (Esc closes those windows); Space: the Expedition ones.
+        Hides only - nothing is read."""
+        for name in only or ("remnant_hide", "favours_hide"):
             try:
                 if name == "remnant_hide" and getattr(self, "rm_win", None) is None:
                     continue
@@ -2744,6 +2745,10 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         if esc and esc > getattr(self, "_esc_seen", 0):       # 3.0.6 (the Expedition helper stayed on screen too
             self._esc_seen = esc                              # long with no way to close it; it hides on Esc):
             self.esc_hide_tags()                              # Esc closes the game's window - its tags go
+        sp = getattr(keys, "space_last", 0) if keys else 0
+        if sp and sp > getattr(self, "_space_seen", 0):       # 3.0.6: Space closes the Expedition tags too (not the
+            self._space_seen = sp                             # Favours ones - Space is often a skill key)
+            self.esc_hide_tags(only=("remnant_hide",))
         dbl = getattr(keys, "esc_double", 0) if keys else 0
         if dbl and dbl > getattr(self, "_esc_double_seen", 0):  # 2.25.0: Esc tapped twice clears every mark
             self._esc_double_seen = dbl

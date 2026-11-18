@@ -154,6 +154,7 @@ class KeyWatch:
         self.esc_since = 0.0        # 2.24.0: when Esc went down (0 = it's up)
         self.esc_last = 0.0         # 2.25.0: the last fresh Esc press, and when two came quickly (a double tap)
         self.esc_double = 0.0
+        self.space_last, self.space_down = 0.0, False   # 3.0.6: the last fresh Space press (Expedition tags go)
         self.ctrl = self.alt = self.shift = False
         self.listener = None        # 2.0: f(vk, ctrl, alt, shift) -> True to swallow the key (Utilities hotkeys)
         self.up_listener = None     # GGG policy (Nov 2026): f(vk) on a key's release - a held key's repeats aren't
@@ -209,6 +210,10 @@ class KeyWatch:
             self.copy_time = time.time()
         if vk == 0x1B:                                   # Esc: never swallowed, only timed
             self.note_esc(down, up)
+        elif vk == 0x20 and down and not self.space_down:  # 3.0.6: Space - never swallowed, only timed (a held key's
+            self.space_last = time.time()                  # repeats aren't new presses)
+        if vk == 0x20:
+            self.space_down = down or (self.space_down and not up)
         if up and self.up_listener:
             try:
                 self.up_listener(vk)

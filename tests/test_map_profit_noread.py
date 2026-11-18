@@ -343,3 +343,28 @@ class EssenceAndTopUp(unittest.TestCase):
             p.root = None
             lows = p.topup_remind(seen_only=True)
         self.assertEqual([lw[0] for lw in lows], ["Orb of Alchemy"])
+
+
+class SpaceHides(unittest.TestCase):
+    def test_space_press_is_timed_once(self):
+        from soe2 import winsys
+        k = winsys.KeyWatch.__new__(winsys.KeyWatch)
+        winsys.KeyWatch.__init__(k)
+        k.feed(0x20, True, False)
+        t = k.space_last
+        self.assertGreater(t, 0)
+        k.feed(0x20, True, False)                       # (held: a repeat)
+        self.assertEqual(k.space_last, t)
+        k.feed(0x20, False, True)
+        self.assertFalse(k.space_down)
+
+    def test_space_hides_expedition_only(self):
+        from soe2.app import App as RealApp
+        hid = []
+
+        class Fake:
+            rm_win, fv_wins = [1], [1]
+            remnant_hide = lambda self: hid.append("rm")
+            favours_hide = lambda self: hid.append("fv")
+        RealApp.esc_hide_tags(Fake(), only=("remnant_hide",))
+        self.assertEqual(hid, ["rm"])
