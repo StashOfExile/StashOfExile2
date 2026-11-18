@@ -236,7 +236,11 @@ class TopUpPage:
         if not (tu or mp) or not key:
             return None
         title = f"Back from {map_name}" if map_name else "Back from your map"
-        return title, f"Open inventory, press {key}"
+        if not mp:
+            return title, f"Open inventory, press {key}"
+        # 3.0.6 (owner: "after each map it should encourage a player to read their inventory and then empty it of
+        # anything except mapping supplies") - then the next map counts from an empty inventory
+        return title, f"Open inventory, press {key}, then stash all but map supplies"
 
     def back_card(self, map_name=""):
         """Back in your hideout or a town after a map (alerts_page.breach_area): the one card. It closes when that

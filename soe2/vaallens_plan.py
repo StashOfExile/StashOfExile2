@@ -72,6 +72,8 @@ def card(name):
     if difflib.get_close_matches(low, PATHS, 1, 0.85) or (low.split() or [""])[0].strip(".,:;'\"|>") in PATHS:
         return ("path", None)                       # (3.0.6: "PATH >" - OCR takes in the card's art: still a path)
     m = difflib.get_close_matches(low, list(FAMILY), 1, 0.85)
+    if not m and len(low.split()) > 1 and len(low.split()[-1]) <= 2:
+        return card(" ".join(low.split()[:-1]))     # (3.0.6: "DEPOT 4" - the card's art read as a short word)
     return ("room", FAMILY[m[0]]) if m else None
 
 
@@ -396,6 +398,10 @@ def card_title(name):
         difflib.get_close_matches(low.replace(" ", ""), [n.lower().replace(" ", "") for n in every], 1, 0.85)
     if m:
         return next(n for n in every if n.lower() == m[0] or n.lower().replace(" ", "") == m[0])
+    if card(low) == ("path", None):
+        return "Path"
+    if len(low.split()) > 1 and len(low.split()[-1]) <= 2 and card(low):
+        return card_title(" ".join(low.split()[:-1]))
     return " ".join(w[:1].upper() + w[1:] for w in low.split()) if low else ""
 
 
@@ -461,9 +467,17 @@ def _loops(b, t):
     return sum(1 for n in near(t) if n in net and b.get(n) not in (None, "?")) >= 2
 
 
-def path_to(b, goal):
+def path_to(b, goal, avoid=()):
     """The free tiles a path needs from your joined tiles to goal (fewest, none beside a reward room, off the
-    Architect's and the key room's landing squares when it can); [] already joined; None no safe way."""
+    `avoid` tiles - the key room's landing spot - when it can); [] already joined; None no safe way."""
+    if avoid:
+        got = path_to(b, goal)
+        r = _path_to(b, goal, set(avoid))
+        return r if r is not None and got is not None and len(r) <= len(got) + 1 else got
+    return _path_to(b, goal, set())
+
+
+def _path_to(b, goal, avoid):
     net = network(b)
     if any(n in net for n in near(goal)):
         return []
@@ -479,7 +493,7 @@ def path_to(b, goal):
                     out.append(k)
                     k = best[k]
                 return out[::-1]
-            if b.get(n) or n in (ATZIRI, ENTRANCE) or touches_reward(b, n):
+            if b.get(n) or n in (ATZIRI, ENTRANCE) or touches_reward(b, n) or n in avoid:
                 continue
             best[n] = c
             q.append(n)
@@ -510,9 +524,30 @@ def landing(b, quad):
     return best[1] if best else None
 
 
-def _room_score(b, t, fam, rest, lane, arch, key_needed):
-    """How good t is for a room of fam (None: not allowed). rest: rooms still to place (their partners count)."""
-    if b.get(t) or t in (ATZIRI, ENTRANCE) or not inside(t) or touches_reward(b, t) or t in lane:
+def edge_blocks(b):
+    """3.0.6 (owner: "If no reward rooms lining the outside edges ... they need the every other placement at the very
+    least to block off atziri key room and architect from spawning near the edges"): every other outer square, on
+    each wall with no reward room on it - where filler rooms go."""
+    walls = {"l": lambda t: t[0] == -4, "r": lambda t: t[0] == 4, "b": lambda t: t[1] == 1, "t": lambda t: t[1] == 9}
+    out = set()
+    for on in walls.values():
+        wall = [(i, j) for i in range(-4, 5) for j in range(1, 10) if on((i, j))]
+        if any(b.get(t) == "Reward" for t in wall):
+            continue
+        out |= {t for t in wall if (t[0] + t[1]) % 2 and t not in LANE}
+    return out
+
+
+def key_spot(b):
+    """Where the key room will land after the Architect (a clean bottom-quadrant tile) and its four sides - kept free."""
+    t = landing(b, "bottom")
+    return {t, *near(t)} if t else set()
+
+
+def _room_score(b, t, fam, rest, lane, arch, key_needed, keep=(), edges=()):
+    """How good t is for a room of fam (None: not allowed). rest: rooms still to place (their partners count).
+    keep: tiles held free for the key room; edges: filler squares on a bare outer wall (edge_blocks)."""
+    if b.get(t) or t in (ATZIRI, ENTRANCE) or not inside(t) or touches_reward(b, t) or t in lane or t in keep:
         return None
     if not any(n in network(b) for n in near(t)):
         return None
@@ -526,6 +561,8 @@ def _room_score(b, t, fam, rest, lane, arch, key_needed):
     nb_[t] = fam                                      # free sides a partner can take later without closing a loop
     room = sum(1 for n in near(t) if _safe(nb_, n, lane) and not _loops(nb_, n))
     score = pals * 12 + friends * 6 + min(room, len(wanted)) * 4
+    if t in edges and not pals and not wanted and VALUE.get(fam, 0) < PAYS:
+        score += 15                                   # (#5 everything else: a filler blocks a bare wall)
     q = quadrant(t)
     score += {"left": 8, None: 0}.get(q, 0)
     if q == "bottom" and key_needed:
@@ -559,7 +596,7 @@ def full_plan(board, cards=(), medals=(), medal_rooms=()):
                    key=lambda f: VALUE.get(f, 0))
 
     def add_path(goal, why):
-        r = path_to(b, goal)
+        r = path_to(b, goal, keep)
         if r is None:
             notes.append(f"No safe path to {why} yet.")
             return False
@@ -578,15 +615,16 @@ def full_plan(board, cards=(), medals=(), medal_rooms=()):
                 return False
         return True
 
-    # 1. the key room and Atziri, before anything else
+    # 3.0.6 (owner, in order): "#1: Atziri Chamber #2: Key Room (if available) #3: Architect #4: chains that give
+    # profits for t3 rooms / upgrade / lock #5: Everything else"
+    key_needed = keyroom is None
+    keep = key_spot(b) if key_needed and not key_card else set()   # (no key room yet: its landing spot stays free)
+    add_path(ATZIRI, "Atziri")
     if keyroom is not None:
         add_path(keyroom, "the key room")
-        add_path(ATZIRI, "Atziri")
-    # 2. the Architect
     if arch is not None:
         add_path(arch, "the Architect")
     # the key room card in hand (after the Architect): a clean spot in the bottom quadrant
-    key_needed = keyroom is None
     if key_card:
         spot = landing(b, "bottom") or next((t for t in (landing(b, q) for q in ("left", "top", "right")) if t), None)
         if spot and any(n in network(b) for n in near(spot)):
@@ -620,8 +658,9 @@ def full_plan(board, cards=(), medals=(), medal_rooms=()):
     for fam in order:
         rest.remove(fam)
         best = None
-        for t in {n for c in network(b) for n in near(c)}:
-            s = _room_score(b, t, fam, rest, lane, arch, key_needed)
+        edges = edge_blocks(b)
+        for t in sorted({n for c in network(b) for n in near(c)}):
+            s = _room_score(b, t, fam, rest, lane, arch, key_needed, keep, edges)
             if s is not None and (best is None or s > best[0]):
                 best = (s, t)
         if best is None:
@@ -652,14 +691,15 @@ def full_plan(board, cards=(), medals=(), medal_rooms=()):
     rooms = {t: v for t, v in taken.items() if v in ROOMS}      # (placed rooms only: a medallion goes on a real one)
 
     def best_room(pref, need_up):
-        cand = [(t, f) for t, f in rooms.items() if f in pref and not (need_up and tier_of(board, t) >= min(3, _tiers(f)))]
+        cand = [(t, f) for t, f in rooms.items() if f in pref and t not in targets and not (need_up and tier_of(board, t) >= min(3, _tiers(f)))]
         cand.sort(key=lambda x: (pref.index(x[1]), -tier_of(board, x[0])))
         return cand[0] if cand else None
 
-    if "Quipolatl's Medallion" in held:
+    for _k in range(held.count("Quipolatl's Medallion")):     # (3.0.6: each upgrade medallion held, its own room)
         up = best_room(UPGRADE_FIRST, True)
-        if up:
-            targets[up[0]] = ("Upgrade", up[1])
+        if not up:
+            break
+        targets[up[0]] = ("Upgrade", up[1])
     if "Juatalotli's Medallion" in held and rooms:
         # (owner: upgrade the Corruption Chamber to tier 3, then lock it - the room that pays, highest tier first)
         lk = max(rooms.items(), key=lambda x: (x[1] in UPGRADE_FIRST, tier_of(board, x[0]),

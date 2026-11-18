@@ -594,6 +594,27 @@ def card_names(lines):
     return out
 
 
+ROW_FIRST, ROW_STEP, ROW_HALF, ROW_TEXT_W = 138, 144, 28, 250   # the card list's rows (1440p, in CARD_BOX)
+
+
+def card_rows_read(img, ocr):
+    """3.0.6 (owner's board: 2 of 6 cards read - the list's gold text on its art reads badly as one picture): the
+    card list read row by row, from the same picture -> [(name, y middle at twice its size)] like card_names."""
+    from . import vaallens_plan as VP
+    s = img.height / (CARD_BOX[3] - CARD_BOX[1])
+    out = []
+    for k in range(8):
+        y = (ROW_FIRST + ROW_STEP * k) * s
+        if y + ROW_HALF * s > img.height:
+            break
+        row = img.crop((0, int(y - ROW_HALF * s), int(ROW_TEXT_W * s), int(y + ROW_HALF * s)))
+        t = " ".join(str(x) for x, _b in ocr(row.resize((row.width * 3, row.height * 3))) or [])
+        t = " ".join(t.split())
+        if VP.card(t):
+            out.append((t, y * 2))
+    return out
+
+
 def card_pick(img, lines, up=1.0):
     """The card list's picture and its OCR lines (read at `up` times its size) -> the picked card's name: the one
     whose diamond glows (gold share well above the others), or the only card. None: not known."""

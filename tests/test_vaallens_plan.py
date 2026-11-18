@@ -28,17 +28,39 @@ class Quadrants(unittest.TestCase):
 
 
 class Priorities(unittest.TestCase):
-    def test_key_room_then_atziri_before_anything(self):
+    def test_atziri_then_key_room_then_architect(self):
+        # 3.0.6 (owner): "#1: Atziri Chamber #2: Key Room (if available) #3: Architect"
         b = board({**BASE, (3, 2): ("key", "Key Room", 1), (2, 7): ("architect", "Architect", 1)})
         r = VP.full_plan(b, ["Thaumaturge's Laboratory"] + ["Path"] * 12)
         whys = [w for _t, f, w in r["plan"] if f == "Path"]
-        self.assertEqual(whys[0], "the key room")
-        first_other = next(i for i, w in enumerate(whys) if w != "the key room")
-        self.assertEqual(whys[first_other], "Atziri", "Atziri joined right after the key room")
-        self.assertLess(max(i for i, (_t, f, w) in enumerate(r["plan"]) if w == "Atziri"),
-                        min(i for i, (_t, f, w) in enumerate(r["plan"]) if w == "the Architect"))
-        self.assertEqual(VP.steps(r["plan"])[0], 1)
-        self.assertGreater(len(set(VP.steps(r["plan"]))), 2, "key room, Atziri, Architect: separate steps")
+        self.assertEqual(whys[0], "Atziri")
+        order = [w for k, w in enumerate(whys) if w not in whys[:k]]
+        self.assertEqual(order, ["Atziri", "the key room", "the Architect"])
+        self.assertGreater(len(set(VP.steps(r["plan"]))), 2, "Atziri, key room, Architect: separate steps")
+
+    def test_atziri_first_even_without_a_key_room(self):
+        # (owner's board: the gold path stopped at row 6 and the plan placed rooms instead of joining Atziri)
+        b = board({**BASE, (-1, 8): ("architect", "Architect", 1)})
+        r = VP.full_plan(b, ["Path", "Bronzeworks", "Depot", "Path", "Guardhouse", "Path"])
+        self.assertEqual(r["plan"][0][2], "Atziri")
+        tiles = [t for t, f, w in r["plan"] if f == "Path"]
+        self.assertTrue(all(t[0] == 0 for t in tiles), "straight up the gold path")
+
+    def test_key_spot_kept_free(self):
+        b = board(dict(BASE))
+        r = VP.full_plan(b, ["Path"] * 10 + ["Bronzeworks", "Depot", "Guardhouse"])
+        keep = VP.key_spot(VP.names(b))
+        self.assertTrue(keep)
+        self.assertFalse({t for t, f, w in r["plan"] if f != "Path"} & keep, "no room on the key room's spot")
+
+    def test_filler_blocks_a_bare_wall(self):
+        self.assertIn((-4, 3), VP.edge_blocks({}))
+        self.assertNotIn((-4, 2), VP.edge_blocks({}), "every other square")
+        self.assertNotIn((-4, 3), VP.edge_blocks({(-4, 8): "Reward"}), "a wall with a reward room is left alone")
+
+    def test_card_with_art_read_as_a_digit(self):
+        self.assertEqual(VP.card("DEPOT 4"), ("room", "Armoury"))
+        self.assertEqual(VP.card("PATH 4"), ("path", None))
 
     def test_architect_before_rooms(self):
         b = board({**BASE, (2, 7): ("architect", "Architect", 1)})

@@ -91,15 +91,16 @@ class BackFromAMap(unittest.TestCase):
 
     def test_owner_words(self):
         title, line = self.app().back_card_text("Sun Temple")       # Round 18: short - the title and one line
-        self.assertEqual(f"{title}: {line}", "Back from Sun Temple: Open inventory, press Ctrl+Shift+R")
-        self.assertNotIn("Stash", line, "the stash tip is on Map Profit's page line, not the card")
+        self.assertEqual(f"{title}: {line}",
+                         "Back from Sun Temple: Open inventory, press Ctrl+Shift+R, then stash all but map supplies")
 
     def test_key_from_the_setting(self):
-        self.assertEqual(self.app(key="F9").back_card_text("X")[1], "Open inventory, press F9")
+        self.assertTrue(self.app(key="F9").back_card_text("X")[1].startswith("Open inventory, press F9,"))
 
     def test_one_helper_on(self):
-        for a in (self.app(mp=False), self.app(tu=False), self.app(counted=False)):
-            self.assertEqual(a.back_card_text("X")[1], "Open inventory, press Ctrl+Shift+R")
+        self.assertEqual(self.app(mp=False).back_card_text("X")[1], "Open inventory, press Ctrl+Shift+R")
+        for a in (self.app(tu=False), self.app(counted=False)):
+            self.assertIn("stash all but map supplies", a.back_card_text("X")[1], "Map Profit on: read, then stash")
 
     def test_no_card(self):
         self.assertIsNone(self.app(tu=False, mp=False).back_card_text("X"))

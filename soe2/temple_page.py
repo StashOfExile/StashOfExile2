@@ -152,6 +152,9 @@ class TemplePage:
                         pic = full.crop((cb[0] - gx, cb[1] - gy, cb[2] - gx, cb[3] - gy))
                         cl = RM.ocr(pic.resize((pic.width * 2, pic.height * 2)))
                         named = V.card_names(cl)
+                        by_row = V.card_rows_read(pic, RM.ocr)
+                        if len(by_row) > len(named):
+                            named = by_row
                         board["cards"] = [n for n, _y in named]
                         board["card_icons"] = V.card_icons(pic, named, 2)
                         # 3.0.6 (owner: "a number on the room card on the left"): each card's spot on screen
