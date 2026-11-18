@@ -56,6 +56,8 @@ def render(game, marks, P, icons=None, chain=None):
     bg = _rgb(P.get("bg") or "#15120f", (21, 18, 15))
 
     def at(t):
+        if isinstance(t[0], str):                       # ("@", x, y): a screen point (3.0.6: a card's step number)
+            return t[1], t[2]
         x, y = V.xy(*t)
         return left + x * s, top + y * s
 
@@ -106,6 +108,10 @@ def render(game, marks, P, icons=None, chain=None):
     badges, wbadges = [], []
     for t, (m, what) in marks.items():
         c = at(t)
+        if m == "lbl":                                  # a card's / medallion's step: the same badge as its tile's
+            x, y = L(c)
+            badges.append((x, y, str(what)))
+            continue
         if m == "x":                                    # touches a reward room: red, dashed edge and a ✕ (not color
             poly = diamond(c, 0.94)                     # alone)
             d.polygon(poly, fill=RED + (46,))
@@ -126,38 +132,34 @@ def render(game, marks, P, icons=None, chain=None):
                 d.line([(x + a_, y + b_), (x - a_, y - b_)], fill=RED + (255,), width=max(4, int(6 * s * k)))
             continue
         step, room = what
-        word = step if m == "do" else None              # 3.0.6: an Upgrade / Lock medallion's room: a word badge
-        if word:
-            step = None
         now = m == "now"
         poly = diamond(c, 0.94)
         d.polygon(poly, fill=accent + (70 if now else 34,))
         d.line(poly + [poly[0]], fill=accent + (255 if now else 200,), width=max(3, int((6 if now else 3) * s * k)),
                joint="curve")
         x, y = L(c)
-        pic = icons.get(room) if room != "path" else None
-        if pic is not None and pic is not False:
-            try:
-                ic = pic.convert("RGBA").resize((side, side), Image.LANCZOS)
-                img.alpha_composite(ic, (int(x - side / 2), int(y - side / 2)))
-            except Exception:
-                buglog.caught()
-                pic = None
-        if pic is None and room not in ("path", None):     # (no picture yet: its name, made to fit the tile)
-            label, room_w = str(room), hw * 1.5 * k
-            words = label.split()
-            lines = [label] if len(words) < 2 else [" ".join(words[:len(words) // 2]),
-                                                    " ".join(words[len(words) // 2:])]
-            px = max(10, int(18 * s * k))
-            f = _font(px)
-            while px > 8 * k and max(d.textlength(ln, font=f) for ln in lines) > room_w:
-                px -= 2
-                f = _font(px)
-            d.multiline_text((x, y), "\n".join(lines), fill=accent + (255,), font=f, anchor="mm", align="center")
-        if step:
-            badges.append((x, y - hh * k * 0.94, str(step)))
-        if word:
-            wbadges.append((x, y + hh * k * 0.62, word))
+        # 3.0.6 (owner: "the icons it drew are all fucky ... remove the icons and overlay a number"): no room
+        # pictures - the step's number in the middle, the same number as on its card / medallion
+        if m == "do":                                   # an Upgrade / Lock medallion's room: an arrow / a padlock
+            u = hh * k * 0.42
+            if step == "Upgrade":
+                d.polygon([(x, y - u), (x + u * 0.8, y), (x + u * 0.32, y), (x + u * 0.32, y + u),
+                           (x - u * 0.32, y + u), (x - u * 0.32, y), (x - u * 0.8, y)], fill=accent + (255,),
+                          outline=bg + (255,))
+            else:
+                bw, bh = u * 0.85, u * 0.7
+                d.arc((x - bw * 0.62, y - u * 1.05, x + bw * 0.62, y + u * 0.25), 180, 360, fill=accent + (255,),
+                      width=max(3, int(u * 0.22)))
+                d.line([(x - bw * 0.62 + u * 0.11, y - u * 0.4), (x - bw * 0.62 + u * 0.11, y - u * 0.05)],
+                       fill=accent + (255,), width=max(3, int(u * 0.22)))
+                d.line([(x + bw * 0.62 - u * 0.11, y - u * 0.4), (x + bw * 0.62 - u * 0.11, y - u * 0.05)],
+                       fill=accent + (255,), width=max(3, int(u * 0.22)))
+                d.rounded_rectangle((x - bw, y - u * 0.1, x + bw, y - u * 0.1 + bh * 1.4), radius=max(2, int(u * 0.15)),
+                                    fill=accent + (255,))
+                d.ellipse((x - u * 0.12, y + u * 0.35, x + u * 0.12, y + u * 0.59), fill=bg + (255,))
+            wbadges.append((x, y + hh * k * 0.66, step))
+        elif step:
+            badges.append((x, y, str(step)))
 
     # step numbers last, on top: a dark disc with a soft shadow and the accent ring
     if badges:

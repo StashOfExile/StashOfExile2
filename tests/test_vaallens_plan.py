@@ -146,3 +146,39 @@ class Draw(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Numbers(unittest.TestCase):
+    """3.0.6 (owner): a number on each card / medallion and the same number on its tile; medallion slots read where
+    the game puts them (right column first)."""
+
+    def test_card_title_snaps_ocr(self):
+        self.assertEqual(VP.card_title("Wor Kshop"), "Workshop")
+        self.assertEqual(VP.card_title("SEALED VAULT"), "Sealed Vault")
+
+    def test_medallion_slots_right_column_first(self):
+        from soe2 import medallions as M
+        head = (2336, 609, 2557, 663)                    # owner's 4/6 panel at 2560x1440
+        got = M.slots(head, 1.0, 4)
+        self.assertEqual([b[:2] for b in got], [(2273, 680), (2417, 680), (2417, 824), (2417, 968)])
+        self.assertEqual(len(M.slots(head, 1.0, 6)), 6)
+
+    def test_labels_match_steps(self):
+        from soe2 import temple_page as TP
+        f = TP.TemplePage()
+        f.tm_medal_boxes = [("Uromoti's Medallion: Smithy", (2417, 680, 2537, 805))]
+        b = {"card_rows": [("Path", (504, 338)), ("Workshop", (504, 627)), ("Path", (504, 770))]}
+        plan = [((0, 4), "Path", "the key room"), ((0, 5), "Path", "the key room"), ((-1, 3), "Smithy", "x"),
+                ((-2, 3), "Golem Works", "beside Smithy")]
+        lab = f._temple_step_labels(b, plan)
+        self.assertEqual(lab[("@", 504, 338)], ("lbl", 1))
+        self.assertEqual(lab[("@", 504, 770)], ("lbl", 1), "a 2-tile path: both path cards are step 1")
+        self.assertEqual(lab[("@", 2431, 694)], ("lbl", 2), "the Smithy medallion")
+        self.assertEqual(lab[("@", 504, 627)], ("lbl", 3), "the Workshop card")
+
+    def test_no_room_pictures_on_tiles(self):
+        from soe2 import vaallens_draw as VD
+        marks = {(-1, 4): ("p", (2, "Thaumaturge")), ("@", 504, 338): ("lbl", 1),
+                 (-2, 3): ("do", ("Lock", "Corruption Chamber"))}
+        img, _xy = VD.render((0, 0, 2560, 1440), marks, {"head": "#f0a04a"}, {"Thaumaturge": None}, None)
+        self.assertIsNotNone(img)

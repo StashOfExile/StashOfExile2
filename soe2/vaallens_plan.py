@@ -383,12 +383,17 @@ def hand_plan(board, fams):
 
 
 def card_title(name):
-    """An OCR'd card name ("THAUMATURGE'S LABORATORY") -> as the game prints it ("Thaumaturge's Laboratory")."""
+    """An OCR'd card name ("THAUMATURGE'S LABORATORY") -> as the game prints it ("Thaumaturge's Laboratory").
+    3.0.6 (owner's card said "Wor Kshop"): a near miss is snapped to the printed name too."""
     low = " ".join(str(name or "").lower().replace("’", "'").split())
-    for fam, names_ in ROOMS.items():
-        for n in names_:
-            if n.lower() == low:
-                return n
+    every = [n for names_ in ROOMS.values() for n in names_]
+    for n in every:
+        if n.lower() == low:
+            return n
+    m = difflib.get_close_matches(low, [n.lower() for n in every], 1, 0.8) or \
+        difflib.get_close_matches(low.replace(" ", ""), [n.lower().replace(" ", "") for n in every], 1, 0.85)
+    if m:
+        return next(n for n in every if n.lower() == m[0] or n.lower().replace(" ", "") == m[0])
     return " ".join(w[:1].upper() + w[1:] for w in low.split()) if low else ""
 
 
@@ -604,7 +609,7 @@ def full_plan(board, cards=(), medals=(), medal_rooms=()):
         notes.append("Keep the bottom quadrant clear: the key room needs a free spot there.")
     # medallions: where the upgrade and the lock go; a reroll when nothing in hand pays
     held = [M.base(m)[0] for m in medals or () if m]
-    rooms = {t: v for t, v in b.items() if v in ROOMS}
+    rooms = {t: v for t, v in taken.items() if v in ROOMS}      # (placed rooms only: a medallion goes on a real one)
 
     def best_room(pref, need_up):
         cand = [(t, f) for t, f in rooms.items() if f in pref and not (need_up and tier_of(board, t) >= min(3, _tiers(f)))]

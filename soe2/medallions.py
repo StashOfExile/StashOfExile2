@@ -132,20 +132,25 @@ def advice(new, hand, have, most, room=None, crystals_most=None):
 
 # ---------------------------------------------------------------- the panel (V): where the slots are
 # measured on a 2560x1440 game: the "Medallions (6/6)" title's right end, then 2 columns x 3 rows of 120x125 slots
-HEAD_TO_SLOT = (-232, 38)        # the first slot's top-left from the title's (right, middle)
 SLOT = (120, 125)
 STEP = (144, 144)
 ICON = (32, 22, 88, 82)          # the picture inside the slot's gold diamond (frame and pedestal left out)
 
 
+HEAD_LEFT_TO_COLS = (-63, 81)    # 3.0.6 (owner's 4/6, 5/6, 6/6 panels at 2560x1440): each column's left from the
+HEAD_MID_TO_ROW = 44             # title text's LEFT edge (its right edge moves: OCR may take the > arrow in), and the
+#                                  first row's top from the title's middle
+
+
 def slots(head_screen, scale, n=6):
-    """The title's box on screen (l, t, r, b) and the game's scale (height / 1440) -> n slot boxes on screen."""
-    r, mid = head_screen[2], (head_screen[1] + head_screen[3]) / 2
-    x0, y0 = r + HEAD_TO_SLOT[0] * scale, mid + HEAD_TO_SLOT[1] * scale
+    """The title's box on screen (l, t, r, b) and the game's scale (height / 1440) -> the n filled slots' boxes.
+    3.0.6: the game fills the right column top to bottom first, then the left one (4/6: right 1-3 + left 1)."""
+    l, mid = head_screen[0], (head_screen[1] + head_screen[3]) / 2
+    y0 = mid + HEAD_MID_TO_ROW * scale
+    cells = [(1, 0), (1, 1), (1, 2), (0, 0), (0, 1), (0, 2)]
     out = []
-    for k in range(n):
-        c, row = k % 2, k // 2
-        x, y = x0 + c * STEP[0] * scale, y0 + row * STEP[1] * scale
+    for c, row in sorted(cells[:n], key=lambda cr: (cr[1], cr[0])):        # (read in rows, left to right)
+        x, y = l + HEAD_LEFT_TO_COLS[c] * scale, y0 + row * STEP[1] * scale
         out.append((int(x), int(y), int(x + SLOT[0] * scale), int(y + SLOT[1] * scale)))
     return out
 

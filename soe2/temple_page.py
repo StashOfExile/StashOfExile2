@@ -152,6 +152,12 @@ class TemplePage:
                         named = V.card_names(cl)
                         board["cards"] = [n for n, _y in named]
                         board["card_icons"] = V.card_icons(pic, named, 2)
+                        # 3.0.6 (owner: "a number on the room card on the left"): each card's spot on screen
+                        sc = pic.height / (V.CARD_BOX[3] - V.CARD_BOX[1])
+                        board["card_rows"] = [(n, (cb[0] + (V.DIAMOND_X[1] + 24) * sc, cb[1] + y / 2))
+                                              for n, y in named]
+                        if medal and medal.get("open"):
+                            self._temple_medal_cards(medal, pic, named, sc)
                         if board.get("lit"):
                             board["card"] = V.card_pick(pic, cl, 2)
                 except Exception:
@@ -221,6 +227,9 @@ class TemplePage:
         """2.142.2 (feedback: the marks and the card should show in screen shares - so the screen reader sees them
         too): the tiles under our own marks and card right now; their last read is kept."""
         from . import vaallens as V
+        import sys
+        if sys.platform == "win32":                     # 3.0.6: the press's picture sees through our windows
+            return set()                                # (screenread.see_through) - nothing is covered
         out = set()
         mk = getattr(self, "tm_marks_win", None)
         if mk is not None and mk.shown():
@@ -317,6 +326,8 @@ class TemplePage:
         for t, (word, fam) in (self.tm_targets if seen else {}).items():
             if t not in marks or marks[t][0] == "p":
                 marks[t] = ("do", (word, fam))           # (an upgrade / lock medallion: which room it goes on)
+        if seen and plan:
+            marks.update(self._temple_step_labels(board, plan))
         self.tm_marks = marks
         self.tm_pick = (board or {}).get("card") if marks and board.get("lit") else None
         mk = getattr(self, "tm_marks_win", None)
@@ -334,6 +345,30 @@ class TemplePage:
                 mk.hide()
         except Exception:
             buglog.caught()
+
+    def _temple_step_labels(self, board, plan):
+        """3.0.6 (owner: "a number on the room card on the left, and then number the square ... factor for my
+        medallions also"): each step's number beside the card (or the medallion) that does it -> {("@", x, y):
+        ("lbl", step)} at screen points. A path step takes one path card per tile."""
+        from . import medallions as M, vaallens_plan as VP
+        rows = [(VP.card(n), xy) for n, xy in (board or {}).get("card_rows") or []]
+        slots = [(M.base(h)[1] if h else None, box) for h, box in getattr(self, "tm_medal_boxes", None) or []]
+        used, out = set(), {}
+        for step, (_t, fam, _w) in zip(VP.steps(plan), plan):
+            want = ("path", None) if fam == "Path" else ("key", None) if fam == "Key Room" else ("room", fam)
+            k = next((i for i, (w, _xy) in enumerate(rows) if w == want and ("c", i) not in used), None)
+            if k is not None:
+                used.add(("c", k))
+                x, y = rows[k][1]
+                out[("@", int(x), int(y))] = ("lbl", step)
+                continue
+            if want[0] == "room":
+                k = next((i for i, (room, _b) in enumerate(slots) if room == fam and ("m", i) not in used), None)
+                if k is not None:
+                    used.add(("m", k))
+                    b = slots[k][1]
+                    out[("@", int(b[0] + 14), int(b[1] + 14))] = ("lbl", step)
+        return out
 
     def _temple_plan_steady(self, plan, board):
         """3.0.6 audit: each press's plan shows at once (it waited for two reads in a row to agree - from the timed
@@ -354,10 +389,12 @@ class TemplePage:
         have, most = got["count"]
         s = V.placing(g)[0]
         icons = M.known_icons(self._temple_medal_file())
-        hand, learn, pics = [], None, {}
+        hand, learn, pics, boxes, vecs = [], None, {}, [], []
         for k, sl in enumerate(M.slots(got["head"], s, have)):
             ib = M.icon_box(sl)
             vec = M.feat(full.crop((ib[0] - gx, ib[1] - gy, ib[2] - gx, ib[3] - gy)))
+            boxes.append(sl)
+            vecs.append(vec)
             who = M.identify(vec, icons)
             if who is None:                                 # 2.142.1: a room medallion shows its room's icon
                 room = M.room_from_icon(full, sl, origin=(gx, gy))
@@ -370,7 +407,27 @@ class TemplePage:
                 if n == "Uromoti's Medallion" and got["room"]:     # (its picture is its room's: kept by room)
                     n = f"{n}: {got['room']}"
                 learn = (n, vec, k)
-        return {"open": True, "count": (have, most), "hand": hand, "learn": learn, "room": got["room"], "icons": pics}
+        return {"open": True, "count": (have, most), "hand": hand, "learn": learn, "room": got["room"], "icons": pics,
+                "boxes": boxes, "vecs": vecs}
+
+    def _temple_medal_cards(self, medal, pic, named, sc):
+        """(the background thread) A room medallion not known by its room's board picture: its picture against the
+        room cards in the list (3.0.6, owner's 4/6 panel: a Sealed Vault medallion matched its card at 0.86)."""
+        from . import medallions as M, vaallens as V, vaallens_plan as VP
+        cx, r = (V.DIAMOND_X[0] + V.DIAMOND_X[1]) / 2 * sc, 32 * sc
+        feats = []
+        for n, y in named:
+            what = VP.card(n)
+            if what and what[0] == "room":
+                y1 = y / 2
+                feats.append((what[1], M.feat(pic.crop((int(cx - r), int(y1 - r), int(cx + r), int(y1 + r))))))
+        for k, (who, vec) in enumerate(zip(medal["hand"], medal.get("vecs") or [])):
+            if who is not None or not feats:
+                continue
+            sims = sorted(((float(vec @ f), fam) for fam, f in feats), reverse=True)
+            others = [x for x in sims if x[1] != sims[0][1]]
+            if sims[0][0] >= 0.8 and (not others or sims[0][0] - others[0][0] >= 0.07):
+                medal["hand"][k] = f"Uromoti's Medallion: {sims[0][1]}"
 
     def _temple_medal_file(self):
         from .config import P as data_file
@@ -398,6 +455,7 @@ class TemplePage:
             icons.update(medal["icons"])
             self.tm_icons = icons
         have, most = medal["count"]
+        self.tm_medal_boxes = list(zip(hand, medal.get("boxes") or []))     # 3.0.6: where each slot is (its step)
         new = {"have": have, "most": most, "hand": hand}
         if new != c.get("medals"):
             c["medals"] = new
