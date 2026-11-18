@@ -75,6 +75,7 @@ class TemplePage:
         """What the last read saw of the Console: forgotten (a new area) - the marks go until the next press."""
         self.tm_board, self.tm_plan, self.tm_marks, self.tm_pick = None, [], {}, None
         self._tm_hist, self._tm_plan_shown, self._tm_plan_next = {}, None, None
+        self._tm_prev = None                                # (a new run: a new plan)
         mk = getattr(self, "tm_marks_win", None)
         if mk is not None:
             try:
@@ -152,10 +153,14 @@ class TemplePage:
                         pic = full.crop((cb[0] - gx, cb[1] - gy, cb[2] - gx, cb[3] - gy))
                         cl = RM.ocr(pic.resize((pic.width * 2, pic.height * 2)))
                         named = V.card_names(cl)
-                        by_row = V.card_rows_read(pic, RM.ocr)
+                        by_row = V.card_rows_read(pic, RM.ocr, cl)
                         if len(by_row) > len(named):
                             named = by_row
                         board["cards"] = [n for n, _y in named]
+                        # 3.0.6 (owner: inside the temple, V opens the console only to look - no Room Cards list):
+                        # with no list there's nothing to place, so no plan (the Architect's reward rooms bring it)
+                        board["placing"] = bool(named) or any(
+                            "room cards" in " ".join(str(t).lower().split()) for t, _b in cl or [])
                         board["card_icons"] = V.card_icons(pic, named, 2)
                         # 3.0.6 (owner: "a number on the room card on the left"): each card's spot on screen
                         sc = pic.height / (V.CARD_BOX[3] - V.CARD_BOX[1])
@@ -311,14 +316,23 @@ class TemplePage:
         marks = {}
         board = board if board is not None else getattr(self, "tm_board", None)
         seen = bool(board and V.seen(board) and self.temple_pad_shown())
+        if seen and board.get("placing") is False:
+            seen = False                                # (looking only: medallions are still read, no plan)
         # 3.0.6 (owner, TEMPLE_RULES.md): the full plan - key room and Atziri, the Architect, then every room in hand
         # by quadrant; and where the upgrade and the lock medallions go
         if seen:
             from . import medallions as M
             have, _most, medals = self.temple_medal_hand()
             medals = medals[:have or 0]
-            full = VP.full_plan(board, board.get("cards") or [], medals,
-                                [M.base(h)[1] for h in medals if h and M.base(h)[1]])
+            rooms_ = [M.base(h)[1] for h in medals if h and M.base(h)[1]]
+            from collections import Counter
+            hand = Counter([VP.card(n) for n in board.get("cards") or [] if VP.card(n)] + [("med", f) for f in rooms_])
+            prev = getattr(self, "_tm_prev", None)
+            # 3.0.6 (owner: "too many changed decisions happening per each card I place"): while the hand only gets
+            # smaller (cards placed), the last plan's steps stay; new cards are planned after them
+            keep = prev[0] if prev and not (hand - prev[1]) else ()
+            full = VP.full_plan(board, board.get("cards") or [], medals, rooms_, prev=keep)
+            self._tm_prev = (full["plan"], hand)
         else:
             full = {"plan": [], "targets": {}, "notes": []}
         plan = self._temple_plan_steady(full["plan"], board)
@@ -716,7 +730,10 @@ class TemplePage:
                      fg=P["muted"], font=f10, anchor="w", wraplength=wrap, justify="left").pack(fill="x")
             return
         plan = self.temple_plan_lines()
-        if not plan:
+        if not plan and (self.tm_board or {}).get("placing") is False:
+            tk.Label(box, text="No Room Cards open: nothing to place. Your medallions are below.", bg=P["bg"],
+                     fg=P["muted"], font=f10, anchor="w", wraplength=wrap, justify="left").pack(fill="x")
+        elif not plan:
             tk.Label(box, text="Nothing to plan with these cards.", bg=P["bg"], fg=P["muted"], font=f10,
                      anchor="w").pack(fill="x")
         tk.Label(box, text=self.temple_medal_line(), bg=P["bg"], fg=P["muted"], font=f10, anchor="w",

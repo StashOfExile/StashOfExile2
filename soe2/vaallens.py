@@ -595,23 +595,74 @@ def card_names(lines):
 
 
 ROW_FIRST, ROW_STEP, ROW_HALF, ROW_TEXT_W = 138, 144, 28, 250   # the card list's rows (1440p, in CARD_BOX)
+TITLE_TO_ROW = 101                       # the "ROOM CARDS" title's middle -> the first row's middle (the list moves)
+PATH_FLAT = 34                           # a diamond this flat (gray spread) holds a path's lines, not a room icon
+CARD_PICS = {}                           # {card name: its diamond's picture} seen this session (in memory only)
 
 
-def card_rows_read(img, ocr):
-    """3.0.6 (owner's board: 2 of 6 cards read - the list's gold text on its art reads badly as one picture): the
-    card list read row by row, from the same picture -> [(name, y middle at twice its size)] like card_names."""
+def _gold_text(row):
+    """A card row -> its gold name alone, black on white: the game's white Life/Mana numbers can sit on it."""
+    a = np.asarray(row.convert("RGB")).astype(np.int32)
+    gold = (a[..., 0] - a[..., 2] > 45) & (a[..., 0] > 110)
+    return Image.fromarray(np.where(gold, 0, 255).astype("uint8"))
+
+
+def _diamond(img, y, s):
+    """The card's diamond picture at row middle y (gray, 24x24), and whether a card is there (its gold frame)."""
+    cx = (DIAMOND_X[0] + DIAMOND_X[1]) / 2 * s
+    r = 50 * s
+    pic = img.crop((int(cx - r), int(y - r), int(cx + r), int(y + r))).convert("RGB")
+    a = np.asarray(pic).astype(np.int32)
+    framed = float(((a[..., 0] - a[..., 2] > 45) & (a[..., 0] > 110)).mean()) > 0.04
+    inner = pic.crop((int(r * 0.55), int(r * 0.55), int(r * 1.45), int(r * 1.45))).convert("L")
+    flat = float(np.asarray(inner).astype(np.float32).std())  # (a path's art is flat lines; a room's icon isn't)
+    return np.asarray(inner.resize((24, 24))).astype(np.float32), framed, flat
+
+
+def _alike(a, b):
+    a, b = a - a.mean(), b - b.mean()
+    d = float(np.sqrt((a * a).sum() * (b * b).sum()))
+    return float((a * b).sum()) / d if d else 0.0
+
+
+def card_rows_read(img, ocr, lines=None):
+    """3.0.6 (owner's board: 2 of 6 cards read; then the list moved down and none lined up): the card list read row
+    by row from the same picture -> [(name, y middle at twice its size)] like card_names.
+    - Rows are found from the "ROOM CARDS" title (lines: the list's OCR at twice its size), else fixed.
+    - Each row's gold name is read alone (the game's white Life/Ward numbers can cover the bottom card).
+    - Owner: "a fallback ... to try and identify it by its icon": a row with a card but no name read is matched to
+      the diamond pictures of the cards read this session; still unknown, it's left out."""
     from . import vaallens_plan as VP
     s = img.height / (CARD_BOX[3] - CARD_BOX[1])
-    out = []
+    first = ROW_FIRST * s
+    for t, bx in lines or []:
+        if bx and "room cards" in " ".join(str(t).lower().split()):
+            first = (bx[1] + bx[3]) / 4 + TITLE_TO_ROW * s
+            break
+    out, unread = [], []
     for k in range(8):
-        y = (ROW_FIRST + ROW_STEP * k) * s
+        y = first + ROW_STEP * s * k
         if y + ROW_HALF * s > img.height:
             break
         row = img.crop((0, int(y - ROW_HALF * s), int(ROW_TEXT_W * s), int(y + ROW_HALF * s)))
-        t = " ".join(str(x) for x, _b in ocr(row.resize((row.width * 3, row.height * 3))) or [])
-        t = " ".join(t.split())
+        pic, framed, flat = _diamond(img, y, s)
+        t = ""
+        for look in (_gold_text(row), row):
+            t = " ".join(" ".join(str(x) for x, _b in ocr(look.resize((look.width * 3, look.height * 3))) or []).split())
+            if VP.card(t):
+                break
         if VP.card(t):
             out.append((t, y * 2))
+            CARD_PICS[VP.card_title(t)] = pic
+        elif framed:
+            unread.append((pic, y, flat))
+    for pic, y, flat in unread:
+        best = max(((_alike(pic, p), n) for n, p in CARD_PICS.items()), default=(0, None))
+        if best[1] and best[0] >= 0.8:
+            out.append((best[1], y * 2))
+        elif flat < PATH_FLAT:                  # (no room icon in it: a path card - their art has 4 shapes)
+            out.append(("Path", y * 2))
+    out.sort(key=lambda r: r[1])
     return out
 
 

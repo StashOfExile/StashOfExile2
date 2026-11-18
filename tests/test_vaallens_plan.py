@@ -244,3 +244,56 @@ class KeepForNextRun(unittest.TestCase):
         r = VP.full_plan(b, [], [], ["Commander"])
         t = next(t for t, f, _w in r["plan"] if f == "Commander")
         self.assertIn((-1, 2), VP.near(t))
+
+
+class OwnersBoard(unittest.TestCase):
+    """3.0.6, the owner's board (2026-11-18): the gold path to row 6, the Architect at (-1, 8), a Garrison chain on
+    the right, three Smithies round a Golem Works on the left."""
+    def b(self):
+        cells = {(0, j): ("path", None, 1) for j in range(1, 7)}
+        cells.update({(-1, 8): ("architect", "Architect", 1), (1, 6): ("room", "Commander", 1),
+                      (1, 7): ("room", "Garrison", 2), (1, 8): ("room", "Commander", 1),
+                      (-2, 5): ("room", "Smithy", 3), (-1, 4): ("room", "Smithy", 2), (-2, 4): ("room", "Golem Works", 1),
+                      (1, 5): ("room", "Alchemy Lab", 1), (-4, 3): ("reward", "Reward", 1), (4, 5): ("reward", "Reward", 1),
+                      (-3, 9): ("reward", "Reward", 1), (2, 9): ("reward", "Reward", 1)})
+        return board(cells)
+
+    def test_rooms_that_gain_join_atziri(self):
+        r = VP.full_plan(self.b(), ["Path", "Bronzeworks", "Depot", "Path", "Guardhouse", "Path"])
+        atz = [(t, f) for t, f, w in r["plan"] if w.endswith("Atziri")]
+        self.assertEqual(atz[0][0][0], 0, "up the gold path")
+        self.assertIn("Garrison", [f for _t, f in atz], "the Guardhouse joins Atziri beside the Commander")
+
+    def test_both_upgrades_go_to_tier_2_first(self):
+        meds = ["Quipolatl's Medallion", "Quipolatl's Medallion", "Juatalotli's Medallion"]
+        r = VP.full_plan(self.b(), ["Path"] * 3, meds)
+        ups = {t for t, (w, _f) in r["targets"].items() if w == "Upgrade"}
+        self.assertIn((-1, 4), ups, "the tier-2 Smithy beside the Golem Works")
+        self.assertEqual(len(ups), 2)
+
+    def test_no_loop_into_the_gold_path(self):
+        r = VP.full_plan(self.b(), ["Path"] * 3, ["Uromoti's Medallion: Golem Works"], ["Golem Works"])
+        self.assertNotIn((-1, 5), [t for t, f, w in r["plan"]], "it would loop the Smithies back into the road")
+
+    def test_plan_kept_as_cards_are_placed(self):
+        b = self.b()
+        cards = ["Path", "Bronzeworks", "Depot", "Path", "Guardhouse", "Path"]
+        first = VP.full_plan(b, cards)["plan"]
+        t, f, _w = first[0]
+        b[t] = {"kind": "room" if f != "Path" else "path", "name": f, "tier": 1}
+        left = list(cards)
+        left.remove({"Garrison": "Guardhouse", "Armoury": "Depot", "Smithy": "Bronzeworks"}.get(f, "Path"))
+        again = VP.full_plan(b, left, prev=first)["plan"]
+        self.assertEqual(again, first[1:], "the rest of the plan stays as it was")
+
+
+class CardRows(unittest.TestCase):
+    def test_gold_text_drops_white_numbers(self):
+        from PIL import Image
+        from soe2 import vaallens as V
+        im = Image.new("RGB", (40, 10), (20, 20, 20))
+        im.paste((200, 165, 100), (0, 0, 10, 10))        # gold letters
+        im.paste((240, 240, 240), (20, 0, 30, 10))       # the game's white Life numbers
+        g = V._gold_text(im)
+        self.assertEqual(g.getpixel((5, 5)), 0)
+        self.assertEqual(g.getpixel((25, 5)), 255)

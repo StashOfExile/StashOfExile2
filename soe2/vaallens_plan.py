@@ -573,13 +573,21 @@ def _room_score(b, t, fam, rest, lane, arch, key_needed, keep=(), edges=()):
         score -= 40                                   # his one free square on each side
     if _loops(b, t):
         score -= 10 if pals or friends else 30          # (owner: a loop is worth it for a second tier-3 Smithy)
+        if any(n in LANE and b.get(n) == "Path" for n in near(t)):
+            score -= 40                                 # (owner: not "back into the main road down the middle")
     return score - abs(t[0]) * 0.1
 
 
-def full_plan(board, cards=(), medals=(), medal_rooms=()):
+def gain(b, t, fam):
+    """How many of t's neighbors raise a room of fam there, or are raised by it (TOUCH, both ways)."""
+    return sum(1 for n in near(t) if b.get(n) in ROOMS and (b[n] in TOUCH.get(fam, ()) or fam in TOUCH.get(b[n], ())))
+
+
+def full_plan(board, cards=(), medals=(), medal_rooms=(), prev=()):
     """board: a read board; cards: the room card names in the list; medals: medallion names held (None = not known);
-    medal_rooms: room families the medallions add. -> {"plan": [(tile, family, why)] in order, "targets":
-    {tile: ("Upgrade" | "Lock", family)}, "notes": [str]}."""
+    medal_rooms: room families the medallions add; prev: the last plan's steps for this board (kept while they still
+    fit - owner: "too many changed decisions ... per each card I place"). -> {"plan": [(tile, family, why)] in order,
+    "targets": {tile: ("Upgrade" | "Lock", family)}, "notes": [str]}."""
     from . import medallions as M
     taken = names(board)
     b = dict(taken)
@@ -595,18 +603,49 @@ def full_plan(board, cards=(), medals=(), medal_rooms=()):
     spare = sorted([h[1] for h in hand if h and h[0] == "room"] + [f for f in medal_rooms if f],
                    key=lambda f: VALUE.get(f, 0))
 
+    room_cards = [h[1] for h in hand if h and h[0] == "room"]
+
+    def joiner(t):
+        """3.0.6 (owner's board: Atziri joined with a Guardhouse and a Depot on the gold path - each raised a
+        neighbor's tier): a room card that gains a tier there joins it instead of a path card. The worth-most rooms
+        only for two gains."""
+        best = None
+        for fam in set(room_cards):
+            g = gain(b, t, fam)
+            if fam in KEEP_ALONE and "Garrison" not in [b.get(n) for n in near(t)]:
+                continue
+            if g < (2 if VALUE.get(fam, 0) >= PAYS else 1) or (fam == "Generator" and not any(
+                    b.get(n) in ("Path", "Entrance") for n in near(t))):
+                continue
+            score = g * 10 - VALUE.get(fam, 0)
+            if best is None or score > best[0]:
+                best = (score, fam)
+        return best[1] if best else None
+
+    def use_room(fam):
+        room_cards.remove(fam)
+        if fam in spare:
+            spare.remove(fam)
+
     def add_path(goal, why):
         r = path_to(b, goal, keep)
         if r is None:
             notes.append(f"No safe path to {why} yet.")
             return False
         for t in r:
-            if paths_left[0] > 0:
+            j = joiner(t) if not touches_reward(b, t) else None
+            if j:
+                use_room(j)
+                b[t] = j
+                plan.append((t, j, f"joins {why}"))
+            elif paths_left[0] > 0:
                 paths_left[0] -= 1
                 b[t] = "Path"
                 plan.append((t, "Path", why))
             elif spare and VALUE.get(spare[0], 0) < PAYS and not touches_reward(b, t) and t not in LANE:
                 fam = spare.pop(0)
+                if fam in room_cards:
+                    room_cards.remove(fam)
                 b[t] = fam
                 plan.append((t, fam, f"joins {why}"))
             else:
@@ -619,6 +658,19 @@ def full_plan(board, cards=(), medals=(), medal_rooms=()):
     # profits for t3 rooms / upgrade / lock #5: Everything else"
     key_needed = keyroom is None
     keep = key_spot(b) if key_needed and not key_card else set()   # (no key room yet: its landing spot stays free)
+    for t, fam, why in prev or ():                     # (the last plan, step by step, while it still fits)
+        if b.get(t) or not any(n in network(b) for n in near(t)) or touches_reward(b, t):
+            continue
+        if fam == "Path" and paths_left[0] > 0:
+            paths_left[0] -= 1
+        elif fam in spare:
+            spare.remove(fam)
+            if fam in room_cards:
+                room_cards.remove(fam)
+        else:
+            continue
+        b[t] = fam
+        plan.append((t, fam, why))
     add_path(ATZIRI, "Atziri")
     if keyroom is not None:
         add_path(keyroom, "the key room")
@@ -667,6 +719,12 @@ def full_plan(board, cards=(), medals=(), medal_rooms=()):
             continue
         pals = [b.get(n) for n in near(best[1]) if b.get(n) in PARTNER.get(fam, ()) + tuple(TOUCH.get(fam, ()))]
         med = med_left.get(fam, 0) > card_left.get(fam, 0)          # (cards are placed first, medallions after)
+        if med and pals and best[0] < 0:
+            # 3.0.6 (owner: the Golem Works medallion would loop back into the gold path; the two tier-2 Smithies
+            # beside it can take the upgrade medallions instead): only a loop left - it waits for a better board
+            notes.append(f"Keep the {fam} medallion: here it only loops back into your paths.")
+            med_left[fam] -= 1
+            continue
         if not pals and (med or fam in KEEP_ALONE):
             # 3.0.6 (owner: "commanders should be saved for the next run (especially if it's a medallion, it can be
             # paired with a garrison ...)"): a medallion room - or a Commander - with nothing beside it to raise it
@@ -692,7 +750,10 @@ def full_plan(board, cards=(), medals=(), medal_rooms=()):
 
     def best_room(pref, need_up):
         cand = [(t, f) for t, f in rooms.items() if f in pref and t not in targets and not (need_up and tier_of(board, t) >= min(3, _tiers(f)))]
-        cand.sort(key=lambda x: (pref.index(x[1]), -tier_of(board, x[0])))
+        # (3.0.6, owner's board: both tier-2 Smithies beside the Golem Works took the two upgrades) - closest to tier
+        # 3 first, then a room in a chain (something beside it raises it), then the room that pays most
+        cand.sort(key=lambda x: (3 - tier_of(board, x[0]) if need_up else 0, -gain(rooms, x[0], x[1]),
+                                 pref.index(x[1]), -tier_of(board, x[0])))
         return cand[0] if cand else None
 
     for _k in range(held.count("Quipolatl's Medallion")):     # (3.0.6: each upgrade medallion held, its own room)
