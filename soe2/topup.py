@@ -177,9 +177,11 @@ def digit_templates():
     cv2, np = _cv()
     out = {}
     for d in "0123456789":
-        t = _tpl(f"topup_digit_{d}.png")
-        if t is not None:
-            out[d] = [t]
+        for name in (f"topup_digit_{d}.png", f"topup_digit_{d}b.png"):     # (3.0.6: a second, thinner drawing
+            if (_templates() / name).exists():                              # where one picture missed: a 3 read
+                t = _tpl(name)                                              # as 5)
+                if t is not None:
+                    out.setdefault(d, []).append(t)
     for d, pics in ((load_json(LEARN_FILE, {}) or {}).get("digits") or {}).items():
         for p in pics:
             try:

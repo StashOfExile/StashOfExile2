@@ -318,3 +318,28 @@ class CoveredReads(unittest.TestCase):
             a.mp_seen({"cells": [1], "covered": True})                       # one picked up in map 2
             e = a.mp_done()
         self.assertEqual([(r[0], r[2] - r[1]) for r in e["rows"]], [("Divine Orb", 1)])
+
+
+class EssenceAndTopUp(unittest.TestCase):
+    def test_essence_family(self):
+        self.assertEqual(MP.family("Perfect Essence of Flames"), "Perfect Essence of")
+        self.assertEqual(MP.family("Essence of the Body"), "Essence of")
+        self.assertIsNone(MP.family("Divine Orb"))
+
+    def test_a_three_ships_twice(self):
+        TU._TPL.clear()
+        self.assertEqual(len(TU.digit_templates()["3"]), 2)
+
+    def test_covered_look_reminds_about_seen_stacks_only(self):
+        from soe2.topup_page import TopUpPage
+        p = TopUpPage()
+        p.br_area = "hideout"
+        p.topup_totals = lambda: {"Orb of Alchemy": (4, True), "Exalted Orb": (0, True)}
+        shown = []
+        with mock.patch.object(TU, "cfg", lambda: {"items": [{"name": "Orb of Alchemy", "keep": 20},
+                                                            {"name": "Exalted Orb", "keep": 20}], "below": 0.3}), \
+                mock.patch("soe2.alertcard.show", lambda *a, **k: shown.append(a[2]) or None), \
+                mock.patch("soe2.alerts_page.game_rect", lambda: (0, 0, 1920, 1080)):
+            p.root = None
+            lows = p.topup_remind(seen_only=True)
+        self.assertEqual([lw[0] for lw in lows], ["Orb of Alchemy"])

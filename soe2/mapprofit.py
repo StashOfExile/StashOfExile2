@@ -12,6 +12,7 @@ learned - and only items with a Currency Exchange price (poe.ninja's exchange: c
 waystones and gear never do. Prices: Exchange Rates (poe.ninja, in divines).
 
 Privacy: map_profit.jsonl in your data folder, on your PC only - never uploaded, shared or sent to the board."""
+import re
 import json
 import os
 import time
@@ -48,6 +49,10 @@ def fv_match(cell, refs, alike=False):
         f = {"box": FV.feats(FV.art_box(bgr[e:h - e, e:w - e]))}
         name, _score, _margin = refs.best(f)
         names = [name] if name else ([] if not alike else refs.alike(f))
+        if not name and len(names) != 1:
+            hit = by_color(f, refs)
+            if hit:
+                names = [hit]
         if names:
             names = grade(names, tier_letters(bgr, white=True), refs.items)
         if not alike:
@@ -94,6 +99,47 @@ def roman(letters):
         v = vals[ch]
         n += -v if i + 1 < len(letters) and vals[letters[i + 1]] > v else v
     return n if 1 <= n <= 30 else None
+
+
+def family(name):
+    """'Perfect Essence of Flames' -> 'Perfect Essence of' (the same crystal in another color), or None."""
+    m = re.match(r"^((?:Lesser |Greater |Perfect )?Essence of)\b", str(name))
+    return m.group(1) if m else None
+
+
+FAMILY_TINT, FAMILY_HUE, FAMILY_BY = 10.0, 0.70, 0.15     # 3.0.6: a red Perfect Essence: the Body 7.6 / 0.82, the
+#                                                            next 18.4 / 0.63 (two white ones stay not known)
+
+
+def by_color(f, refs):
+    """3.0.6 (an essence wasn't counted: its learned look-alikes are other colors): when the closest pictures are
+    all one family (an essence tier), the member whose colors match far better than the rest - any picture of
+    it, the exchange icon too. -> name or None."""
+    from . import favours as FV
+    got = refs.ranked(f, 12, refs=True)
+    if not got or got[0][0] < FV.MATCH_SURE:
+        return None
+    fam = family(got[0][1])
+    if not fam:
+        return None
+    best = {}
+    for sc, name, _src, cf, rf in refs.ranked(f, len(refs.items), refs=True):
+        if family(name) != fam:
+            continue
+        t, h = FV.tint_gap(cf, rf), FV.hue_sim(cf, rf)
+        if t is None or h is None:
+            continue
+        if name not in best or (t, -h) < (best[name][0], -best[name][1]):
+            best[name] = (t, h)
+    order = sorted(best.items(), key=lambda kv: kv[1][0])
+    if not order:
+        return None
+    name, (t, h) = order[0]
+    nxt = order[1][1] if len(order) > 1 else (99.0, 0.0)
+    if t <= FAMILY_TINT and h >= FAMILY_HUE and h - max(v[1] for k, v in best.items() if k != name or len(best) == 1) \
+            >= (FAMILY_BY if len(best) > 1 else 0) and nxt[0] - t >= 8.0:
+        return name
+    return None
 
 
 def tier_letters(bgr, white=False):

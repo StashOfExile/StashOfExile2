@@ -117,9 +117,11 @@ class TopUpPage:
                 self.mp_seen(res)                            # 2.132.0: Map profit reads the same look (2.132.2: a
             except Exception:                                # covered one too - see mp_seen)
                 self.log_error("Map profit")
-            if not res["covered"] and not getattr(self, "tu_open_reminded", False) and self.topup_on():
-                self.tu_open_reminded = True
-                self.topup_remind()
+            if not getattr(self, "tu_open_reminded", False) and self.topup_on():
+                # 3.0.6 (most reads are taken with the mouse over the inventory, so the reminder never came): a
+                # covered look reminds too - only about stacks it saw (a stack under the game's item box reads 0)
+                if self.topup_remind(seen_only=res["covered"]) is not None or not res["covered"]:
+                    self.tu_open_reminded = True
 
     def _tu_hover(self, res):
         """The inventory cell under the mouse in this look, None (off the grid), or MOVING when the mouse moved
@@ -266,11 +268,14 @@ class TopUpPage:
             except tk.TclError:
                 pass
 
-    def topup_remind(self, force=False):
+    def topup_remind(self, force=False, seen_only=False):
         """The inventory just opened: in your hideout or a town, once a visit, a card if something's under its
-        keep. force (Test): now, wherever you are (a sample if nothing is low)."""
+        keep. force (Test): now, wherever you are (a sample if nothing is low). seen_only: a covered look - only
+        stacks it saw count as low."""
         items = TU.cfg()["items"]
         lows = TU.low(self.topup_totals(), items)
+        if seen_only:
+            lows = [lw for lw in lows if lw[1]]
         if not force:
             if not lows or getattr(self, "br_area", None) not in ("hideout", "town"):
                 return None
