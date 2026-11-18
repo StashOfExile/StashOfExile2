@@ -475,10 +475,40 @@ def read(img, icons=None):
         cell["kind"], cell["icon"], cell["name"] = m["kind"], m["id"], m.get("name")
         if m["kind"] == "room" and read_tiers and not hid[HH + 2:HH + 32, HW + 6:HW + 58].any():     # numeral box in view
             cell["tier"] = tier(p)[0]
+    out["player"] = player_at(a, v, ov)
     out["lit"] = lit                  # every green tile the game lights for the picked card
     out["lit_bright"] = bright        # the brightly lit ones (the rest are dim green)
     out["windows"] = boxes
     return out
+
+
+# 3.0.6: the game draws the player as a small yellow-green figure standing on the tile of the room he is in (the
+# Architect's room while his console is open, Atziri's during her run). Measured on 17 of the owner's boards: the
+# figure gives 130-137 such pixels just above the tile's middle and none below it; a tile the game lights green for
+# a picked card gives 40-65 above and 260-315 below; the green reward icons are bluer.
+FIG_MIN, FIG_BELOW = 90, 20
+
+
+def _figure(p):
+    r, g, b = p[..., 0], p[..., 1], p[..., 2]
+    return (g > 90) & (g > r + 25) & (b < 0.5 * g) & (r > 0.6 * g)
+
+
+def player_at(a, v, ov=None):
+    """The canvas (to_canvas) -> the tile the player figure stands on, or None."""
+    best = None
+    for c in CELLS:
+        x, y = (round(t) for t in xy(*c))
+        if x - 40 < 0 or y - 42 < 0 or x + 41 > FULL[0] or y + 40 > FULL[1] or not v[y, x]:
+            continue
+        if ov is not None and ov[y - 42:y + 40, x - 40:x + 41].any():
+            continue
+        up = int(_figure(a[y - 42:y - 4, x - 14:x + 15]).sum())
+        if up < FIG_MIN or int(_figure(a[y + 8:y + 40, x - 40:x + 41]).sum()) >= FIG_BELOW:
+            continue
+        if best is None or up > best[0]:
+            best = (up, c)
+    return best[1] if best else None
 
 
 def frame(img):

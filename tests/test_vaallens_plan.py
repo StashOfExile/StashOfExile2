@@ -613,9 +613,8 @@ class CorruptionChain(unittest.TestCase):
 
 
 class ArchitectsCards(unittest.TestCase):
-    """(3 pictures) A lone key room may take a reward room beside it as long as that room touches no other reward
-    room - a currency vault is the pick; a currency vault on the far side stays reachable next run without breaking
-    the outer block rooms along the walls."""
+    """3.0.6 (his console, 6 pictures): the key room on a lit square; his reward cards only on the outer walls,
+    touching no path now or later; a currency vault may take the wall square beside Atziri's doorstep."""
     def b(self):
         c = {(0, j): ("path", None, 1) for j in range(1, 7)}
         c.update({(-1, 6): ("path", None, 1), (1, 6): ("path", None, 1), (0, 7): ("room", "Synthflesh Lab", 3),
@@ -628,36 +627,101 @@ class ArchitectsCards(unittest.TestCase):
 
     CARDS = ["Royal Access Chamber", "Vault of Reverence", "Kishara's Vault", "Kishara's Vault", "Jiquani's Vault"]
 
-    def test_key_room_on_a_lit_square_currency_vault_beside_it(self):
+    def test_key_room_on_a_lit_square_no_path_there(self):
         r = VP.full_plan(self.b(), self.CARDS)
         self.assertEqual(r["plan"][0], ((2, 4), "Key Room", "the key room"), "the bottom one of the lit squares")
-        self.assertEqual(r["plan"][1], ((2, 3), "Kishara's Vault", "beside the key room: joins with it"))
         self.assertFalse([f for _t, f, _w in r["plan"] if f == "Path"], "no path at his console")
 
-    def test_vaults_a_later_path_reaches_safely(self):
+    def test_reward_cards_on_the_walls_off_every_later_path(self):
         b = self.b()
         r = VP.full_plan(b, self.CARDS)
-        names = dict(VP.names(b))
-        third = r["plan"][2]
-        self.assertEqual(third[1], "Kishara's Vault", "a currency vault where he can reach it")
-        for t, f, _w in r["plan"][:3]:
-            names[t] = "Reward" if f != "Key Room" else "Key Room"
-        names.pop(third[0])
-        self.assertTrue(VP.reachable_later(names, third[0]))
-        self.assertFalse(VP.reachable_later(names, (-4, 8)), "between two wall reward rooms: opens them too")
+        names = VP.names(b)
+        sim = VP.simulate(b, r["plan"])
+        vaults = [t for t, f, _w in r["plan"] if (VP.card(f) or ("",))[0] == "reward"]
+        self.assertTrue(vaults)
+        for t in vaults:
+            self.assertIn(t, VP.WALL)
+            self.assertFalse(any(names.get(n) not in (None, "Reward") for n in VP.near(t)), t)
+        self.assertEqual(sim["later"], [], "no reward room a later path joins")
+        self.assertFalse(any(s["joins"] for s in sim["steps"]))
 
 
-class AtziriDoorOpenSpace(unittest.TestCase):
-    """(2026-11-18) Atziri's doorstep may touch a reward room only when that reward room is placed alongside it
-    in open space."""
+class ConsoleAndLookAhead(unittest.TestCase):
+    """3.0.6 (his console, 5 pictures): the player figure in the Architect's room marks his console; his reward cards
+    go only on outer-wall squares no path touches now or later; the look-ahead plays the plan and catches them."""
+    def console(self):
+        c = {(0, j): ("path", None, 1) for j in range(1, 7)}
+        c.update({(1, 6): ("path", None, 1), (2, 6): ("room", "Smithy", 1), (2, 7): ("architect", "Architect", 1),
+                  (-2, 3): ("key", "Key Room", 1), (0, 7): ("room", "Synthflesh Lab", 1)})
+        c.update({w: R for w in WALLS})
+        return board(c)
 
-    def test_reward_room_alone_beside_the_doorstep(self):
-        from soe2 import vaallens_plan as P
-        b = {(-1, 9): "Reward"}
-        self.assertFalse(P.blocked(b, P.DOOR, goal=P.ATZIRI))
+    def test_console_known_by_the_player_figure(self):
+        b = self.console()
+        cards = ["Ancient Reliquary Vault", "Vault Of Revrnce??", "Kishara's Vault"]
+        meds = ["Quipolatl's Medallion", "Juatalotli's Medallion"]
+        b["player"] = (2, 7)
+        r = VP.full_plan(b, cards, meds)
+        self.assertEqual(r["targets"], {})
+        self.assertFalse([f for _t, f, _w in r["plan"] if f == "Path"])
+        self.assertFalse(any("path card" in n for n in r["notes"]), "no path advice at his console")
+        b["player"] = (0, 10)                                   # (in Atziri's room: not his console)
+        r = VP.full_plan(b, ["Path"] + cards, meds)
+        self.assertTrue(any("path card" in n for n in r["notes"]))
 
-    def test_reward_room_touching_other_rooms(self):
-        from soe2 import vaallens_plan as P
-        b = {(-1, 9): "Reward", (-2, 9): "Smithy"}
-        self.assertTrue(P.blocked(b, P.DOOR, goal=P.ATZIRI))
-        self.assertTrue(P.blocked({(-1, 9): "Reward"}, P.DOOR, goal=None))
+    def test_player_figure_read_from_the_picture(self):
+        import numpy as np
+        from soe2 import vaallens as V
+        a = np.full((1440, 2560, 3), 20, np.float32)
+        v = np.ones((1440, 2560), bool)
+        x, y = (round(t) for t in V.xy(2, 7))
+        a[y - 33:y - 13, x - 7:x + 7] = (135, 175, 72)           # the figure, above the tile's middle
+        lx, ly = (round(t) for t in V.xy(-1, 2))
+        a[ly - 50:ly + 50, lx - 60:lx + 60] = (120, 170, 70)     # a tile the game lights green
+        self.assertEqual(V.player_at(a, v), (2, 7))
+
+    def test_red_x_next_to_the_gold_path(self):
+        b = self.console()
+        m = VP.marks(b, [(-1, 2), (1, 2), (4, 4), (-4, 2)], VP.card("Ancient Reliquary Vault"))
+        self.assertEqual(m[(-1, 2)][0], "x")
+        self.assertEqual(m[(1, 2)][0], "x")
+        self.assertIn(m[(4, 4)][0], ("1", "2"))
+        self.assertIn(m[(-4, 2)][0], ("1", "2"))
+
+    def test_no_number_on_an_unsafe_square(self):
+        b = self.console()
+        b["lit"], b["card"] = [(-1, 2), (1, 8)], "Ancient Reliquary Vault"
+        m = VP.marks(b, b["lit"], VP.card(b["card"]))
+        self.assertFalse([t for t, (k, _w) in m.items() if k in ("1", "2")])
+        r = VP.full_plan(b, ["Ancient Reliquary Vault"])
+        self.assertEqual(r["plan"], [])
+        self.assertIn("No safe square for Ancient Reliquary Vault: keep it off the path.", r["notes"])
+
+    def test_currency_vault_beside_atziris_doorstep(self):
+        b = VP.names(self.console())
+        fut = VP.future_paths(b)
+        self.assertIn(VP.DOOR, fut)
+        self.assertTrue(VP.reward_safe(b, (-1, 9), "Kishara's Vault", fut))
+        self.assertFalse(VP.reward_safe(b, (-1, 9), "Ancient Reliquary Vault", fut), "the exception: currency only")
+        self.assertFalse(VP.reward_safe(b, (-2, 5), "Kishara's Vault", fut), "off the walls")
+
+    def test_look_ahead_catches_a_later_atziri_path(self):
+        c = {(0, j): ("path", None, 1) for j in range(1, 5)}
+        c[(1, 7)] = R                                           # beside the gold path's free squares
+        b = board(c)
+        sim = VP.simulate(b, [])
+        self.assertIn((1, 7), sim["later"])
+        self.assertIn((0, 7), sim["future"])
+        self.assertIn((-1, 6), sim["danger"])
+        r = VP.full_plan(b, ["Path"] * 6)
+        self.assertFalse(any(s_["joins"] for s_ in VP.simulate(b, r["plan"])["steps"]), "the way goes round it")
+        self.assertFalse([t for t, _f, _w in r["plan"] if t in VP.near((1, 7))])
+
+    def test_look_ahead_is_fast(self):
+        import time
+        b = run1()
+        t0 = time.time()
+        r = VP.full_plan(b, ["Prosthetic Research", "Workshop", "Path", "Guardhouse", "Path", "Kishara's Vault"],
+                         ["Quipolatl's Medallion"])
+        VP.simulate(b, r["plan"])
+        self.assertLess(time.time() - t0, 0.5)

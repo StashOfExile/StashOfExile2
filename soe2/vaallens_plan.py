@@ -225,8 +225,18 @@ def rank(board, lit, what):
     lane = spine(taken)
     out = []
     door = not any(n in network(taken) for n in near(ATZIRI))      # (3.0.6: her doorstep, while she isn't joined)
+    fut = future_paths(taken) if kind == "reward" else None
     for t in lit:
-        if touches_reward(taken, t, kind) and not (door and t == DOOR and kind != "reward"):
+        if kind == "reward":
+            # 3.0.6: one of the Architect's reward cards - a ✕ wherever it would join your paths now or later; a
+            # number only on a safe outer-wall square
+            if not reward_safe(taken, t, what[1], fut):
+                out.append((-1000, t, "joins your paths now or later"))
+            elif t in WALL:
+                out.append((sum(1 for n in near(t) if taken.get(n) == "Reward") - abs(t[1] - 5) * 0.1, t,
+                            "an outer wall: touches no path"))
+            continue
+        if touches_reward(taken, t, kind) and not (door and t == DOOR):
             out.append((-1000, t, "touches a reward room"))
             continue
         if kind is None:
@@ -646,31 +656,92 @@ def landing(b, quad):
 CURRENCY_VAULT = "Kishara's Vault"
 
 
-def reachable_later(b, t, keep=()):
-    """3.0.6 (owner, round 14): a reward room on t can be joined by a later run's path without opening another reward
-    room: t touches no other reward room, and a free square beside it (touching no other reward room) is reached
-    from your paths over free squares that touch no reward room."""
-    if any(b.get(n) == "Reward" for n in near(t)):
-        return False
-    nb = dict(b)
-    nb[t] = "Reward"
-    doors = {a for a in near(t) if not nb.get(a) and inside(a) and a not in (ATZIRI, ENTRANCE) and a not in keep and
-             not any(nb.get(m) == "Reward" for m in near(a) if m != t)}
-    if not doors:
-        return False
-    pn = path_network(nb)
-    seen, q = set(), deque(n for c in pn for n in near(c))
-    while q:
-        c = q.popleft()
-        if c in seen or nb.get(c) or not inside(c) or c in (ATZIRI, ENTRANCE) or c in keep:
+# ---------------------------------------------------------------- 3.0.6 the look-ahead (internal, no screen read)
+# A reward room that touches your paths or rooms joins the temple, and destabilisation takes it. One that touches a
+# square a later path will need (the gold path, the way to Atziri, the key room, the Architect) joins the moment that
+# path goes down. The look-ahead plays the plan step by step on a copy of the read board and says which reward rooms
+# each step joins, which squares a reward room must keep off, and where dead ends and loops appear.
+WALL = frozenset((i, j) for i in range(-4, 5) for j in range(1, 10) if abs(i) == 4 or j in (1, 9))
+ATZIRI_SIDES = ((-1, 9), (1, 9))                 # the two wall squares beside her doorstep
+
+
+def future_paths(b):
+    """The squares a later path will take: the gold path's free squares, the fewest-squares way (any number of
+    path cards, keeping off reward rooms when it can) to Atziri, a lone key room and the Architect - and those
+    rooms' own squares (they join the paths then)."""
+    out = {t for t in LANE if not b.get(t)}
+    net = network(b)
+    goals = [ATZIRI] + [c for c, v in b.items() if v in ("Key Room", "Architect")]
+    for goal in goals:
+        if any(n in net for n in near(goal)):
             continue
-        seen.add(c)
-        if c in doors:
-            return True
-        if touches_reward(nb, c):
-            continue
-        q.extend(near(c))
+        r = _path_to(b, goal, set())
+        if r is None:
+            r = route(b, list(net), goal) or []
+        out |= set(r)
+        if goal != ATZIRI:
+            out.add(goal)
+    return out
+
+
+def joined_rewards(b):
+    """The reward rooms that touch your paths or rooms (or the entrance) - joined, so destabilisation takes them."""
+    net = network(b)
+    return {t for t, v in b.items() if v == "Reward" and any(n in net for n in near(t))}
+
+
+def danger(b, fut=None):
+    """Free squares where a reward room would join your paths: beside a joined tile or a later path, or on one."""
+    fut = future_paths(b) if fut is None else fut
+    src = network(b) | set(fut)
+    out = {n for c in src for n in near(c) if not b.get(n) and inside(n) and n not in (ATZIRI, ENTRANCE)}
+    return out | {t for t in fut if not b.get(t) and t not in (ATZIRI, ENTRANCE)}
+
+
+def reward_safe(b, t, name=None, fut=None):
+    """May one of the Architect's reward cards go on t? Only an outer-wall square that touches no path or room now
+    and no square a later path needs. The one exception: a currency vault on a wall square beside Atziri's
+    doorstep, touching nothing else of yours now or later."""
+    if b.get(t) or not inside(t) or t not in WALL or t in LANE or t in (ATZIRI, ENTRANCE):
+        return False
+    if any(b.get(n) not in (None, "Reward") for n in near(t)):
+        return False
+    fut = future_paths(b) if fut is None else fut
+    if t not in danger(b, fut):
+        return True
+    if name == CURRENCY_VAULT and t in ATZIRI_SIDES:
+        net = network(b)
+        return not any((n in net or n in fut) for n in near(t) if n != DOOR)
     return False
+
+
+def _as_tile(fam):
+    if fam == "Path":
+        return "Path"
+    if fam == "Key Room":
+        return "Key Room"
+    c = card(fam) if fam not in ROOMS else ("room", fam)
+    return "Reward" if c and c[0] == "reward" else fam
+
+
+def simulate(board, plan):
+    """The read board and a plan [(tile, family, why)] -> {"steps": [{"tile", "fam", "joins": reward rooms this
+    step joins, "dead_ends": valuable rooms at a dead end after it, "loop": it closes a circle}], "later": reward rooms
+    a later path will join, "future": the squares later paths need, "danger": squares a reward room must keep off}.
+    Pure: nothing read, nothing written."""
+    b = dict(names(board))
+    seen = joined_rewards(b)
+    steps = []
+    for t, fam, _why in plan:
+        loop = fam not in ("Key Room",) and _as_tile(fam) != "Reward" and _loops(b, t)
+        b[t] = _as_tile(fam)
+        new = joined_rewards(b) - seen
+        seen |= new
+        steps.append({"tile": t, "fam": fam, "joins": sorted(new), "dead_ends": len(dead_ends(b, board)),
+                      "loop": bool(loop)})
+    fut = future_paths(b)
+    later = {t for t, v in b.items() if v == "Reward" and t not in seen and any(n in fut for n in near(t))}
+    return {"steps": steps, "later": sorted(later), "future": fut, "danger": danger(b, fut)}
 
 
 def edge_blocks(b):
@@ -789,6 +860,11 @@ def full_plan(board, cards=(), medals=(), medal_rooms=(), prev=()):
     # room, an Extraction Chamber ...); a card name not known there is one of his too
     restricted = bool(hand) and any(h and h[0] in ("reward", "key") for h in hand) and \
         not any(h and h[0] in ("path", "room") for h in hand)
+    # 3.0.6 (the console was missed when a card name wasn't read): the player figure stands in the Architect's room,
+    # the console is open (Atziri's tile read) and no card in hand is a path or a room
+    if not restricted and hand and arch is not None and (board or {}).get("player") == arch and \
+            not any(h and h[0] in ("path", "room") for h in hand):
+        restricted = True
     if restricted:
         hand = [h if h else ("reward", card_title(n)) for h, n in zip(hand, cards)]
         medals, medal_rooms = (), ()
@@ -977,11 +1053,12 @@ def full_plan(board, cards=(), medals=(), medal_rooms=(), prev=()):
             continue
         b[t] = fam
         plan.append((t, fam, why))
-    add_path(ATZIRI, "Atziri")
-    if keyroom is not None:
-        add_path(keyroom, "the key room")
-    if arch is not None:
-        add_path(arch, "the Architect")
+    if not restricted:                                 # (3.0.6: at his console no path can go down)
+        add_path(ATZIRI, "Atziri")
+        if keyroom is not None:
+            add_path(keyroom, "the key room")
+        if arch is not None:
+            add_path(arch, "the Architect")
     # the key room card in hand (after the Architect): a clean spot in the bottom quadrant
     if key_card:
         # 3.0.6 (round 14: the key room card picked, the game lit three squares; the owner took the bottom one): with
@@ -1097,44 +1174,29 @@ def full_plan(board, cards=(), medals=(), medal_rooms=(), prev=()):
             b.pop(t, None)
             notes.append(f"Keep the {fam} medallion: no clean square beside it for the "
                          f"{ANCHORS[fam][0]} now.")
-    # the Architect's reward cards (owner's picture: the side walls, every other square): touching nothing at all
-    rewards = [h for h in hand if h and h[0] == "reward"]
-    kr = next((t for t, v in b.items() if v == "Key Room"), None)
-    if rewards and kr is not None and kr not in network(b):
-        # 3.0.6 (a lone key room may take a reward room beside it, as long as that room touches no other reward room;
-        # a currency vault is the pick): one vault beside the lone key room - touching no other reward room and
-        # nothing else of yours, off the square that joins the key room to your paths; a currency vault (Kishara's
-        # Vault) first
-        pn = path_network(b)
-        spots = [n for n in near(kr) if not b.get(n) and inside(n) and n not in LANE and n not in keep and
-                 n not in (ATZIRI, ENTRANCE) and not any(n in near(c) for c in pn) and
-                 not any(b.get(m) not in (None,) for m in near(n) if m != kr)]
-        if spots:
-            n = min(spots, key=lambda t: (min(abs(t[0] - c[0]) + abs(t[1] - c[1]) for c in pn), t[1]))
-            h = next((h for h in rewards if h[1] == CURRENCY_VAULT), rewards[0])
-            rewards.remove(h)
-            b[n] = "Reward"
-            plan.append((n, h[1], "beside the key room: joins with it"))
-    rewards.sort(key=lambda h: h[1] != CURRENCY_VAULT)       # (owner: a currency vault where he can reach it)
+    # the Architect's reward cards: on the outer walls as blocking rooms, touching no path or room now or later (the
+    # look-ahead's squares); a currency vault may take a wall square beside Atziri's doorstep. With one of them
+    # picked, only the squares the game lights for it. No safe square: no number, one note.
+    rewards = sorted([h for h in hand if h and h[0] == "reward"], key=lambda h: h[1] != CURRENCY_VAULT)
+    picked = card((board or {}).get("card"))
+    lit = set((board or {}).get("lit") or ()) if picked and picked[0] == "reward" else None
+    no_spot = []
     for h in rewards:
-        # (a side-wall square first; walls full: any square) - touching no path or room, so it isn't open yet
-        # (an open restricted room always goes on exit); beside another reward room is fine
-        def free_of_yours(t):
-            return not b.get(t) and inside(t) and t not in keep and t not in LANE and \
-                not any(b.get(n) not in (None, "Reward") or n in (ENTRANCE, ATZIRI) for n in near(t))
-        cells = [(i, j) for i in range(-4, 5) for j in range(1, 10)]
-        # 3.0.6 (a currency vault on the far side stays reachable next run without breaking the outer block rooms
-        # along the walls): a square a later path
-        # can reach safely first
-        spot = next((t for t in sorted(cells, key=lambda t: (not reachable_later(b, t, keep), abs(t[0]) != 4,
-                                                             -sum(1 for n in near(t) if not b.get(n)), abs(t[1] - 5)))
-                     if free_of_yours(t)), None)
+        fut = future_paths(b)
+        cells = [t for t in WALL if reward_safe(b, t, h[1], fut) and t not in keep]
+        if lit is not None and h[1] == picked[1]:
+            cells = [t for t in cells if t in lit]
+        spot = min(cells, key=lambda t: (t in ATZIRI_SIDES, abs(t[0]) != 4,
+                                         sum(1 for n in near(t) if b.get(n) == "Reward"), abs(t[1] - 5), t),
+                   default=None)
         if spot is None:
-            if not any(n.startswith("No free square") for n in notes):
-                notes.append("No free square away from your paths for the vault cards.")
+            no_spot.append(h[1])
             continue
         b[spot] = "Reward"
         plan.append((spot, h[1], "a reward room: touches nothing"))
+    if no_spot:
+        notes.insert(0, (f"No safe square for {no_spot[0]}: keep it off the path." if len(no_spot) == 1 else
+                         f"No safe square for {len(no_spot)} of the Architect's reward cards: keep them off the path."))
     if restricted:                                   # (nothing else can be done at his console)
         return {"plan": plan, "targets": {}, "notes": notes[:2], "chains": chains, "path_cards": path_cards}
     # conversions (cheat sheet)
@@ -1171,6 +1233,26 @@ def full_plan(board, cards=(), medals=(), medal_rooms=(), prev=()):
             break
         put_path(best[1], best[2])
         plan.append((best[1], "Path", "filler"))
+    # 3.0.6 the look-ahead: play the plan on a copy of the board; a step that joins a reward room is dropped
+    # (and what hangs on it), unless it is Atziri, the key room or the Architect - then one note says so
+    sim = simulate(board, plan)
+    first = ("Atziri", "the key room", "the Architect")
+    drop = {s_["tile"] for s_, (_t, f, w) in zip(sim["steps"], plan) if s_["joins"] and f != "Key Room" and
+            not any(w.endswith(x) for x in first)}
+    hit = [w for s_, (_t, f, w) in zip(sim["steps"], plan) if s_["joins"] and s_["tile"] not in drop]
+    if drop:
+        keep_plan, bb = [], dict(taken)
+        for t, f, w in plan:
+            if t in drop or not any(n in network(bb) for n in near(t)) and _as_tile(f) not in ("Reward", "Key Room"):
+                if f == "Path":
+                    path_cards.pop(t, None)
+                continue
+            bb[t] = _as_tile(f)
+            keep_plan.append((t, f, w))
+        plan[:] = keep_plan
+        b = bb
+    if hit:
+        notes.append(f"The way to {hit[0].replace('joins ', '')} joins a reward room: destabilisation takes it.")
     if key_needed and arch is None and keyroom is None and not landing(b, "bottom"):
         notes.append("Keep the bottom quadrant clear: the key room needs a free spot there.")
     left = dead_ends(b, board)
