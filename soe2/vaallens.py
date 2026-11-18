@@ -666,7 +666,7 @@ def card_rows_read(img, ocr, lines=None):
     return out
 
 
-# 3.0.7 (round 14): a Path card's shape, from its art - the corridor's floor (brown: red well above blue) runs out to
+# 3.0.6 (round 14): a Path card's shape, from its art - the corridor's floor (brown: red well above blue) runs out to
 # each side it opens to; a closed side is the dark tiled backing (red = blue). Measured on 9 Path cards in 6 of the
 # owner's pictures (straight, corner, T; lit and dim): open sides 8-11 apart, closed 0-1, at 70% of the way out.
 CARD_MID_X = 378                         # the card diamond's middle (1440p, from the card list box's left)

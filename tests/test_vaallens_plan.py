@@ -422,7 +422,7 @@ class Placement(unittest.TestCase):
         self.assertTrue(VP.can_place({(1, 3): "Path"}, (2, 3), "Garrison"))
 
 
-# ---------------------------------------------------------------- 3.0.7 round 14 (the owner's run, 15 screenshots)
+# ---------------------------------------------------------------- 3.0.6 round 14 (the owner's run, 15 screenshots)
 R = ("reward", "Reward", 1)
 WALLS = [(-4, 9), (-3, 9), (2, 9), (3, 9), (4, 9), (4, 8), (-4, 7), (4, 7), (-4, 6), (-4, 5), (4, 5), (-4, 4),
          (-4, 3), (4, 3), (-4, 1), (-3, 1), (-2, 1), (2, 1), (4, 1)]
@@ -647,3 +647,19 @@ class ArchitectsCards(unittest.TestCase):
         names.pop(third[0])
         self.assertTrue(VP.reachable_later(names, third[0]))
         self.assertFalse(VP.reachable_later(names, (-4, 8)), "between two wall reward rooms: opens them too")
+
+
+class AtziriDoorOpenSpace(unittest.TestCase):
+    """Owner (2026-11-18): Atziri's doorstep may touch a reward room "only if that reward room is placed alongside it
+    in open space"."""
+
+    def test_reward_room_alone_beside_the_doorstep(self):
+        from soe2 import vaallens_plan as P
+        b = {(-1, 9): "Reward"}
+        self.assertFalse(P.blocked(b, P.DOOR, goal=P.ATZIRI))
+
+    def test_reward_room_touching_other_rooms(self):
+        from soe2 import vaallens_plan as P
+        b = {(-1, 9): "Reward", (-2, 9): "Smithy"}
+        self.assertTrue(P.blocked(b, P.DOOR, goal=P.ATZIRI))
+        self.assertTrue(P.blocked({(-1, 9): "Reward"}, P.DOOR, goal=None))

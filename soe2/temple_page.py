@@ -158,7 +158,7 @@ class TemplePage:
                         if len(by_row) > len(named):
                             named = by_row
                         board["cards"] = [n for n, _y in named]
-                        # 3.0.7: each Path card's shape, off its art (where it can go: the game never turns it)
+                        # 3.0.6: each Path card's shape, off its art (where it can go: the game never turns it)
                         board["card_shapes"] = V.path_shapes(pic, named, 2)
                         # 3.0.6 (owner: inside the temple, V opens the console only to look - no Room Cards list):
                         # with no list there's nothing to place, so no plan (the Architect's reward rooms bring it)
@@ -429,7 +429,7 @@ class TemplePage:
         for step, (_t, fam, _w) in zip(VP.steps(plan), plan):
             k = by_card.get(_t) if fam == "Path" else None
             if k is not None and k < len(rows) and ("c", k) not in used:
-                # 3.0.7: the Path card whose shape fits that square - not just the next one in the list
+                # 3.0.6: the Path card whose shape fits that square - not just the next one in the list
                 used.add(("c", k))
                 x, y = rows[k][1]
                 out[("@", int(x), int(y))] = ("lbl", step)
@@ -644,7 +644,7 @@ class TemplePage:
             out.append((str(step), src))
         for _t, (word, fam) in (getattr(self, "tm_targets", None) or {}).items():
             out.append(("▲" if word == "Upgrade" else "■", f"{word}: {fam}"))
-        # 3.0.7 (owner: "a more clear method of explaining what we're doing to place those"): one line per chain
+        # 3.0.6 (owner: "a more clear method of explaining what we're doing to place those"): one line per chain
         out += [("→", c) for c in (getattr(self, "tm_chains", None) or [])[:3]]
         if not getattr(self, "tm_targets", None):
             pays = [fam for _t, fam, _w in plan if fam in ("Corruption Chamber", "Sacrificial Chamber", "Alchemy Lab")]
@@ -679,15 +679,15 @@ class TemplePage:
         plan = getattr(self, "tm_plan", None) or []
         notes = " ".join(getattr(self, "tm_notes", None) or [])
         if room:
-            # (3.0.7: a room card of that kind is placed first - the medallions take the steps after it)
+            # (3.0.6: a room card of that kind is placed first - the medallions take the steps after it)
             cards = sum(1 for n in (getattr(self, "tm_board", None) or {}).get("cards") or []
                         if VP.card(n) == ("room", room))
             sts = [s for s, (_t, f, w) in zip(VP.steps(plan), plan) if f == room][cards:]
             if k < len(sts):
                 return f"{word} · use: step {sts[k]}"
-            return f"{word} · keep for next run"        # (3.0.7 owner: "I'm saving my medallions for next run")
+            return f"{word} · keep for next run"        # (3.0.6 owner: "I'm saving my medallions for next run")
         short = M.MEDALLIONS.get(name, (name,))[0]
-        # 3.0.7 (owner's two Upgrades both said "use on Flesh Surgeon" - the board had two marks): the k-th medallion
+        # 3.0.6 (owner's two Upgrades both said "use on Flesh Surgeon" - the board had two marks): the k-th medallion
         # of a kind -> the k-th target of its kind
         on = [fam for _t, (w, fam) in (getattr(self, "tm_targets", None) or {}).items() if w == short]
         if k < len(on):
