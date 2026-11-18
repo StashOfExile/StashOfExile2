@@ -261,6 +261,35 @@ def identify_at(crop, box, icons, scale=1.0):
     return best[0]
 
 
+ALIGN_REACH, ALIGN_STEP = 40, 6   # 3.0.6: px at 1440p
+
+
+def align(crop, head, icons, scale=1.0, n=6):
+    """3.0.6 (owner: "failure to identify medallions still, unacceptable"): the title's box as OCR gave it can be a
+    good way off (a 6/6 panel read 1 of 6), and the slots are placed from it. -> (dx, dy): the shift of the slot grid
+    whose pictures match the known medallions best (summed over the slots), or (0, 0)."""
+    if not icons:
+        return 0, 0
+    vecs = [v for vs in icons.values() for v in vs]
+    if not vecs:
+        return 0, 0
+    mat = np.stack(vecs)
+    r, st = int(round(ALIGN_REACH * scale)), max(1, int(round(ALIGN_STEP * scale)))
+    best, at = None, (0, 0)
+    for dy in range(-r, r + 1, st):
+        for dx in range(-r, r + 1, st):
+            h = (head[0] + dx, head[1] + dy, head[2] + dx, head[3] + dy)
+            tot = 0.0
+            for sl in slots(h, scale, n):
+                try:
+                    tot += float((mat @ feat(crop(icon_box(sl)))).max())
+                except Exception:
+                    continue
+            if best is None or tot > best + 1e-6 or (abs(tot - best) <= 1e-6 and abs(dx) + abs(dy) < sum(map(abs, at))):
+                best, at = tot, (dx, dy)
+    return at
+
+
 def identify(vec, icons, scored=False):
     """-> the name whose icon matches best (MATCH or closer, and clearly ahead of any other name), or None.
     3.0.6 (owner's panel: a slot learned while hovered - it glows - matched its plain self at 0.90, under the old
