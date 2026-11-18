@@ -30,7 +30,7 @@ class Quadrants(unittest.TestCase):
 class Priorities(unittest.TestCase):
     def test_key_room_then_atziri_before_anything(self):
         b = board({**BASE, (3, 2): ("key", "Key Room", 1), (2, 7): ("architect", "Architect", 1)})
-        r = VP.full_plan(b, ["Thaumaturge's Laboratory"])
+        r = VP.full_plan(b, ["Thaumaturge's Laboratory"] + ["Path"] * 12)
         whys = [w for _t, f, w in r["plan"] if f == "Path"]
         self.assertEqual(whys[0], "the key room")
         first_other = next(i for i, w in enumerate(whys) if w != "the key room")
@@ -42,7 +42,7 @@ class Priorities(unittest.TestCase):
 
     def test_architect_before_rooms(self):
         b = board({**BASE, (2, 7): ("architect", "Architect", 1)})
-        plan = VP.full_plan(b, ["Thaumaturge's Laboratory", "Crimson Hall"])["plan"]
+        plan = VP.full_plan(b, ["Thaumaturge's Laboratory", "Crimson Hall"] + ["Path"] * 6)["plan"]
         self.assertEqual(plan[0][1], "Path")
         kinds = [f for _t, f, _w in plan]
         self.assertLess(max(i for i, f in enumerate(kinds) if f == "Path"), kinds.index("Thaumaturge"))
@@ -184,3 +184,26 @@ class Numbers(unittest.TestCase):
                  (-2, 3): ("do", ("Lock", "Corruption Chamber"))}
         img, _xy = VD.render((0, 0, 2560, 1440), marks, {"head": "#f0a04a"}, {"Thaumaturge": None}, None)
         self.assertIsNotNone(img)
+
+
+class UsesWhatYouHave(unittest.TestCase):
+    """3.0.6 (owner: "It needs to use what I have, not what I don't have"): paths only from path cards; a room card
+    can join something when the path cards run out; an unread placed tile ("?") is joined."""
+
+    def test_no_more_path_tiles_than_path_cards(self):
+        b = board({**BASE, (3, 6): ("key", "Key Room", 1)})
+        r = VP.full_plan(b, ["Path"])
+        self.assertLessEqual(sum(1 for _t, f, _w in r["plan"] if f == "Path"), 1)
+        self.assertTrue(any("more path card" in n for n in r["notes"]))
+
+    def test_a_cheap_room_joins_when_paths_run_out(self):
+        b = board({**BASE, (2, 4): ("key", "Key Room", 1), (1, 3): ("path", None, 1), (1, 2): ("path", None, 1),
+                   (1, 1): ("path", None, 1)})
+        r = VP.full_plan(b, ["Sealed Vault"])
+        self.assertIn(((1, 4), "Sealed Vault", "joins the key room"), r["plan"])
+
+    def test_unknown_placed_tile_is_joined(self):
+        b = board({**BASE, (-1, 3): ("unknown", None, 1), (-2, 3): ("key", "Key Room", 1)})
+        self.assertIn((-1, 3), VP.network(VP.names(b)))
+        self.assertFalse([w for _t, _f, w in VP.full_plan(b, ["Path"])["plan"] if w == "the key room"],
+                         "already joined through it")

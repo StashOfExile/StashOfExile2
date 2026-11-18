@@ -137,7 +137,9 @@ def network(taken):
     while q:
         c = q.popleft()
         for n in near(c):
-            if n not in seen and taken.get(n) and taken[n] not in ("Architect", "Atziri", "Reward", "?"):
+            if n not in seen and taken.get(n) and taken[n] not in ("Architect", "Atziri", "Reward"):
+                # (3.0.6: "?" - a placed tile the reader didn't know - is joined too: you can only place next to
+                # your paths and rooms; the owner's key room was 1 tile away through one)
                 seen.add(n)
                 q.append(n)
     return seen
@@ -532,7 +534,7 @@ def _room_score(b, t, fam, rest, lane, arch, key_needed):
     if arch and any(n == arch for n in near(t)):
         score -= 40                                   # his one free square on each side
     if _loops(b, t):
-        score -= 30
+        score -= 10 if pals or friends else 30          # (owner: a loop is worth it for a second tier-3 Smithy)
     return score - abs(t[0]) * 0.1
 
 
@@ -549,6 +551,11 @@ def full_plan(board, cards=(), medals=(), medal_rooms=()):
     arch = next((c for c, v in taken.items() if v == "Architect"), None)
     hand = [card(n) for n in cards or ()]
     key_card = any(h and h[0] == "key" for h in hand)
+    paths_left = [sum(1 for h in hand if h and h[0] == "path")]
+    # (3.0.6 owner: "it needs to use what I have") - a tile with no path card left takes a room card instead (the
+    # owner joined the key room with a Sealed Vault): the one worth least, kept for the rooms worth placing
+    spare = sorted([h[1] for h in hand if h and h[0] == "room"] + [f for f in medal_rooms if f],
+                   key=lambda f: VALUE.get(f, 0))
 
     def add_path(goal, why):
         r = path_to(b, goal)
@@ -556,8 +563,18 @@ def full_plan(board, cards=(), medals=(), medal_rooms=()):
             notes.append(f"No safe path to {why} yet.")
             return False
         for t in r:
-            b[t] = "Path"
-            plan.append((t, "Path", why))
+            if paths_left[0] > 0:
+                paths_left[0] -= 1
+                b[t] = "Path"
+                plan.append((t, "Path", why))
+            elif spare and VALUE.get(spare[0], 0) < PAYS and not touches_reward(b, t) and t not in LANE:
+                fam = spare.pop(0)
+                b[t] = fam
+                plan.append((t, fam, f"joins {why}"))
+            else:
+                left = len(r) - r.index(t)
+                notes.append(f"{why[0].upper() + why[1:]}: {left} more path card{'s' if left != 1 else ''} needed.")
+                return False
         return True
 
     # 1. the key room and Atziri, before anything else
@@ -587,7 +604,7 @@ def full_plan(board, cards=(), medals=(), medal_rooms=()):
         else:
             notes.append("No free spot for the key room: placed now, it opens on the next run.")
     # 3. the rooms in hand, the ones others go beside first
-    fams = [h[1] for h in hand if h and h[0] == "room"] + [f for f in medal_rooms if f]
+    fams = list(spare)                                 # (the room cards not used to join something)
     order = sorted(fams, key=lambda f: (FIRST.index(f) if f in FIRST else 99, -VALUE.get(f, 0)))
     rest = list(order)
     for fam in order:
