@@ -109,6 +109,7 @@ class Icons:
         self.root, self.on_ready, self.size = root, on_ready, size
         self.cache, self.wait, self.done, self.failed = {}, set(), set(), {}
         self.q, self.worker, self.polling, self.misses = queue.Queue(), None, False, 0
+        self.gap = 0.0                           # 3.0.6: seconds between two downloads (Map Profit asks for many)
 
     @staticmethod
     def path(url):
@@ -162,6 +163,8 @@ class Icons:
                 ok = self._fetch(url, path)
                 self.misses = 0 if ok else self.misses + 1
             self.done = self.done | {url}           # (a new set: read on the window's thread)
+            if self.gap and ok:
+                time.sleep(self.gap)
 
     def _fetch(self, url, path):
         try:

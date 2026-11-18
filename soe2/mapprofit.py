@@ -10,6 +10,10 @@ entry. The last clear read at home before a map is "before"; the first clear rea
 map's loot. Each cell is named by its picture - the ones you taught with Ctrl+C (Top Up) or the ones Scan stash
 learned - and only items with a Currency Exchange price (poe.ninja's exchange: currency, omens, runes, ...) count;
 waystones and gear never do. Prices: Exchange Rates (poe.ninja, in divines).
+3.0.6 (every item poe.ninja's exchange lists, nothing taught): after those, Scan stash's wildcard pictures, the
+Currency Exchange's icons and last poe.ninja's own art (from the art cache; Map Profit's page downloads what's
+missing once, like Exchange Rates does) - each only when sure. A cell with no stack number is still tried as a
+lineage or uncut gem (an uncut gem by its white roman level); anything else without one is skipped.
 
 Privacy: map_profit.jsonl in your data folder, on your PC only - never uploaded, shared or sent to the board."""
 import re
@@ -36,10 +40,223 @@ def cfg():
 
 
 # ---------------------------------------------------------------- naming what the inventory holds
+GEM_TYPES = ("LineageSupportGems", "UncutGems")
+GEM_MIN, GEM_BY = 0.75, 0.10        # 3.0.6: a cell with no stack number (a lineage or uncut gem - or gear): the gem
+#                                     this sure and this far ahead of the next gem (Uhtred's Constellation 0.78 by
+#                                     0.11 on the owner's inventory; gear and other gems' cells under 0.63)
+STASH_MIN, STASH_BY = 0.80, 0.10    # 3.0.6: Scan stash's wildcard pictures (stashread: 0.75 / 0.05 among one tab's
+#                                     slots) - stricter here, with every exchange item to choose from
+EXCH_TINT_MAX = 25.0                # 3.0.6: an exchange icon's tint this far from the cell's: not that item (with
+#                                     nothing learned, on the owner's inventory: right items 6.8-20.7, a white
+#                                     Perfect Essence named the red one 32.5, an Omen named another 54.5)
+LEVEL = re.compile(r"^(.*) \(Level (\d+)\)$")
+
+
+def gem_names(parts):
+    """poe.ninja's exchange answers -> the names of its gems (lineage support gems, uncut gems) - the names every
+    type lists (Divine, Exalted, Chaos Orb) left out."""
+    gems, other = set(), set()
+    for typ, p in (parts or {}).items():
+        names = set(((p or {}).get("names") or {}).values())
+        (gems if typ in GEM_TYPES else other).update(names)
+    return gems - other
+
+
+def build_refs(parts):
+    """3.0.6: the pictures Map Profit names cells with, best trusted first: learned and shipped pictures (Scan
+    stash's slots among them), Scan stash's wildcard pictures (refs.stash), the Currency Exchange's icons, and last
+    poe.ninja's art from the art cache (refs.art). Nothing is downloaded here."""
+    from . import favours as FV
+    items = FV.ninja_items(parts)
+    refs = FV.build_refs(items, exchange=True)
+    known = {n for n, _p in items.values()}
+    refs.gems = gem_names(parts)
+    try:
+        from . import stashread as SR
+        refs.stash = {n: ic for n, ic in SR.learned_icons().items() if n in known}
+    except Exception:
+        buglog.caught()
+    try:
+        refs.art = FV.art_refs(items)
+    except Exception:
+        buglog.caught()
+    return refs
+
+
+def _base(name):
+    m = LEVEL.match(str(name))
+    return m.group(1) if m else name
+
+
+def _collapsed(got):
+    """refs.ranked(..., refs=True) -> the same, an item's levels as one ("Uncut Support Gem (Level 3)" and
+    "(Level 4)" are one picture): [(score, base name, kind, cell feats, picture feats)], best first."""
+    out, seen = [], set()
+    for sc, name, src, cf, rf in got:
+        b = _base(name)
+        if b not in seen:
+            seen.add(b)
+            out.append((sc, b, src, cf, rf))
+    return out
+
+
+def _other_close(refs, f, names, top=None):
+    """3.0.6: a learned or shipped picture of another item scores close (MAYBE_MIN, or within MATCH_BY of the
+    top), or another item's exchange icon is sure (MATCH_SURE) - then a fallback names nothing."""
+    from . import favours as FV
+    bases = {_base(n) for n in names}
+    for sc, name, src in refs.ranked(f, 8):
+        if name in names or _base(name) in bases:
+            continue
+        if src in ("learned", "shipped", "icon") and sc >= min(FV.MAYBE_MIN, (top if top is not None else 1.0)
+                                                              - FV.MATCH_BY):
+            return True
+        if src == "exchange" and sc >= FV.MATCH_SURE:
+            return True
+    return False
+
+
+def _by_level(base, names, bgr):
+    """One picture, many levels (uncut gems, Thaumaturgic Flux): the white roman level at the cell's bottom right
+    picks one ("V" -> "Uncut Support Gem (Level 5)") - None when it isn't read or isn't one of them."""
+    lv = roman(tier_letters(bgr, white=True))
+    want = f"{base} (Level {lv})" if lv else None
+    return want if want in names else None
+
+
+def _resolve(key, names, bgr):
+    """An entry (one picture) -> the item's name: itself, its level, or (grades) the plain orb - grade() moves it
+    to Greater / Perfect by its II / III. None when the level isn't read."""
+    names = list(names or [key])
+    if len(names) == 1:
+        return names[0]
+    if all(LEVEL.match(n) for n in names):
+        return _by_level(key, names, bgr)
+    return key if key in names else None
+
+
+def stash_match(bgr, f, refs, veto=True):
+    """3.0.6 (owner: reuse what Scan stash knows): a cell (BGR, a whole cell) -> the item one of Scan stash's
+    wildcard pictures (stashread.learned_icons: shipped ones and the ones you named) says it is, or None. Its own
+    picture match (the cell's lower part slid over the slot's), STASH_MIN and STASH_BY ahead; never when another
+    item's learned or shipped picture is close (veto=False: what the picture alone says)."""
+    icons = getattr(refs, "stash", None) or {}
+    if not icons:
+        return None
+    import cv2
+    from . import stashread as SR
+    cell = cv2.resize(bgr, (70, 70), interpolation=cv2.INTER_AREA)
+    ic = SR._icon(cell, (0, 0, 70, 70))
+    if ic is None:
+        return None
+    got = sorted(((float(cv2.matchTemplate(ic, v[3:-3, 4:-4], cv2.TM_CCOEFF_NORMED).max()), n)
+                  for n, v in icons.items() if v is not None), reverse=True)
+    if not got:
+        return None
+    top, name = got[0]
+    nxt = got[1][0] if len(got) > 1 else 0.0
+    if top < STASH_MIN or top - nxt < STASH_BY or (veto and _other_close(refs, f, {name})):
+        return None
+    return name
+
+
+def art_disagrees(f, refs, name):
+    """3.0.6 (on the owner's inventory with nothing learned, an Omen of Putrefaction was named Omen of Light by
+    its exchange icon - 0.68, alone ahead): poe.ninja's art of the item an exchange icon named scores ART_BY or
+    more under another item's art -> True (not known). The right items' own art was the top every time; the wrong
+    one 0.26 under. No art cached for it: False."""
+    from . import favours as FV
+    art = getattr(refs, "art", None)
+    if art is None or not art.items:
+        return False
+    got = art.ranked(f, len(art.items))
+    own = [sc for sc, key, _s in got if name in art.groups.get(key, [key]) or key == name]
+    if not got or not own:
+        return False
+    return got[0][0] - own[0] >= FV.ART_BY
+
+
+def art_match(bgr, f, refs, only=None):
+    """3.0.6 (owner: every item poe.ninja's exchange lists, nothing taught): the last fallback - poe.ninja's art
+    from the art cache (refs.art), compared like the exchange icons (cropped to the art). Only when it's sure
+    (ART_MIN), far ahead of the next picture (ART_BY), its colors aren't beaten (hue_veto) and no learned or
+    shipped picture of another item is close. only: the names it may give (the gems, for a cell with no stack
+    number). -> name or None."""
+    from . import favours as FV
+    art = getattr(refs, "art", None)
+    if art is None or not art.items:
+        return None
+    if only is not None:
+        view = FV.Refs()
+        view.items = {k: v for k, v in art.items.items() if any(n in only for n in art.groups.get(k, [k]))}
+    else:
+        view = art
+    got = view.ranked(f, 2)
+    if not got or got[0][0] < FV.ART_MIN:
+        return None
+    top, key = got[0][0], got[0][1]
+    nxt = got[1][0] if len(got) > 1 else -1.0
+    if top - nxt < FV.ART_BY or view.hue_veto(f, top):
+        return None
+    names = art.groups.get(key, [key])
+    if _other_close(refs, f, set(names), top):
+        return None
+    return _resolve(key, names, bgr)
+
+
+def unlettered(bgr):
+    """A cell (BGR) with its white level letters (bottom right) painted over from around them - the gem's
+    pictures have none, and the letters change what the art looks like."""
+    import cv2
+    import numpy as np
+    h, w = bgr.shape[:2]
+    b, g, r = (bgr[..., i].astype(int) for i in range(3))
+    lo = np.minimum(np.minimum(r, g), b)
+    m = ((lo > 165) & (np.maximum(np.maximum(r, g), b) - lo < 50)).astype(np.uint8)
+    m[:int(h * 0.55)] = 0
+    m[:, :int(w * 0.6)] = 0
+    if not m.any():
+        return bgr
+    m = cv2.dilate(m, np.ones((3, 3), np.uint8))
+    return cv2.inpaint(np.ascontiguousarray(bgr), m * 255, 3, cv2.INPAINT_TELEA)
+
+
+def gem_match(cell, refs):
+    """3.0.6 (a lineage support gem was missed): a cell with no stack number (PIL) -> the lineage or uncut gem it
+    is, or None (gear, a jewel, an item poe.ninja doesn't list). Only gems' pictures compete: GEM_MIN and GEM_BY
+    ahead of the next gem, the colors not beaten, no other item's learned or shipped picture close; an uncut gem by
+    its level (the white roman number). Then poe.ninja's art (art_match), gems only."""
+    gems = getattr(refs, "gems", None) or set()
+    if not gems or cell is None or not hasattr(cell, "convert"):
+        return None
+    try:
+        import numpy as np
+        from . import favours as FV
+        bgr = np.asarray(cell.convert("RGB"))[:, :, ::-1].copy()
+        f = {"box": _box_feats(unlettered(bgr) if roman(tier_letters(bgr, white=True)) else bgr)}
+        view = FV.Refs()
+        view.items = {n: v for n, v in refs.items.items() if n in gems}
+        got = _collapsed(view.ranked(f, len(view.items), refs=True)) if view.items else []
+        if got and got[0][0] >= GEM_MIN and got[0][0] - (got[1][0] if len(got) > 1 else -1.0) >= GEM_BY \
+                and not view.hue_veto(f, got[0][0]):
+            key = got[0][1]
+            names = [n for n in view.items if _base(n) == key]
+            if not _other_close(refs, f, set(names), got[0][0]):
+                name = _resolve(key, names, bgr)
+                if name:
+                    return name
+        return art_match(bgr, f, refs, only=gems)
+    except Exception:
+        buglog.caught()
+        return None
+
+
 def fv_match(cell, refs, alike=False):
     """A Top Up cell (PIL) -> the exchange item Scan stash learned it to be, or None (the Favours pictures, cut to
     the item's art so a stash slot and an inventory cell line up). alike=True: [names] - the one item, or the
-    look-alikes it could be (Refs.alike), [] for none."""
+    look-alikes it could be (Refs.alike), [] for none. 3.0.6: trust in this order - learned and shipped pictures,
+    Scan stash's wildcard pictures (stash_match), the exchange icons, poe.ninja's art (art_match); when Scan
+    stash's picture says another item than an exchange icon, it's not known (never a guess)."""
     try:
         import numpy as np
         from . import favours as FV
@@ -48,9 +265,23 @@ def fv_match(cell, refs, alike=False):
         e = max(1, int(round(FV.EDGE * w / FV.CELL)))
         f = {"box": FV.feats(FV.art_box(bgr[e:h - e, e:w - e]))}
         name, _score, _margin = refs.best(f)
-        names = [name] if name else ([] if not alike else refs.alike(f))
-        if not name and len(names) != 1:
+        clash = False
+        if name:
+            top = refs.ranked(f, 1, refs=True)
+            if top and top[0][2] == "exchange":
+                st = stash_match(bgr, f, refs, veto=False) if getattr(refs, "stash", None) else None
+                gap = FV.tint_gap(top[0][3], top[0][4])
+                if (st and st != name) or art_disagrees(f, refs, name) or (gap is not None and gap > EXCH_TINT_MAX):
+                    name, clash = None, True
+        else:
+            name = stash_match(bgr, f, refs)
+        names = [name] if name else ([] if not alike or clash else refs.alike(f))
+        if not name and not clash and len(names) != 1:
             hit = by_color(f, refs)
+            if hit:
+                names = [hit]
+        if not names and not clash:
+            hit = art_match(bgr, f, refs)
             if hit:
                 names = [hit]
         if names:
@@ -238,7 +469,11 @@ def identify(cells, taught, refs=None, price=None, info=None):
         if name is None and c.get("shown") is False:
             t = waystone_tier(c["img"]) if c.get("img") is not None else None
             if t is None:
-                skipped += 1
+                gem = gem_match(c.get("img"), refs) if refs is not None else None     # 3.0.6: lineage / uncut
+                if gem is None:                                                       # gems show no stack number
+                    skipped += 1
+                    continue
+                out[gem] = out.get(gem, 0) + 1
                 continue
             name = waystone_name(t)
         if name is None and refs is not None and c.get("img") is not None:

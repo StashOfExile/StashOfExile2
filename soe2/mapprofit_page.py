@@ -12,6 +12,7 @@ from .config import SETTINGS, save_json
 from .style import C, SegBar, Tooltip, autowrap
 
 REFS_SECS = 600                     # Scan stash's pictures are built again at most this often
+ART_GAP = 0.5                       # 3.0.6: seconds between two of poe.ninja's pictures downloaded for Map Profit
 
 
 VIEWS = ("All Time", "Daily", "Hourly")    # 2.132.6 the page's views
@@ -62,19 +63,43 @@ class MapProfitPage:
         self._mp_refs_busy = True
 
         def work():
-            from . import favours as FV
             from .wealth import WPRICES
-            return FV.build_refs(FV.ninja_items(getattr(WPRICES, "parts", None)), exchange=True)
+            return MP.build_refs(getattr(WPRICES, "parts", None))
 
         def done(r):
             self._mp_refs_busy = False
             self.mp_refs_v, self.mp_refs_at = r, time.time()
+            self.mp_art_fetch()
         try:
             self.run_bg(work, done)
         except Exception:
             self._mp_refs_busy = False
             buglog.caught()
         return getattr(self, "mp_refs_v", None)
+
+    def mp_art_fetch(self):
+        """3.0.6 (every item poe.ninja's exchange lists, nothing taught): poe.ninja's pictures of the exchange items
+        not in the art cache yet, for Map Profit's last fallback (MP.art_match) - asked once per session, through
+        Exchange Rates' downloader (rates_view.Icons: the game's image server, the app's User-Agent, one at a time
+        with ART_GAP between, it stops after a few failures). Cached for good; the pictures are built again on the
+        next Read Key press once some arrive. No screen read: only downloads."""
+        if getattr(self, "_mp_art", None) is not None or getattr(self, "root", None) is None:
+            return
+        try:
+            from . import favours as FV
+            from .rates_view import Icons
+            from .wealth import WPRICES
+            urls = sorted({u for _n, p in FV.ninja_items(getattr(WPRICES, "parts", None)).values()
+                           for u in [FV.art_url(p)] if u and FV.art_cache_file(u) is None})
+            self._mp_art = Icons(self.root, self._mp_art_ready)
+            self._mp_art.gap = ART_GAP
+            for u in urls:
+                self._mp_art.get(u)
+        except Exception:
+            buglog.caught()
+
+    def _mp_art_ready(self):
+        self.mp_refs_at = 0                 # (stale: the next Read Key press builds the pictures again)
 
     # ---------------------------------------------------------------- reading (from Top Up's clear looks)
     def mp_seen(self, res):
@@ -101,9 +126,8 @@ class MapProfitPage:
             # 3.0.6 (a map showed 2 not known and +0 div): the pictures weren't built yet on the first read after the
             # app started - built now, once, so this read counts
             try:
-                from . import favours as FV
                 from .wealth import WPRICES
-                refs = self.mp_refs_v = FV.build_refs(FV.ninja_items(getattr(WPRICES, "parts", None)), exchange=True)
+                refs = self.mp_refs_v = MP.build_refs(getattr(WPRICES, "parts", None))
                 self.mp_refs_at = time.time()
             except Exception:
                 buglog.caught()

@@ -317,6 +317,10 @@ class Refs:
 
     def __init__(self):
         self.items = {}
+        # 3.0.6 Map Profit's fallbacks (mapprofit.build_refs fills them): the gem items' names (lineage / uncut gems
+        # show no stack number), Scan stash's wildcard pictures {name: 26 x 40}, poe.ninja's art (Refs, or None)
+        # and the names each art entry stands for ({entry: [names]} - one picture, many levels or grades)
+        self.gems, self.stash, self.art, self.groups = set(), {}, None, {}
 
     def add(self, name, bgr, src="art", mode="top"):
         self.items.setdefault(name, []).append((feats(bgr), src, mode))
@@ -568,6 +572,112 @@ def build_refs(items, exchange=False):
             if known and name not in known:
                 continue
             refs.add(name, art_box(bgr[3:-3, 3:-3], corner=False), "exchange", "box")
+    return refs
+
+
+ART_MIN, ART_BY = 0.80, 0.10       # 3.0.6: poe.ninja's art, Map Profit's last fallback (official art scored up to
+#                                    0.64 for the wrong item on Favours cells): this sure and this far ahead, or nothing
+ART_BACKING = (41, 5, 5)           # an inventory cell's dark blue (BGR): the art is laid on it, as the game draws it
+CDN = "https://web.poecdn.com"     # (poe.ninja's picture paths are on the game's image server)
+_LEVEL = r"^(.*) \(Level (\d+)\)$"
+GRADE_WORDS = ("Greater ", "Perfect ")
+
+
+def art_url(path):
+    """poe.ninja's picture path -> its https URL, or None."""
+    if not path:
+        return None
+    return path if path.startswith("https://") else (CDN + path if path.startswith("/") else None)
+
+
+def art_cache_file(url):
+    """The art cache's file for this picture (Exchange Rates' or Price Checks' name for it), or None when neither
+    is there. Only looks: nothing is downloaded here."""
+    import hashlib
+    from .config import P
+    if not url:
+        return None
+    h = hashlib.sha1(url.encode()).hexdigest()[:20]
+    for fn in ("cur_" + h + ".png", h + ".png"):
+        p = os.path.join(P("art"), fn)
+        if os.path.exists(p):
+            return p
+    return None
+
+
+def art_cell(pic):
+    """poe.ninja's picture (a file, or BGR / BGRA pixels) of a 1-cell item -> a cell's inside as the inventory draws
+    it (on the cell's dark blue, the frame left off), or None (not square: a big item)."""
+    cv2, np = _cv()
+    im = cv2.imread(pic, cv2.IMREAD_UNCHANGED) if isinstance(pic, str) else pic
+    if im is None or im.ndim != 3 or not im.size:
+        return None
+    h, w = im.shape[:2]
+    if abs(h - w) > 0.1 * max(h, w):
+        return None
+    im = cv2.resize(im, (CELL, CELL), interpolation=cv2.INTER_AREA if w > CELL else cv2.INTER_LINEAR)
+    out = np.empty((CELL, CELL, 3), np.float32)
+    out[:] = ART_BACKING
+    if im.shape[2] == 4:
+        a = im[..., 3:4].astype(np.float32) / 255.0
+        out = im[..., :3].astype(np.float32) * a + out * (1 - a)
+    else:
+        out = im[..., :3].astype(np.float32)
+    return np.clip(out, 0, 255).astype(np.uint8)[EDGE:CELL - EDGE, EDGE:CELL - EDGE]
+
+
+def art_key(names):
+    """The names that share one picture -> the one entry they're matched under, or None: one name; the levels of
+    one item ("Uncut Skill Gem (Level 5)" ... -> "Uncut Skill Gem": the cell's level tells them apart); the grades
+    of one orb (Regal / Greater / Perfect Regal Orb -> "Regal Orb": its II / III tells them apart). Other items
+    that share a picture are never told apart (None)."""
+    import re
+    names = sorted(set(names))
+    if len(names) == 1:
+        return names[0]
+    bases = {(re.match(_LEVEL, n) or [None, None])[1] for n in names}
+    if len(bases) == 1 and None not in bases:
+        return bases.pop()
+    plain = {ungraded(n) for n in names}
+    if len(plain) == 1 and plain <= set(names):
+        return plain.pop()
+    return None
+
+
+def ungraded(name):
+    """'Greater Regal Orb' -> 'Regal Orb' (the same orb's picture)."""
+    for g in GRADE_WORDS:
+        if name.startswith(g):
+            return name[len(g):]
+    return name
+
+
+def art_refs(items, pic=None):
+    """{id: (name, picture path)} -> Refs of poe.ninja's art (src "art") from the art cache - never downloaded
+    here; Map Profit's page fills the cache. One entry per picture (art_key), its names in .groups. pic: url ->
+    a file or pixels (tests)."""
+    refs = Refs()
+    by_url = {}
+    for name, path in (items or {}).values():
+        u = art_url(path)
+        if u and name:
+            by_url.setdefault(u, set()).add(name)
+    for u, names in by_url.items():
+        key = art_key(names)
+        if key is None:
+            continue
+        src = pic(u) if pic else art_cache_file(u)
+        if src is None:
+            continue
+        try:
+            inside = art_cell(src)
+        except Exception:
+            buglog.caught()
+            continue
+        if inside is None:
+            continue
+        refs.add(key, art_box(inside, corner=False), "art", "box")
+        refs.groups[key] = sorted(names)
     return refs
 
 
