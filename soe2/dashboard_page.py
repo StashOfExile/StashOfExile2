@@ -70,6 +70,20 @@ def helper_rows():
     return out
 
 
+def visible_parts(wealth_done, price_done, helper_done):
+    """Which parts of the Dashboard show: a part is hidden when its feature is off (nothing grayed out), and a Start
+    here card is hidden once it is done. -> dict of bools."""
+    from . import features as FEAT
+    w, p, o = FEAT.on("wealth"), FEAT.on("price"), FEAT.on("overlay")
+    try:
+        mp = o and FEAT.helper_on("mapprofit")
+    except Exception:
+        mp = False
+    return {"wealth": w, "price": p, "overlay": o, "map": mp,
+            "start_price": p and not price_done, "start_wealth": w and not wealth_done,
+            "start_overlay": o and not helper_done, "empty": not (w or p or o)}
+
+
 class Dashboard(tk.Canvas):
     def __init__(self, app, parent):
         super().__init__(parent, highlightthickness=0, bd=0)
@@ -227,6 +241,12 @@ class Dashboard(tk.Canvas):
             buglog.caught()
             recs = []
         today = [r for r in recs if r.get("time", 0) >= day_start(now)]
+        try:
+            hs = helper_rows()
+        except Exception:
+            buglog.caught()
+            hs = []
+        vis = visible_parts(wn is not None, bool(recs), any(on for _n, on in hs))
 
         # -- header: greeting, one line, the buttons
         y = PAD
@@ -236,7 +256,7 @@ class Dashboard(tk.Canvas):
         except Exception:
             who = "Exile"
         self.create_text(PAD, y, text=f"{greeting(now)}, {who}", anchor="nw", font=(head, 28), fill=strong)
-        if wn:
+        if wn and vis["wealth"]:
             sub = f"Your stash is worth {fmt_div(wn['total'])}"
             sub += (f"  ·  ▲ up {fmt_div(wn['today'])} today" if wn["today"] > 0 else
                     f"  ·  ▼ down {fmt_div(-wn['today'])} today" if wn["today"] < 0 else "  ·  no change today")
@@ -272,167 +292,187 @@ class Dashboard(tk.Canvas):
                               f"{week:,} people used Stash of Exile 2 this week") + \
                              (f" ({week:,} this week)." if online and week else ".")
         pc_key = SETTINGS.get("pc_key") or "Ctrl+D"
-        x = self._button(W - PAD, y + 6, "Price Checks", "b_pc", go("pricecheck"), primary=True,
-                         tip=f"In game: hover an item and press {pc_key}. Its price and listings show on Price Checks.")
-        self._button(x - 12, y + 6, "Overlay", "b_ov", go("tracker"), tip="Over the game: the session timer and the helpers.")
+        x = W - PAD
+        if vis["price"]:
+            x = self._button(x, y + 6, "Price Checks", "b_pc", go("pricecheck"), primary=True,
+                             tip=f"In game: hover an item and press {pc_key}. Its price and listings show on Price Checks.") - 12
+        if vis["overlay"]:
+            self._button(x, y + 6, "Overlay", "b_ov", go("tracker"), tip="Over the game: the session timer and the helpers.")
 
-        # -- four numbers
         y += 96
         look = getattr(self.app, "drawer_look_on", None)
         narrow = W < 900 or bool(look and look())            # D3: in the Drawer the tiles and Start cards wrap, 2 a row
-        tcols = 2 if narrow else 4
-        cw = (W - 2 * PAD - (tcols - 1) * GAP) / tcols
-        y_tiles = y
 
-        def tile(i, label, big, unit, foot, foot_col, how, key=None):
+        if vis["empty"]:                                     # every part is off: one line, one button
+            self._card(PAD, y, W - PAD, y + 150)
+            self.create_text(PAD + 24, y + 30, text="Your Dashboard shows the parts you turn on.", anchor="nw",
+                             font=(head, 16), fill=strong)
+            self._button(W - PAD - 24, y + 80, "Choose features", "b_feat",
+                         (lambda: sh.open_tab("settings", "General") if sh else None), primary=True,
+                         tip="Opens Settings › General › Features.")
+            self._h = y + 150 + PAD
+            self.configure(scrollregion=(0, 0, W, self._h))
+            return
+
+        # -- the numbers: only the parts whose feature is on; the rest move up and widen
+        tiles = []
+        if vis["wealth"]:
+            if wn:
+                tiles.append(("Stash worth", fmt_div(wn["total"]), f"from {wn['n']:,} items · {ago(wn['ts'], now)}", mut,
+                              "Every item from your last stash scan, each at the Middle of its listings, added up.", "wealth"))
+                d = wn["today"]
+                tiles.append(("Today", ("+" if d >= 0 else "−") + fmt_div(abs(d)),
+                              "▲ Up" if d > 0 else "▼ Down" if d < 0 else "— No change",
+                              good if d > 0 else bad if d < 0 else mut,
+                              "Stash worth now, minus your last scan before midnight (or your first scan today).", "wealth"))
+            else:
+                tiles.append(("Stash worth", "—", "Scan your stash on Wealth", mut,
+                              "Shows after your first stash scan on the Wealth page.", "wealth"))
+                tiles.append(("Today", "—", "After your first scan", mut, "Stash worth now, minus your last scan before "
+                              "midnight.", "wealth"))
+        if vis["map"]:
+            if mn and mn["map"] is not None:
+                tiles.append(("Last map", fmt_div(mn["map"]), f"{mn['name']} · {max(1, mn['secs'] // 60)} min", mut,
+                              "Map profit: your inventory after the map, minus before - Currency Exchange items, priced "
+                              "by poe.ninja.", "mapprofit"))
+            else:
+                tiles.append(("Last map", "—", "Shows after your next map", mut,
+                              "Map profit: your inventory after a map, minus before. Its switch: Overlay › Helpers.",
+                              "mapprofit"))
+        if vis["price"]:
+            priced = [r for r in today if r.get("est") is not None and not r.get("skip")]
+            tiles.append(("Items price checked today", str(len(today)), f"{len(priced)} with a price", mut,
+                          f"Items you priced with {pc_key} since midnight.", "pricecheck"))
+        tcols = max(1, min(2 if narrow else 4, len(tiles)))
+        cw = (W - 2 * PAD - (tcols - 1) * GAP) / tcols
+
+        for i, (label, big, foot, foot_col, how, key) in enumerate(tiles):
             x0 = PAD + (i % tcols) * (cw + GAP)
-            ty = y_tiles + (i // tcols) * (TILE_H + GAP)
+            ty = y + (i // tcols) * (TILE_H + GAP)
             tag = f"tile{i}"
-            self._card(x0, ty, x0 + cw, ty + TILE_H, tag if key else None, lit=bool(key) and self.hover == tag)
+            self._card(x0, ty, x0 + cw, ty + TILE_H, tag, lit=self.hover == tag)
             self.create_text(x0 + 18, ty + 16, text=label, anchor="nw", font=("Segoe UI", 10), fill=mut, tags=(tag,),
                              width=cw - 56)
             info = f"info{i}"
             self.create_text(x0 + cw - 18, ty + 16, text="ⓘ", anchor="ne", font=("Segoe UI Symbol", 10),
                              fill=brass if self.hover == info else mut, tags=(info,))
             self.tips[info] = how
-            nid = self.create_text(x0 + 18, ty + 40, text=big, anchor="nw", font=(num, 28), fill=strong, tags=(tag,))
-            if unit:
-                bx = self.bbox(nid)
-                self.create_text(bx[2] + 8, bx[3] - 8, text=unit, anchor="sw", font=("Segoe UI", 10), fill=brass, tags=(tag,))
+            self.create_text(x0 + 18, ty + 40, text=big, anchor="nw", font=(num, 28), fill=strong, tags=(tag,))
             self.create_text(x0 + 18, ty + TILE_H - 14, text=foot, anchor="sw", font=("Segoe UI", 9), fill=foot_col,
                              tags=(tag,), width=cw - 36)
-            if key:
-                self.acts[tag] = go(key)
-
-        if wn:
-            tile(0, "Stash worth", fmt_div(wn["total"]), "", f"from {wn['n']:,} items · {ago(wn['ts'], now)}", mut,
-                 "Every item from your last stash scan, each at the Middle of its listings, added up.", "wealth")
-            d = wn["today"]
-            tile(1, "Today", ("+" if d >= 0 else "−") + fmt_div(abs(d)), "",
-                 "▲ Up" if d > 0 else "▼ Down" if d < 0 else "— No change", good if d > 0 else bad if d < 0 else mut,
-                 "Stash worth now, minus your last scan before midnight (or your first scan today).", "wealth")
-        else:
-            tile(0, "Stash worth", "—", "", "Scan your stash on Wealth", mut,
-                 "Shows after your first stash scan on the Wealth page.", "wealth")
-            tile(1, "Today", "—", "", "After your first scan", mut, "Stash worth now, minus your last scan before "
-                 "midnight.", "wealth")
-        if mn and mn["map"] is not None:
-            tile(2, "Last map", fmt_div(mn["map"]), "", f"{mn['name']} · {max(1, mn['secs'] // 60)} min", mut,
-                 "Map profit: your inventory after the map, minus before - Currency Exchange items, priced by "
-                 "poe.ninja.", "mapprofit")
-        else:
-            tile(2, "Last map", "—", "", "Shows after your next map", mut,
-                 "Map profit: your inventory after a map, minus before. Its switch: Overlay › Helpers.", "mapprofit")
-        priced = [r for r in today if r.get("est") is not None and not r.get("skip")]
-        tile(3, "Items price checked today", str(len(today)), "", f"{len(priced)} with a price", mut,
-             f"Items you priced with {pc_key} since midnight.", "pricecheck")
-
-        # -- start here
-        trows = -(-4 // tcols)
-        y += trows * TILE_H + (trows - 1) * GAP + 36
-        hid = self.create_text(PAD, y, text="Start here", anchor="nw", font=(head, 16), fill=strong)
-        self.create_text(self.bbox(hid)[2] + 12, y + 4, text="Three things most players do first.", anchor="nw",
-                         font=("Segoe UI", 10), fill=mut)
-        y += 34
-        # Round 18 (feedback: the three wrapped to 2 + 1 under the tiles): one row of three at Drawer and Full widths -
-        # smaller text and padding when a card is narrow; two a row only on a truly narrow page
-        scols = 3 if (W - 2 * PAD - 2 * GAP) / 3 >= 190 else 2 if W - 2 * PAD >= 380 else 1
-        sw = (W - 2 * PAD - (scols - 1) * GAP) / scols
-        tight = sw < 300                                     # (the Drawer's widths)
-        ip, ic = (14, 28) if tight else (18, 34)             # inner padding, icon box
-        sh = (150 if sw < 230 else 132) if tight else START_H
-        tf, lf = (("Segoe UI", 10, "bold"), ("Segoe UI", 9)) if tight else (("Segoe UI", 12, "bold"), ("Segoe UI", 10))
-        y_starts = y
-        starts = (("Know what an item is worth", f"Hover an item in game and press {pc_key}.", "Price Checks →", "pricecheck"),
-                  ("See what you have earned", "Press Scan stash. Each scan adds a point to your worth over time.", "Wealth →", "wealth"),
-                  ("Get help while you play", "Helpers over the game: Ritual, Temple, Map profit.", "Overlay →", "tracker"))
-        for i, (title, line, link, key) in enumerate(starts):
-            x0 = PAD + (i % scols) * (sw + GAP)
-            sy = y_starts + (i // scols) * (sh + GAP)
-            tag = f"start{i}"
-            lit = self.hover == tag
-            self._card(x0, sy, x0 + sw, sy + sh, tag, lit)
-            TH.round_rect(self, x0 + ip, sy + ip, x0 + ip + ic, sy + ip + ic, 8, fill=t.c("surface_sunken"),
-                          outline=TH.mix(brass, t.c("surface_raised"), .6), tags=(tag,))
-            self.create_text(x0 + ip + ic / 2, sy + ip + ic / 2, text=("◇", "◈", "◆")[i],
-                             font=("Segoe UI Symbol", 10 if tight else 12), fill=brass, tags=(tag,))
-            tid = self.create_text(x0 + ip + ic + 12, sy + ip + ic / 2, text=title, anchor="w", font=tf, fill=strong,
-                                   width=sw - (ip + ic + 12) - ip, tags=(tag,))
-            ly = max(sy + ip + ic, (self.bbox(tid) or (0, 0, 0, sy))[3]) + (10 if tight else 14)
-            self.create_text(x0 + ip, ly, text=line, anchor="nw", font=lf, fill=mut, width=sw - 2 * ip, tags=(tag,))
-            self.create_text(x0 + ip, sy + sh - (12 if tight else 16), text=link, anchor="sw",
-                             font=(lf[0], lf[1], "bold"), fill=acc if lit else brass, tags=(tag,))
             self.acts[tag] = go(key)
+        if tiles:
+            trows = -(-len(tiles) // tcols)
+            y += trows * TILE_H + (trows - 1) * GAP + 36
 
-        # -- your last checks / helpers
-        srows = -(-3 // scols)
-        y += srows * sh + (srows - 1) * GAP + GAP
+        # -- start here: the things not done yet (each card goes once it's done)
+        starts = [c for c in (
+            ("price", "◇", "Know what an item is worth", f"Hover an item in game and press {pc_key}.", "Price Checks →", "pricecheck"),
+            ("wealth", "◈", "See what you have earned", "Press Scan stash. Each scan adds a point to your worth over time.", "Wealth →", "wealth"),
+            ("overlay", "◆", "Get help while you play", "Helpers over the game: Ritual, Temple, Map profit.", "Overlay →", "tracker"))
+            if vis["start_" + c[0]]]
+        if starts:
+            hid = self.create_text(PAD, y, text="Start here", anchor="nw", font=(head, 16), fill=strong)
+            self.create_text(self.bbox(hid)[2] + 12, y + 4, text="Things most players do first.", anchor="nw",
+                             font=("Segoe UI", 10), fill=mut)
+            y += 34
+            # one row at Drawer and Full widths - smaller text and padding when a card is narrow; two a row only on a
+            # truly narrow page; fewer cards widen to fill
+            base = 3 if (W - 2 * PAD - 2 * GAP) / 3 >= 190 else 2 if W - 2 * PAD >= 380 else 1
+            scols = min(base, len(starts))
+            sw = (W - 2 * PAD - (scols - 1) * GAP) / scols
+            tight = sw < 300                                 # (the Drawer's widths)
+            ip, ic = (14, 28) if tight else (18, 34)         # inner padding, icon box
+            sh_ = (150 if sw < 230 else 132) if tight else START_H
+            tf, lf = (("Segoe UI", 10, "bold"), ("Segoe UI", 9)) if tight else (("Segoe UI", 12, "bold"), ("Segoe UI", 10))
+            for i, (_k, glyph, title, line, link, key) in enumerate(starts):
+                x0 = PAD + (i % scols) * (sw + GAP)
+                sy = y + (i // scols) * (sh_ + GAP)
+                tag = f"start{i}"
+                lit = self.hover == tag
+                self._card(x0, sy, x0 + sw, sy + sh_, tag, lit)
+                TH.round_rect(self, x0 + ip, sy + ip, x0 + ip + ic, sy + ip + ic, 8, fill=t.c("surface_sunken"),
+                              outline=TH.mix(brass, t.c("surface_raised"), .6), tags=(tag,))
+                self.create_text(x0 + ip + ic / 2, sy + ip + ic / 2, text=glyph,
+                                 font=("Segoe UI Symbol", 10 if tight else 12), fill=brass, tags=(tag,))
+                tid = self.create_text(x0 + ip + ic + 12, sy + ip + ic / 2, text=title, anchor="w", font=tf, fill=strong,
+                                       width=sw - (ip + ic + 12) - ip, tags=(tag,))
+                ly = max(sy + ip + ic, (self.bbox(tid) or (0, 0, 0, sy))[3]) + (10 if tight else 14)
+                self.create_text(x0 + ip, ly, text=line, anchor="nw", font=lf, fill=mut, width=sw - 2 * ip, tags=(tag,))
+                self.create_text(x0 + ip, sy + sh_ - (12 if tight else 16), text=link, anchor="sw",
+                                 font=(lf[0], lf[1], "bold"), fill=acc if lit else brass, tags=(tag,))
+                self.acts[tag] = go(key)
+            srows = -(-len(starts) // scols)
+            y += srows * sh_ + (srows - 1) * GAP + GAP
+
+        # -- your last checks / helpers: one alone takes the full width
         stack = bool(look and look())                       # the Drawer: one column - Pick up, then Helpers under it
-        lw = (W - 2 * PAD) if stack else (W - 2 * PAD - GAP) * 0.62
-        self._card(PAD, y, PAD + lw, y + LIST_H)
-        self.create_text(PAD + 20, y + 18, text="Pick up where you left off", anchor="nw", font=(head, 16), fill=strong)
-        self.create_text(PAD + lw - 20, y + 22, text="All Price Checks", anchor="ne", font=("Segoe UI", 10),
-                         fill=acc if self.hover == "allpc" else brass, tags=("allpc",))
-        self.acts["allpc"] = go("pricecheck")
-        rows = recs[:4]
-        ry = y + 56
-        if not rows:
-            self.create_text(PAD + 20, ry + 8, text=f"Your price checks show here. In game: hover an item, press {pc_key}.",
-                             anchor="nw", font=("Segoe UI", 10), fill=mut, width=lw - 40)
-        rar = {"Unique": t.c("unique", "#af6025"), "Rare": t.c("rare", "#ffff77"), "Magic": t.c("magic", "#8f9bff")}
-        for i, r in enumerate(rows):
-            it = r.get("item") or {}
-            tag = f"rec{i}"
-            self.create_line(PAD + 20, ry, PAD + lw - 20, ry, fill=t.c("border"))
-            name = (it.get("name") or it.get("base") or "item")[:40]
-            self.create_text(PAD + 20, ry + 10, text=name, anchor="nw", font=("Segoe UI", 10, "bold"),
-                             fill=rar.get(it.get("rarity"), txt), tags=(tag,))
-            kind = " ".join(v for v in (it.get("rarity"), it.get("base") if it.get("name") else "") if v)
-            self.create_text(PAD + 20, ry + 28, text=f"{kind + ' · ' if kind else ''}{ago(r.get('time', now), now)}",
-                             anchor="nw", font=("Segoe UI", 9), fill=mut, tags=(tag,))
-            n = len(r.get("prices") or [])
-            if r.get("est") is not None and not r.get("skip"):
-                price = fmt_div(r["est"])
-                self.tips[tag] = f"{n} listings · the Middle of them is {price}"
-            else:
-                price = "…" if r.get("state") in ("queued", "pricing") else "No price"
-                self.tips[tag] = "Still pricing" if price == "…" else "No listings found"
-            self.create_text(PAD + lw - 20, ry + 12, text=price, anchor="ne", font=("Segoe UI", 10, "bold"), fill=txt,
-                             tags=(tag,))
-            self.create_text(PAD + lw - 20, ry + 30, text=f"{n} listings" if n else "", anchor="ne",
-                             font=("Segoe UI", 9), fill=mut, tags=(tag,))
-            rid = r.get("id")
-            self.acts[tag] = (lambda rid=rid: (sh.open("pricecheck") if sh else None,
-                                               self.app.records.get(rid) and self.app.pc_show(self.app.records[rid])))
-            ry += 48
-
-        if stack:
-            y += LIST_H + GAP
-            hx0 = PAD
-        else:
+        both = vis["price"] and vis["overlay"]
+        full = W - 2 * PAD
+        lw = full if (stack or not both) else (W - 2 * PAD - GAP) * 0.62
+        if vis["price"]:
+            self._card(PAD, y, PAD + lw, y + LIST_H)
+            self.create_text(PAD + 20, y + 18, text="Pick up where you left off", anchor="nw", font=(head, 16), fill=strong)
+            self.create_text(PAD + lw - 20, y + 22, text="All Price Checks", anchor="ne", font=("Segoe UI", 10),
+                             fill=acc if self.hover == "allpc" else brass, tags=("allpc",))
+            self.acts["allpc"] = go("pricecheck")
+            rows = recs[:4]
+            ry = y + 56
+            if not rows:
+                self.create_text(PAD + 20, ry + 8, text=f"Your price checks show here. In game: hover an item, press {pc_key}.",
+                                 anchor="nw", font=("Segoe UI", 10), fill=mut, width=lw - 40)
+            rar = {"Unique": t.c("unique", "#af6025"), "Rare": t.c("rare", "#ffff77"), "Magic": t.c("magic", "#8f9bff")}
+            for i, r in enumerate(rows):
+                it = r.get("item") or {}
+                tag = f"rec{i}"
+                self.create_line(PAD + 20, ry, PAD + lw - 20, ry, fill=t.c("border"))
+                name = (it.get("name") or it.get("base") or "item")[:40]
+                self.create_text(PAD + 20, ry + 10, text=name, anchor="nw", font=("Segoe UI", 10, "bold"),
+                                 fill=rar.get(it.get("rarity"), txt), tags=(tag,))
+                kind = " ".join(v for v in (it.get("rarity"), it.get("base") if it.get("name") else "") if v)
+                self.create_text(PAD + 20, ry + 28, text=f"{kind + ' · ' if kind else ''}{ago(r.get('time', now), now)}",
+                                 anchor="nw", font=("Segoe UI", 9), fill=mut, tags=(tag,))
+                n = len(r.get("prices") or [])
+                if r.get("est") is not None and not r.get("skip"):
+                    price = fmt_div(r["est"])
+                    self.tips[tag] = f"{n} listings · the Middle of them is {price}"
+                else:
+                    price = "…" if r.get("state") in ("queued", "pricing") else "No price"
+                    self.tips[tag] = "Still pricing" if price == "…" else "No listings found"
+                self.create_text(PAD + lw - 20, ry + 12, text=price, anchor="ne", font=("Segoe UI", 10, "bold"), fill=txt,
+                                 tags=(tag,))
+                self.create_text(PAD + lw - 20, ry + 30, text=f"{n} listings" if n else "", anchor="ne",
+                                 font=("Segoe UI", 9), fill=mut, tags=(tag,))
+                rid = r.get("id")
+                self.acts[tag] = (lambda rid=rid: (sh.open("pricecheck") if sh else None,
+                                                   self.app.records.get(rid) and self.app.pc_show(self.app.records[rid])))
+                ry += 48
+            if stack and vis["overlay"]:
+                y += LIST_H + GAP
             hx0 = PAD + lw + GAP
-        self._card(hx0, y, W - PAD, y + LIST_H)
-        self.create_text(hx0 + 20, y + 18, text="Helpers", anchor="nw", font=(head, 16), fill=strong)
-        # nav phase 2: every helper is on Overlay › Helpers (was the Overlay Settings page)
-        self.create_text(W - PAD - 20, y + 22, text="All helpers", anchor="ne", font=("Segoe UI", 10),
-                         fill=acc if self.hover == "ovhelpers" else brass, tags=("ovhelpers",))
-        self.acts["ovhelpers"] = (lambda: sh.open_tab("tracker", "Helpers") if sh else None)
-        try:
-            hs = helper_rows()
-        except Exception:
-            buglog.caught()
-            hs = []
-        hy = y + 56
-        for name, on in hs[:4]:
-            self.create_line(hx0 + 20, hy, W - PAD - 20, hy, fill=t.c("border"))
-            self.create_text(hx0 + 20, hy + 24, text=name, anchor="w", font=("Segoe UI", 10), fill=txt if on else mut)
-            chip = "✓ On" if on else "– Off"
-            col = good if on else mut
-            cid = self.create_text(W - PAD - 32, hy + 24, text=chip, anchor="e", font=("Segoe UI", 9, "bold"), fill=col)
-            bx = self.bbox(cid)
-            TH.round_rect(self, bx[0] - 10, bx[1] - 4, bx[2] + 10, bx[3] + 4, 10, fill="",
-                          outline=TH.mix(col, t.c("surface_raised"), .55))
-            hy += 48
+        else:
+            hx0 = PAD
+        if stack and vis["price"] and vis["overlay"]:
+            hx0 = PAD
+        hw = full if (stack or not both) else W - PAD - hx0
+        if vis["overlay"]:
+            self._card(hx0, y, hx0 + hw, y + LIST_H)
+            self.create_text(hx0 + 20, y + 18, text="Helpers", anchor="nw", font=(head, 16), fill=strong)
+            # nav phase 2: every helper is on Overlay › Helpers (was the Overlay Settings page)
+            self.create_text(hx0 + hw - 20, y + 22, text="All helpers", anchor="ne", font=("Segoe UI", 10),
+                             fill=acc if self.hover == "ovhelpers" else brass, tags=("ovhelpers",))
+            self.acts["ovhelpers"] = (lambda: sh.open_tab("tracker", "Helpers") if sh else None)
+            hy = y + 56
+            for name, on in hs[:4]:
+                self.create_line(hx0 + 20, hy, hx0 + hw - 20, hy, fill=t.c("border"))
+                self.create_text(hx0 + 20, hy + 24, text=name, anchor="w", font=("Segoe UI", 10), fill=txt if on else mut)
+                chip = "✓ On" if on else "– Off"
+                col = good if on else mut
+                cid = self.create_text(hx0 + hw - 32, hy + 24, text=chip, anchor="e", font=("Segoe UI", 9, "bold"), fill=col)
+                bx = self.bbox(cid)
+                TH.round_rect(self, bx[0] - 10, bx[1] - 4, bx[2] + 10, bx[3] + 4, 10, fill="",
+                              outline=TH.mix(col, t.c("surface_raised"), .55))
+                hy += 48
 
-        self._h = y + LIST_H + PAD
+        self._h = y + (LIST_H if (vis["price"] or vis["overlay"]) else -GAP) + PAD
         self.configure(scrollregion=(0, 0, W, self._h))
