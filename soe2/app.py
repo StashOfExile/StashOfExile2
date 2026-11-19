@@ -28,6 +28,7 @@ from .config import (
     save_json, save_modbook, SETTINGS, STATUS_OPTIONS, VIEWS, DEFAULTS,
 )
 from . import clipread
+from . import packcheck
 from .util import _amt, _num, mmss
 from .inplace import set_cfg, tv_sync
 from .net import _STATUS_HOOK, fmt_stamp, LIMITER, per_text
@@ -435,6 +436,7 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
             self.root.after(50, self.go_tray)
 
     def user_minimized(self):
+        root.after(packcheck.FIRST_DELAY_MS, self.packs_autocheck)      # the data packs, by themselves (no button)
         """Did YOU minimize the window? Esc, its minimize button or taskbar button (the mouse is there), or a Win-key
         shortcut (Win+D / Win+M / Win+Down) count. Anything else (another program, a game going fullscreen) doesn't."""
         if time.time() < getattr(self, "min_ok_until", 0):
@@ -1296,6 +1298,51 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
         threading.Thread(target=work, daemon=True).start()
 
     def _upd_done(self):
+    # ---------------- data packs (Craft Helper, Campaign guide): checked on their own, once a day
+    def packs_autocheck(self):
+        """soe2/packcheck.py: after the start, then at most once in 24 hours, in the background. A long-running app
+        looks at the clock every half hour and only fetches when a day is up."""
+        try:
+            self.root.after(packcheck.LOOK_MS, self.packs_autocheck)
+        except tk.TclError:
+            return
+        if not packcheck.due() or getattr(self, "_packs_checking", False):
+            return
+        self._packs_checking = True
+        from . import campaign as CP
+        from . import crafthelper as CH
+        self.run_bg(lambda: packcheck.run(lambda: CH.fetch_live(force=True), CP.fetch_live), self.packs_done)
+
+    def packs_done(self, res):
+        self._packs_checking = False
+        save_json("settings.json", SETTINGS)
+        try:
+            if (res.get("craft") or ("",))[0] == "new" and hasattr(self, "mm_ch_kind"):
+                from . import crafthelper as CH
+                self.mm_ch_pick(CH.KINDS[self.mm_ch_kind]["label"])
+            if (res.get("campaign") or ("",))[0] == "new" and hasattr(self, "camp_refresh"):
+                self.camp_refresh()
+        except Exception:
+            buglog.caught()
+        self.packs_status_refresh()
+
+    def packs_status_refresh(self):
+        """The one-line status of each pack follows the last check (updated in place, no redraw)."""
+        from . import crafthelper as CH
+        st = packcheck.state()
+        for attr, text, tip in (("mm_ch_pack_lbl", CH.pack_line(st), packcheck.CRAFT_TIP),
+                                ("tk_camp_pack", self.camp_pack_text(), packcheck.CAMP_TIP)):
+            lab = getattr(self, attr, None)
+            if lab is None:
+                continue
+            try:
+                if lab.winfo_exists():
+                    lab.config(text=text)
+                    if getattr(lab, "_tip", None) is not None:
+                        lab._tip.text = packcheck.tip(tip)
+            except tk.TclError:
+                pass
+
         self._upd_busy = False
         self.upd_btn.config(state="normal")
 

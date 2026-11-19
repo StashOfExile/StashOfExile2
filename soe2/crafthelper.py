@@ -41,7 +41,7 @@ FILE = "crafthelper.json"
 SCHEMA = 1
 REPO = "StashOfExile/StashOfExile2"
 LIVE_URL = f"https://raw.githubusercontent.com/{REPO}/main/{FILE}"
-LIVE_EVERY = 12 * 3600
+LIVE_EVERY = 24 * 3600                                    # (soe2/packcheck.py: once a day, on its own)
 
 KINDS = {
     "tablet": {
@@ -144,10 +144,10 @@ def _apply(d):
         pass
 
 
-def pack_line():
-    """The data pack in one line, for the page."""
+def pack_line(state=""):
+    """The data pack in one line, for the page. state: "up to date" once a check has answered."""
     d = pack()
-    return f"Data pack: game patch {d.get('patch', '?')} · revision {d.get('revision', 0)}"
+    return f"Data pack: game patch {d.get('patch', '?')} · revision {d.get('revision', 0)}" + (f" ({state})" if state else "")
 
 
 def fetch_live(get=None, force=False, now=None):

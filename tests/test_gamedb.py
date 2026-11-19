@@ -262,12 +262,12 @@ class HideList(unittest.TestCase):
                 os.remove(hide)
             gamesearch._DATA["rows"] = None
 
-    def test_shipped_hide_list_is_a_list_of_id_and_reason(self):
+    def test_shipped_hide_list_is_a_list_of_id_or_name_and_reason(self):
         with open(os.path.join(ROOT, "gamedb_hide.json"), encoding="utf-8") as f:
             d = json.load(f)
         self.assertIsInstance(d, list)
         for e in d:
-            self.assertTrue(e.get("id") and e.get("reason"), e)
+            self.assertTrue((e.get("id") or e.get("name")) and e.get("reason"), e)
 
 
 class GameSearchGroups(unittest.TestCase):
@@ -351,7 +351,7 @@ class Shipped(unittest.TestCase):
     def test_bundled_and_built_everywhere(self):
         self.assertEqual(config.BUNDLED_DATA["gamedb.json"], 4)
         self.assertEqual(config.BUNDLED_DATA["atlasmasters.json"], 2)
-        self.assertEqual(config.BUNDLED_DATA["gamedb_hide.json"], 1)
+        self.assertEqual(config.BUNDLED_DATA["gamedb_hide.json"], 2)
         self.assertGreaterEqual(config.BUNDLED_DATA["searchdata.json"], 2)         # (the PoE1 rows left it)
         for f in ("build_exe.bat", "build_linux.sh", os.path.join(".github", "workflows", "release.yml")):
             with open(os.path.join(ROOT, f), encoding="utf-8") as fh:

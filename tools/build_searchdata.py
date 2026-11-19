@@ -94,6 +94,10 @@ def main(argv):
     with open(os.path.join(ROOT, "gamedata.json"), encoding="utf-8") as f:
         gd = json.load(f)
     kept, dropped = drop_poe1(rows, gd, trade_names(trade))
+    sys.path.insert(0, ROOT)
+    from soe2.gamesearch_clean import drop_dev_rows       # 3.0.6: no [DNT] / [DNT-UNUSED] / Playtest / unfinished gems
+    kept, dev = drop_dev_rows(kept)
+    print(f"{len(dev)} developer-only entries dropped (the app's loader also drops them, so an old file stays clean)")
     out["rows"] = kept
     with open(path, "w", encoding="utf-8") as f:
         json.dump(out, f, ensure_ascii=False, separators=(",", ":"))

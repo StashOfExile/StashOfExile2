@@ -151,7 +151,7 @@ import_old_data()
 # replaces the one in the data folder (the old one is kept as a .bak); your own files (settings, rules, lists) are
 # never touched. Bump a number here when you ship a changed file.
 BUNDLED_DATA = {"modlists.json": 1, "gamedata.json": 1, "regexdata.json": 3, "default_rules.json": 5, "searchdata.json": 2, "anointdata.json": 1, "cxnames.json": 1,
-                "gamedb.json": 4, "gamedb_hide.json": 1, "atlasmasters.json": 2}   # gamedata 1.38, regexdata 1.44
+                "gamedb.json": 4, "gamedb_hide.json": 2, "atlasmasters.json": 2}   # gamedata 1.38, regexdata 1.44
 DATA_UPDATED = []
 
 

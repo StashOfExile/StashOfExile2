@@ -264,6 +264,10 @@ REMOVED = [
               "(owner: In Maps On should give the reminders)",
      ("Remind me when I leave the map with it unfinished\"",),
      ("leave_reminder", "al_leave", "alerts_leave_changed")),
+    ("3.0.6", "The 'Check for a newer one' / 'Check for a newer guide' buttons (Craft Helper's How to craft a tablet, "
+              "Campaign): the data packs look by themselves after the start and then once a day (packcheck.py)",
+     ("Check for a newer one", "Check for a newer guide"),
+     ("mm_ch_pack_check", "mm_ch_pack_done", "camp_check_pack", "_mm_ch_checking")),
     ("2.106.0", "Wealth's public stash tabs (Scan stash replaces them)", ("Sync stash tabs",), ("w_sync_btn",), True),
 ]
 ABSENT = re.compile(r"\bnot\b|\bgone\b|\bremoved\b|\bno longer\b|\.pop\(|\bdel\b|None\)", re.I)

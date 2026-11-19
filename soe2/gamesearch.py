@@ -7,7 +7,7 @@ import json
 import os
 import re
 
-from . import buglog
+from . import buglog, gamesearch_clean
 from .config import APP_DIR, P
 
 try:
@@ -44,6 +44,7 @@ def load():
         rows += anoint_rows()
         db_rows, db_order = gamedb_rows()
         rows += db_rows
+        rows = gamesearch_clean.clean_rows(rows, hidden_names())      # no developer-only entries, no placeholder text
         for g in reversed(db_order):                       # the new categories follow Endgame Items, in the file's order
             if g not in order:
                 order.insert(order.index("Endgame Items") + 1 if "Endgame Items" in order else len(order), g)
@@ -89,7 +90,7 @@ def anoint_rows():
 def gamedb_rows():
     """3.0.6: the offline game database (gamedb.json, tools/build_gamedb.py): tablets, waystones, Atlas masters, Vaal
     Temple, pinnacles and areas, Trial of the Sekhemas, Ritual altars, leagues - facts from the game's own files only.
-    A row listed in gamedb_hide.json ([{"id": ..., "reason": ...}]) is left out, so a wrong row is removed by adding
+    A row listed in gamedb_hide.json ([{"id": ..., "reason": ...}] or {"name": ..., "group": ..., "reason": ...}) is left out, so a wrong row is removed by adding
     its id there, with no rebuild. -> (rows, the categories in order)"""
     path = _find("gamedb.json")
     if not path:
@@ -112,17 +113,26 @@ def gamedb_rows():
         return [], []
 
 
-def hidden_ids():
+def _hide_entries():
     path = _find("gamedb_hide.json")
     if not path:
-        return set()
+        return []
     try:
         with open(path, encoding="utf-8-sig") as f:
             d = json.load(f)
-        return {e["id"] for e in d if isinstance(e, dict) and e.get("id")}
+        return [e for e in d if isinstance(e, dict)]
     except Exception:
         buglog.caught()
-        return set()
+        return []
+
+
+def hidden_ids():
+    return {e["id"] for e in _hide_entries() if e.get("id")}
+
+
+def hidden_names():
+    """gamedb_hide.json entries with a "name" (and optionally a "group") hide a Game Search row that has no id."""
+    return gamesearch_clean.hide_names(_hide_entries())
 
 
 def emotion_counts(em):

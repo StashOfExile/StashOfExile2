@@ -8,7 +8,7 @@ import tkinter as tk
 import webbrowser
 from tkinter import filedialog, ttk
 
-from . import buglog
+from . import buglog, packcheck
 from . import board as B
 from . import moneymakers as MM
 from .config import SETTINGS, save_json
@@ -88,6 +88,8 @@ class MoneyMakersPage(StratViews, StratNewPage):
         sbox = tk.Frame(bar, bg=C["odd"], highlightthickness=1, highlightbackground=C["line"])
         sbox.pack(side="left", padx=(0, 8), fill="x", expand=True)
         self.mm_sbox = sbox
+        from . import soft
+        soft.round_frame(sbox, outside=lambda: P1)           # the search box in the rounded softer look too
         tk.Label(sbox, text="⌕", bg=C["odd"], fg=C["muted"], font=("Segoe UI Symbol", 10)).pack(side="left", padx=(8, 0))
         se = tk.Entry(sbox, textvariable=self.mm_q, width=38, bg=C["odd"], fg=C["text"], insertbackground=C["text"],
                       relief="flat", highlightthickness=0, bd=0, font=("Segoe UI", 10))
@@ -118,9 +120,8 @@ class MoneyMakersPage(StratViews, StratNewPage):
                          ("filters", "Every filter and the sort.")):
             self.mm_drops[key] = self._mm_drop(bar, key, tip)
         self.mm_live_lbl = tk.Label(bar, text="", bg=P1, fg=C["muted"], font=("Segoe UI", 9))
-        dots = tk.Label(bar, text="⋯", bg=P1, fg=C["text"], font=("Segoe UI", 12, "bold"), padx=8, pady=8,
-                        cursor="hand2", highlightthickness=1, highlightbackground=C["line"])
-        dots.bind("<Button-1>", lambda e: self.mm_more_menu(dots))
+        dots = ttk.Button(bar, text="⋯", style="Strip.TButton", padding=(8, 8), takefocus=0,
+                          command=lambda: self.mm_more_menu(self.mm_dots))
         Tooltip(dots, "Refresh, Import file…, community name")
         self.mm_dots = dots
         self.mm_add_btn = self._mm_ghost(bar, "＋ New strat", self.mm_add)
@@ -149,16 +150,22 @@ class MoneyMakersPage(StratViews, StratNewPage):
         self.mm_drawer_look(None)
         self.mm_account_paint()
 
+    def mm_live_say(self, text="", fg=None):
+        """The toolbar's status words. The row is placed by flowify at the label's width when it was laid out, so a new
+        text must lay the row out again - without it the words were clipped to a sliver (the stray glyph left of Sort by)."""
+        lab = self.mm_live_lbl
+        try:
+            lab.config(text=text, fg=fg or C["muted"])
+            lay = getattr(getattr(self, "mm_bar", None), "_flow_layout", None)
+            if lay is not None:
+                lab.after_idle(lay)
+        except tk.TclError:
+            pass
+
     def _mm_ghost(self, parent, text, cmd):
-        """A secondary (outlined) button for the toolbar. (Its hover edge goes back to b._edge - the dropdowns set it -
-        and its bindings are added, never replaced: replacing <Leave> took the tooltip's away, and every tip stayed.)"""
-        b = tk.Label(parent, text=text, bg=C["panel"], fg=C["text"], font=("Segoe UI", 10), padx=12, pady=8,
-                     cursor="hand2", highlightthickness=1, highlightbackground=C["line"])
-        b._edge = C["line"]
-        b.bind("<Button-1>", lambda e: cmd(), add="+")
-        b.bind("<Enter>", lambda e: b.config(highlightbackground=C["muted"]), add="+")
-        b.bind("<Leave>", lambda e: b.config(highlightbackground=getattr(b, "_edge", C["line"])), add="+")
-        return b
+        """A secondary toolbar button in the app's rounded softer look (Strip.TButton: a soft fill and an outline, round
+        corners from soft.py; StripOn.TButton is the same, bolder, for a filter that is on)."""
+        return ttk.Button(parent, text=text, style="Strip.TButton", padding=(12, 8), command=cmd, takefocus=0)
 
     def _mm_drop(self, parent, key, tip):
         b = self._mm_ghost(parent, "", lambda: self.mm_drop_menu(key))
@@ -261,11 +268,9 @@ class MoneyMakersPage(StratViews, StratNewPage):
             if b is None:
                 continue
             try:
-                b._edge = C["accent"] if on else C["line"]
                 b.config(text=f"{name}{':' if val and not val.startswith('·') and key not in ('more',) else ''}"
                               f"{' ' + val if val else ''}  ▾",
-                         font=("Segoe UI", 10, "bold" if on else "normal"), highlightbackground=b._edge,
-                         fg=C["text"])
+                         style="StripOn.TButton" if on else "Strip.TButton")      # (bold = on; the value is the word)
             except tk.TclError:
                 pass
 
@@ -771,7 +776,7 @@ class MoneyMakersPage(StratViews, StratNewPage):
 
     def mm_board_fetch(self, keep=None):
         if not B.configured():
-            self.mm_live_lbl.config(text="The community board isn't set up yet.", fg=C["muted"])
+            self.mm_live_say(text="The community board isn't set up yet.", fg=C["muted"])
             return
         sort = "new" if self.mm_bsort.get() == "New" else "top"
         admin = (B.signed_in() or {}).get("admin")
@@ -781,13 +786,13 @@ class MoneyMakersPage(StratViews, StratNewPage):
     def _mm_board_done(self, res, keep=None):
         (ok, d), (ok1, d1) = res
         if not ok:
-            self.mm_live_lbl.config(text=d, fg=C["red"])
+            self.mm_live_say(text=d, fg=C["red"])
             return
         # 2.85.0: a post that doesn't follow the layout (an older board let odd numbers in) isn't shown
         self.mm_board = [dict(MM.migrate(dict(p["data"])), origin="board", _post=p) for p in d["posts"]
                          if p["kind"] == "strat" and not MM.validate(MM.migrate(dict(p["data"])))]
         self.mm_board_ones = [dict(p["data"], origin="board", _post=p) for p in (d1 or {}).get("posts", [])] if ok1 else []
-        self.mm_live_lbl.config(text=f"Community: {d['total']} strat{'s' if d['total'] != 1 else ''}", fg=C["muted"])
+        self.mm_live_say(text=f"Community: {d['total']} strat{'s' if d['total'] != 1 else ''}", fg=C["muted"])
         if self.mm_view.get() in ("Community", "All"):
             self.mm_reload(keep=keep)
         self.mm_one_fill()
@@ -1047,7 +1052,7 @@ class MoneyMakersPage(StratViews, StratNewPage):
             return
         self._mm_checking = True
         if force:
-            self.mm_live_lbl.config(text="Checking GitHub…", fg=C["muted"])
+            self.mm_live_say(text="Checking GitHub…", fg=C["muted"])
 
         self.run_bg(lambda: MM.fetch_live(force=force), lambda res: self.mm_live_done(res, force))
 
@@ -1058,11 +1063,11 @@ class MoneyMakersPage(StratViews, StratNewPage):
             save_json("settings.json", SETTINGS)
         if what == "new":
             self.mm_reload()
-            self.mm_live_lbl.config(text=f"New strats: {info} in the shared list.", fg=C["green"])
+            self.mm_live_say(text=f"New strats: {info} in the shared list.", fg=C["green"])
         elif what == "same" and force:
-            self.mm_live_lbl.config(text="Up to date.", fg=C["muted"])
+            self.mm_live_say(text="Up to date.", fg=C["muted"])
         elif what == "error" and force:
-            self.mm_live_lbl.config(text=info, fg=C["red"])
+            self.mm_live_say(text=info, fg=C["red"])
 
     # ---------------- actions
     def mm_copy_regex(self):
@@ -1545,17 +1550,12 @@ class MoneyMakersPage(StratViews, StratNewPage):
         # 2.125.5: the data pack (kinds, steps, market numbers) - shipped, and kept up to date from GitHub
         pk = tk.Frame(left, bg=C["panel2"])
         pk.pack(fill="x", side="bottom", pady=(12, 0))
-        self.mm_ch_pack_lbl = tk.Label(pk, text=CH.pack_line(), bg=C["panel2"], fg=C["muted"], font=("Segoe UI", 9),
+        self.mm_ch_pack_lbl = tk.Label(pk, text=CH.pack_line(packcheck.state()), bg=C["panel2"], fg=C["muted"], font=("Segoe UI", 9),
                                        anchor="w")
         self.mm_ch_pack_lbl.pack(side="left")
-        Tooltip(self.mm_ch_pack_lbl, "The Craft Helper's data (types, steps, how the market picks a letter) for the "
-                                     "game patch shown. It updates from GitHub on its own - one small public "
-                                     "download, nothing about you is sent.")
-        cb_ = ttk.Button(pk, text="Check for a newer one", style="Quiet.TButton",
-                         command=lambda: self.mm_ch_pack_check(True))
-        cb_.pack(side="right")
+        Tooltip(self.mm_ch_pack_lbl, packcheck.tip(packcheck.CRAFT_TIP))
         self.mm_ch_paint()
-        self.root.after(1500, lambda: self.mm_ch_pack_check(False))
+        self.packs_status_refresh()                          # (the pack checks itself - see packcheck.py; no button)
 
     def mm_ch_split_put(self):
         """2.125.6: the mods / pairs divider where you left it (a share of the height)."""
@@ -1578,33 +1578,6 @@ class MoneyMakersPage(StratViews, StratNewPage):
                 SETTINGS["ch_split"] = round(vp.sashpos(0) / h, 3)
                 save_json("settings.json", SETTINGS)
         except (tk.TclError, AttributeError):
-            pass
-
-    def mm_ch_pack_check(self, force):
-        """2.125.5: a newer Craft Helper data pack on GitHub? (at most twice a day unless asked)"""
-        from . import crafthelper as CH
-        if getattr(self, "_mm_ch_checking", False):
-            return
-        self._mm_ch_checking = True
-        if force:
-            self.mm_ch_pack_lbl.config(text="Checking GitHub…")
-        self.run_bg(lambda: CH.fetch_live(force=force), lambda res: self.mm_ch_pack_done(res, force))
-
-    def mm_ch_pack_done(self, res, force):
-        from . import crafthelper as CH
-        self._mm_ch_checking = False
-        what, info = res
-        if what != "skip":
-            save_json("settings.json", SETTINGS)
-        try:
-            if what == "new":
-                self.mm_ch_pack_lbl.config(text=f"Updated - {info}")
-                self.mm_ch_pick(CH.KINDS[self.mm_ch_kind]["label"])
-            elif what == "error" and force:
-                self.mm_ch_pack_lbl.config(text=info)
-            else:
-                self.mm_ch_pack_lbl.config(text=CH.pack_line() + ("  (up to date)" if force else ""))
-        except tk.TclError:
             pass
 
     def mm_ch_pair_hover(self, e):

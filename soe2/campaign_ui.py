@@ -9,7 +9,7 @@
   * N  Rewards: points, spirit and resistances earned on this character; tick or untick any by hand.
   * O  Vendor search - in town, "Vendor ▾" on the campaign line: this act's searches and your Regex favorites. A click
        copies one; you paste it in the shop's search box (the app never types into the game).
-  * P  A zone the guide doesn't know: added to your route where you went, with a note, Mark optional, or a newer guide.
+  * P  A zone the guide doesn't know: added to your route where you went, with a note, or Mark optional.
   * Q  Act splits - this run against your best (per league).
   * R  Its settings (Overlay › Options › Campaign); S, T: its switches in "On the overlay" and "On the bar".
 
@@ -18,7 +18,7 @@ import re
 import tkinter as tk
 from tkinter import ttk
 
-from . import buglog
+from . import buglog, packcheck
 from . import campaign as CP
 from .overlaywin import CanvasText
 
@@ -854,7 +854,7 @@ class CampaignUI:
                      justify="left", wraplength=self.ov_px(520)).pack(fill="x", pady=(8, 0))
 
     def _camp_unknown_row(self, page, P, s):
-        """P: a zone the guide doesn't know - a note for it, Mark optional, or check for a newer guide."""
+        """P: a zone the guide doesn't know - a note for it, or Mark optional (a newer guide arrives on its own)."""
         bg = P["bg"]
         f = tk.Frame(page, bg=bg)
         f.pack(fill="x", pady=(2, 8), padx=(24, 0))
@@ -870,8 +870,6 @@ class CampaignUI:
                    command=lambda: self.camp_note(s["zone"])).pack(side="left", padx=(4, 0))
         ttk.Button(row, text="Mark optional", style=self.ov_btn("Quiet.TButton"),
                    command=lambda: self.camp_optional(s["zone"])).pack(side="left", padx=(4, 0))
-        ttk.Button(row, text="Check for a newer guide", style=self.ov_btn("Quiet.TButton"),
-                   command=self.camp_check_pack).pack(side="left", padx=(4, 0))
 
     def _camp_rewards_page(self, page, P):
         bg, run = P["bg"], CP.char()
@@ -1024,22 +1022,10 @@ class CampaignUI:
         CP.mark_optional(zone)
         self.camp_refresh()
 
-    def camp_check_pack(self):
-        st, msg = CP.fetch_live()
-        txt = {"new": f"New guide pack: {msg}.", "same": f"You have the newest guide pack ({msg})."}.get(st, msg)
-        self._say(txt, 6)
-        if getattr(self, "tk_camp_pack", None) is not None:
-            try:
-                self.tk_camp_pack.config(text=self.camp_pack_text())
-            except tk.TclError:
-                pass
-        if st == "new":
-            self.camp_refresh()
-        return st
-
     def camp_pack_text(self):
         p = CP.pack()
-        return f"Guide pack: {p.get('name', '?')} (revision {p.get('revision', 0)})"
+        return f"Guide pack: {p.get('name', '?')} (revision {p.get('revision', 0)})" + (
+            f" ({packcheck.state()})" if packcheck.state() else "")
 
     # ---------------------------------------------------------------- the rewards to answer (N)
     def camp_ask_show(self):
@@ -1194,8 +1180,8 @@ class CampaignUI:
         pk.pack(fill="x", pady=(8, 0))
         self.tk_camp_pack = tk.Label(pk, text=self.camp_pack_text(), bg=P2, fg=C["muted"], font=("Segoe UI", 9))
         self.tk_camp_pack.pack(side="top" if into is not None else "left", anchor="w")   # 2.82.0: in a card, own line
-        ttk.Button(pk, text="Check for a newer one", style="Quiet.TButton", command=self.camp_check_pack).pack(
-            side="left", padx=(0 if into is not None else 8, 0), pady=(4 if into is not None else 0, 0))
+        from .style import Tooltip
+        Tooltip(self.tk_camp_pack, packcheck.tip(packcheck.CAMP_TIP))        # (it checks itself once a day: no button)
 
     def camp_route_pick(self, name):
         CP.cfg()["route"] = next((k for k, n in CP.ROUTES if n == name), "full")

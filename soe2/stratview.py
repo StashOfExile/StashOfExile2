@@ -263,7 +263,7 @@ class StratCanvas(tk.Canvas):
         """A tag: [picture] word, in a thin box. -> its right edge."""
         f = ("Segoe UI", 9)
         col = self.c(role, "text_muted")
-        box = TH.round_rect(self, x, y, x + 1, y + h, 4, fill=TH.mix(self.c("surface_raised"), col, .08),
+        box = TH.round_rect(self, x, y, x + 1, y + h, 6, fill=TH.mix(self.c("surface_raised"), col, .08),
                             outline=TH.mix(col, self.c("surface_raised"), .45), tags=tags)
         ix = x + 8
         if base and self.icon(base, ix - 2, y + h // 2, 16, anchor="w", tags=tags) is not None:
@@ -271,7 +271,7 @@ class StratCanvas(tk.Canvas):
         tid = self.text(ix, y + h // 2, text, f, fill=col if role != "text_muted" else self.c("text"), anchor="w",
                         tags=tags)
         x1 = (self.bbox(tid) or (0, 0, ix, 0))[2] + 8
-        self.coords(box, *_rr_points(x, y, x1, y + h, 4))
+        self.coords(box, *_rr_points(x, y, x1, y + h, 6))
         return x1
 
     def pips(self, x, y, n, total=5, tags=()):
