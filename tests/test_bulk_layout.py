@@ -155,7 +155,7 @@ class Layout(unittest.TestCase):
         self.assertNotIn("Primary", str(self.app.reprice_all_btn.cget("style")), "Re-price all is secondary")
 
     def test_one_orange_on_an_empty_stash_tab(self):
-        self.app.pc_mode.pick("Read a stash tab")
+        self.app.pc_mode.pick("Add from stash tab")
         self.app.pctab_pick("Tab 2")
         self.pump()
         e = self.app.empty_lbl
@@ -169,7 +169,7 @@ class Layout(unittest.TestCase):
         self.assertEqual(filled, [])
 
     def test_one_orange_on_a_stash_tab_with_an_item_picked(self):
-        self.app.pc_mode.pick("Read a stash tab")
+        self.app.pc_mode.pick("Add from stash tab")
         self.pump()
         self.fill(src="tab:t1")
         self.pick()
@@ -180,11 +180,11 @@ class Layout(unittest.TestCase):
         sw = self.app.pc_mode
         self.assertTrue(sw.plain)
         self.assertTrue(sw.btns[sw.get()][0].cget("text").startswith("✓ "))
-        self.assertEqual(set(sw.btns), {"Copy items", "Read a stash tab"})
+        self.assertEqual(set(sw.btns), {"Manually Add", "Add from stash tab"})
 
     # ---- privacy
     def test_account_name_never_shown(self):
-        self.app.pc_mode.pick("Read a stash tab")
+        self.app.pc_mode.pick("Add from stash tab")
         self.pump()
         self.fill(src="tab:t1")
         self.pick()
@@ -235,19 +235,66 @@ class Layout(unittest.TestCase):
         self.assertLessEqual(p.winfo_rooty() + p.winfo_height(), card.winfo_rooty(), "the price on top")
         self.assertEqual(foot.winfo_rooty() + foot.winfo_height(), col.winfo_rooty() + col.winfo_height())
 
-    def test_no_empty_side_panel(self):
-        self.fill()
+    def test_side_always_there_first_row_picked(self):
         sp = self.app.bk_split
-        self.assertIsNone(self.app.shown_rec)
-        self.assertFalse(sp.right.winfo_ismapped(), "no item side without a pick")
-        self.assertGreater(sp.left.winfo_width(), sp.winfo_width() - 20, "the list has the whole width")
-        self.pick()
-        self.assertTrue(sp.right.winfo_ismapped())
+        self.assertTrue(sp.right.winfo_ismapped(), "the item side shows with an empty list too")
+        e = self.app.bk_none
+        self.assertTrue(e.winfo_viewable(), "nothing picked: what it is")
+        self.assertEqual(str(e.btn.cget("state")), "disabled", "Show the first item waits for a row")
+        for b in (self.app.bk_search_btn, self.app.bk_trade_btn, self.app.bk_fav_btn):
+            self.assertEqual(str(b.cget("state")), "disabled", "a button that needs a pick is greyed out")
+        self.fill()
+        self.pump()
+        time.sleep(0.2)
+        self.pump()
+        self.assertEqual(self.app.tree.selection(), ("1",), "the first row is picked by itself")
+        self.assertIs(self.app.shown_rec, self.app.records[1])
+        self.assertFalse(e.winfo_ismapped())
+        self.assertTrue(self.app.bk_price.frame.winfo_viewable())
         self.app.tree.selection_set(())
         self.pump()
         time.sleep(0.2)
         self.pump()
-        self.assertFalse(sp.right.winfo_ismapped())
+        self.assertTrue(sp.right.winfo_ismapped(), "no pick: the side stays")
+        self.assertTrue(e.winfo_viewable())
+        self.assertEqual(str(e.btn.cget("state")), "normal")
+        self.assertNotIn("Primary", str(e.btn.cget("style")), "one orange button a screen")
+        e.btn.invoke()
+        self.pump()
+        time.sleep(0.2)
+        self.pump()
+        self.assertIs(self.app.shown_rec, self.app.records[1])
+
+    def test_picked_item_is_smaller_than_price_checks(self):
+        from soe2 import cardscale
+        self.fill()
+        self.pick()
+        cv = self.app.detail_card
+        self.assertLessEqual(cv._k, cardscale.BULK)
+        self.assertGreaterEqual(cv._k, cardscale.KMIN)
+        self.assertEqual(self.app.bk_price.k, cardscale.BULK)
+        self.assertLessEqual(self.app.bk_split.right.winfo_width(), 0.8 * 520 + 40, "about 20% narrower")
+
+    def test_tabs_named_by_place(self):
+        tabs = SETTINGS["pctab"]["tabs"]
+        tabs.append({"id": "t3", "name": "Maps", "amount": None, "currency": "divine"})
+        tabs.append({"id": "t4", "name": "Tab 7", "amount": None, "currency": "divine"})
+        names = lambda: [t["name"] for t in self.app.pctab_tabs()]          # noqa: E731
+        self.assertEqual(names(), ["Tab 1", "Tab 2", "Maps", "Tab 4"],
+                         "a saved tab never renamed is named by its place; a name of its own stays")
+        self.app.pctab_new()
+        self.assertEqual(names()[-1], "Tab 5")
+        self.app.pctab_delete("t1")
+        self.assertEqual(names(), ["Tab 1", "Maps", "Tab 3", "Tab 4"], "Tab 1 closed: the next one is Tab 1 now")
+        self.assertEqual(self.app.pctab_tabs()[0]["id"], "t2")
+        self.assertIn("Tab 1 · ", self.app.pc_tabs["t2"].cget("text"))
+        with mock.patch("tkinter.simpledialog.askstring", return_value="Jewels"):
+            self.app.pctab_rename("t2")
+        self.app.pctab_delete("t3")
+        self.assertEqual(names(), ["Jewels", "Tab 2", "Tab 3"], "a renamed tab keeps its name")
+        with mock.patch("tkinter.simpledialog.askstring", return_value="Tab 9"):
+            self.app.pctab_rename("t4")
+        self.assertEqual(names(), ["Jewels", "Tab 2", "Tab 3"], "a name like Tab 9 is its place's name")
 
     def test_the_card_has_price_checks_look_and_order(self):
         self.fill()

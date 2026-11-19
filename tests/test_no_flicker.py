@@ -250,6 +250,7 @@ class Lists(Tk):
         s.update_total = lambda: None
         s.bk_empty_paint = lambda: None                      # (Bulk Pricing's empty state: bulk_page)
         s.show_detail = lambda rec: s.detail.append(rec)
+        s.bk_autopick = lambda: False                        # (Bulk Pricing picks the first row: bulk_page)
         s.go = types.MethodType(App._rebuild_tree_in_place, s)
         s.go(set())
         self.assertEqual(len(tv.get_children()), 30)

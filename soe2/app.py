@@ -274,6 +274,36 @@ def _box_line(cv, enabled):
     return C["muted"] if enabled else C["line"]
 
 
+# Owner (Price Checks' card fits the window): the item card is drawn at one scale (cv._k, soe2/cardscale.py) - its
+# fonts, rows, boxes and gaps all follow it. Favorites and every other card: 1.
+def _k(cv):
+    return getattr(cv, "_k", 1.0) or 1.0
+
+
+def _s(cv, n):
+    """n px at the card's scale."""
+    return int(round(n * _k(cv)))
+
+
+def _f(cv, size, *style):
+    """The card's font: Segoe UI at its scale (7 pt at least)."""
+    from .cardscale import font_size
+    return ("Segoe UI", font_size(size, _k(cv))) + style
+
+
+def _tick(cv, x, y):
+    """The tick inside a box at (x, y) (14 px at scale 1)."""
+    return [x + _s(cv, 3), y + _s(cv, 7), x + _s(cv, 6), y + _s(cv, 10), x + _s(cv, 11), y + _s(cv, 4)]
+
+
+def _vbox_x(cv, w, i):
+    """Where the Min (i 0) / Max (i 1) box starts on a card row w px wide."""
+    return w - _s(cv, 30) - _s(cv, CARD_BOX) * (2 - i) - (_s(cv, 4) if i == 0 else 0)
+
+
+from .names import CARD_SECTIONS                 # noqa: E402  (the item card's section names)
+
+
 KIND_WORD = {"Implicit": "Implicit", "Enchant": "Enchant", "Rune": "Rune"}
 
 
@@ -406,6 +436,7 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
         self.apply_topmost()
         root.after(800, self.apply_topmost)
         self.drawer_init()                                   # drawer build: the Drawer key, watcher, strip state
+        root.after(packcheck.FIRST_DELAY_MS, self.packs_autocheck)      # the data packs, by themselves (no button)
         root.after(6000, self.startup_update_check)          # 2.0 beta 7: only if turned on in Settings            # again once the window is on screen (some systems drop it before)
         if SETTINGS.get("tray", True):
             if not self.tray.available:
@@ -436,7 +467,6 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
             self.root.after(50, self.go_tray)
 
     def user_minimized(self):
-        root.after(packcheck.FIRST_DELAY_MS, self.packs_autocheck)      # the data packs, by themselves (no button)
         """Did YOU minimize the window? Esc, its minimize button or taskbar button (the mouse is there), or a Win-key
         shortcut (Win+D / Win+M / Win+Down) count. Anything else (another program, a game going fullscreen) doesn't."""
         if time.time() < getattr(self, "min_ok_until", 0):
@@ -1268,36 +1298,6 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
     def explain_scope(self):
         self.info_card(self.SCOPE_TEXT, secs=40)
 
-    # ---------------- updates
-    def startup_update_check(self):
-        """2.0 beta 7: Settings > Updates. Auto-update installs a newer version without asking; auto-check only
-        tells you (a card with Update now). Both stay quiet when you are up to date or GitHub can't be reached.
-        2.100.0: every start looks once (closing and reopening the app checks again) - with both switches off it only
-        lights the update badge; the hourly look (feedback_page.quiet_update_check) carries on from there."""
-        if SETTINGS.get("auto_update"):
-            self.check_updates(mode="auto")
-        elif SETTINGS.get("auto_check_updates"):
-            self.check_updates(mode="silent")
-        else:
-            self.check_updates(mode="badge")
-
-    def check_updates(self, mode="ask"):
-        """mode: "ask" (the button: tells you the result, asks before downloading), "silent" (at start: only speaks up
-        when there is a new version), "auto" (at start: downloads and installs a new version by itself)."""
-        if getattr(self, "_upd_busy", False):
-            return
-        self._upd_busy = True
-        self._upd_mode = mode
-        self.upd_btn.config(state="disabled")
-        if mode == "ask":
-            self._say("Checking GitHub for a new version...", 15)
-
-        def work():
-            kind, data = latest_release()
-            self.ui_q.put(("update", kind, data))
-        threading.Thread(target=work, daemon=True).start()
-
-    def _upd_done(self):
     # ---------------- data packs (Craft Helper, Campaign guide): checked on their own, once a day
     def packs_autocheck(self):
         """soe2/packcheck.py: after the start, then at most once in 24 hours, in the background. A long-running app
@@ -1343,6 +1343,36 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
             except tk.TclError:
                 pass
 
+    # ---------------- updates
+    def startup_update_check(self):
+        """2.0 beta 7: Settings > Updates. Auto-update installs a newer version without asking; auto-check only
+        tells you (a card with Update now). Both stay quiet when you are up to date or GitHub can't be reached.
+        2.100.0: every start looks once (closing and reopening the app checks again) - with both switches off it only
+        lights the update badge; the hourly look (feedback_page.quiet_update_check) carries on from there."""
+        if SETTINGS.get("auto_update"):
+            self.check_updates(mode="auto")
+        elif SETTINGS.get("auto_check_updates"):
+            self.check_updates(mode="silent")
+        else:
+            self.check_updates(mode="badge")
+
+    def check_updates(self, mode="ask"):
+        """mode: "ask" (the button: tells you the result, asks before downloading), "silent" (at start: only speaks up
+        when there is a new version), "auto" (at start: downloads and installs a new version by itself)."""
+        if getattr(self, "_upd_busy", False):
+            return
+        self._upd_busy = True
+        self._upd_mode = mode
+        self.upd_btn.config(state="disabled")
+        if mode == "ask":
+            self._say("Checking GitHub for a new version...", 15)
+
+        def work():
+            kind, data = latest_release()
+            self.ui_q.put(("update", kind, data))
+        threading.Thread(target=work, daemon=True).start()
+
+    def _upd_done(self):
         self._upd_busy = False
         self.upd_btn.config(state="normal")
 
@@ -2996,6 +3026,7 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
             self.bk_empty_paint()
             if at_bottom:
                 self.tree.see(str(rid))
+            self.bk_autopick()                                # (nothing picked yet: the first row is)
             self.cat_refresh()                                # counts in the Category box
             self.update_total_soon()                          # (Items: n · m still pricing)
         self.engine.add(1, "resolve", rid)
@@ -3306,7 +3337,7 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
         keep = [i for i in self.tree.get_children() if i in sel]
         if keep:
             self.tree.selection_set(keep)
-        else:
+        elif not self.bk_autopick():               # (owner: the first row is picked, if there is one)
             self.show_detail(None)
         self.bk_empty_paint()
         self.update_total()
@@ -3327,7 +3358,7 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
             for i, iid in enumerate(want):
                 self.tree.move(iid, "", i)
         self._apply_sort()
-        if sel and not [i for i in want if i in sel]:
+        if not self.tree.selection() and not self.bk_autopick() and sel:
             self.show_detail(None)
         self.bk_empty_paint()
         self.update_total()
@@ -4512,7 +4543,7 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
         """Clear the list you're looking at (2.42.0: Manual Add, or one stash tab's list - the others stay)."""
         mine = [rid for rid, r in self.records.items() if self.in_list(r)]
         src = self.list_src()
-        what = "this tab's list" if src != "manual" else "your list (Copy items)"
+        what = "this tab's list" if src != "manual" else "your list (Manually Add)"
         if mine and not messagebox.askyesno("Clear All", f"Remove all items from {what}?\n(The mod book is kept.)"):
             return
         for rid in mine:
@@ -4586,8 +4617,11 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
     # ---------------- detail panel
     def _canvas_resized(self, e):
         self.dcanvas.itemconfig(self._dwin, width=e.width)
-        if abs(e.width - self._dwidth) > 20:             # panel was dragged wider/narrower: re-wrap the text
+        tall = getattr(self, "bk_scale_off", None) is not None and self.bk_scale_off()   # (taller / shorter: its
+        if abs(e.width - self._dwidth) > 20 or tall:     # scale) panel was dragged wider/narrower: re-wrap the text
             self._dwidth = e.width
+            if tall:
+                self._bk_sig = None                      # (the same item, drawn again for its new room)
             if self._dafter:
                 self.root.after_cancel(self._dafter)
             self._dafter = self.root.after(250, self._redraw_detail)
@@ -4701,9 +4735,11 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
             big = "Pricing…" if st == "pricing" else "Waiting in line…"
         cv = tk.Canvas(d, width=w, height=200, bg=P2, highlightthickness=0, bd=0)
         cv._look = "drawer" if getattr(self, "_card_no_price", False) else ""     # (Price Checks: its own look)
+        cv._k = float(getattr(self, "_card_k", 1.0) or 1.0)       # (its scale: soe2/cardscale.py)
         dl = _cl(cv)
         cv.pack(fill="x")
-        fmod = ("Segoe UI", 10)
+        fmod = _f(cv, 10)
+        s_ = lambda n: _s(cv, n)                                  # noqa: E731
         self.card_rows, self.card_vals, self.card_opts, self.card_tris = {}, {}, {}, {}
         self.card_onlys = {}
         self.card_thumbs = {}
@@ -4749,7 +4785,7 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
             keys_all = ("props", "req", "misc", "aug", "stats", "pseudo", "trade")
             all_open = any(not fold.get(k, k == "req") for k in keys_all)    # (any open: "Fold all")
             cv.create_text(w - 4 if dl else w - 16, 2 if dl else y - 2, text="Fold all ▴" if all_open else
-                           "Unfold all ▾", anchor="ne" if dl else "e", font=("Segoe UI", 9),
+                           "Unfold all ▾", anchor="ne" if dl else "e", font=_f(cv, 9),
                            fill=C["muted"] if dl else C["accent"], tags=("cardfoldall",))
             self._card_click(cv, "cardfoldall", lambda: self.card_fold_all(rec, all_open))
 
@@ -4757,35 +4793,36 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
                 """▾ TITLE (n) ─── MIN MAX: a click folds / unfolds it. -> open?"""
                 nonlocal y
                 shut = bool(fold.get(key, key == "req"))
-                y += 12 if dl else 4
+                y += s_(12) if dl else 4
                 lab = ("▸ " if shut else "▾ ") + title + ((f" · {count} searched" if dl else f"  ({count})") if count
                                                           else "")
                 if shut and summary:
                     lab += "   " + summary
                 tag = f"cardsec_{key}"
                 tid = cv.create_text(12 if not dl else 0, y, text=lab, anchor="nw",
-                                     font=("Segoe UI", 9, "bold"), fill=C["text"] if not shut else C["muted"],
-                                     tags=(tag, "cardsec"), **({"width": w - (2 * CARD_BOX + 48 if boxes and not shut
-                                                                                else 8)} if dl else {}))
+                                     font=_f(cv, 9, "bold"), fill=C["text"] if not shut else C["muted"],
+                                     tags=(tag, "cardsec"), **({"width": w - (2 * s_(CARD_BOX) + s_(48) if boxes and
+                                                                                not shut else 8)} if dl else {}))
                 bb = cv.bbox(tid)
                 x_end = w - 12
                 if boxes and not shut:
-                    x_end = w - 12 - 18 - CARD_BOX * 2 - 8
-                    cv.create_text(w - 12 - 18 - CARD_BOX - CARD_BOX // 2 - 4, y, text="MIN", anchor="n",
-                                   font=("Segoe UI", 9, "bold"), fill=C["muted"])
-                    cv.create_text(w - 12 - 18 - CARD_BOX // 2, y, text="MAX", anchor="n",
-                                   font=("Segoe UI", 9, "bold"), fill=C["muted"])
+                    cb = s_(CARD_BOX)
+                    x_end = _vbox_x(cv, w, 0) - s_(4)
+                    cv.create_text(_vbox_x(cv, w, 0) + cb // 2, y, text="MIN", anchor="n",
+                                   font=_f(cv, 9, "bold"), fill=C["muted"])
+                    cv.create_text(_vbox_x(cv, w, 1) + cb // 2, y, text="MAX", anchor="n",
+                                   font=_f(cv, 9, "bold"), fill=C["muted"])
                 if bb and bb[2] + 8 < x_end and not dl:          # (Price Checks: no rule - the heads are enough)
                     cv.create_line(bb[2] + 8, y + 8, x_end, y + 8, fill=sep)
                 self._card_click(cv, tag, lambda k=key, s=shut: self.card_fold(rec, k, not s))
                 self.card_sections[key] = not shut
-                y = max(y + 20, (bb[3] + 4) if bb else 0) if dl else y + 20
+                y = max(y + s_(20), (bb[3] + s_(4)) if bb else 0) if dl else y + 20
                 return not shut
 
             # ---- properties (Price Checks: Base and Properties - base, item level, quality, sockets, defences)
             def props_section():
                 nonlocal y
-                if not section("BASE AND PROPERTIES" if dl else "PROPERTIES", "props", boxes=True):
+                if not section(CARD_SECTIONS["props"] if dl else "PROPERTIES", "props", boxes=True):
                     return
                 s = it.get("search") or {}
                 if it.get("gear") and not it.get("waystone") and s.get("rarity") != "unique":
@@ -4830,7 +4867,7 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
             def req_section():
                 nonlocal y
                 req = facts.get("req") or {}
-                if req and section("REQUIREMENTS", "req",
+                if req and section(CARD_SECTIONS["req"], "req",
                                    summary="  ·  ".join(f"{REQ_NAMES[k]} {v}" for k, v in req.items())):
                     for k, v in req.items():
                         y = self._card_opt_row(cv, rec, "req_" + k, f"{REQ_NAMES[k]}: {v}", v, y, w)
@@ -4845,22 +4882,22 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
                 if not grid:
                     return
                 if dl:
-                    if not section("ITEM FLAGS" + (f" · {nset} set" if nset else ""), "misc"):
+                    if not section(CARD_SECTIONS["misc"] + (f" · {nset} set" if nset else ""), "misc"):
                         return
                 elif not section("MISCELLANEOUS", "misc", count=nset):
                     return
                 import tkinter.font as _tkf
-                f9 = _tkf.Font(family="Segoe UI", size=9)
-                lw = max(f9.measure(label) for _k, label in grid) + 10
+                f9 = _tkf.Font(font=_f(cv, 9))
+                lw = max(f9.measure(label) for _k_, label in grid) + s_(10)
                 # owner pick (Flags mockup B, every card): plain rows in two columns (one when narrow) - the label on
                 # the left, the value as a small pill on the right, a faint line under each row; no box per flag
                 x0, room, gap = (0, w, 20) if dl else (16, w - 32, 20)
-                cols = 2 if room >= 2 * (lw + 56) + gap else 1
+                cols = 2 if room >= 2 * (lw + s_(56)) + gap else 1
                 col_w = (room - gap * (cols - 1)) // cols
                 for i, (key, label) in enumerate(grid):
-                    self._card_tri(cv, rec, key, label, x0 + (i % cols) * (col_w + gap), y + (i // cols) * 30,
+                    self._card_tri(cv, rec, key, label, x0 + (i % cols) * (col_w + gap), y + (i // cols) * s_(30),
                                    facts, lw, cell=col_w)
-                y += 30 * ((len(grid) + cols - 1) // cols) + 4
+                y += s_(30) * ((len(grid) + cols - 1) // cols) + s_(4)
 
             def ticked(ms):
                 return sum(1 for m in ms if mod_impact(rec, m) != "ignore")
@@ -4872,21 +4909,21 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
 
             def aug_section():
                 nonlocal y
-                if aug and section("AUGMENTS", "aug", count=ticked(aug),
+                if aug and section(CARD_SECTIONS["aug"], "aug", count=ticked(aug),
                                    boxes=any(self._card_has_vals(rec, m) for m in aug)):   # 2.97.1: runes on their own
                     for m in aug:
                         y = self._card_mod_row(cv, rec, m, y, w, fmod, MOD_COL["rune"], card_text(m))
 
             def pseudo_section():
                 nonlocal y
-                if pseudo and section("PSEUDO FILTERS", "pseudo", count=ticked(pseudo), boxes=True):
+                if pseudo and section(CARD_SECTIONS["pseudo"], "pseudo", count=ticked(pseudo), boxes=True):
                     for m in pseudo:
                         y = self._card_mod_row(cv, rec, m, y, w, fmod, MOD_COL["pseudo"], card_text(m))
 
             def mods_head():
                 """MODS · 6 of 7 searched (the count follows the ticks, in place: _card_row_paint)."""
                 n = sum(1 for m in own if mod_impact(rec, m) != "ignore" and (m.get("sid") or not rec.get("resolved")))
-                return f"MODS · {n} of {len(own)} searched"
+                return f"{CARD_SECTIONS['stats']} · {n} of {len(own)} searched"
 
             def stats_section():
                 nonlocal y
@@ -4905,28 +4942,29 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
             # ---- trade filters
             def trade_section():
                 nonlocal y
-                if not section("TRADE FILTERS", "trade"):
+                if not section(CARD_SECTIONS["trade"], "trade"):
                     return
                 from .searchopts_page import default_opts
                 cur = {**default_opts(it), **(rec.get("opts") or {})}
                 for key, label, choices in (("status", "Seller", STATUS_CHOICES), ("currency", "Priced in", CURRENCY_CHOICES)):
-                    cv.create_text(0 if dl else 16, y + 13, text=label, anchor="w", font=("Segoe UI", 9),
+                    cv.create_text(0 if dl else 16, y + s_(13), text=label, anchor="w", font=_f(cv, 9),
                                    fill=C["muted"])
                     names = [n for n, _v in choices]
                     var = tk.StringVar(value=next((n for n, v in choices if v == cur.get(key)), names[0]))
-                    cb = ttk.Combobox(cv, textvariable=var, values=names, state="readonly")
+                    cb = ttk.Combobox(cv, textvariable=var, values=names, state="readonly",
+                                      **({"font": _f(cv, 9)} if _k(cv) != 1 else {}))
                     cb.bind("<<ComboboxSelected>>", lambda e, k=key, v=var, c=choices: (
                         self.search_opt_set(rec, k, dict(c)[v.get()], redraw=False), self._card_mark(rec)))
-                    cv.create_window(110, y, window=cb, anchor="nw", width=w - 126, height=26)
+                    cv.create_window(s_(110), y, window=cb, anchor="nw", width=w - s_(126), height=s_(26))
                     self.card_opts[key] = var
-                    y += 30
+                    y += s_(30)
                 # owner decision C: the trade site's other numbers this item has (off until ticked)
                 from .trade import site_has
                 nums = dict(facts.get("props") or {})
-                s_ = it.get("search") or {}
-                if (s_.get("gem") or {}).get("level"):
-                    y = self._card_opt_row(cv, rec, "gem_level", f"Gem level: {s_['gem']['level']}",
-                                           s_["gem"]["level"], y, w)
+                srch = it.get("search") or {}
+                if (srch.get("gem") or {}).get("level"):
+                    y = self._card_opt_row(cv, rec, "gem_level", f"Gem level: {srch['gem']['level']}",
+                                           srch["gem"]["level"], y, w)
                     TagTip(cv, "cardopt_gem_level", "Ticked: gems of this level or more (Min / Max). "
                                                     "Unticked: any level.")
                 for key, label, group, fid in EXTRA_NUMS:
@@ -4954,7 +4992,7 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
             stats_section()
             pseudo_section()
             trade_section()
-            h2 = y + 8
+            h2 = y + s_(8)
             cv.configure(height=h2)
             cv.coords("cardframe", 0, 0, w - 1, h2 - 1)
         self.detail_card = cv
@@ -4974,12 +5012,11 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
         self.show_detail(rec)
 
     def _card_box(self, cv, x, y, on, tag, enabled=True):
-        box = 14
+        box = _s(cv, 14)
         cv.create_rectangle(x, y, x + box, y + box, outline=_box_line(cv, enabled),
                             fill=_tick_fill(cv, on and enabled), tags=("cardbox", tag, tag + "_box"))
         if on and enabled:
-            cv.create_line(x + 3, y + 7, x + 6, y + 10, x + 11, y + 4, fill=_tick_ink(cv), width=2,
-                           tags=(tag, tag + "_chk"))
+            cv.create_line(*_tick(cv, x, y), fill=_tick_ink(cv), width=2, tags=(tag, tag + "_chk"))
 
     def _card_box_paint(self, cv, x, y, on, tag):
         """2.104.1: tick / untick a box drawn by _card_box, in place."""
@@ -4987,8 +5024,7 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
             cv.itemconfigure(tag + "_box", fill=_tick_fill(cv, on))
             cv.delete(tag + "_chk")
             if on:
-                cv.create_line(x + 3, y + 7, x + 6, y + 10, x + 11, y + 4, fill=_tick_ink(cv), width=2,
-                               tags=(tag, tag + "_chk"))
+                cv.create_line(*_tick(cv, x, y), fill=_tick_ink(cv), width=2, tags=(tag, tag + "_chk"))
         except tk.TclError:
             pass
 
@@ -5027,17 +5063,18 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
         from . import themes as _th
         from .pricecheck_page import FLAG_MARKS, own_flags
         name = it.get("name") or it.get("base") or "Item"
-        tid = cv.create_text(0, 0, text=name, anchor="nw", fill=col, font=(_th.head_font(), 13, "bold"),
-                             width=max(120, w - 96))                    # (room for Fold all, top right)
+        from .cardscale import font_size
+        tid = cv.create_text(0, 0, text=name, anchor="nw", fill=col, font=(_th.head_font(), font_size(13, _k(cv)), "bold"),
+                             width=max(120, w - _s(cv, 96)))            # (room for Fold all, top right)
         bb = cv.bbox(tid) or (0, 0, 0, 20)
-        y = bb[3] + 4
+        y = bb[3] + _s(cv, 4)
         what = " ".join(x for x in (rar.title() if rar else "", it.get("base") if it.get("base") and
                                     it.get("base") != name else it.get("class") or "") if x)
         bits = [what, f"item level {it['ilvl']}" if it.get("ilvl") else "",
                 f"quality {it['quality']}%" if it.get("quality") else ""]
         sid = cv.create_text(0, y, text=" \u00b7 ".join(b for b in bits if b), anchor="nw", fill=C["muted"],
-                             font=("Segoe UI", 9), width=max(80, w - 8), tags=("cardwhat",))
-        y = (cv.bbox(sid) or (0, y, 0, y + 14))[3] + 8
+                             font=_f(cv, 9), width=max(80, w - 8), tags=("cardwhat",))
+        y = (cv.bbox(sid) or (0, y, 0, y + 14))[3] + _s(cv, 8)
         flags = own_flags(rec)
         kc = {"fractured": MOD_COL["fractured"], "desecrated": MOD_COL["desecrated"], "crafted": MOD_COL["enchant"],
               "corrupted": C["red"], "twice_corrupted": C["red"]}
@@ -5046,22 +5083,23 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
             if key not in flags:
                 continue
             fc = kc.get(key, C["text"])                  # (the mark and the edge in the flag's color, the word in
-            chip = cv.create_text(x + 8, y + 3, text=f"{mark} {word}", anchor="nw", fill=C["text"],   # the text's)
-                                  font=("Segoe UI", 9), tags=("cardflags",))
-            cb = cv.bbox(chip) or (x + 8, y, x + 70, y + 16)
-            if cb[2] + 8 > w and x > 0:                  # (no room on this line: the next one)
-                y += row_h + 4
+            p8, p3 = _s(cv, 8), _s(cv, 3)
+            chip = cv.create_text(x + p8, y + p3, text=f"{mark} {word}", anchor="nw", fill=C["text"],   # the text's)
+                                  font=_f(cv, 9), tags=("cardflags",))
+            cb = cv.bbox(chip) or (x + p8, y, x + 70, y + 16)
+            if cb[2] + p8 > w and x > 0:                 # (no room on this line: the next one)
+                y += row_h + _s(cv, 4)
                 x = 0
-                cv.coords(chip, x + 8, y + 3)
+                cv.coords(chip, x + p8, y + p3)
                 cb = cv.bbox(chip) or cb
-            _th.round_rect(cv, x, cb[1] - 3, cb[2] + 8, cb[3] + 3, 9, fill=_card_bg(cv), outline=fc,
+            _th.round_rect(cv, x, cb[1] - p3, cb[2] + p8, cb[3] + p3, _s(cv, 9), fill=_card_bg(cv), outline=fc,
                            tags=("cardflags",))
             cv.tag_raise(chip)
-            cv.create_text(cb[0], cb[1], text=mark, anchor="nw", fill=fc, font=("Segoe UI", 9), tags=("cardflags",))
-            row_h = max(row_h, cb[3] + 3 - (cb[1] - 3))
-            x = cb[2] + 16
+            cv.create_text(cb[0], cb[1], text=mark, anchor="nw", fill=fc, font=_f(cv, 9), tags=("cardflags",))
+            row_h = max(row_h, cb[3] + p3 - (cb[1] - p3))
+            x = cb[2] + _s(cv, 16)
         if row_h:
-            y += row_h + 4
+            y += row_h + _s(cv, 4)
         return y
 
     def _card_click(self, cv, tag, fn):
@@ -5075,10 +5113,11 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
         cur = {**default_opts(it), **(rec.get("opts") or {})}
         on = cur.get("base") == "same"
         tag = "cardbase"
-        cv.create_rectangle(4, y - 2, w - 4, y + 18, outline="", fill=_card_bg(cv), tags=(tag,))
-        self._card_box(cv, 10, y + 2, on, tag)
-        txt = cv.create_text(32, y, text=f"Base type: {it['base']}" if on else f"Any {it.get('class') or 'base'}",
-                             anchor="nw", font=("Segoe UI", 10), fill=C["text"] if on else C["muted"], tags=(tag,))
+        s_ = lambda n: _s(cv, n)                                  # noqa: E731
+        cv.create_rectangle(4, y - s_(2), w - 4, y + s_(18), outline="", fill=_card_bg(cv), tags=(tag,))
+        self._card_box(cv, s_(10), y + s_(2), on, tag)
+        txt = cv.create_text(s_(32), y, text=f"Base type: {it['base']}" if on else f"Any {it.get('class') or 'base'}",
+                             anchor="nw", font=_f(cv, 10), fill=C["text"] if on else C["muted"], tags=(tag,))
         st = {"on": on}
 
         def click():
@@ -5086,7 +5125,7 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
             self.search_opt_set(rec, "base", "same" if st["on"] else "class", redraw=False)
             self.card_opts["base"] = st["on"]
             if self._card_mark(rec):                  # 2.104.1: painted in place
-                self._card_box_paint(cv, 10, y + 2, st["on"], tag)
+                self._card_box_paint(cv, s_(10), y + s_(2), st["on"], tag)
                 try:
                     cv.itemconfigure(txt, text=f"Base type: {it['base']}" if st["on"] else
                                      f"Any {it.get('class') or 'base'}", fill=C["text"] if st["on"] else C["muted"])
@@ -5094,7 +5133,7 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
                     pass
         self._card_tick_box(cv, rec, tag, lambda: st["on"], lambda on_: click() if st["on"] != on_ else None)
         self.card_opts["base"] = on
-        return y + 22
+        return y + s_(22)
 
     @staticmethod
     def _card_misc_keys(it, flag_rows=None):
@@ -5122,17 +5161,18 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
             lo, hi = cur, None
         on = cur not in (None, "", 0, {})
         tag = f"cardopt_{key}"
-        cv.create_rectangle(4, y - 2, w - 4 - (2 * CARD_BOX + 34), y + 18, outline="", fill=_card_bg(cv), tags=(tag,))
-        self._card_box(cv, 10, y + 2, on, tag)
-        txt = cv.create_text(32, y, text=label, anchor="nw", font=("Segoe UI", 10),
+        s_ = lambda n: _s(cv, n)                                  # noqa: E731
+        cv.create_rectangle(4, y - s_(2), _vbox_x(cv, w, 0) - 4, y + s_(18), outline="", fill=_card_bg(cv),
+                            tags=(tag,))
+        self._card_box(cv, s_(10), y + s_(2), on, tag)
+        txt = cv.create_text(s_(32), y, text=label, anchor="nw", font=_f(cv, 10),
                              fill=C["text"] if on else C["muted"], tags=(tag,))
         st = {"on": on}
         boxes = {}
         for i, (k, v) in enumerate((("min", lo if on else None if lower else have),
                                     ("max", hi if on else have if lower else None))):
             e = self._card_entry(cv, "" if v is None else f"{v:g}" if isinstance(v, float) else str(v))
-            cv.create_window(w - 12 - 18 - CARD_BOX * (2 - i) - (4 if i == 0 else 0), y - 1, window=e, anchor="nw",
-                             width=CARD_BOX, height=20)
+            cv.create_window(_vbox_x(cv, w, i), y - 1, window=e, anchor="nw", width=s_(CARD_BOX), height=s_(20))
             boxes[k] = e
 
         def take(turn_on=True):
@@ -5152,7 +5192,7 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
             if key == "ilvl":
                 self.card_ilvl = (boxes["min"], st["on"])
             if self._card_mark(rec):                  # 2.104.1: painted in place
-                self._card_box_paint(cv, 10, y + 2, st["on"], tag)
+                self._card_box_paint(cv, s_(10), y + s_(2), st["on"], tag)
                 try:
                     cv.itemconfigure(txt, fill=C["text"] if st["on"] else C["muted"])
                 except tk.TclError:
@@ -5177,7 +5217,7 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
         self.card_opts[key] = (boxes, on)
         if key == "ilvl":
             self.card_ilvl = (boxes["min"], on)
-        return y + 22
+        return y + s_(22)
 
     def _card_opt_store(self, rec, key, vals):
         """None = not searched (kept as None when the item's own search would use it - white bases)."""
@@ -5205,12 +5245,12 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
         tag = f"cardtri_{key}"
         cell = cell or (lw + 80)
         bg = _card_bg(cv)
-        h = 26
+        h = _s(cv, 26)
         cv.create_rectangle(x, y, x + cell, y + h, fill=bg, outline="", tags=(tag, "cardtri_hit"))   # (the row clicks)
         cv.create_line(x, y + h, x + cell, y + h, fill=_th.mix(bg, C["text"], .06), tags=(tag, "cardtri_line"))
-        lab = cv.create_text(x + 4, y + h // 2, text=label, anchor="w", font=("Segoe UI", 9), tags=(tag,),
-                             width=max(40, cell - 72))
-        val = cv.create_text(x + cell - 12, y + h // 2, text="", anchor="e", font=("Segoe UI", 9, "bold"),
+        lab = cv.create_text(x + 4, y + h // 2, text=label, anchor="w", font=_f(cv, 9), tags=(tag,),
+                             width=max(40, cell - _s(cv, 72)))
+        val = cv.create_text(x + cell - _s(cv, 12), y + h // 2, text="", anchor="e", font=_f(cv, 9, "bold"),
                              tags=(tag,))
         pill_tag = f"{tag}_pill"
 
@@ -5222,7 +5262,8 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
             cv.delete(pill_tag)
             bb = cv.bbox(val)
             if on and bb:
-                pill = _th.round_rect(cv, bb[0] - 8, y + 4, bb[2] + 8, y + h - 4, 9,
+                pill = _th.round_rect(cv, bb[0] - _s(cv, 8), y + _s(cv, 4), bb[2] + _s(cv, 8), y + h - _s(cv, 4),
+                                      _s(cv, 9),
                                       fill=_th.mix(bg, C["accent"], .18), outline="", tags=(tag, pill_tag))
                 cv.tag_lower(pill, val)
         paint(cur)
@@ -5249,7 +5290,7 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
         grid = self._card_misc_keys(rec["item"])
         n = sum(1 for key, _l in grid if cur.get(key) not in (None, "any", "", "Any"))
         if _cl(cv):                                   # (Price Checks: ITEM FLAGS · 2 set)
-            return cv.itemconfigure("cardsec_misc", text="▾ ITEM FLAGS" + (f" · {n} set" if n else ""))
+            return cv.itemconfigure("cardsec_misc", text="▾ " + CARD_SECTIONS["misc"] + (f" · {n} set" if n else ""))
         cv.itemconfigure("cardsec_misc", text="▾ MISCELLANEOUS" + (f"  ({n})" if n else ""))
 
     # ---------------- ▸ Advanced (2.79.0): everything that isn't a filter
@@ -5303,7 +5344,8 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
         tag = f"cardrow{idx}"
         on = mod_impact(rec, m) != "ignore"
         can = bool(m.get("sid")) or not rec.get("resolved")
-        box, bx, tx = 14, 10, 32
+        s_ = lambda n: _s(cv, n)                                  # noqa: E731
+        box, bx, tx = s_(14), s_(10), s_(32)
         dl = _cl(cv)
         if dl:                                               # the Drawer: its kind in a word too
             word = KIND_WORD.get(m.get("kind") or "")
@@ -5312,19 +5354,20 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
                                  str(m.get("sid") or "").startswith(x + ".")), None)
             if word and not text.startswith(word):
                 text = f"{word} \u00b7 {text}"
-        hit = cv.create_rectangle(4, y - 2, w - 4, y + 18, outline="", fill=_card_bg(cv), tags=(tag,))   # the row's click area
+        hit = cv.create_rectangle(4, y - s_(2), w - 4, y + s_(18), outline="", fill=_card_bg(cv), tags=(tag,))   # the row's click area
         tier = f"{(m.get('kind') or ' ')[0]}{m['tier']}" if m.get("tier") else ""
         if tier:
-            cv.create_text(tx, y + 1, text=tier, anchor="nw", font=("Segoe UI", 8), fill=C["muted"],
+            cv.create_text(tx, y + 1, text=tier, anchor="nw", font=_f(cv, 8), fill=C["muted"],
                            tags=(tag, f"cardtier{idx}"))
             if dl:                                           # (one hover: what P1 / S3 means)
                 TagTip(cv, f"cardtier{idx}", f"{m.get('kind') or 'Mod'}, tier {m['tier']} (1 is the best roll)")
-            tx += 22
-        right = (2 * CARD_BOX + 16 if self._card_has_vals(rec, m) else 0) + 20     # 2.78.3: Min / Max; 2.79.0: ★
+            tx += s_(22)
+        cb2 = 2 * s_(CARD_BOX)
+        right = (cb2 + s_(16) if self._card_has_vals(rec, m) else 0) + s_(20)     # 2.78.3: Min / Max; 2.79.0: ★
         from .ratemods import key_for
         rkey = key_for(rec, m) if can else None
         if rkey:
-            right = 2 * CARD_BOX + 16 + 20 + 30              # 2.97.0: Rate ▾; 2.103.1: it sits by the Min / Max column,
+            right = cb2 + s_(16 + 20 + 30)                   # 2.97.0: Rate ▾; 2.103.1: it sits by the Min / Max column,
                                                              # so a row without boxes keeps that room too (no overlap)
         fl0 = m.get("flags") or ()
         src0 = next((x for x in ("fractured", "desecrated") if x in fl0 or str(m.get("sid") or "").startswith(x + ".")),
@@ -5336,17 +5379,16 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
         tid = cv.create_text(tx, y, text=text, anchor="nw", font=font, width=w - tx - 12 - right, justify="left",
                              fill=shown_c, tags=("cardmod", tag, f"cardtxt{idx}"))
         bb = cv.bbox(tid)
-        y1 = (bb[3] if bb else y + 16) + 4
+        y1 = (bb[3] if bb else y + 16) + s_(4)
         if not can:                                          # not on the trade site: nothing to tick
-            cv.create_text(tx, y1 - 2, text="not on the trade site", anchor="nw", font=("Segoe UI", 8),
-                           fill=C["red"], tags=(tag,))
-            y1 += 14
-        by = y + 2
+            nt = cv.create_text(tx, y1 - s_(2), text="not on the trade site", anchor="nw", font=_f(cv, 8),
+                                fill=C["red"], tags=(tag,))
+            y1 = max(y1 + s_(14), (cv.bbox(nt) or (0, 0, 0, 0))[3] + 2)
+        by = y + s_(2)
         rect = cv.create_rectangle(bx, by, bx + box, by + box, outline=_box_line(cv, can),
                                    fill=_tick_fill(cv, on and can), tags=("cardbox", tag))
         if on and can:
-            cv.create_line(bx + 3, by + 7, bx + 6, by + 10, bx + 11, by + 4, fill=_tick_ink(cv), width=2,
-                           tags=(tag, f"cardchk{idx}"))
+            cv.create_line(*_tick(cv, bx, by), fill=_tick_ink(cv), width=2, tags=(tag, f"cardchk{idx}"))
         self.card_paint[idx] = {"cv": cv, "rec": rec, "colr": colr, "can": can, "bx": bx, "by": by, "tag": tag}
         fl = m.get("flags") or ()
         src = next((x for x in ("fractured", "desecrated") if x in fl or str(m.get("sid") or "").startswith(x + ".")),
@@ -5355,17 +5397,16 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
             only = bool((rec.get("only") or {}).get(norm(m["text"])))    # search it as fractured / desecrated only
             otag = f"cardonly{idx}"
             fc = MOD_COL[src]                                # 2.97.1 / 2.97.2: the mod's own color
-            ob = 8                                           # ...and a small box right under it, tied with └
-            cv.create_text(tx, y1 - 3, text="└", anchor="nw", font=("Segoe UI", 8), fill=fc, tags=(otag,))
-            bx0 = tx + 12
+            ob = s_(8)                                       # ...and a small box right under it, tied with └
+            cv.create_text(tx, y1 - s_(3), text="└", anchor="nw", font=_f(cv, 8), fill=fc, tags=(otag,))
+            bx0 = tx + s_(12)
             cv.create_rectangle(bx0, y1, bx0 + ob, y1 + ob, outline=fc, fill=fc if only else _card_bg(cv),
                                 tags=(otag, otag + "_r"))
             if only:
-                cv.create_line(bx0 + 1, y1 + 4, bx0 + 3, y1 + 7, bx0 + 7, y1 + 1, fill="#120a04", width=2,
-                               tags=(otag, otag + "_c"))
+                cv.create_line(*self._only_tick(cv, bx0, y1), fill="#120a04", width=2, tags=(otag, otag + "_c"))
             self.card_paint[idx].update(obx=bx0, oby=y1, ofc=fc)
             word = f"{src.title() if dl else src} only"
-            ox = cv.create_text(bx0 + ob + 4, y1 - 2, text=word, anchor="nw", font=("Segoe UI", 8), fill=fc,
+            ox = cv.create_text(bx0 + ob + s_(4), y1 - s_(2), text=word, anchor="nw", font=_f(cv, 8), fill=fc,
                                 tags=(otag,))
             self._card_tick_box(cv, rec, otag, lambda mm=m: bool((rec.get("only") or {}).get(norm(mm["text"]))),
                                 lambda on, mm=m: self.card_only_click(rec, mm)
@@ -5374,9 +5415,9 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
             y1 = max(y1, (cv.bbox(ox) or (0, 0, 0, y1))[3] + 2)
         # (2.97.1: no "RUNE / SOCKETED" line - runes have their own AUGMENTS section)
         if dl:                                               # (a line under each mod, as the mockup's rows)
-            y1 += 6
-            cv.create_line(0, y1 - 4, w, y1 - 4, fill=C["line"], tags=("cardsep",))
-        cv.coords(hit, 4, y - 2, w - 4 - right, y1 - 2)
+            y1 += s_(6)
+            cv.create_line(0, y1 - s_(4), w, y1 - s_(4), fill=C["line"], tags=("cardsep",))
+        cv.coords(hit, 4, y - s_(2), w - 4 - right, y1 - s_(2))
         if rkey and self.pc_ask_mod(rec) is m:               # 2.131.2: Ask me about mods I haven't rated
             try:
                 y1 = self._card_ask_strip(cv, rec, m, rkey, tx, y1, w)
@@ -5386,8 +5427,8 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
             self._card_val_boxes(cv, rec, m, y - 1, w, on and can)
         if can:                                              # 2.79.0: ★ = must match (a click: on / off)
             imp = mod_impact(rec, m)
-            star = cv.create_text(w - 14, y + 1, text="★" if imp == "high" else "☆", anchor="ne",
-                                  font=("Segoe UI", 10), fill=C["good"] if imp == "high" else C["muted"],
+            star = cv.create_text(w - s_(14), y + 1, text="★" if imp == "high" else "☆", anchor="ne",
+                                  font=_f(cv, 10), fill=C["good"] if imp == "high" else C["muted"],
                                   tags=(f"cardstar{idx}",))
             cv.tag_bind(star, "<Button-1>", lambda e, mm=m: self.card_set(      # 2.103.3: painted in place
                 rec, mm, "normal" if mod_impact(rec, mm) == "high" else "high"))
@@ -5425,13 +5466,13 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
         left_out = mod_impact(rec, m) == "ignore"
         top = tk.Frame(fr, bg=P)
         top.pack(fill="x")
-        nb = tk.Label(top, text="Not now", bg=P, fg=C["muted"], font=("Segoe UI", 9, "underline"), cursor="hand2")
+        nb = tk.Label(top, text="Not now", bg=P, fg=C["muted"], font=_f(cv, 9, "underline"), cursor="hand2")
         nb.pack(side="right", anchor="n", padx=(8, 0))
         nb.bind("<Button-1>", lambda _e: self.pc_ask_answer(rec, m, key, None))
         Tooltip(nb, "Not on this item. Turn the asks off in Settings › Price checking.")
         tk.Label(top, text="? Not rated yet - " + ("left out of the search. " if left_out else "a looser search can "
                  "leave it out. ") + "How much does it matter for the price?", bg=P, fg=C["accent"],
-                 font=("Segoe UI", 9),
+                 font=_f(cv, 9),
                  anchor="w", justify="left", wraplength=max(120, w - x - 100)).pack(side="left", fill="x", expand=True)
         row = tk.Frame(fr, bg=P)
         row.pack(fill="x", pady=(4, 0))
@@ -5440,7 +5481,7 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
         for i_, g_ in enumerate(("S", "A", "B", "C", "D", "F")):
             b_ = tk.Button(row, text=g_, bg=C["panel"], fg=C["text"], activebackground=C["odd"],
                            activeforeground=C["text"], relief="flat", bd=0, highlightthickness=1,
-                           highlightbackground=C["line"], font=("Segoe UI", 9, "bold"), width=2, pady=2,
+                           highlightbackground=C["line"], font=_f(cv, 9, "bold"), width=2, pady=2,
                            cursor="hand2",
                            command=lambda g=("ignore" if g_ == "F" else g_): self.pc_ask_answer(rec, m, key, g))
             b_.pack(side="left", padx=(0 if i_ == 0 else 4, 0))
@@ -5481,7 +5522,7 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
     def _card_entry(self, cv, text, enabled=True):
         e = tk.Entry(cv, width=5, bg=C["bg"] if _cl(cv) else C["panel"], fg=C["text"], insertbackground=C["text"],
                      relief="flat", highlightthickness=1, highlightbackground=C["line"],
-                     highlightcolor=C["accent"], font=("Segoe UI", 9), justify="center",
+                     highlightcolor=C["accent"], font=_f(cv, 9), justify="center",
                      disabledbackground=_card_bg(cv), disabledforeground=C["muted"])
         e.insert(0, text)
         if not enabled:
@@ -5501,8 +5542,7 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
         for i, key in enumerate(("min", "max")):
             v = cur.get(key)
             e = self._card_entry(cv, "" if v is None else f"{v:g}", enabled)
-            x = w - 12 - 18 - CARD_BOX * (2 - i) - (4 if i == 0 else 0)
-            cv.create_window(x, y, window=e, anchor="nw", width=CARD_BOX, height=20)
+            cv.create_window(_vbox_x(cv, w, i), y, window=e, anchor="nw", width=_s(cv, CARD_BOX), height=_s(cv, 20))
             boxes[key] = e
         if m.get("uval") is not None:
             for e in boxes.values():
@@ -5563,11 +5603,15 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
                 cv.itemconfigure(otag + "_r", fill=p["ofc"] if on else _card_bg(cv))
                 cv.delete(otag + "_c")
                 if on:
-                    cv.create_line(bx0 + 1, y1 + 4, bx0 + 3, y1 + 7, bx0 + 7, y1 + 1, fill="#120a04", width=2,
-                                   tags=(otag, otag + "_c"))
+                    cv.create_line(*self._only_tick(cv, bx0, y1), fill="#120a04", width=2, tags=(otag, otag + "_c"))
             except tk.TclError:
                 pass
         return on
+
+    @staticmethod
+    def _only_tick(cv, x, y):
+        """The tick in the small Fractured / Desecrated only box (8 px at scale 1)."""
+        return [x + _s(cv, 1), y + _s(cv, 4), x + _s(cv, 3), y + _s(cv, 7), x + _s(cv, 7), y + _s(cv, 1)]
 
     def card_only(self, rec, m, on):
         """2.93.0 (feedback): search this fractured / desecrated mod only as fractured / desecrated (this item only)."""
@@ -5590,10 +5634,10 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
         on it's your vote too."""
         from .ratemods import current
         cur = current([key])
-        x = w - 12 - 18 - CARD_BOX * 2 - 4 - 22
+        x = _vbox_x(cv, w, 0) - _s(cv, 22)
         tag = f"cardrate{idx}"
         label = ("F" if cur == "ignore" else cur) if cur else "Rate"
-        cv.create_text(x + 6, y + 1, text=label + " ▾", anchor="n", font=("Segoe UI", 8, "bold" if cur else "normal"),
+        cv.create_text(x + _s(cv, 18), y + 1, text=label + " ▾", anchor="ne", font=_f(cv, 8, "bold" if cur else "normal"),
                        fill=(C["text"] if _cl(cv) else C["accent"]) if cur else C["muted"], tags=(tag, "cardthumb"))
         if _cl(cv):
             TagTip(cv, tag, f"Rated {label}: how much this mod matters - for every item like it." if cur else
@@ -5737,8 +5781,7 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
             cv.delete(f"cardchk{idx}")
             if on and can:
                 bx, by = p["bx"], p["by"]
-                cv.create_line(bx + 3, by + 7, bx + 6, by + 10, bx + 11, by + 4, fill=_tick_ink(cv), width=2,
-                               tags=(p["tag"], f"cardchk{idx}"))
+                cv.create_line(*_tick(cv, bx, by), fill=_tick_ink(cv), width=2, tags=(p["tag"], f"cardchk{idx}"))
             cv.itemconfigure(f"cardstar{idx}", text="★" if imp == "high" else "☆",
                              fill=C["good"] if imp == "high" else C["muted"])
             for e in (v.card_vals.get(id(m)) or {}).values():

@@ -89,9 +89,11 @@ FEATURES = (
     "Scan stash",
     "Search Options",           # Settings › Price checking
     "Session timer",
-    "Copy items",               # Bulk Pricing's source switch: Ctrl+Alt+C on each item in game (saved as "Manual Add")
-    "Read a stash tab",         # Bulk Pricing's source switch, BETA: every item on a public stash tab, through the
-                                # trade site (saved as "Stash tab"); its row: Tab's price in game, Read tab
+    "Manually Add",             # Bulk Pricing's source switch: Ctrl+Alt+C on each item in game (saved as "Manual Add";
+                                # was "Copy items")
+    "Add from stash tab",       # Bulk Pricing's source switch, BETA: every item on a public stash tab, through the
+                                # trade site (saved as "Stash tab"; was "Read a stash tab"); its row: Tab's price in
+                                # game, Read tab
     "Trade Whisper Watcher",
     "History",                  # UI overhaul: Price Checks ↳ History - every item you priced (was the Recent menu)
     # drawer build (drawer/PLAN.md 1.1): never "compact", "side panel", "game mode" or "portable" for these
@@ -136,6 +138,11 @@ FEATURES = (
     "Linux check",              # Linux build: Settings › Advanced and  StashOfExile2 --check-linux  - session, keys,
                                 # screen picture, clipboard, key sending, OCR, Client.txt, each with its fix
 )
+
+# The item card's sections (Price Checks, Bulk Pricing), top to bottom - the owner's one order. A listing's Whole item
+# (soe2/listingcard.py) uses the same words, in the same order, for the parts it has.
+CARD_SECTIONS = {"props": "BASE AND PROPERTIES", "req": "REQUIREMENTS", "aug": "AUGMENTS", "misc": "ITEM FLAGS",
+                 "stats": "MODS", "pseudo": "PSEUDO FILTERS", "trade": "TRADE FILTERS"}
 
 # 3.0.6 Scan stash: the Socketables tab's five pages, named for the buttons along its top, left to right (the game's
 # buttons show pictures only). The scan's card says which button: "Open your Socketables tab (Idols page, button 4 of 5)".
@@ -210,7 +217,12 @@ OLD = {
     "Session Configuration": "In your map device",     # 3.0.6: other tools' words - never ours
     "Active Loadout": "In your map device",
     "Loadout": "In your map device",
+    "Copy items": "Manually Add",              # Bulk Pricing's source switch (owner, 3.0.7)
+    "Read a stash tab": "Add from stash tab",
 }
+
+# Bulk Pricing's source switch, as it reads (saved as tabreader_page.MODES: "Manual Add", "Stash tab")
+BULK_MANUAL, BULK_STASH = "Manually Add", "Add from stash tab"
 
 # an old page name that now means another page: before 2.80.0, Bulk Pricing was called "Price checks"
 WAS_PAGE = {"Price checks": "checks"}

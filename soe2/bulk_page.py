@@ -1,20 +1,25 @@
 """Bulk Pricing (owner pick: mockup A in a wide window, C in the Drawer). Top to bottom: your stash tabs (when you read
 one) with what the list is worth and how many items it has; the toolbar - a search box first, Filters · n ▾,
-Columns ▾, then Copy items | Read a stash tab, Re-price all and Pause; the stash tab's own row; the list; the key bar.
+Columns ▾, then Manually Add | Add from stash tab, Re-price all and Pause; the stash tab's own row; the list; the key bar.
 The picked item is shown as Price Checks shows one - the price card, the item card (Base and Properties, Mods,
 Augments, Item Flags), the cheapest listings, then Search again | Trade Site | Add to favorites - beside the list in a
-wide window, under it in a narrow one. With nothing picked the list has the whole width. Your account name is never
-on the page (it could show on a stream). UI rule 22: a new price paints the price card and the listings only."""
+wide window, under it in a narrow one, about 20% smaller than on Price Checks (cardscale.BULK; it fits its column
+like Price Checks' card). It is always there: the first row is picked by itself; with no row picked it says what it
+is, with one button. Your account name is never on the page (it could show on a stream). UI rule 22: a new price
+paints the price card and the listings only."""
 import tkinter as tk
 import types
 from tkinter import ttk
 
 from . import buglog
 from .config import save_json, SETTINGS
+from .cardscale import BULK
+from .names import BULK_MANUAL, BULK_STASH
 from .pricecheck_page import CONF_CHIP, WIDE_PX, search_tip
 from .style import C, Splitter, Tooltip, flowify, flow_show, trade_icon
 
-ITEM_W = 500            # the picked item's side in a wide window, at first (drag the grip; remembered: panel_w)
+ITEM_W = 400            # the picked item's side in a wide window, at first (drag the grip; remembered: panel_w) -
+                        # owner: about 20% narrower than Price Checks' card side
 STACK_ROWS = 7          # a narrow window: the list's rows over the picked item
 
 
@@ -68,9 +73,9 @@ class BulkPage:
         kbf = tk.Frame(body, bg=P1)
         kbf.pack(fill="x", side="bottom")
         self.build_keybar(kbf)
-        self._bk_summary(body)                          # your tabs (Read a stash tab) | worth · items
+        self._bk_summary(body)                          # your tabs (Add from stash tab) | worth · items
         self._bk_toolbar(body)                          # search, Filters · n ▾, Columns ▾ | the source, Re-price all
-        self.bk_stash = tk.Frame(body, bg=P1)           # (shown with Read a stash tab: pctab_mode)
+        self.bk_stash = tk.Frame(body, bg=P1)           # (shown with Add from stash tab: pctab_mode)
         self.view_var = tk.StringVar(value=SETTINGS["view"])
         self.build_tab_reader(self.bk_stash)
         self.banner = tk.Label(body, text="", anchor="w", padx=12, pady=2, font=("Segoe UI", 9), justify="left")
@@ -78,8 +83,12 @@ class BulkPage:
         main = tk.Frame(body, bg=P1)
         main.pack(fill="both", expand=True, padx=12, pady=(0, 8))
         self.checks_area = self.bk_main = main          # (banners go just above it)
+        if not SETTINGS.get("bk_side_k"):               # (once: a remembered side is made 20% narrower too)
+            SETTINGS["bk_side_k"] = True
+            if SETTINGS.get("panel_w"):
+                SETTINGS["panel_w"] = int(int(SETTINGS["panel_w"]) * BULK)
         pw = int(SETTINGS.get("panel_w") or ITEM_W)
-        split = self.bk_split = Splitter(main, width=max(ITEM_W, min(pw, 900)), lo=380, keep=420,
+        split = self.bk_split = Splitter(main, width=max(320, min(pw, 900)), lo=320, keep=420,
                                          on_set=self._bk_side_saved, bg=P1, fixed="right")
         split.pack(fill="both", expand=True)
         split.left.config(bg=P1)
@@ -92,7 +101,7 @@ class BulkPage:
                                            lst=self.bk_list, count=self.bk_count, rcanvas=self.dcanvas,
                                            lcanvas=self.dcanvas, cards=[], table=True, keep_scroll=True,
                                            open_btn=self.bk_trade_btn)
-        split.set_layout("solo")                        # (no item picked yet: the list has the whole width)
+        split.set_layout("side")                        # (the picked item's side is always there: bk_layout)
         body.bind("<Configure>", self._bk_page_cfg, add="+")
         self.pctab_mode(save=False)
         self.show_detail(None)
@@ -198,7 +207,7 @@ class BulkPage:
                               pad=(12, 4), plain=True, badges={MODE_LABELS["Stash tab"]: "BETA"},
                               command=lambda v: self.pctab_mode())
         self.pc_mode.pack(side="right", padx=(8, 0))
-        Tooltip(self.pc_mode, "Copy items: Ctrl+Alt+C on each item in game. Read a stash tab: every item on one of "
+        Tooltip(self.pc_mode, f"{BULK_MANUAL}: Ctrl+Alt+C on each item in game. {BULK_STASH}: every item on one of "
                               "your public stash tabs, through the trade site (BETA). Each has its own list.")
         flowify(tb)
 
@@ -346,7 +355,7 @@ class BulkPage:
         self.tree.bind("<<TreeviewSelect>>", lambda e: self.update_mark_buttons(), add="+")   # 2.103.1: lit at once
         self.tree.bind("<Double-1>", lambda e: self.open_trade())
         self.tree.bind("<Button-1>", lambda e: self.bk_filters_toggle(False), add="+")
-        # the empty list: what it is, and one button (Read tab with Read a stash tab)
+        # the empty list: what it is, and one button (Read tab with Add from stash tab)
         self.empty_lbl = EmptyState(left, "⚖", "", button=("Read tab", self.pctab_read))
         self.bk_empty_more = tk.Label(self.empty_lbl, text="", bg=P1, fg=C["muted"], font=("Segoe UI", 9),
                                       justify="center")
@@ -374,7 +383,7 @@ class BulkPage:
                 btn.config(text="✕ Clear filters", command=self.cat_reset, style="TButton")
             elif stash:
                 t = self.pctab_current()
-                e.set_text(f"{t['name'] if t else 'This tab'} is empty\nRead a stash tab to list and price everything "
+                e.set_text(f"{t['name'] if t else 'This tab'} is empty\nPress Read tab to list and price everything "
                            "in it.")
                 btn.config(text="Read tab", command=self.pctab_read, style="Primary.TButton")
                 more = "Or hover an item in game and press Ctrl+Alt+C."
@@ -396,8 +405,8 @@ class BulkPage:
     # ---------------------------------------------------------------- the picked item
     def _bk_item_col(self, col):
         P1, P2 = C["panel"], C["panel2"]
-        self.bk_price = self.price_card_build(col)      # the price, how sure, how it was worked out
-        self.bk_price.frame.pack(fill="x", pady=(0, 12))
+        self.bk_price = self.price_card_build(col, BULK)    # the price, how sure, how it was worked out
+        self.bk_price.frame.pack(fill="x", pady=(0, 8))
         # Search again | Trade Site | Add to favorites - at the bottom, always in view
         foot = self.bk_foot = tk.Frame(col, bg=P2, highlightthickness=1, highlightbackground=C["line"])
         foot.pack(side="bottom", fill="x", pady=(8, 0))
@@ -418,8 +427,13 @@ class BulkPage:
         Tooltip(self.bk_fav_btn, "Keeps this item and its filters in Trade › Favorites")
         self.item_trade_btn, self.item_mark_btn = self.bk_trade_btn, self.mark_btn     # (older callers)
         flowify(f)
+        # no row picked: what this side is, and one button (it picks the first row)
+        from .chrome import EmptyState
+        self.bk_none = EmptyState(col, "⚖", "No item picked\nPick an item in the list: its price, its filters and "
+                                  "the cheapest listings show here.", button=("Show the first item", self.bk_autopick))
+        Tooltip(self.bk_none.btn, "Picks the first item in the list")
         # the item card, its listings and Advanced, scrolling
-        box = tk.Frame(col, bg=P1)
+        box = self.bk_scroll = tk.Frame(col, bg=P1)
         box.pack(fill="both", expand=True)
         dsb = ttk.Scrollbar(box, orient="vertical")
         dsb.pack(side="right", fill="y")
@@ -430,7 +444,7 @@ class BulkPage:
         self._dwin = self.dcanvas.create_window((0, 0), window=self.detail, anchor="nw")
         self.dcanvas.bind("<Configure>", self._canvas_resized)
         self.detail.bind("<Configure>", lambda e: self.dcanvas.configure(scrollregion=self.dcanvas.bbox("all")))
-        self.bk_cardbox = tk.Frame(self.detail, bg=P2, padx=16, pady=12, highlightthickness=1,
+        self.bk_cardbox = tk.Frame(self.detail, bg=P2, padx=12, pady=8, highlightthickness=1,
                                    highlightbackground=C["line"])
         self.bk_cardbox.pack(fill="x")
         lbox = tk.Frame(self.detail, bg=P1)
@@ -463,7 +477,76 @@ class BulkPage:
             cw = self.dcanvas.winfo_width()
         except tk.TclError:
             cw = 0
-        return max(300, cw - 2 * 16 - 2 - 12) if cw > 50 else 420
+        return max(260, cw - 2 * 12 - 2 - 12) if cw > 50 else 340
+
+    def bk_card_room(self):
+        """The px the picked item's card has beside the list (the scroller's height, less its box's padding); 0 under
+        the list (a narrow window: the listings follow the card, as on Price Checks' Drawer)."""
+        if not self.bk_layout_wide():
+            return 0
+        try:
+            h = self.dcanvas.winfo_height()
+        except tk.TclError:
+            return 0
+        return max(0, h - 2 * 8 - 2) if h > 50 else 0
+
+    def bk_scale_off(self):
+        """Does the picked item's card need another scale for the room it has now?"""
+        from . import cardscale
+        v = self.bulkv
+        if getattr(self, "shown_rec", None) is None or v.card_paint is None:
+            return False
+        k, h, was = getattr(v, "card_k", BULK), getattr(v, "card_h", 0), getattr(v, "card_avail", 0)
+        room = self.bk_card_room()
+        if abs(room - was) < 8:
+            return False
+        if room <= 0:
+            return k != BULK
+        if h > room and k > cardscale.KMIN:
+            return True
+        return k < BULK and room > was
+
+    def bk_autopick(self, force=False):
+        """Owner: the picked item's side is never empty while the list has rows - nothing picked, the first row is.
+        -> True when a row was picked."""
+        tree = getattr(self, "tree", None)
+        if tree is None:
+            return False
+        try:
+            if tree.selection() and not force:
+                return False
+            kids = tree.get_children()
+            if not kids:
+                return False
+            tree.selection_set(kids[0])
+            tree.focus(kids[0])
+            tree.see(kids[0])
+            return True
+        except tk.TclError:
+            return False
+
+    def bk_none_paint(self, on):
+        """No row picked: the side says what it is (one button: Show the first item - grayed out while the list is
+        empty), the price card and the card wait; the footer's buttons are grayed out (they need a pick)."""
+        e = getattr(self, "bk_none", None)
+        if e is None:
+            return
+        try:
+            if on:
+                self.bk_price.frame.pack_forget()
+                self.bk_scroll.pack_forget()
+                if not e.winfo_manager():
+                    e.pack(expand=True)                 # (in the middle of the side)
+                e.btn.config(state="normal" if self.tree.get_children() else "disabled")
+                for b in (self.bk_search_btn, self.bk_trade_btn, self.bk_fav_btn):
+                    b.config(state="disabled")
+            elif e.winfo_manager():
+                e.pack_forget()
+                self.bk_scroll.pack(fill="both", expand=True)
+                self.bk_price.frame.pack(fill="x", pady=(0, 8), before=self.bk_scroll)
+                self.bk_search_btn.config(state="normal")
+        except tk.TclError:
+            pass
 
     def _bk_side_saved(self, w=None):
         try:
@@ -474,14 +557,12 @@ class BulkPage:
 
     # ---------------------------------------------------------------- the layout for the width
     def bk_layout_for(self, width):
-        picked = getattr(self, "shown_rec", None) is not None
-        if not picked:
-            return "solo"
+        """Owner: the picked item's side is always there - beside the list (WIDE_PX and up) or under it."""
         return "side" if width >= WIDE_PX else "stack"
 
     def bk_layout(self, width=None):
-        """Wide (WIDE_PX of page and up): the picked item beside the list; narrow (the Drawer): under it; nothing
-        picked: the list alone, the whole width. Only packing changes - the list is never built again. -> changed?"""
+        """Wide (WIDE_PX of page and up): the picked item beside the list; narrow (the Drawer): under it - picked or
+        not (its empty state). Only packing changes - the list is never built again. -> changed?"""
         sp = getattr(self, "bk_split", None)
         if sp is None:
             return False
@@ -511,7 +592,7 @@ class BulkPage:
 
     def _bk_page_cfg(self, e):
         """Once per resize (after a pause; while the Drawer is dragged, when it's let go) - and only when the width
-        crosses WIDE_PX with an item picked."""
+        crosses WIDE_PX."""
         if e.widget is not self.checks_body or (self.bk_layout_for(e.width) == self._bk_how and
                                                  (e.width < WIDE_PX) == getattr(self, "_bk_narrow", False)):
             return
@@ -569,6 +650,7 @@ class BulkPage:
         self.bk_mark_sel()
         self.bk_layout()
         v = self.bulkv
+        self.bk_none_paint(rec is None)
         if rec is None:
             v.card_paint, v.rid, self._bk_sig, self._bk_list_sig = None, None, None, None
             return
@@ -579,8 +661,8 @@ class BulkPage:
         top = self.dcanvas.yview()[0] if prev is rec else 0
         holder = tk.Frame(self.bk_cardbox, bg=C["panel2"])
         self._card_no_price = True                      # (the price card says the price: Price Checks' look)
-        try:
-            self._detail_card(holder, rec, rec["item"], wrap)
+        try:                                            # (20% smaller than Price Checks'; it fits its column)
+            self.card_fit_draw(v, holder, rec, wrap, BULK, self.bk_card_room())
         finally:
             self._card_no_price = False
             for w in kids:

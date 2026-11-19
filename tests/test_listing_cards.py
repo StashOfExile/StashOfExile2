@@ -157,7 +157,7 @@ class OnPriceChecks(Base):
         self.click(tog)
         self.assertEqual(tog.cget("text"), "▾ Less")
         self.assertGreater(self.cards_[2].winfo_height(), h0)
-        self.assertIn("+10% to Fire Resistance", self.texts(self.cards_[2]))
+        self.assertIn("Implicit · +10% to Fire Resistance", self.texts(self.cards_[2]))
         self.assertIn("Note: ~price 5 divine", self.texts(self.cards_[2]))
         self.assertIn("Energy Shield: 211", self.texts(self.cards_[2]))
         for i, c in enumerate(self.cards_):
@@ -171,6 +171,59 @@ class OnPriceChecks(Base):
         # a click on the card's body does the same as the toggle
         self.click(self.cards_[2])
         self.assertEqual(tog.cget("text"), "▾ Less")
+
+    def test_picture_in_the_middle_of_its_column_and_body_beside_it(self):
+        for c in (self.cards_[0], self.cards_[3]):
+            pic = next(x for x in self.walk(c) if isinstance(x, tk.Canvas))
+            inner_top = c.winfo_rooty() + int(str(c.cget("pady"))) + 1
+            inner_h = c.winfo_height() - 2 * int(str(c.cget("pady"))) - 2
+            mid = pic.winfo_rooty() + pic.winfo_height() / 2
+            self.assertAlmostEqual(mid, inner_top + inner_h / 2, delta=2, msg="the picture: the middle, top to bottom")
+            body = pic.master.grid_slaves(row=0, column=1)[0]
+            bmid = body.winfo_rooty() + body.winfo_height() / 2
+            self.assertAlmostEqual(bmid, inner_top + inner_h / 2, delta=2, msg="the mods: the middle beside it")
+        self.click(self.toggle_of(self.cards_[0]))
+        self.pump()
+        c = self.cards_[0]
+        pic = next(x for x in self.walk(c) if isinstance(x, tk.Canvas))
+        inner_top = c.winfo_rooty() + int(str(c.cget("pady"))) + 1
+        inner_h = c.winfo_height() - 2 * int(str(c.cget("pady"))) - 2
+        self.assertAlmostEqual(pic.winfo_rooty() + pic.winfo_height() / 2, inner_top + inner_h / 2, delta=2,
+                               msg="opened: still the middle of the card's full height")
+
+    def test_whole_item_follows_the_item_cards_order_and_words(self):
+        from soe2.names import CARD_SECTIONS
+        it = T.RAW_LISTINGS[self.rec["stages"][0]["ids"][0]]["item"]
+        it.update(requirements=[{"name": "Level", "values": [["80", 0]]}, {"name": "Int", "values": [["101", 0]]}],
+                  runeMods=["Bonded: +20 to maximum Life"], pseudoMods=["+120 total maximum Mana"],
+                  properties=[{"name": "Gloves", "values": []}, {"name": "Quality", "values": [["+21%", 1]]},
+                              {"name": "Energy Shield", "values": [["297", 1]]}])
+        self.app.pc_draw_list(self.rec)
+        self.pump()
+        c = self.cards(self.app.pcv.lst)[0]
+        self.click(self.toggle_of(c))
+        self.pump()
+        shown = [x for x in self.walk(c) if isinstance(x, tk.Label) and x.winfo_viewable() and x.cget("text")]
+        shown.sort(key=lambda x: (x.winfo_rooty(), x.winfo_rootx()))
+        words = [str(x.cget("text")) for x in shown]
+        heads = [w for w in words if w in CARD_SECTIONS.values()]
+        order = list(CARD_SECTIONS.values())
+        self.assertEqual(heads, ["BASE AND PROPERTIES", "REQUIREMENTS", "AUGMENTS", "ITEM FLAGS", "MODS",
+                                 "PSEUDO FILTERS"], words)
+        self.assertEqual(heads, sorted(heads, key=order.index), "the card's order")
+        for row in ("Quality: +21%", "Energy Shield: 297", "Level 80  ·  Int 101", "Rune · Bonded: +20 to maximum Life",
+                    "Implicit · +10% to Fire Resistance", "+120 total maximum Mana", "◆ Fractured", "✎ Crafted",
+                    "P1", "S2"):
+            self.assertIn(row, words)
+        self.assertNotIn("Gloves", words, "the bare class name: Base type says it")
+        self.assertFalse([w for w in words if w.startswith("Requires:")], "no raw item text")
+        self.assertEqual(words[-1], "Note: ~price 5 divine", "the note: the last row")
+        note = shown[-1]
+        from soe2.style import C
+        self.assertEqual(note.cget("fg"), C["muted"], "quiet")
+        quick = [x for x in self.walk(c) if isinstance(x, tk.Label) and x.cget("text") == "+59 to maximum Energy Shield"]
+        self.assertEqual(sum(1 for x in quick if x.winfo_viewable()), 1, "each mod once: the whole item replaces the "
+                                                                          "short list")
 
     def test_open_state_is_kept_while_the_item_is_shown(self):
         self.click(self.toggle_of(self.cards_[1]))

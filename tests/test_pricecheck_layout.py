@@ -384,6 +384,100 @@ class Layout(unittest.TestCase):
         tb = self.table()
         self.assertGreaterEqual(tb.winfo_rootx(), col.winfo_rootx() + col.winfo_width(), "the listings beside")
 
+    # ---- owner: the card fits the window (one scale for the whole card), the price card is tight
+    def scroller_needed(self):
+        cv = self.app.pc_lcanvas
+        inner = self.app.pc_left.master
+        return inner.winfo_reqheight() > cv.winfo_height() + 1, cv._sb.winfo_ismapped()
+
+    def test_card_fits_a_full_window(self):
+        SETTINGS["pc_fold"] = {}
+        self.addCleanup(SETTINGS.update, pc_fold={})
+        self.size(1688, 840)                              # (the page in a 1920x1040 full window)
+        self.show("rare_gloves_corrupted_enchant")
+        cv = self.card()
+        from soe2 import cardscale
+        self.assertLess(cv._k, 1.0, "smaller to fit")
+        self.assertGreaterEqual(cv._k, cardscale.KMIN)
+        need, sb = self.scroller_needed()
+        self.assertFalse(need, "it fits")
+        self.assertFalse(sb, "no scroll bar")
+        heads = self.heads(cv)
+        self.assert_order(heads)
+
+    def test_card_full_size_with_room(self):
+        self.size(1600, 1400)
+        self.show("rare_gloves_quality_sockets")
+        self.assertEqual(self.card()._k, 1.0)
+        self.assertFalse(self.scroller_needed()[1])
+
+    def test_taller_window_scales_up_once_after_the_resize(self):
+        SETTINGS["pc_fold"] = {}
+        self.addCleanup(SETTINGS.update, pc_fold={})
+        self.size(1688, 840)
+        self.show("rare_gloves_corrupted_enchant")
+        k0 = self.card()._k
+        lst = list(self.app.pcv.lst.winfo_children())
+        calls = []
+        real = self.app._detail_card
+        with mock.patch.object(self.app, "_detail_card", side_effect=lambda *a: calls.append(1) or real(*a)):
+            self.root.geometry("1688x1300+0+0")          # (several sizes while dragging: drawn after the pause)
+            self.pump()
+            self.root.geometry("1688x1400+0+0")
+            self.pump()
+            self.assertEqual(calls, [], "not while the window is still changing size")
+            self.size(1688, 1400)
+        self.assertTrue(calls, "drawn again for its room")
+        self.assertLessEqual(len(calls), 3)
+        self.assertGreater(self.card()._k, k0)
+        self.assertEqual(list(self.app.pcv.lst.winfo_children()), lst, "the listings stay as they are")
+        self.assertFalse(self.scroller_needed()[1])
+
+    def test_small_window_scrolls(self):
+        SETTINGS["pc_fold"] = {}
+        self.addCleanup(SETTINGS.update, pc_fold={})
+        self.size(1600, 560)
+        self.show("rare_body_armour_runes")
+        from soe2 import cardscale
+        self.assertEqual(self.card()._k, cardscale.KMIN, "as small as it goes")
+        self.assertTrue(self.scroller_needed()[0])
+
+    def test_drawer_card_keeps_its_size(self):
+        self.size(640, 1000)
+        self.show("rare_gloves_quality_sockets")
+        self.assertFalse(self.app.pc_layout_wide())
+        self.assertEqual(self.card()._k, 1.0, "the Drawer: the listings follow the card - it scrolls")
+
+    def test_scaled_card_ticks_in_place(self):
+        SETTINGS["pc_fold"] = {}
+        self.addCleanup(SETTINGS.update, pc_fold={})
+        self.size(1688, 840)
+        rec = self.show("rare_gloves_corrupted_enchant")
+        cv = self.card()
+        self.assertLess(cv._k, 1.0)
+        idx, (m, _on, rect) = next((i, r) for i, r in sorted(self.app.pcv.card_rows.items()) if r[1]
+                                   and r[0].get("sid") and r[0].get("kind") != "Total")
+        box = cv.coords(rect)
+        self.assertAlmostEqual(box[2] - box[0], round(14 * cv._k), delta=1, msg="the boxes follow the scale")
+        with mock.patch.object(self.app, "_detail_card", side_effect=AssertionError("the card was built again")):
+            self.app.card_toggle(rec, m, False)
+            self.pump()
+        self.assertIs(self.card(), cv)
+
+    def test_price_card_is_tight_and_how_sure_is_plain(self):
+        self.show("rare_gloves_quality_sockets")
+        f, how = self.app.pc_verdict, self.app.pc_v_how
+        self.assertLessEqual(int(str(f.cget("padx"))), 12)
+        self.assertLessEqual(int(str(f.cget("pady"))), 8)
+        self.assertEqual(int(str(how.cget("highlightthickness"))), 0, "how sure: no box")
+        self.assertEqual(how.cget("text"), "~ Fair guess", "a mark and a word")
+        self.assertTrue(how.winfo_viewable())
+        big = self.app.pc_v_big
+        self.assertGreaterEqual(how.winfo_rootx(), big.winfo_rootx() + big.winfo_width(), "beside the price")
+        self.assertLess(f.winfo_height(), 100)
+        from soe2.pricecheck_page import CONF_CHIP
+        self.assertEqual(CONF_CHIP["medium"][:2], ("~", "Fair guess"), "the words themselves are the owner's")
+
 
 if __name__ == "__main__":
     unittest.main()

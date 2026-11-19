@@ -100,6 +100,16 @@ def req_line(item):
     return ("Requires: " + ", ".join(parts)) if parts else ""
 
 
+def req_parts(item):
+    """The requirements as the item card's head row says them: ["Level 80", "Int 101"]."""
+    out = []
+    for r in item.get("requirements") or []:
+        name, vals = _clean(r.get("name")), [_clean(v[0]) for v in r.get("values") or [] if v]
+        if vals:
+            out.append(f"Level {vals[0]}" if name.lower() == "level" else f"{name[:3].title()} {vals[0]}")
+    return out
+
+
 def _mod_obj(x, kind):
     """2.81.0 (feedback screenshot: mods showed as raw {'description': ...}): one mod as the trade site sends it now -
     {"description", "flags": {"fractured": True ...}, "domain": "rune" / "explicit" / "desecrated" ..., "mods":
@@ -352,6 +362,7 @@ def listing_facts(e):
     mods = mod_rows(it)
     return {"name": _clean(it.get("name")), "base": _clean(it.get("typeLine") or it.get("baseType")),
             "rarity": it.get("rarity") or "", "props": prop_lines(it), "ilvl": it.get("ilvl"), "req": req_line(it),
+            "req_parts": req_parts(it),
             "mods": mods, "corrupted": bool(it.get("corrupted")), "icon": it.get("icon") or "",
             "flags": sorted(listing_flags(it, mods)),
             "parts": prop_parts(it), "pseudo": [_clean(x if not isinstance(x, dict) else x.get("description"))
@@ -747,42 +758,47 @@ class PriceCheckPage:
 
     # ---------------------------------------------------------------- the price (a card at the top)
     def _pc_verdict_row(self, body):
-        """The price, big; how sure as a chip (a mark and a word); ⓘ how it was worked out (one hover); one line
+        """The price, big; how sure beside it (a mark and a word, plain); ⓘ how it was worked out (one hover); one line
         under it (while searching: the last price and when). As tall in every state - nothing below it jumps."""
         ns = self._pc_vns = self.price_card_build(body)
         self.pc_verdict, self.pc_v_big, self.pc_v_how = ns.frame, ns.big, ns.how
         self.pc_v_info, self.pc_v_info_tip, self.pc_v_why = ns.info, ns.info_tip, ns.why
 
-    def price_card_build(self, parent):
-        """The price card (Price Checks, and Bulk Pricing's picked item): the price, big; how sure as a chip; ⓘ how it
-        was worked out; one line under it. One height in every state. -> its parts (price_card_paint fills them)."""
+    def price_card_build(self, parent, k=1.0):
+        """The price card (Price Checks, and Bulk Pricing's picked item - k: its scale, soe2/cardscale.py): the price,
+        big; how sure beside it - a mark and a word, plain (no box); one line under it. Owner: tight - little room
+        around the price. One height in every state. -> its parts (price_card_paint fills them)."""
         import tkinter.font as tkf
         import types
+        from .cardscale import font_size
         from .style import Tooltip
         P2 = C["panel2"]
-        f = tk.Frame(parent, bg=P2, padx=16, pady=12, highlightthickness=1, highlightbackground=C["line"])
+        px, py = (12, 8) if k >= 1 else (8, 4)          # (the spacing tokens: 20% smaller is a token down)
+        f = tk.Frame(parent, bg=P2, padx=px, pady=py, highlightthickness=1, highlightbackground=C["line"])
         top = tk.Frame(f, bg=P2)
         top.pack(fill="x")
-        big = tk.Label(top, text="", bg=P2, fg=C["text"], font=("Segoe UI", 22, "bold"), anchor="w", bd=0)
+        big = tk.Label(top, text="", bg=P2, fg=C["text"], font=("Segoe UI", font_size(22, k), "bold"), anchor="w",
+                       bd=0, pady=0)
         big.pack(side="left")
-        how = tk.Label(top, text="", bg=P2, fg=C["text"], font=("Segoe UI", 9), padx=8, pady=1,
-                       highlightthickness=1, highlightbackground=C["line"])     # (the how-sure chip)
+        how = tk.Label(top, text="", bg=P2, fg=C["text"], font=("Segoe UI", font_size(10, k)), bd=0, padx=0,
+                       pady=0)                                 # (how sure: a mark and a word, never in a box)
         low = tk.Frame(f, bg=P2)
-        low.pack(fill="x", pady=(4, 0))
-        info = tk.Label(low, text="", bg=P2, fg=C["muted"], font=("Segoe UI", 9), anchor="nw",
-                        cursor="question_arrow", bd=0)
+        low.pack(fill="x")
+        info = tk.Label(low, text="", bg=P2, fg=C["muted"], font=("Segoe UI", font_size(9, k)), anchor="nw",
+                        cursor="question_arrow", bd=0, pady=0)
         info_tip = Tooltip(info, "")
-        why = tk.Label(low, text="", bg=P2, fg=C["muted"], font=("Segoe UI", 9), anchor="nw", justify="left", bd=0)
+        why = tk.Label(low, text="", bg=P2, fg=C["muted"], font=("Segoe UI", font_size(9, k)), anchor="nw",
+                       justify="left", bd=0, pady=0)
         why.pack(side="left", fill="x", expand=True)
         why.bind("<Configure>", lambda e, lab=why: self._pc_why_resized(e, lab))   # (2.128.0: only a real change)
         try:                                             # one height for every state: the big line and two small ones
             bl = tkf.Font(font=big.cget("font")).metrics("linespace")
             sl = tkf.Font(font=why.cget("font")).metrics("linespace")
-            f.config(height=bl + 4 + 2 * sl + 2 * 12 + 2)
+            f.config(height=bl + 2 * sl + 2 * py + 2)
             f.pack_propagate(False)
         except tk.TclError:
             pass
-        return types.SimpleNamespace(frame=f, big=big, how=how, info=info, info_tip=info_tip, why=why)
+        return types.SimpleNamespace(frame=f, big=big, how=how, info=info, info_tip=info_tip, why=why, k=k)
 
     def _pc_foot_build(self, body):
         """Search again (the page's one orange button) | Trade Site | Add to favorites, then Broaden Search (too many
@@ -903,9 +919,9 @@ class PriceCheckPage:
                 why = f"Last price: ≈ {fmt_div(rec['est'])}, {ago(rec['priced_at'])}"
         try:
             if chip:
-                ns.how.config(text=chip[0], fg=chip[1], highlightbackground=chip[1])
+                set_cfg(ns.how, text=chip[0], fg=chip[1])
                 if not ns.how.winfo_manager():
-                    ns.how.pack(side="left", padx=(12, 0))
+                    ns.how.pack(side="left", padx=(8, 0))
             else:
                 ns.how.pack_forget()
             if info:
@@ -1064,7 +1080,7 @@ class PriceCheckPage:
         # once it has it - the end state no longer depends on timing
         def card_off():
             return getattr(v, "shown_rid", None) is not None and \
-                abs(self.pcv_wrap(v) - (getattr(v, "card_wrap", 0) or 0)) >= 8
+                (abs(self.pcv_wrap(v) - (getattr(v, "card_wrap", 0) or 0)) >= 8 or self.pc_scale_off(v))
 
         def list_off():
             return getattr(v, "list_shown", False) and \
@@ -1150,6 +1166,11 @@ class PriceCheckPage:
                     gap.pack(side="right", fill="y", before=cv)
                     guard.flipped()
                     cv.yview_moveto(0)
+                elif not need and sb.winfo_ismapped() and not getattr(cv, "_sb_later", None):
+                    def again():                         # (held after a few quick flips: looked at once more when
+                        cv._sb_later = None              # the hold is over - it fits now, so it goes)
+                        fit()
+                    cv._sb_later = cv.after(2100, again)
             except tk.TclError:
                 pass
         cv.bind("<Configure>", lambda e: (cv.itemconfigure(win, width=e.width), fit()))
@@ -1420,7 +1441,10 @@ class PriceCheckPage:
         pcv = v is getattr(self, "pcv", None)
         self._card_no_price = pcv                                # 2.123.0 (p4): the price card says the price
         try:
-            self._detail_card(v.left, rec, rec["item"], wrap)
+            if pcv:                                              # owner: the card fits the page (its scale)
+                self.card_fit_draw(v, v.left, rec, wrap, 1.0, self.pc_card_room() if self.pc_layout_wide() else 0)
+            else:
+                self._detail_card(v.left, rec, rec["item"], wrap)
         finally:
             self._card_no_price = False
         v.card_rows, v.card_paint, v.card_vals = self.card_rows, self.card_paint, self.card_vals   # 2.103.3: per view
@@ -1454,6 +1478,77 @@ class PriceCheckPage:
         # 3.0.6: (was a second draw 250 ms later, racing the resize's own) - drawn before the page had its width, it
         # is drawn again once it has it: pcv_fit compares with card_wrap
         return card, btn
+
+    def card_fit_draw(self, v, parent, rec, wrap, base, avail):
+        """Owner (the card fits the window, no scroll bar wherever it can): the item card into parent at the scale
+        that fits avail px (soe2/cardscale.py; avail 0: base - the Drawer, where the listings follow the card). The
+        scale found is kept for this card at this room, so a tick, a new price or a redraw for the same room draws it
+        once. Built in its hidden holder before it shows (no flicker). Remembers on v what it was drawn for
+        (card_k, card_h, card_avail - pcv_fit and Bulk Pricing compare with them). -> the card's canvas."""
+        from . import cardscale
+        sig = (self.card_sig(rec, wrap), base, int(avail) // 4)
+        cache = v.__dict__.setdefault("_fit_cache", {})
+        made = []
+
+        def draw(k):
+            for cv in made:                                      # (a try that didn't fit: gone before it shows)
+                try:
+                    cv.destroy()
+                except tk.TclError:
+                    pass
+            made.clear()
+            self._card_k = k
+            try:
+                cv = self._detail_card(parent, rec, rec["item"], wrap)
+            finally:
+                self._card_k = 1.0
+            made.append(cv)
+            try:
+                return int(cv.cget("height"))
+            except (tk.TclError, ValueError):
+                return 0
+        if sig in cache:
+            k = cache[sig]
+            h = draw(k)
+        else:
+            k, h = cardscale.fit(draw, avail, base)
+            if len(cache) > 40:
+                cache.clear()
+            cache[sig] = k
+        v.card_k, v.card_h, v.card_avail, v.card_base = k, h, int(avail), base
+        return made[-1] if made else None
+
+    def pc_card_room(self):
+        """The px Price Checks' item card has in a wide window: its scroller's height, less the padding inside it
+        and its box's (0 before the page is laid out)."""
+        try:
+            h = self.pc_lcanvas.winfo_height()
+        except (tk.TclError, AttributeError):
+            return 0
+        if h <= 50:
+            return 0
+        for w, gap in ((getattr(self, "pc_verdict", None), 12), (getattr(self, "pc_foot", None), 8)):
+            try:                                         # (the price card and the buttons not packed yet - the
+                if w is not None and not w.winfo_manager():     # first item: they will take their room)
+                    h -= w.winfo_reqheight() + gap
+            except tk.TclError:
+                pass
+        pad = int(self.pc_left.cget("pady") or 0)
+        return max(0, h - 2 * 4 - 2 * pad - 2)
+
+    def pc_scale_off(self, v):
+        """Is the card's scale wrong for the room it has now (a window made taller or shorter)? Only a wide window
+        (the Drawer: the listings follow the card - it keeps its scale)."""
+        from . import cardscale
+        if v is not getattr(self, "pcv", None) or getattr(v, "shown_rid", None) is None or not self.pc_layout_wide():
+            return False
+        k, h, was = getattr(v, "card_k", 1.0), getattr(v, "card_h", 0), getattr(v, "card_avail", 0)
+        room = self.pc_card_room()
+        if room <= 0 or abs(room - was) < 8:
+            return False
+        if h > room and k > cardscale.KMIN:                   # (it no longer fits: smaller)
+            return True
+        return k < getattr(v, "card_base", 1.0) and room > was   # (more room: bigger again)
 
     def pc_entries(self, rec):
         """The listings behind this item's price: the search the price came from (its first 10)."""
