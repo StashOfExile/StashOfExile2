@@ -1222,23 +1222,18 @@ class PriceCheckPage:
     def pc_take(self, text):
         """An item for Price Checks: priced first in line, shown on the page (the app comes to the front if you
         want - Settings › Keybinds)."""
-        from .wealth import parse_currency_item
-        cur = parse_currency_item(text)
+        cur = self.copy_currency(text)                   # (one intake with Bulk Pricing: app.copy_currency)
         try:                                             # 2.128.0: a Favours reward - learn what it looks like
             self.favours_copy_learn(text)                # (2.129.3: exchange items, and ★ uniques - never priced)
         except Exception:
             buglog.caught()
-        if cur and cur[2] == "Wombgifts":                # (feedback: use the trade site for the 5 types of wombgifts)
-            cur = None
         if cur:                                          # 2.129.0 (feedback): omens, essences, lineage gems, every
             self.status_text, self.status_until = f"Pricing {cur[0]}...", time.time() + 10     # currency: their
             self.stack_price(cur[0], cur[1], loud=True)  # going rate on poe.ninja's exchange - never a trade search
             return None
         rid = self.add_item_text(text, src="pc")
         if rid is None:                                  # which kind of item, and why it isn't priced (one line)
-            from . import gamedata
-            g = gamedata.read_item(text)
-            self.status_text = gamedata.unpriced_line(g) if g else gamedata.copy_problem(text) or gamedata.COPY_NOT_ITEM
+            self.status_text = self.status_line_unpriced(text)
             self.status_until = time.time() + 8
             self.pc_missed = self.status_text            # (the read mark over the game says it too)
             return None

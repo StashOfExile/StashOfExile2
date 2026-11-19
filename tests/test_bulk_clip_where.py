@@ -1,4 +1,4 @@
-"""3.0.6 (owner: Megalomaniacs didn't add): accept_clip says where each Ctrl+Alt+C copy really went, and a copy that
+"""3.0.6 (owner: Megalomaniacs didn't add; Bulk Pricing takes what Price Checks takes): accept_clip says where each Ctrl+Alt+C copy really went, and a copy that
 waits on 'Same item again?' says so over the game too."""
 import os
 import re
@@ -28,6 +28,9 @@ def fake(**over):
     f.dup_notice = lambda it: f.notices.append(it["name"])
     f.add_clean = lambda t: f.added.append(t)
     f.not_priceable_yet = lambda t: None
+    f.copy_currency = A.App.copy_currency
+    f.status_line_unpriced = lambda t: "not priced"
+    f.stack_price = lambda *a, **k: f.notices.append("rate")
     for k, v in over.items():
         setattr(f, k, v)
     return f
@@ -51,10 +54,20 @@ class BulkClipWhere(unittest.TestCase):
         f = fake(fl_capturing=lambda: True, fl_take_clip=lambda t: None)
         self.assertEqual(A.App.accept_clip(f, mega()), "the Strat Tracker's loot box")
 
-    def test_plain_copy_of_a_rare_is_named(self):
+    def test_same_intake_as_price_checks_no_plain_copy_gate(self):
+        """Owner: whatever Price Checks prices, Bulk Pricing prices - a copy without the { } headers too."""
         plain = re.sub(r"\{[^}]*\}\n", "", mega()).replace("Rarity: Unique", "Rarity: Rare")
         f = fake()
-        self.assertIn("plain Ctrl+C", A.App.accept_clip(f, plain))
+        self.assertEqual(A.App.accept_clip(f, plain), "Bulk Pricing")
+
+    def test_currency_gets_its_rate_like_price_checks(self):
+        cur = ("Item Class: Stackable Currency\nRarity: Currency\nDivine Orb\n--------\nStack Size: 3/20\n--------\n"
+               "Randomises the numeric values of the random modifiers on an item\n")
+        f = fake()
+        where = A.App.accept_clip(f, cur)
+        if A.App.copy_currency(cur):
+            self.assertIn("exchange rate", where)
+            self.assertEqual(f.added, [])
 
     def test_megalomaniac_enhancement_copy_is_advanced(self):
         """The game copies a Megalomaniac's passives as '{ Enhancement }' lines - it was turned away as a plain copy."""

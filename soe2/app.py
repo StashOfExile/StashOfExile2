@@ -2721,31 +2721,29 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
             if self.fl_ed_open() and self.fl_ed_take(text):
                 return "the Strat Tracker's setup"
             try:                                                  # 2.129.3: a copy while the Favours window is
-                if self.favours_copy_learn(text) and not self.ADVANCED.search(text):     # open teaches that
-                    self.status_text, self.status_until = "Favours prices: learned its look", time.time() + 5
-                    return "Favours prices"                       # reward's look
-            except Exception:
+                self.favours_copy_learn(text)                     # open teaches that reward's look - and is priced,
+            except Exception:                                     # as on Price Checks (3.0.6)
                 buglog.caught()
         if not text.lstrip().startswith("Item Class:"):          # something else on the clipboard
             if text != self.own_clip:                            # (our own "copy name" isn't worth mentioning)
                 self.status_text, self.status_until = "Heard a copy, but it isn't an item (ignored)", time.time() + 6
             return "nothing - not an item"
-        from .wealth import parse_currency_item
-        cur = parse_currency_item(text)                          # (a Wombgift: a trade search - feedback)
-        if parse_stack(text) or (cur and cur[2] != "Wombgifts"):  # currency & other stacks: offer the Wealth window
-            self.not_priceable_yet(text)                         # (2.129.0: and any exchange item: its going rate)
-            return "nothing - a currency stack"
         from . import features as FEAT
         if not FEAT.on("bulk") and text != self.own_clip:        # 2.131.0: Bulk Pricing is off (Features)
             return "nothing - Bulk Pricing is off"
-        if not self.ADVANCED.search(text):                       # plain Ctrl+C: no mod tiers/ranges, can't be priced well
-            self.status_text = "Ignored a normal copy - use Ctrl+Alt+C so the mod details are included"
-            self.status_until = time.time() + 10
-            return "nothing - a plain Ctrl+C copy"
+        # 3.0.6 (owner: "everything that works for price checks should also work for bulk pricing"): the same intake
+        # as Price Checks (pc_take) - currency at its poe.ninja rate, every other item the reader can read is
+        # priced; no extra gates of its own (a plain-copy gate turned Megalomaniacs away)
+        cur = self.copy_currency(text)
+        if cur:
+            self.status_text, self.status_until = f"Pricing {cur[0]}...", time.time() + 10
+            self.stack_price(cur[0], cur[1], loud=True)
+            return "an exchange rate (poe.ninja)"
         item = self.read_any(text)
         if not item:
-            self.not_priceable_yet(text)
-            return "nothing - not an item the price checker reads"
+            self.status_text = self.status_line_unpriced(text)
+            self.status_until = time.time() + 8
+            return "nothing - " + self.status_text
         same = [r for r in self.records.values() if self.item_sig(r["item"]) == self.item_sig(item)
                 and r.get("src", "manual") == "manual"]           # 2.42.0: your own list (not a stash tab's)
         if same:                                                 # exact same name + exact same mods: ask
@@ -2756,6 +2754,28 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
             return "Bulk Pricing - waiting on 'Same item again?'"
         self.add_clean(text)
         return "Bulk Pricing"
+
+    @staticmethod
+    def copy_currency(text):
+        """Price Checks and Bulk Pricing alike: a copied currency / exchange item -> (name, qty, kind), or None.
+        Wombgifts are searched on the trade site (feedback), so they're not currency here."""
+        from .wealth import parse_currency_item
+        cur = parse_currency_item(text)
+        return None if not cur or cur[2] == "Wombgifts" else cur
+
+    def status_line_unpriced(self, text):
+        """Price Checks and Bulk Pricing alike: why a copy isn't priced, in one line (its text kept in
+        unpriced_items.txt so the reason can be found)."""
+        g = gamedata.read_item(text)
+        if g:
+            try:
+                path = P("unpriced_items.txt")
+                if not os.path.exists(path) or os.path.getsize(path) < 500_000:
+                    with open(path, "a", encoding="utf-8") as f:
+                        f.write(f"===== {time.strftime('%Y-%m-%d %H:%M:%S')} v{APP_VERSION}\n{text.strip()}\n")
+            except Exception:
+                buglog.caught()
+        return gamedata.unpriced_line(g) if g else gamedata.copy_problem(text) or gamedata.COPY_NOT_ITEM
 
     def dup_notice(self, item):
         """3.0.6: 'Same item again?' waits in the app window, which you don't see in game: one line over the game too."""
