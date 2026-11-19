@@ -460,6 +460,7 @@ class PricePopup:
         for c in inner.winfo_children():
             c.destroy()
         self.pp_wraps = []
+        self.pp_ticks = []                                   # (cb, label, mod, on, color) - for drag-to-tick
         self.pp_boxes = {}
         it = rec.get("item") or {}
         body, head = P.get("body") or P["font"], P.get("hfont") or P["font"]
@@ -561,8 +562,7 @@ class PricePopup:
                 tl.pack(side="left", fill="x", expand=True, padx=(4, 0))
                 self.pp_wraps.append(tl)
                 if can:
-                    for wdg in (cb, tl):
-                        wdg.bind("<Button-1>", lambda e, mm=m, o=on: self._pcpop_tick(rec, mm, not o))
+                    self._pcpop_drag_bind(rec, (cb, tl, m, on, ink(col, P["bg"]), P))
                 src = next((x for x in ("fractured", "desecrated")
                             if x in flags or str(m.get("sid") or "").startswith(x + ".")), None)
                 if src and can:
@@ -1012,6 +1012,53 @@ class PricePopup:
             return is_own(seller)
         except Exception:
             return False
+
+    def _pcpop_drag_bind(self, rec, tick):
+        """3.0.6 (owner: tick mods by holding the left button and dragging across them): a press on a mod sets every
+        mod the mouse then crosses to the state the first one flips to; the search changes once, on release."""
+        self.pp_ticks.append(tick)
+        cb, tl = tick[0], tick[1]
+        for w in (cb, tl):
+            w.bind("<ButtonPress-1>", lambda e, t=tick: self._pcpop_drag_start(t))
+            w.bind("<B1-Motion>", lambda e: self._pcpop_drag_over(e.x_root, e.y_root))
+            w.bind("<ButtonRelease-1>", lambda e: self._pcpop_drag_end(rec))
+
+    def _pcpop_drag_paint(self, t, on):
+        cb, tl, _m, _was, col, P = t
+        try:
+            cb.config(text="☑" if on else "☐", fg=P["accent"] if on else P["muted"])
+            tl.config(fg=col if on else P["muted"])
+        except tk.TclError:
+            pass
+
+    def _pcpop_drag_start(self, t):
+        self._pp_drag = {"to": not t[3], "set": {id(t[2]): t}}
+        self._pcpop_drag_paint(t, self._pp_drag["to"])
+
+    def _pcpop_drag_over(self, x, y):
+        d = getattr(self, "_pp_drag", None)
+        if not d:
+            return
+        try:
+            under = self.root.winfo_containing(x, y)
+        except (tk.TclError, KeyError):
+            under = None
+        if under is None:
+            return
+        for t in self.pp_ticks:
+            if under in (t[0], t[1], t[0].master) and id(t[2]) not in d["set"] and t[3] != d["to"]:
+                d["set"][id(t[2])] = t
+                self._pcpop_drag_paint(t, d["to"])
+
+    def _pcpop_drag_end(self, rec):
+        d, self._pp_drag = getattr(self, "_pp_drag", None), None
+        if not d:
+            return
+        for t in d["set"].values():
+            if t[3] != d["to"]:
+                self.toggle_mod(rec, t[2], d["to"])
+        self.card_changed(rec)
+        self.pcpop_fill(rec)
 
     def _pcpop_only(self, inner, P, rec, m, src, body):
         """3.0.6 (owner: the box under a fractured / desecrated mod was missing here - Price Checks has it): right

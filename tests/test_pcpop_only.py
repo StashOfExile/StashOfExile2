@@ -50,6 +50,32 @@ class Only(unittest.TestCase):
         self.assertFalse([w for w in self.labels(p) if str(w.cget("text")).endswith(" only")])
         p.pcpop_close()
 
+    def test_drag_across_mods(self):
+        """3.0.6 (owner): hold the left button on a mod and drag across others - each one crossed takes the first
+        one's new state; the search changes once, when the button comes up."""
+        p, rec, _took = self.card("rare_ring")
+        ticks = list(p.pp_ticks)
+        self.assertGreaterEqual(len(ticks), 3)
+        fills = []
+        real_fill = p.pcpop_fill
+        p.pcpop_fill = lambda r: (fills.append(1), real_fill(r))[-1]
+        first = ticks[0]
+        to = not first[3]
+        p._pcpop_drag_start(first)
+        for t in ticks[1:3]:
+            self.root.update()
+            x, y = t[1].winfo_rootx() + 3, t[1].winfo_rooty() + 3
+            p.root.winfo_containing = lambda _x, _y, w=t[1]: w      # (no real mouse under Xvfb)
+            p._pcpop_drag_over(x, y)
+            self.assertEqual(t[0].cget("text"), "☑" if to else "☐")
+        self.assertEqual(fills, [])                                 # nothing searched while dragging
+        p._pcpop_drag_end(rec)
+        self.assertEqual(fills, [1])                                # one redraw on release
+        on = {id(m) for m in p.pc_ticked(rec)}
+        for t in ticks[:3]:
+            self.assertEqual(id(t[2]) in on, to)
+        p.pcpop_close()
+
 
 if __name__ == "__main__":
     unittest.main()
