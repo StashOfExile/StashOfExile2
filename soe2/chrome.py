@@ -165,6 +165,14 @@ class Viewport(tk.Frame):
                     f.place(**place)
                     self._edges.append(f)
             self.body.pack_configure(padx=len(layers), pady=len(layers))
+        from . import soft
+        soft._lift_caps(self)                         # (the edges are made again: the round corners stay on top)
+
+    def bottom_edge(self):
+        """The color of its bottom edge (its round corners' curve), or None."""
+        t = TH.ST.theme
+        layers = (t.part("panels", "viewport", "edges") or []) if t else []
+        return t.c(layers[0][1]) if layers else None
 
 
 def section(parent, title, note="", bg_key="panel2", padx=16, pady=8, expand=False, wrap=False):
@@ -193,10 +201,28 @@ def section(parent, title, note="", bg_key="panel2", padx=16, pady=8, expand=Fal
                 if e.width > 40 and abs(int(nl.cget("wraplength")) - want) > 24:
                     nl.config(wraplength=want)
             nl.bind("<Configure>", rewrap)
+    from . import soft          # rule 24: round corners - the strip's top two, the sunken frame's bottom two
+    soft.round_frame(outer, top=lambda: section_rows(soft.RADIUS + 1), corners=("tl", "tr"))
+    soft.round_frame(vp, edge=vp.bottom_edge, outside=lambda: outer.cget("bg"), corners=("bl", "br"))
     inner.section_outer, outer.section_title, outer.section_bar = outer, title, bar
     outer.section_note = note                            # (Settings search finds the words in the ⓘ too)
     INDEX.append((title, note, outer))
     return outer, inner
+
+
+def section_rows(n):
+    """The colors of a section strip's top rows, under the section's 1 px border (row 0) - its round corners."""
+    t = TH.ST.theme
+    if t is None:
+        return None
+    spec = t.part("bars", "section") or t.part("bars", "title")
+    stops = t.grad(spec["fill"])
+    h = SectionBar.H
+    rows = [TH.grad_at(stops, y / max(1, h - 1)) for y in range(n)]
+    for key, y in (("top", 0), ("top2", 2)):
+        if spec.get(key) and y < n:
+            rows[y] = t.c(spec[key])
+    return [rows[0]] + rows
 
 
 def split_note(note):

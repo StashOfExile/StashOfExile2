@@ -374,6 +374,9 @@ class PricePopup:
         st.configure(name, background=P["line"], troughcolor=P.get("field", P["bg"]), bordercolor=P["bg"],
                      arrowcolor=P["muted"], lightcolor=P["line"], darkcolor=P["line"], gripcount=0, arrowsize=12)
         st.map(name, background=[("active", P["accent"]), ("pressed", P["accent"])])
+        from . import soft                       # rule 24: thin and round, in the overlay style's colors
+        soft.scrollbar_style(self.root, st, name, soft.rgb(self.root, P["muted"]), ns="pcpop",
+                             strong=soft.rgb(self.root, P["accent"]))
         foot = tk.Frame(w.body, bg=P["bg"])
         foot.pack(fill="x", side="bottom", padx=8, pady=8)
         self.pp_foot = foot

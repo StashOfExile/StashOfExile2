@@ -1694,9 +1694,8 @@ class Shell:
 
     @staticmethod
     def _round_rect(c, x0, y0, x1, y1, r, **kw):
-        pts = [x0 + r, y0, x1 - r, y0, x1, y0, x1, y0 + r, x1, y1 - r, x1, y1, x1 - r, y1, x0 + r, y1, x0, y1, x0, y1 - r,
-               x0, y0 + r, x0, y0]
-        return c.create_polygon(pts, smooth=True, **kw)
+        from . import themes as _th                 # rule 24: smooth corners (soft.py), one item as before
+        return _th.round_rect(c, x0, y0, x1, y1, r, **kw)
 
     def _dock_item(self, m, cx, y, tile, labels):
         d = self.dock

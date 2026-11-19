@@ -788,14 +788,23 @@ def _setup_style(root, TH):
     s.map("TSpinbox", bordercolor=[("focus", C["accent"])])
     # ---- buttons: bevelled faces drawn from the pack (gradient, light inner edge, round corners on some packs)
     bh = 34
+    from . import soft                  # rule 24: round faces, laid on the color behind each button (soft.variant)
+    soft.install()
+    soft.tk_cache(root)["ns"] = ns
     for style_name, spec, states in (
             ("TButton", "normal", [("disabled", "d"), ("pressed", "p"), ("active", "h")]),
             ("Primary.TButton", "primary", [("disabled", "d"), ("pressed", "p"), ("active", "h")]),
             ("Danger.TButton", "danger", [("disabled", "d"), ("pressed", "p"), ("active", "h")])):
         el = "%s.%s.face" % (ns, style_name.split(".")[0] if "." in style_name else "Button")
-        TH.make_element(root, s, el, t, spec, bh, states)
-        s.layout(style_name, [(el, {"sticky": "nswe", "children": [("Button.focus", {"sticky": "nswe", "children": [
-            ("Button.padding", {"sticky": "nswe", "children": [("Button.label", {"sticky": "nswe"})]})]})]})])
+
+        def face(under, el=el, spec=spec, states=states):
+            name = "%s.%s" % (el, soft.hexc(under)[1:]) if under else el
+            TH.make_element(root, s, name, t, spec, bh, states, under=under)
+            return soft.button_layout(name)
+        soft.register(root, style_name, face)
+        if style_name == "Primary.TButton":
+            soft.register(root, "Accent.TButton", face)
+        s.layout(style_name, face(soft.rgb(root, C["bg"])))
         s.configure(style_name, focuscolor=C["accent"], focusthickness=1)     # 2.100.0: the focus ring (Tab)
     face = TH.grad_at(t.grad(TH.button_spec(t, "primary")["fill"]), 0.5)
     pri_text = TH.text_of(t, "primary", "text", text_on(face))
@@ -838,6 +847,9 @@ def _setup_style(root, TH):
                     darkcolor=t.c("border_dark"))
         s.map(o + ".TScrollbar", background=[("active", TH.grad_at(t.grad(nb["hover"]), 0.5))])
     s.configure("Sash", sashthickness=7, gripcount=0, background=C["line"])
+    # rule 24 (the softer look): round fields and dropdowns, a thin round scroll bar, round Quiet / Strip buttons -
+    # made again for every theme (new element names: ns); corners blend into the color behind each widget
+    soft.setup_ttk(root, s, ns, C)
 
 
 def monitor_rect(root, x, y, full=False):
@@ -924,6 +936,8 @@ class Toast:
             except Exception:
                 buglog.caught()
         w.deiconify()
+        from . import soft
+        soft.round_window(w)                            # rule 24: Windows 11 rounds it (elsewhere: square)
         w.bind("<Button-1>", lambda e: self.hide())
         self.win = w
         self.job = self.root.after(int(secs * 1000), self.hide)
@@ -1015,6 +1029,8 @@ class Tooltip:
         tk.Label(self.win, text=self.text, bg=bg, fg=fg, font=("Segoe UI", SMALL), justify="left",
                  wraplength=420, padx=8, pady=4, highlightthickness=1, highlightbackground=edge).pack()
         place_near(self.w.winfo_toplevel(), self.win, x, y)
+        from . import soft
+        soft.round_window(self.win)                    # rule 24: Windows 11 rounds it (elsewhere: square)
         Tooltip.SHOWN.append(self)
         self.w.after(400, self._watch)
 
@@ -1306,6 +1322,8 @@ class SegBar(tk.Frame):
         self.badges = dict(badges or {})            # 2.38.0: {"Stash tab": "BETA"} - a small tag inside that button
         for i, opt in enumerate(options):
             self._add(opt, i)
+        from . import soft                          # rule 24: round ends (caps over its 4 corners)
+        soft.round_frame(self, edge=lambda: self.cget("bg"))
         self.paint()
         from . import themes as _th
         _th.subscribe(lambda t: self.paint(), owner=self)    # (its colors are the theme's own: painted again)
@@ -1355,6 +1373,19 @@ class SegBar(tk.Frame):
                            t.c("text_muted"))
                 lab.master.config(bg=bg)            # (the row that also holds a badge)
                 line.config(bg=t.c("accent") if on else bg)
+        self._paint_ends()
+
+    def _paint_ends(self):
+        """Rule 24: the round ends take the first / last button's color."""
+        labs = [lab for lab, _l in self.btns.values()]
+        if not labs:
+            return
+        from . import soft
+        try:
+            a, b = labs[0].cget("bg"), labs[-1].cget("bg")
+        except tk.TclError:
+            return
+        soft.paint_caps(self, inside={"tl": a, "bl": a, "tr": b, "br": b})
 
     def pick(self, opt, notify=True):
         if opt not in self.btns:
@@ -1812,5 +1843,7 @@ def relook(root, theme):
         _STYLE_LOG["quiet"] = False
     step(f"theme change to {theme}: self-painted parts")
     _themes.notify()
+    from . import soft                          # rule 24: round corners blend into the new colors behind them
+    soft.after_relook(root)
     step(f"theme change to {theme}: done")
     return n, _t.time() - t0

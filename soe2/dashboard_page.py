@@ -10,7 +10,7 @@ from . import buglog
 from . import themes as TH
 from .config import SETTINGS
 
-PAD, GAP, R = 32, 16, 12          # page margin, gap between cards, card corner
+PAD, GAP, R = 32, 16, 8           # page margin, gap between cards, card corner (rule 24: soft, smooth)
 TILE_H, START_H, LIST_H = 116, 150, 252
 
 
@@ -198,7 +198,7 @@ class Dashboard(tk.Canvas):
             fill, line, ink = (TH.mix(acc, "#ffffff", .15) if lit else acc), acc, text_on(acc)
         else:
             fill, line, ink = (t.c("hover", t.c("surface_high")) if lit else t.c("surface")), t.c("border_light"), t.c("text")
-        TH.round_rect(self, x0, y, x1, y + h, 10, fill=fill, outline=line, tags=(tag,))
+        TH.round_rect(self, x0, y, x1, y + h, 6, fill=fill, outline=line, tags=(tag,))
         self.create_text((x0 + x1) // 2, y + h // 2, text=text, font=f, fill=ink, tags=(tag,))
         self.acts[tag] = fn
         if tip:
@@ -391,7 +391,7 @@ class Dashboard(tk.Canvas):
                 tag = f"start{i}"
                 lit = self.hover == tag
                 self._card(x0, sy, x0 + sw, sy + sh_, tag, lit)
-                TH.round_rect(self, x0 + ip, sy + ip, x0 + ip + ic, sy + ip + ic, 8, fill=t.c("surface_sunken"),
+                TH.round_rect(self, x0 + ip, sy + ip, x0 + ip + ic, sy + ip + ic, 6, fill=t.c("surface_sunken"),
                               outline=TH.mix(brass, t.c("surface_raised"), .6), tags=(tag,))
                 self.create_text(x0 + ip + ic / 2, sy + ip + ic / 2, text=glyph,
                                  font=("Segoe UI Symbol", 10 if tight else 12), fill=brass, tags=(tag,))

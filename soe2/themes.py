@@ -470,6 +470,13 @@ def walk(root, tr):
             if cls == "Canvas":
                 for item in tkc.splitlist(tkc.call(w, "find", "all")):
                     _retone_options(tkc, (w, "itemconfigure", item), (w, "itemconfigure", item), tr, (w, "i", item))
+                try:                                    # rule 24: a round box's corner pictures follow its parts
+                    cvw = root.nametowidget(w)
+                except KeyError:
+                    cvw = None
+                if cvw is not None and cvw.__dict__.get("_soe2_rr"):
+                    from . import soft
+                    soft.retone(cvw)
             elif cls in ("Text", "Treeview"):
                 get = "cget" if cls == "Text" else "configure"
                 for tag in tkc.splitlist(tkc.call(w, "tag", "names")):
@@ -693,8 +700,14 @@ def head_font(t=None, kind="head"):
 
 
 def round_rect(cv, x0, y0, x1, y1, r, **kw):
+    """A round box on a canvas. Rule 24: smooth corners (soft.py - Pillow pictures, 9-slice; the id it gives acts as
+    one item). Without Pillow: a smoothed polygon (jagged on Windows), as before."""
     if r <= 0:
         return cv.create_rectangle(x0, y0, x1, y1, **kw)
+    from . import soft
+    got = soft.canvas_round_rect(cv, x0, y0, x1, y1, r, **kw)
+    if got is not None:
+        return got
     pts = [x0 + r, y0, x1 - r, y0, x1, y0, x1, y0 + r, x1, y1 - r, x1, y1, x1 - r, y1, x0 + r, y1, x0, y1,
            x0, y1 - r, x0, y0 + r, x0, y0]
     return cv.create_polygon(pts, smooth=True, **kw)
@@ -848,18 +861,27 @@ def _preview(cv, t, w=168, h=92):
 
 
 # ------------------------------------------------------------------ ttk faces (bevelled image elements)
-_IMAGES = {}
-_ELEMENTS = set()
 
 
 def preview(cv, t, w=168, h=92):
     with raw():
         return _preview(cv, t, w, h)
 
-def bevel_image(root, key, w, h, stops, border, inner=None, radius=0, top_line=None, bottom_shade=None):
+def bevel_image(root, key, w, h, stops, border, inner=None, radius=0, top_line=None, bottom_shade=None, under=None):
+    """A ttk face. Kept per Tk (a picture belongs to the Tk that made it). Round ones (rule 24): smooth, Pillow."""
     import tkinter as tk
-    if key in _IMAGES:
-        return _IMAGES[key]
+    from . import soft
+    imgs = soft.tk_cache(root).setdefault("bevel", {})
+    if key in imgs:
+        return imgs[key]
+    if radius and soft.pil() is not None:
+        rows = [soft.rgb(root, grad_at(stops, y / max(1, h - 1))) for y in range(h)]
+        c = lambda v: soft.rgb(root, v) if v else None          # noqa: E731
+        img = soft.face_image(root, w, h, rows, c(border), radius, c(inner), c(top_line), c(bottom_shade),
+                              under=under)
+        if img is not None:
+            imgs[key] = img
+            return img
     img = tk.PhotoImage(master=root, width=w, height=h)
     clear, rows = [], []
     for y in range(h):
@@ -893,26 +915,27 @@ def bevel_image(root, key, w, h, stops, border, inner=None, radius=0, top_line=N
     img.put(" ".join(rows), to=(0, 0))
     for x, y in clear:
         img.tk.call(img.name, "transparency", "set", x, y, 1)
-    _IMAGES[key] = img
+    imgs[key] = img
     return img
 
 
 def flat_spec(t, name):
-    """P2.5 (2.107.0, feedback: the buttons felt amateur): one flat look in every theme - 2 px corners, no
-    gradient or bevel; the theme still gives the colors. Normal: a raised face; primary: the accent; danger: an
+    """P2.5 (2.107.0, feedback: the buttons felt amateur): one flat look in every theme - round corners (rule 24:
+    soft.RADIUS, 6 px; was 2), no gradient or bevel; the theme still gives the colors. Normal: a raised face; primary: the accent; danger: an
     outline in the theme's danger color; heading: list column heads."""
+    from .soft import RADIUS as _R
     c = t.c
     if name == "primary":
         a = ST.C.get("accent") or c("accent")
         hv = mix(a, "#000000", .12) if t.data.get("light") else mix(a, "#ffffff", .15)   # (light themes: darker)
         return {"fill": [[0, a], [1, a]], "hover": [[0, hv], [1, hv]],
                 "pressed": [[0, mix(a, "#000000", .2)], [1, mix(a, "#000000", .2)]], "border": a,
-                "hover_border": mix(a, "#ffffff", .35), "inner": None, "radius": 2, "text": None, "text_hover": None}
+                "hover_border": mix(a, "#ffffff", .35), "inner": None, "radius": _R, "text": None, "text_hover": None}
     if name == "danger":
         b, bg = c("bad"), c("surface")
         return {"fill": [[0, bg], [1, bg]], "hover": [[0, mix(bg, b, .08)], [1, mix(bg, b, .08)]],
                 "pressed": [[0, mix(bg, b, .16)], [1, mix(bg, b, .16)]], "border": b, "hover_border": b, "inner": None,
-                "radius": 2, "text": b, "text_hover": c("text_strong")}
+                "radius": _R, "text": b, "text_hover": c("text_strong")}
     if name == "heading":
         f = c("surface_raised")
         return {"fill": [[0, f], [1, f]], "hover": [[0, c("surface_high")], [1, c("surface_high")]],
@@ -922,7 +945,7 @@ def flat_spec(t, name):
     f = c("surface_high")
     return {"fill": [[0, f], [1, f]], "hover": [[0, mix(f, c("accent"), .14)], [1, mix(f, c("accent"), .14)]],
             "pressed": [[0, c("surface_sunken")], [1, c("surface_sunken")]], "border": c("border_light"),
-            "hover_border": c("accent"), "inner": None, "radius": 2, "text": c("text"), "text_hover": c("text_strong")}
+            "hover_border": c("accent"), "inner": None, "radius": _R, "text": c("text"), "text_hover": c("text_strong")}
 
 
 def button_spec(t, name):
@@ -946,30 +969,36 @@ def button_spec(t, name):
     return t.part("buttons", "normal")
 
 
-def make_element(root, style, name, t, spec_name, h, states, w=16, selected_line=None):
-    """One image element for a ttk layout: normal / hover / pressed / disabled (+ selected) faces."""
-    if name in _ELEMENTS:
+def make_element(root, style, name, t, spec_name, h, states, w=16, selected_line=None, under=None):
+    """One image element for a ttk layout: normal / hover / pressed / disabled (+ selected) faces. Made once per
+    Tk (an element belongs to the Tk that made it). under: (r, g, b) the round corners are laid on (rule 24)."""
+    from . import soft
+    made = soft.tk_cache(root).setdefault("elements", set())
+    if name in made:
         return
     spec = button_spec(t, spec_name)
     r = int(spec.get("radius", 0) or 0)
-    tag = "%s|%s|%d|%d" % (name, spec_name, w, h)
+    if r:                                           # (rule 24: the corners and edge it keeps + a wide middle -
+        w = max(w, 2 * (r + 3) + 48)                #  ttk tiles the middle across the button: few, wide tiles)
+    tag = "%s|%s|%d|%d|%s" % (name, spec_name, w, h, under)
     inner = t.c(spec["inner"]) if spec.get("inner") else None
     border = t.c(spec["border"])
     faces = {
-        "n": bevel_image(root, tag + "n", w, h, t.grad(spec["fill"]), border, inner, r),
+        "n": bevel_image(root, tag + "n", w, h, t.grad(spec["fill"]), border, inner, r, under=under),
         "h": bevel_image(root, tag + "h", w, h, t.grad(spec["hover"]), t.c(spec.get("hover_border", spec["border"])),
-                         inner, r),
-        "p": bevel_image(root, tag + "p", w, h, t.grad(spec["pressed"]), border, None, r, bottom_shade=inner),
+                         inner, r, under=under),
+        "p": bevel_image(root, tag + "p", w, h, t.grad(spec["pressed"]), border, None, r, bottom_shade=inner,
+                         under=under),
         "d": bevel_image(root, tag + "d", w, h, [(0, mix(grad_at(t.grad(spec["fill"]), .5), ST.C["panel"], .6))] * 2,
-                         mix(border, ST.C["panel"], .5), None, r),
+                         mix(border, ST.C["panel"], .5), None, r, under=under),
     }
     if selected_line is not None:
         faces["s"] = bevel_image(root, tag + "s", w, h, t.grad(spec["pressed"]), border, inner, r,
-                                 top_line=selected_line or None)
+                                 top_line=selected_line or None, under=under)
     args = [faces["n"]] + [(st, faces[k]) for st, k in states]
     style.element_create(name, "image", *args, border=(r + 3, h // 2 - 1, r + 3, h // 2 - 1), padding=(2, 1),
-                         sticky="nsew")
-    _ELEMENTS.add(name)
+                         sticky="nsew", width=max(16, 2 * (r + 3) + 2))   # (asks no more room than before)
+    made.add(name)
 
 
 def text_of(t, spec_name, key, fallback):
