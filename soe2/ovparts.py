@@ -83,7 +83,8 @@ class OverlayParts:
         body.pack(fill="both", expand=True)
         tk.Label(body, text=f"How was {name}?", bg=bg, fg=P["text"], font=(P["font"], self.ov_font(11), "bold"), anchor="w").pack(fill="x")
         tk.Label(body, text="Your rank shows on the overlay next time, and counts as your vote for the community's.",
-                 bg=bg, fg=P["muted"], font=(P["font"], self.ov_font(9)), anchor="w", justify="left", wraplength=W - self.ov_px(40)).pack(fill="x")
+                 bg=bg, fg=P["muted"], font=(P.get("body") or P["font"], self.ov_font(9)), anchor="w", justify="left",
+                 wraplength=W - self.ov_px(40)).pack(fill="x")
         row = tk.Frame(body, bg=bg)
         row.pack(fill="x", pady=(8, 0))
         self.maprank_btns = {}

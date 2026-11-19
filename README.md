@@ -60,7 +60,7 @@ This product isn't affiliated with or endorsed by Grinding Gear Games in any way
 **Tools**
 - **Game Search** - every skill, item, mod and keyword, from the game's own data, on your PC.
 
-**Overlay** (over the game, Bar or Panel layout)
+**Overlay** (over the game: Bar, Panel or Split layout, in any style)
 - **Session timer**, Notes, Calc, Regex and Rates menus, the **Price check overlay**.
 - Helpers - press your **Read Key** where one applies: **Ritual** (Favours prices, and Filter in the Ritual window), **Expedition** (remnant rewards, Island rumors), **Desecration Helper**, **Temple Helper** (BETA, Vaal Lens), **Trial of the Sekhemas** (BETA), **Back from a map** (Map profit, Top Up Reminders).
 - From the game's log: **Breach**, **Campaign Helper** and the **Campaign Bar**, **Trade whispers**, **Break reminders**. Plus **Music Controls**.

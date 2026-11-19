@@ -79,7 +79,11 @@ FEATURES = (
     "Reset position",           # Overlay › Options: the overlay back in its own place
     # nav phase 2 (the owner's words): Layout = the overlay's shape, Style = how the overlay looks, Theme = the whole
     # app's look. "Style" is never the app's look, "Theme" never the overlay's.
-    "Layout",                   # Overlay › Look: Bar | Panel
+    "Layout",                   # Overlay › Look and Quick settings: Bar | Panel | Split
+    "Split",                    # the Layout of two halves by the orbs (the run half, the tools half) - any Style
+                                # (was the "flanks" style, shown as Split)
+    "Swap sides",               # Quick settings, shown only while the Layout is Split: shown as "⇄ Swap sides" -
+                                # the run half by the mana orb, the tools half by the life orb
     "Style",                    # Overlay › Look: the overlay styles (Classic, Light, Ornate)
     "Theme",                    # Settings › Appearance: the app's look
     "Scan stash",
@@ -184,6 +188,8 @@ OLD = {
     "Session tracker": "Session timer",
     "Stash scan": "Scan stash",
     "Quick Settings": "Quick settings",
+    "Flanks": "Split",                  # the Split layout was the "flanks" style
+    "Swap halves": "Swap sides",
     "Community Data Sharing": "Community data sharing",
     "How searches are made": "Search Options",
     "dearest": "most valuable",          # 2.129.0 (feedback): nobody uses that word

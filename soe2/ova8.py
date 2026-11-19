@@ -189,7 +189,7 @@ class OverlayA8:
     def _a8_chip(self, cv, P, x, mid, h, longest=LONGEST_CHIP):
         """The state chip at x (left edge). -> its width."""
         u = self._u
-        f = (P["font"], self._hf(8), "bold")
+        f = (self._lt_family(P, 8), self._hf(8), "bold")        # (the family it is measured in: the body font)
         fm = self._lt_fm(cv, P, 8, True)
         w = fm.measure(longest) + 2 * u(8)
         y0, y1 = mid - h // 2, mid + h // 2

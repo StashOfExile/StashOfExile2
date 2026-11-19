@@ -32,7 +32,8 @@ HIDECAP = "Hide all overlay information from screen captures"      # (names.py: 
 # alerts_page.HELPER_BLURBS - the same line as on Helpers)
 QUICK_TIPS = {"Style": "How the overlay looks over the game",
               "Reload Overlay": "Reload Overlay: builds the overlay again - for when something looks stuck or wrong",
-              "Layout": "Panel: a card you place anywhere. Bar: on the game's XP bar",
+              "Layout": "Bar: on the game's XP bar. Panel: a card you place anywhere. Split: two halves by the orbs",
+              "Swap sides": "Swap sides: the session's half goes by the mana orb, the tools' half by the life orb",
               "Sound": "Every helper's alert sound, on or off",
               "Lock position": "Keeps the overlay where it is - no dragging it by accident",
               "Place": "Where the overlay sits: the Bar on the XP bar or at the top, the Panel left or right. Picking "
@@ -157,7 +158,11 @@ class OverlayQuick:
         self.ov_quick_close()
         Q = self.ovq_P = self.ov_quick_style()
         P1, P2, F = Q["bg"], Q["band"], Q["body"]      # (F: the body font; the display font only titles the box)
-        w = tk.Toplevel(self.root, bg=Q["line"])
+        # (the style's own frame round it - its edge, width and inner line - as on the overlay's windows)
+        from .overlaywin import pal, skin_inner
+        P = pal()
+        w = tk.Toplevel(self.root, bg=P.get("leather") or Q["line"], highlightthickness=1,
+                        highlightbackground=P.get("edge") or Q["line"])
         w.withdraw()
         w.overrideredirect(True)
         try:
@@ -165,8 +170,7 @@ class OverlayQuick:
         except tk.TclError:
             pass
         self.ov_quick_win = w
-        box = tk.Frame(w, bg=P1, padx=0, pady=0)
-        box.pack(padx=1, pady=1)
+        box = skin_inner(w, P, True, max(1, int(P.get("border") or 0)), P1)
         head = tk.Frame(box, bg=P2, padx=12, pady=8, highlightthickness=0)
         head.pack(fill="x")
         tk.Label(head, text="Quick settings", bg=P2, fg=Q["text"], font=(Q["hfont"], 12, "bold")).pack(side="left")
@@ -189,6 +193,27 @@ class OverlayQuick:
             self.ovq_vars[label] = v
             return v
         cfg = self.tracker_cfg()
+        # 2.124.1 (feedback: Quick settings needs a panel | bar toggle as well): the Layout, as in Settings
+        # (2.125.1: chips in the overlay's style, the one in use with ✓). Owner: Layout [Bar] [Panel] [Split], then Style
+        from .merged_page import LAYOUTS
+        lrow = tk.Frame(body, bg=P1)
+        lrow.pack(fill="x", pady=(0, 8))
+        tk.Label(lrow, text="Layout", bg=P1, fg=Q["text"], font=(F, 10)).pack(side="left")
+        self.ovq_layout_chips = {}
+        for i, key in enumerate(LAYOUTS):
+            ch = tk.Label(lrow, font=(F, 10), padx=8, pady=4, cursor="hand2", highlightthickness=1)
+            ch.pack(side="left", padx=(12 if i == 0 else 4, 0))
+            ch.bind("<Button-1>", lambda _e, k=key: self._ovq_layout(LAYOUTS[k]))
+            self.ovq_layout_chips[key] = ch
+        self._ovq_layout_paint()
+        Tooltip(lrow, QUICK_TIPS["Layout"])
+        self.ovq_swap = None
+        if self.merged_layout() == "split":                         # (the one place Swap sides lives)
+            from .ovsplit import SWAP
+            self.ovq_swap = row("Swap sides", self.split_swapped(), self.split_swap_set)
+            cb = body.winfo_children()[-1]
+            cb.configure(text=SWAP)
+            cb.pack_configure(pady=(0, 8))
         # 2.110.0 (feedback): no Overlay ON | OFF here - the overlay's Style instead
         from .ovlight import STYLES
         srow = tk.Frame(body, bg=P1)
@@ -199,21 +224,11 @@ class OverlayQuick:
         cb = ttk.Combobox(srow, textvariable=self.ovq_style, values=names, state="readonly", width=24)
         cb.pack(side="right")
         cb.bind("<<ComboboxSelected>>", lambda _e: self._ovq_style())
+        try:
+            self.ov_combo(cb)                                       # (in the overlay's style)
+        except Exception:
+            buglog.caught()
         Tooltip(srow, QUICK_TIPS["Style"])
-        # 2.124.1 (feedback: Quick settings needs a panel | bar toggle as well): the Layout, as in Settings
-        # (2.125.1: two chips in the overlay's style, the one in use with ✓)
-        from .merged_page import LAYOUTS
-        lrow = tk.Frame(body, bg=P1)
-        lrow.pack(fill="x", pady=(0, 8))
-        tk.Label(lrow, text="Layout", bg=P1, fg=Q["text"], font=(F, 10)).pack(side="left")
-        self.ovq_layout_chips = {}
-        for key in ("xpbar", "panel"):
-            ch = tk.Label(lrow, font=(F, 10), padx=8, pady=4, cursor="hand2", highlightthickness=1)
-            ch.pack(side="right", padx=(4, 0))
-            ch.bind("<Button-1>", lambda _e, k=key: self._ovq_layout(LAYOUTS[k]))
-            self.ovq_layout_chips[key] = ch
-        self._ovq_layout_paint()
-        Tooltip(lrow, QUICK_TIPS["Layout"])
         # 2.130.0 (feedback: a dropdown on the cog to choose the location - top or bottom for the bar style, left
         # or right for the panel style): where it sits; picking one puts it there (wherever it was dragged)
         prow = tk.Frame(body, bg=P1)
@@ -223,6 +238,10 @@ class OverlayQuick:
         self.ovq_place = tk.StringVar(value=opts.get(self.ov_spot(), next(iter(opts.values()))))
         pc = ttk.Combobox(prow, textvariable=self.ovq_place, values=list(opts.values()), state="readonly", width=24)
         pc.pack(side="right")
+        try:
+            self.ov_combo(pc)
+        except Exception:
+            buglog.caught()
         pc.bind("<<ComboboxSelected>>", lambda _e: self.ov_spot_set(
             next((k for k, v in self.ov_spots().items() if v == self.ovq_place.get()), None)))
         Tooltip(prow, QUICK_TIPS["Place"])
@@ -336,14 +355,7 @@ class OverlayQuick:
         key = next((k for k, v in STYLES.items() if v == name), None)
         if key and key != self.ov_look():
             self.ov_look_set(style=key)
-            w = getattr(self, "ov_quick_win", None)        # 2.125.1: the box takes the new style too, where it is
-            if w is not None:
-                try:
-                    x, y = w.winfo_x(), w.winfo_y()
-                    self.ov_quick_show()
-                    self.ov_quick_win.geometry(f"+{x}+{y}")
-                except tk.TclError:
-                    pass
+            self._ovq_rebuild()                              # 2.125.1: the box takes the new style too, where it is
             v = getattr(self, "ov_look_var", None)           # (Overlay › Look shows it too)
             if v is not None:
                 try:
@@ -352,14 +364,27 @@ class OverlayQuick:
                 except tk.TclError:
                     pass
 
+    def _ovq_rebuild(self):
+        """Quick settings built again where it is (a new style, or a layout with other rows)."""
+        w = getattr(self, "ov_quick_win", None)
+        if w is None:
+            return
+        try:
+            x, y = w.winfo_x(), w.winfo_y()
+            self.ov_quick_show()
+            self.ov_quick_win.geometry(f"+{x}+{y}")
+        except tk.TclError:
+            pass
+
     def _ovq_layout(self, name):
-        """Panel | Bar picked here - the overlay is built again (Overlay › Look shows it too)."""
+        """Bar | Panel | Split picked here - the overlay is built again (Overlay › Look shows it too)."""
         from .merged_page import LAYOUTS
         key = next((k for k, t in LAYOUTS.items() if t == name), None)
         if not key or key == self.merged_layout():
             return
         self.merged_set(layout=key)
         self._ovq_layout_paint()
+        self._ovq_rebuild()                                 # (⇄ Swap sides shows only while the Layout is Split)
         box = getattr(self, "ovq_place_box", None)          # (2.130.0: Place's choices follow the layout)
         try:
             if box is not None and box.winfo_exists():

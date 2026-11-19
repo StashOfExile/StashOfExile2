@@ -137,6 +137,12 @@ def pal():
     return theme_palette()
 
 
+def body_font(P):
+    """The style's body font - for every small text over the game (a skin's display font - Cinzel, Marcellus SC... -
+    is for titles only: it blurs small)."""
+    return P.get("body") or P.get("font") or "Segoe UI"
+
+
 def parchment():
     return False
 

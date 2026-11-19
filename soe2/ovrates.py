@@ -168,16 +168,16 @@ class OverlayRates:
         self.ovr_rows = rows
         if not rows:
             tk.Label(body, text="No rates yet - they load once the league is set.", bg=P["bg"], fg=P["muted"],
-                     font=(P["font"], self.ov_font(9))).grid(row=0, column=0, sticky="w")
+                     font=(P.get("body") or P["font"], self.ov_font(9))).grid(row=0, column=0, sticky="w")
         for i, (name, txt) in enumerate(rows):
-            tk.Label(body, text=name, bg=P["bg"], fg=P["text"], font=(P["font"], self.ov_font(10)), anchor="w").grid(
+            tk.Label(body, text=name, bg=P["bg"], fg=P["text"], font=(P.get("body") or P["font"], self.ov_font(10)), anchor="w").grid(
                 row=i, column=0, sticky="w", padx=(0, 12))
-            tk.Label(body, text=txt, bg=P["bg"], fg=P.get("head", P["text"]), font=(P["font"], self.ov_font(10), "bold"),
+            tk.Label(body, text=txt, bg=P["bg"], fg=P.get("head", P["text"]), font=(P.get("body") or P["font"], self.ov_font(10), "bold"),
                      anchor="e").grid(row=i, column=1, sticky="e")
         age = RATES.age()
         if age is not None:
             tk.Label(body, text=f"poe.ninja · {int(age // 60)} min ago", bg=P["bg"], fg=P["muted"],
-                     font=(P["font"], self.ov_font(8))).grid(row=len(rows) + 1, column=0, columnspan=2, sticky="w",
+                     font=(P.get("body") or P["font"], self.ov_font(8))).grid(row=len(rows) + 1, column=0, columnspan=2, sticky="w",
                                                              pady=(4, 0))
         w = getattr(self, "ovr_win", None)                       # 2.96.1 (feedback: it couldn't be moved): unlocked,
         if w is not None and not w.locked:                         # any spot on it drags it, not just its title bar

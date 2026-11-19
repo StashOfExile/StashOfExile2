@@ -814,7 +814,7 @@ class SettingsPage:
     # ---- 2.43.0: the look of the windows over the game (2.44.0: Overlays › Look; 2.49.0: › Appearance; nav phase 2:
     # Overlay › Look again - Layout, Style and Opacity, one section each)
     def build_overlay_look(self, parent):
-        """Overlay › Look. Layout = Bar | Panel (the overlay's shape), Style = how it looks (the 14 overlay styles),
+        """Overlay › Look. Layout = Bar | Panel | Split (the overlay's shape), Style = how it looks (the 12 overlay styles),
         Opacity. Theme is the app's own look (Settings › Appearance). Notes, the calculator and the remnant price tags
         use the theme's colors."""
         P2 = C["panel2"]
@@ -830,10 +830,10 @@ class SettingsPage:
         from .style import SegBar
         # 2.124.0 (feedback: the previews only showed the bar): the Layout first, then the Style - its preview
         # shows the layout picked (2.111.0: no Colors - each style keeps its own)
-        row = section("Layout", "The overlay's shape: Bar or Panel. Bar: rests on the game's XP bar (unlocked, drag "
-                                "it; picking it again puts it back). Panel: a card like the game's vendor windows - "
-                                "place it anywhere.")
-        names = [LAYOUTS["panel"], LAYOUTS["xpbar"]]
+        row = section("Layout", "The overlay's shape: Bar, Panel or Split. Bar: rests on the game's XP bar (unlocked, "
+                                "drag it; picking it again puts it back). Panel: a card like the game's vendor windows "
+                                "- place it anywhere. Split: two halves by the orbs - the middle stays clear.")
+        names = list(LAYOUTS.values())
         self.ov_layout_var = tk.StringVar(value=LAYOUTS.get(self.merged_layout(), LAYOUTS["xpbar"]))
 
         def layout_picked(v):

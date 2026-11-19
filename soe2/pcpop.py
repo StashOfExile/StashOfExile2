@@ -460,7 +460,7 @@ class PricePopup:
         for c in inner.winfo_children():
             c.destroy()
         self.pp_wraps = []
-        self.pp_ticks = []                                   # (cb, label, mod, on, color) - for drag-to-tick
+        self.pp_ticks = []                                   # every box on the card - for drag-to-tick
         self.pp_boxes = {}
         it = rec.get("item") or {}
         body, head = P.get("body") or P["font"], P.get("hfont") or P["font"]
@@ -510,8 +510,11 @@ class PricePopup:
                    "done": "No listings matched these mods"}.get(st, "Waiting in line…")
             tk.Label(box, text=msg, bg=box["bg"], fg=C["red"] if st == "error" else P["text"], font=(body, 11),
                      anchor="w", justify="left", wraplength=360).pack(fill="x", padx=8, pady=8)
+        slot = tk.Frame(inner, bg=P["bg"])                  # 3.0.6: a slot, so a tick can show it in place
+        slot.pack(fill="x", **pad)
+        self.pp_notice = (slot, P, body)
         if rec.get("changed"):
-            lab(inner, "Ticks changed - press Search again.", fg=P["accent"], size=9, pady=(4, 0), **pad)
+            self._pcpop_notice()
         wl = widened_line(rec)                               # owner (base widening): as the app's card
         if wl:
             lab(inner, wl, fg=P["text"], size=9, pady=(4, 0), **pad)
@@ -557,12 +560,15 @@ class PricePopup:
                     col = MOD_COL["desecrated"]
                 tl = tk.Label(row, text=m.get("shown") or m["text"], bg=P["bg"], fg=ink(col, P["bg"]) if on or not can else P["muted"],
                               font=(body, 10), anchor="w", justify="left", cursor="hand2" if can else "")
+                vb = None
                 if can and self._card_has_vals(rec, m):
-                    self._pcpop_vals(row, P, rec, m, on)
+                    vb = self._pcpop_vals(row, P, rec, m, on)
                 tl.pack(side="left", fill="x", expand=True, padx=(4, 0))
                 self.pp_wraps.append(tl)
                 if can:
-                    self._pcpop_drag_bind(rec, (cb, tl, m, on, ink(col, P["bg"]), P))
+                    t = self._pcpop_drag_add(rec, cb, tl, on, lambda to, mm=m: self.toggle_mod(rec, mm, to),
+                                             ink(col, P["bg"]), P["muted"], P)
+                    t["mod"], t["boxes"] = m, vb
                 src = next((x for x in ("fractured", "desecrated")
                             if x in flags or str(m.get("sid") or "").startswith(x + ".")), None)
                 if src and can:
@@ -624,8 +630,9 @@ class PricePopup:
             tl.pack(side="left", fill="x", expand=True, padx=(4, 0))
             self.pp_wraps.append(tl)
             if can:
-                for wdg in (cb, tl):
-                    wdg.bind("<Button-1>", lambda e, mm=m, o=on: self._pcpop_tick(rec, mm, not o))
+                t = self._pcpop_drag_add(rec, cb, tl, on, lambda to, mm=m: self.toggle_mod(rec, mm, to),
+                                         ink(MOD_COL["rune"], P["bg"]), P["muted"], P)
+                t["mod"] = m
         if "J" in (it.get("socket_types") or ""):
             tk.Label(inner, text="◇ A jewel socket - the game's copy doesn't say which jewel is in it.", bg=P["bg"],
                      fg=P["muted"], font=(body, 9), anchor="w", justify="left").pack(fill="x", padx=16)
@@ -749,25 +756,24 @@ class PricePopup:
             tl = tk.Label(row, text=text, bg=P["bg"], fg=P["text"] if on else P["muted"], font=(body, 10),
                           anchor="w", cursor="hand2")
             tl.pack(side="left", fill="x", expand=True, padx=(4, 0))
-            for wdg in (cb, tl):
-                wdg.bind("<Button-1>", lambda e: cmd())
+            self._pcpop_drag_add(rec, cb, tl, on, cmd, P["text"], P["muted"], P)
             return row
 
         def changed():
             rec["changed"] = True
             self.dirty = True
-            self.pcpop_fill(rec)
 
         same = cur.get("base") == "same"
         tick_row(same, f"Base type: {it['base']}" if same else f"Any {it.get('class') or 'base'}",
-                 lambda: (self.search_opt_set(rec, "base", "class" if same else "same", redraw=False), changed()))
+                 lambda to: (self.search_opt_set(rec, "base", "same" if to else "class", redraw=False), changed()))
+        self.pp_ticks[-1]["texts"] = (f"Base type: {it['base']}", f"Any {it.get('class') or 'base'}")
         self.pp_props = {}
         for key, label, have in rows:
             v = cur.get(key)
             lo, hi = (v.get("min"), v.get("max")) if isinstance(v, dict) else (v, None)
             on = v not in (None, "", 0, {})
-            tick = (lambda k=key, o=on, h=have: (self.search_opt_set(rec, k, None if o else {"min": h}, redraw=False),
-                                                 changed()))
+            tick = (lambda to, k=key, h=have: (self.search_opt_set(rec, k, {"min": h} if to else None, redraw=False),
+                                               changed()))
             row = tick_row(on, label, tick)
             boxes = {}
             for k, val in (("max", hi if on else None), ("min", lo if on else have)):    # (packed from the right)
@@ -800,8 +806,10 @@ class PricePopup:
                 e.keep = keep                                 # (tests call it, as on the mods' boxes)
                 e.bind("<KeyRelease>", keep)
                 e.bind("<Return>", lambda _e, kp=keep: self._pcpop_enter(rec, kp))
-                self._pcpop_box(e, ("prop", key, k), tick)    # 3.0.1: a click here takes the keyboard (it never did)
+                self._pcpop_box(e, ("prop", key, k),           # 3.0.1: a click here takes the keyboard (it never did)
+                                lambda t=tick: (t(True), self.pcpop_fill(rec)))
             self.pp_props[key] = boxes
+            self.pp_ticks[-1]["boxes"] = boxes
 
     def _pcpop_misc(self, inner, P, rec, it, body, head):
         """MISCELLANEOUS (compact): the item's own flags (at Yes), Corrupted and Crafted - Any / Yes / No, the same
@@ -900,6 +908,7 @@ class PricePopup:
         the orange button says Search at once (the card isn't drawn again, so the box keeps the keyboard)."""
         rec["changed"] = True
         self.dirty = True
+        self._pcpop_notice()
         go = getattr(self, "pp_go", None)
         if go is None:
             return
@@ -909,6 +918,17 @@ class PricePopup:
             tip = getattr(go, "_search_tip", None)
             if tip is not None:
                 tip.text = search_tip(rec)
+        except tk.TclError:
+            pass
+
+    def _pcpop_notice(self):
+        """The line under the price once the filters changed (once)."""
+        slot, P, body = getattr(self, "pp_notice", (None, None, None))
+        try:
+            if slot is None or slot.winfo_children():
+                return
+            tk.Label(slot, text="↻ Filters changed - press Search again.", bg=P["bg"], fg=P["accent"],
+                     font=(body, 9), anchor="w", justify="left").pack(fill="x", pady=(4, 0))
         except tk.TclError:
             pass
 
@@ -1013,26 +1033,32 @@ class PricePopup:
         except Exception:
             return False
 
-    def _pcpop_drag_bind(self, rec, tick):
-        """3.0.6 (owner: tick mods by holding the left button and dragging across them): a press on a mod sets every
-        mod the mouse then crosses to the state the first one flips to; the search changes once, on release."""
-        self.pp_ticks.append(tick)
-        cb, tl = tick[0], tick[1]
+    def _pcpop_drag_add(self, rec, cb, tl, on, apply, on_fg, off_fg, P):
+        """3.0.6 (owner: tick boxes by holding the left button and dragging across them - every box on the card, not
+        just the mods): a press flips this box; every box the mouse then crosses takes that same state. The boxes
+        are painted at once; the search changes once, on release. apply(on) changes the search (no redraw)."""
+        t = {"cb": cb, "tl": tl, "on": on, "apply": apply, "fg": (on_fg, off_fg), "P": P}
+        self.pp_ticks.append(t)
         for w in (cb, tl):
-            w.bind("<ButtonPress-1>", lambda e, t=tick: self._pcpop_drag_start(t))
+            if w is None:
+                continue
+            w.bind("<ButtonPress-1>", lambda e, tt=t: self._pcpop_drag_start(tt))
             w.bind("<B1-Motion>", lambda e: self._pcpop_drag_over(e.x_root, e.y_root))
             w.bind("<ButtonRelease-1>", lambda e: self._pcpop_drag_end(rec))
+        return t
 
     def _pcpop_drag_paint(self, t, on):
-        cb, tl, _m, _was, col, P = t
         try:
-            cb.config(text="☑" if on else "☐", fg=P["accent"] if on else P["muted"])
-            tl.config(fg=col if on else P["muted"])
+            t["cb"].config(text="☑" if on else "☐", fg=t["P"]["accent"] if on else t["fg"][1])
+            if t["tl"] is not None:
+                t["tl"].config(fg=t["fg"][0] if on else t["fg"][1])
+                if t.get("texts"):
+                    t["tl"].config(text=t["texts"][0 if on else 1])
         except tk.TclError:
             pass
 
     def _pcpop_drag_start(self, t):
-        self._pp_drag = {"to": not t[3], "set": {id(t[2]): t}}
+        self._pp_drag = {"to": not t["on"], "set": [t]}
         self._pcpop_drag_paint(t, self._pp_drag["to"])
 
     def _pcpop_drag_over(self, x, y):
@@ -1046,19 +1072,37 @@ class PricePopup:
         if under is None:
             return
         for t in self.pp_ticks:
-            if under in (t[0], t[1], t[0].master) and id(t[2]) not in d["set"] and t[3] != d["to"]:
-                d["set"][id(t[2])] = t
+            if under in (t["cb"], t["tl"]) and all(t is not u for u in d["set"]) and t["on"] != d["to"]:
+                d["set"].append(t)
                 self._pcpop_drag_paint(t, d["to"])
 
     def _pcpop_drag_end(self, rec):
         d, self._pp_drag = getattr(self, "_pp_drag", None), None
         if not d:
             return
-        for t in d["set"].values():
-            if t[3] != d["to"]:
-                self.toggle_mod(rec, t[2], d["to"])
+        changed = [t for t in d["set"] if t["on"] != d["to"]]
+        if not changed:
+            return
+        self._card_quiet = True                          # (the app's card redraws itself when it's shown)
+        try:
+            for t in changed:
+                t["apply"](d["to"])
+        finally:
+            self._card_quiet = False
         self.card_changed(rec)
-        self.pcpop_fill(rec)
+        if any(t.get("redraw") for t in changed):
+            return self.pcpop_fill(rec)
+        # 3.0.6 (owner: the card flickered on every tick - it was drawn again): painted in place - the boxes are
+        # already ticked; their Min / Max turn on or off, and the button and the notice say Search
+        for t in changed:
+            t["on"] = d["to"]
+            for e in (t.get("boxes") or {}).values():
+                try:
+                    e.config(state="normal" if d["to"] else "disabled")
+                except tk.TclError:
+                    pass
+        self._pcpop_changed(rec)
+        return None
 
     def _pcpop_only(self, inner, P, rec, m, src, body):
         """3.0.6 (owner: the box under a fractured / desecrated mod was missing here - Price Checks has it): right
@@ -1068,23 +1112,15 @@ class PricePopup:
         only = bool((rec.get("only") or {}).get(norm(m["text"])))
         col = ink(MOD_COL[src], P["bg"])
         row = tk.Frame(inner, bg=P["bg"])
-        row.pack(fill="x", padx=(34, 16))
+        row.pack(fill="x", padx=(24, 16))
         parts = [tk.Label(row, text="└", bg=P["bg"], fg=col, font=(body, 9)),
                  tk.Label(row, text="☑" if only else "☐", bg=P["bg"], fg=col, font=("Segoe UI Symbol", 9),
                           cursor="hand2"),
                  tk.Label(row, text=f"{src.capitalize()} only", bg=P["bg"], fg=col, font=(body, 9), cursor="hand2")]
         for w in parts:
-            w.pack(side="left", padx=(0, 3))
-        for w in parts[1:]:
-            w.bind("<Button-1>", lambda _e: self._pcpop_only_click(rec, m, not only))
-
-    def _pcpop_only_click(self, rec, m, on):
-        self._card_quiet = True                          # (the app's card redraws itself when it's shown)
-        try:
-            self.card_only(rec, m, on)
-        finally:
-            self._card_quiet = False
-        self.pcpop_fill(rec)
+            w.pack(side="left", padx=(0, 4))
+        t = self._pcpop_drag_add(rec, parts[1], parts[2], only, lambda to: self.card_only(rec, m, to), col, col, P)
+        t["redraw"] = True                               # (it may tick its mod too: the card is drawn again)
 
     def _pcpop_tick(self, rec, mod, on):
         self.toggle_mod(rec, mod, on)

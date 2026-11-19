@@ -97,7 +97,7 @@ class MusicPage:
         body.pack(fill="both", expand=True)
         self.mu_btns = {}
         for i, (what, icon, name) in enumerate(MU.BUTTONS):
-            b = tk.Label(body, text=icon, bg=P["cell_bg"], fg=txt, font=(P["font"], self.ov_font(13)), width=3,
+            b = tk.Label(body, text=icon, bg=P["cell_bg"], fg=txt, font=(P.get("body") or P["font"], self.ov_font(13)), width=3,
                          pady=2, cursor="hand2", highlightthickness=1,
                          highlightbackground=P.get("cell_line") or P["line"])
             b.grid(row=0, column=i, padx=2)

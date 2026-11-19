@@ -74,7 +74,7 @@ def overlay_pairs():
                 (f"{t} big on bg", s["big"], s["bg"])]
         for i, g in enumerate(s["band_grad"] or ()):
             out.append((f"{t} head on band stop {i}", s["head"], g))
-    for style in ("hairline", "slate", "flanks", "micro"):
+    for style in ("hairline", "slate", "micro"):
         for cid in OL.COLORS:
             if cid == "theme":
                 continue
@@ -83,6 +83,28 @@ def overlay_pairs():
             out += [(f"{t} text on bg", P["text"], P["bg"]), (f"{t} muted on bg", P["muted"], P["bg"]),
                     (f"{t} accent on bg", P["accent"], P["bg"]), (f"{t} big on bg", P["big"], P["bg"]),
                     (f"{t} head on band", P["head"], P["band"])]
+    out += split_pairs()
+    return out
+
+
+def split_pairs():
+    """The Split layout's halves (ovsplit.py), in every style: the labels (muted), values (big / text), the map's
+    time and the profit (accent) on the half's box, the state chip's word (accent) on its field."""
+    from soe2 import hudart, ovlight as OL, ovskins as OS
+    from soe2.overlaywin import PALETTES
+    out = []
+    for style in OL.STYLES:
+        if style == "classic":
+            P = hudart.panel_palette(PALETTES["codex"])
+        elif style in OS.ORNATE:
+            P = OS.palette(style)
+        else:
+            P = OL.palette(style, OL.DEFAULT_COLORS, boxed=True)
+        chip = P.get("cell_bg") or P.get("field") or P["bg"]
+        t = f"split {style}"
+        out += [(f"{t} text on bg", P["text"], P["bg"]), (f"{t} muted on bg", P["muted"], P["bg"]),
+                (f"{t} big on bg", P["big"], P["bg"]), (f"{t} accent on bg", P.get("accent") or P["big"], P["bg"]),
+                (f"{t} chip on field", P.get("accent") or P["text"], chip)]
     return out
 
 

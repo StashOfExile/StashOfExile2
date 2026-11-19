@@ -347,7 +347,7 @@ class CampaignUI:
     def camp_in_card(self):
         """The Panel layout: the Campaign Bar's line is one card with the rest (never twice); the Bar: over it."""
         try:
-            return self.merged_layout() != "xpbar"
+            return self.merged_layout() == "panel"          # (Split: over its run half, as over the Bar)
         except Exception:
             return False
 

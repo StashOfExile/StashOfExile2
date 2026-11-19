@@ -311,6 +311,15 @@ def _strats_find_306(S):
     S.pop("mm_more_filters", None)
 
 
+def _split_layout(S):
+    """Owner decision: Split is a Layout, not a style - a saved "flanks" style becomes Layout Split with Style
+    Hairline (the same box-less look; ovlight.retire_look)."""
+    from .ovlight import retire_look
+    t = S.get("tracker")
+    if isinstance(t, dict):
+        retire_look(t)
+
+
 STEPS = (
     ("modbook_import", "1.x", "app", _modbook_import, "modbook_imported"),
     ("rules_scoped", "2.6.0", "app", _rules_scoped, "rules_scoped_26"),
@@ -342,6 +351,7 @@ STEPS = (
     ("strats_find_306", "3.0.6", "settings", _strats_find_306, None),
     ("ritual_only_favours_306", "3.0.6", "settings", _ritual_only_favours_306, None),
     ("breach_reminder_follows_helper", "3.0.6", "settings", _breach_reminder_follows_helper, None),
+    ("split_layout", "Split layout", "settings", _split_layout, None),
 )
 
 

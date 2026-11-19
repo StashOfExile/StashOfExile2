@@ -416,6 +416,11 @@ class Overlay:
         from .overlaywin import pal
         return pal()                                     # 2.109.0: the overlay's chosen style
 
+    def note_body_font(self):
+        """The style's body font (its display font is for the title only)."""
+        from .overlaywin import body_font
+        return body_font(self.note_palette())
+
     def note_colours(self):
         """(background, text) of the note's page."""
         P = self.note_palette()
@@ -460,7 +465,7 @@ class Overlay:
         self.notes_tabbar = tk.Frame(host, bg=bg)
         self.notes_tabbar.pack(fill="x")
         text = tk.Text(host, bg=bg, fg=fg, insertbackground=fg, relief="flat", highlightthickness=0, wrap="word",
-                       font=(P["font"], int(c.get("notes_font", 11))), padx=8, pady=4,
+                       font=(self.note_body_font(), int(c.get("notes_font", 11))), padx=8, pady=4,
                        spacing1=2, spacing3=2)
         text.pack(fill="both", expand=True)
         tabs, i = self.note_tabs(), self.note_index()
@@ -500,11 +505,12 @@ class Overlay:
         for w_ in bar.winfo_children():
             w_.destroy()
         bg, fg = self.note_colours()
+        F = self.note_body_font()
         cur = self.note_index()
         # 2.119.0 (UX pass): the note's text size is set on the note itself (was Settings › Appearance › Notes) -
         # packed first, so a narrow note keeps them
         for txt, d in (("A+", 1), ("A−", -1)):
-            b = tk.Label(bar, text=txt, bg=bg, fg=fg, padx=4, cursor="hand2", font=("Segoe UI", 9, "bold"))
+            b = tk.Label(bar, text=txt, bg=bg, fg=fg, padx=4, cursor="hand2", font=(F, 9, "bold"))
             b.pack(side="right", pady=(0, 2))
             b.bind("<Button-1>", lambda e, d=d: self.note_font_step(d))
             try:
@@ -515,7 +521,7 @@ class Overlay:
         for i, t in enumerate(self.note_tabs()):
             on = i == cur
             lab = tk.Label(bar, text=t["name"][:18], bg=fg if on else bg, fg=bg if on else fg, padx=8, pady=1,
-                           cursor="hand2", font=("Segoe UI", 9, "bold" if on else "normal"),
+                           cursor="hand2", font=(F, 9, "bold" if on else "normal"),
                            highlightthickness=1, highlightbackground=fg)
             lab.pack(side="left", padx=(0, 2), pady=(0, 2))
             lab.bind("<Button-1>", lambda e, i=i: self.switch_tab(i))
@@ -523,9 +529,14 @@ class Overlay:
             lab.bind("<Button-3>", lambda e, i=i: self.tab_menu(i, e.x_root, e.y_root))   # 2.72.2: a menu, not close
             self.notes_tab_labels = getattr(self, "notes_tab_labels", {})
             self.notes_tab_labels[i] = lab
-        add = tk.Label(bar, text="+", bg=bg, fg=fg, padx=8, cursor="hand2", font=("Segoe UI", 9, "bold"))
+        add = tk.Label(bar, text="+", bg=bg, fg=fg, padx=8, cursor="hand2", font=(F, 9, "bold"))
         add.pack(side="left", pady=(0, 2))
         add.bind("<Button-1>", lambda e: self.add_tab())
+        try:
+            from .style import Tooltip
+            Tooltip(add, "New note tab")
+        except Exception:
+            buglog.caught()
 
     def note_font_step(self, d):
         """2.119.0: A− / A+ on the note (and Ctrl + mouse wheel in it) - its text size, 8 to 24, kept."""
@@ -537,7 +548,7 @@ class Overlay:
         self.save_settings()
         try:
             if self.notes_text is not None and self.notes_text.winfo_exists():
-                self.notes_text.config(font=(self.note_palette()["font"], n))
+                self.notes_text.config(font=(self.note_body_font(), n))
         except (AttributeError, tk.TclError):
             pass
         return n
@@ -583,7 +594,7 @@ class Overlay:
         bg, fg = self.note_colours()
         var = tk.StringVar(value=self.note_tabs()[i]["name"])
         ent = tk.Entry(lab.master, textvariable=var, width=max(8, len(var.get()) + 2), bg=bg, fg=fg, insertbackground=fg,
-                       relief="flat", highlightthickness=1, highlightbackground=fg, font=("Segoe UI", 9))
+                       relief="flat", highlightthickness=1, highlightbackground=fg, font=(self.note_body_font(), 9))
         ent.pack(side="left", padx=(0, 2), pady=(0, 2), before=lab)
         lab.pack_forget()
         ent.select_range(0, "end")

@@ -43,7 +43,8 @@ def image(master, size, color):
     """A size x size picture of the gear in color (transparent around it), or None without Pillow."""
     size = max(8, int(size))
     rgb = _rgb(master, color)
-    key = (str(master.winfo_toplevel()) if hasattr(master, "winfo_toplevel") else "", size, rgb)
+    key = (id(getattr(master, "tk", None)), str(master.winfo_toplevel()) if hasattr(master, "winfo_toplevel") else "",
+           size, rgb)                         # (3.0.6: and its Tk - a picture belongs to the Tk that made it)
     got = _CACHE.get(key)
     if got is not None:
         return got

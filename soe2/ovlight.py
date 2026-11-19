@@ -4,7 +4,6 @@ Four styles drawn with plain canvas lines and text - no Pillow artwork, nothing 
 changes size - each as a Bar (resting on the XP bar) and a Panel (a card you place anywhere), in a set of colors:
   hairline  no box: outlined text and one thin accent line, on one row
   slate     a flat box with thin dividers; a switch that's on is underlined (a bar on its left in the Panel)
-  flanks    (shown as Split) no box: the numbers beside the life orb, the switches beside the mana orb - the middle stays clear
   micro     the smallest: the times, the rank and the switches as lettered squares
 "Classic" is the stone-and-bronze look of before (hudart.py). Overlay › Look: Style, then
 Colors ("Exile Gold" is the Bar's own colors; the others are the theme packs'; "Follow the app theme").
@@ -12,7 +11,8 @@ The same parts as Classic: the timer and its ⏸ / ▶, the map's time, where yo
 Avg, the clock, the switches, Notes ▾ / Calc ▾ / Regex ▾ / Vendor ▾, the lock and ⚙ - each with its switch in
 Overlay › Options. The goal bar (Focus / Campaign) is drawn in the same style (ovparts.py).
 
-No box (hairline, flanks) needs Windows' see-through color key (-transparentcolor); on other systems they get the
+(Split - two halves by the orbs - is a Layout now, in every style: ovsplit.py; the "flanks" style is gone.)
+No box (hairline) needs Windows' see-through color key (-transparentcolor); on other systems they get the
 color set's box. GGG ToS: looks only - windows of the app's own; nothing here touches the game."""
 import sys
 import tkinter as tk
@@ -22,12 +22,11 @@ from .overlaywin import CanvasText, OverlayWindow, _P
 
 from .ovskins import NAMES as _ORN_NAMES, ORNATE, palette as _ornate_palette
 
-STYLES = {"classic": "Classic (stone and bronze)", "hairline": "Hairline", "slate": "Slate", "flanks": "Split",
-          "micro": "Micro"}
+STYLES = {"classic": "Classic (stone and bronze)", "hairline": "Hairline", "slate": "Slate", "micro": "Micro"}
 STYLES.update(_ORN_NAMES)                                    # 2.110.0: Herald, Warbanner, Verdant, Gloom
 _FM_CACHE = {}                   # 2.112.3: measuring fonts, kept (see _lt_fm)
-LIGHT = ("hairline", "slate", "flanks", "micro") + ORNATE
-BOXLESS = ("hairline", "flanks")
+LIGHT = ("hairline", "slate", "micro") + ORNATE
+BOXLESS = ("hairline",)
 KEY = "#010101"                    # a box-less look's see-through color (never used for anything that shows)
 WARN = "#e0a352"
 
@@ -61,13 +60,30 @@ def _keep_colors():
 _keep_colors()
 
 
-RETIRED_LOOKS = {"gilded": "herald"}       # a style taken out: a saved setting falls back to this one
+# a style taken out: a saved setting falls back to this one. "flanks" (removed - it is the Split layout now): the
+# same box-less look is Hairline, and its layout becomes Split (RETIRED_LAYOUT, retire_look)
+RETIRED_LOOKS = {"gilded": "herald", "flanks": "hairline"}       # (styles removed)
+RETIRED_LAYOUT = {"flanks": "split"}                             # (removed: the style's layout now)
 
 
 def look_valid(v):
     """The saved overlay style, or the one that replaces a retired style, or Classic when unknown."""
     v = RETIRED_LOOKS.get(v, v)
     return v if v in STYLES else "classic"
+
+
+def retire_look(cfg):
+    """A saved retired style in the overlay's settings (tracker) -> its replacement, and the layout that came with
+    it ("flanks" -> Layout Split, Style Hairline). -> True when something changed."""
+    old = cfg.get("look")
+    if old not in RETIRED_LOOKS:
+        return False
+    cfg["look"] = look_valid(old)
+    if old in RETIRED_LAYOUT:
+        cfg["layout"] = RETIRED_LAYOUT[old]
+    cfg.pop("lt_pos", None)
+    cfg.pop("lt_res", None)
+    return True
 
 
 def can_see_through():
@@ -176,13 +192,15 @@ class LightOverlay:
             self.mg_P = P
             row = tk.Frame(host, bg=scene)
             row.pack(fill="x")
-            panel = self.merged_layout() != "xpbar"          # 2.124.0: the layout picked (the Panel too)
-            pieces = ["left", "right"] if style == "flanks" and not panel else ["all"]
+            layout = self.merged_layout()
+            if layout == "split":                            # the two halves, side by side (swapped as set)
+                canvases += self._split_preview(row, style, scene)
+            panel = layout == "panel"                        # 2.124.0: the layout picked (the Panel too)
             from .merged_page import HUD_SPOTS
             spot_h = max(26, int(HUD_SPOTS["xpbar"][0][3] * 1440 * scale))
             if panel:
                 self._hud_k = hud_k(1440) * 0.8
-            for piece in pieces:
+            for piece in ([] if layout == "split" else ["all"]):
                 if panel and style == "classic":
                     P = hudart.panel_palette(theme_palette())
                     _seed(TH, P)
@@ -202,8 +220,7 @@ class LightOverlay:
                     kind = "ornate" if style in ORNATE else style
                     W, H = getattr(self, f"_lt_{kind}_bar")(f, cv, P, want, (0, 0, width, spot_h), piece)
                 cv.configure(width=W, height=H)
-                side = "right" if piece == "right" else "left"
-                f.pack(side=side, anchor="s", padx=(max(0, (width - W) // 2) if style == "micro" and not panel else 0, 0))
+                f.pack(side="left", anchor="s", padx=(max(0, (width - W) // 2) if style == "micro" and not panel else 0, 0))
                 canvases.append(cv)
             sample = {"session": "1:24:07", "map": "Map: 3:12", "where": "Bluff", "maps": "Maps: 6",
                       "avg": "Avg: 6:01", "rank": "★ A",
@@ -234,8 +251,9 @@ class LightOverlay:
 
     # ---------------------------------------------------------------- settings
     def ov_look(self):
-        v = self.tracker_cfg().get("look", "classic")
-        return look_valid(v)
+        cfg = self.tracker_cfg()
+        retire_look(cfg)                                     # (a retired style saved since the migration ran)
+        return look_valid(cfg.get("look", "classic"))
 
     def ov_look_colors(self):
         """2.111.0: no Colors picker any more - every light style uses its default set (Exile Gold)."""
@@ -394,8 +412,7 @@ class LightOverlay:
 
     # ---------------------------------------------------------------- the window(s)
     def _mg_light_build(self, want):
-        """The overlay in a light style: one window (two for the Flanks bar - right of the life orb and left of the
-        mana orb). A Bar is fitted to the game's XP bar (drag it while unlocked; picking the style again puts it
+        """The overlay in a light style, Bar or Panel: one window (the Split layout: ovsplit.py). A Bar is fitted to the game's XP bar (drag it while unlocked; picking the style again puts it
         back); a Panel goes where you put it."""
         from . import themes as TH
         from .overlaywin import _seed
@@ -407,10 +424,7 @@ class LightOverlay:
         self.mg_P = P
         spot = self.hud_spots("xpbar")[0]                    # (sizes follow the game window's height)
         self.tk_ov_lbls, self.tk_ov_alerts, self.tk_ov_clock, self.tk_ov_cv = {}, {}, None, None
-        if bar and style == "flanks":
-            pieces = (["left"] if want["timer"] else []) + ["right"]
-        else:
-            pieces = ["all"]
+        pieces = ["all"]
         from .alerts_page import game_rect
         r = game_rect() or (0, 0, self.root.winfo_screenwidth(), self.root.winfo_screenheight())
         saved = (cfg.get("lt_pos") or {}).get(style) or []
@@ -531,47 +545,6 @@ class LightOverlay:
         (the frame, its inner line and the corner marks come from the window: overlaywin)."""
         return self._lt_row(w, cv, P, want, spot[2], P["skin"])
 
-    def _lt_flanks_bar(self, w, cv, P, want, spot, piece):
-        """Flanks: "left" = the numbers (right of the life orb), "right" = the switches, menus, clock, lock and ⚙
-        (left of the mana orb). Each piece is as small as its content."""
-        u = self._u
-        cfg, ln = self.tracker_cfg(), self.ov_lines()
-        pad = u(6)
-        rl = u(150)                                          # the accent rule's length
-        if piece == "left":                                 # 2.139.0 Map First (ova8), as wide as it needs
-            H = u(38)
-            mid = u(5) + (H - u(5)) // 2
-            x = self.a8_bar(w, cv, P, want, pad, None, mid,
-                            lambda sx: cv.create_line(sx, mid - u(13), sx, mid + u(13), fill=P["line"], tags=("mg",)),
-                            map_w=u(190))
-            W = max(x, rl) + pad
-            self._lt_rule(cv, P, pad, pad + rl, u(4), strong="l")
-            self.tk_ov_cv = cv
-            return W, H
-        # right
-        y = u(4)
-        rows_w = []
-        gw = self._lt_glyphs_w(cv, P)
-        clock = want["timer"] and cfg.get("clock", True)
-        foot_w = gw + (self._lt_fm(cv, P, 9).measure("00:00 PM") + u(10) if clock else 0)
-        menus_w = self._lt_menus_w(cv, P) if self.bar_buttons_on() else 0
-        rows_w += [foot_w + (menus_w + u(6) if menus_w and foot_w + menus_w < u(320) else 0), rl]
-        W = max(rows_w) + 2 * pad
-        R = W - pad
-        self._lt_rule(cv, P, R - rl, R, y, strong="r")
-        y += u(6)
-        fy = y + u(9)
-        x = self._lt_glyphs(w, cv, P, R, fy)
-        if clock:
-            x -= self._lt_clock(cv, P, x, fy) + u(10)
-        if menus_w:
-            if foot_w + menus_w < u(320):
-                self._lt_menus(w, cv, P, x, fy)
-            else:
-                fy += u(18)
-                self._lt_menus(w, cv, P, R, fy)
-        return W, fy + u(10)
-
     def _lt_micro_bar(self, w, cv, P, want, spot, piece):
         """Micro: chip | the map part | SESSION | profit | menus · clock · lock ⚙ - only as wide as that (2.139.0 Map
         First, ova8)."""
@@ -611,10 +584,6 @@ class LightOverlay:
         the Panel of every style (Classic draws its stone round it)."""
         PW = self._u(290)
         return PW, self.a8_panel(w, cv, P, want, PW)
-
-    def _lt_flanks_panel(self, w, cv, P, want, spot, piece):
-        """Split Panel: the Map First panel (2.139.0) in Split's colors."""
-        return self._lt_slate_panel(w, cv, P, want, spot, piece)      # 2.139.0: Map First in every style
 
     def _lt_micro_panel(self, w, cv, P, want, spot, piece):
         """Micro Panel: the Map First panel (2.139.0) in Micro's colors."""

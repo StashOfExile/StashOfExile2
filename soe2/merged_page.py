@@ -17,7 +17,9 @@ from .overlaywin import CanvasText, OverlayWindow, pal
 # 2.66.0: one look (the app's theme); the layout says the shape - Minimal moved here from the old Style list
 # 2.67.0 (feedback: drop all the other options): the Panel in the game's vendor-window style (the
 # Treasurer's ledger) and the Bar on the XP bar. Strip, Minimal and beside-the-orbs are gone (-> Panel).
-LAYOUTS = {"panel": "Panel", "xpbar": "Bar"}     # 2.67.0: beside the orbs is gone; 2.74.0: "Bar"
+# owner decision: Split - two halves beside the orbs (ovsplit.py) - is a Layout, in every style (it was the "flanks"
+# style). Layout and Style are separate choices.
+LAYOUTS = {"xpbar": "Bar", "panel": "Panel", "split": "Split"}     # 2.74.0: "Bar"
 HUD = ("xpbar",)                 # 2.65.0: fitted to the game's own bottom bar, in its look
 
 # Where the game's bottom bar leaves room, as parts of the game window's height (PoE2 at 16:9, UI scale 100 %;
@@ -430,7 +432,7 @@ class MergedOverlay:
             self.overlay.notes_tabbar = None
         self.mg_notes_in = False
         try:
-            if w.winfo_ismapped() and w.winfo_width() > 1:
+            if w.winfo_ismapped() and w.winfo_width() > 1 and self.merged_layout() != "split":   # (Split: sp_pos)
                 cfg = self.tracker_cfg()
                 cfg.update(mx=w.winfo_x(), my=w.winfo_y() + lines_h)
                 if w.winfo_height() > 1 and getattr(self, "mg_built", {}).get("notes"):
@@ -506,7 +508,9 @@ class MergedOverlay:
         self.mg_built = dict(want)
         if not any(want.values()):
             return None
-        if self.ov_light():                                 # 2.101.0: Hairline, Slate, Flanks or Micro (ovlight.py)
+        if self.merged_layout() == "split":                 # two halves by the orbs, in any style (ovsplit.py)
+            return self._sp_build(want)
+        if self.ov_light():                                 # 2.101.0: Hairline, Slate or Micro (ovlight.py)
             return self._mg_light_build(want)
         if self.merged_layout() in HUD:                     # 2.65.0
             return self._mg_hud_build(want)
@@ -567,7 +571,7 @@ class MergedOverlay:
                 win.hide() if self.mg_hidden else win.show()
             except tk.TclError:
                 pass
-        if not self.mg_hidden and w is not None and self.merged_layout() not in HUD:
+        if not self.mg_hidden and w is not None and self.merged_layout() == "panel":
             self._mg_on_screen(w)
         return self.mg_hidden
 
@@ -836,7 +840,7 @@ class MergedOverlay:
             pass
         tk.Label(w, text=text, bg=P.get("bg", "#151311"), fg=P.get("text", "#efe6d2"), padx=8, pady=4, justify="left",
                  highlightthickness=1, highlightbackground=P.get("rim") or P.get("line", "#3a3226"),
-                 font=(P.get("font") or "Segoe UI", 10)).pack()
+                 font=(P.get("body") or P.get("font") or "Segoe UI", 10)).pack()
         w.update_idletasks()
         w.geometry(f"+{int(x - w.winfo_reqwidth() // 2)}+{int(y - w.winfo_reqheight() - 14)}")
 
@@ -987,7 +991,8 @@ class MergedOverlay:
         favs = self.rx_ov_favs()
         tip = "Click one = copied · Ctrl+V in the stash or shop search" if favs else \
             "No favorites yet. Build a search on the Regex page, then press ☆ Add to Favorites."
-        tk.Label(body, text=tip, bg=bg, fg=P["muted"], font=(P["font"], self.ov_font(9)), anchor="w", justify="left",
+        tk.Label(body, text=tip, bg=bg, fg=P["muted"], font=(P.get("body") or P["font"], self.ov_font(9)), anchor="w",
+                 justify="left",
                  wraplength=self.ov_px(340)).pack(fill="x")
         self.rx_ov_btns = {}
         for name, rx in favs[:12]:
@@ -996,8 +1001,9 @@ class MergedOverlay:
             self.rx_ov_btns[name] = b
         if len(favs) > 12:
             tk.Label(body, text=f"+{len(favs) - 12} more on the Regex page", bg=bg, fg=P["muted"],
-                     font=(P["font"], self.ov_font(8)), anchor="w").pack(fill="x", pady=(4, 0))
-        self.rx_ov_msg = tk.Label(body, text="", bg=bg, fg=P["on"], font=(P["font"], self.ov_font(9)), anchor="w")
+                     font=(P.get("body") or P["font"], self.ov_font(8)), anchor="w").pack(fill="x", pady=(4, 0))
+        self.rx_ov_msg = tk.Label(body, text="", bg=bg, fg=P["on"], font=(P.get("body") or P["font"], self.ov_font(9)),
+                                  anchor="w")
         self.rx_ov_msg.pack(fill="x", pady=(8, 0))
         self.rx_ov_win = w
         w.show()
@@ -1090,7 +1096,7 @@ class MergedOverlay:
         else:
             w = getattr(self, "mg_win2", None) or getattr(self, "mg_win", None)
             try:
-                if w is not None and w.winfo_ismapped() and self.merged_layout() in HUD:   # opens above the bar
+                if w is not None and w.winfo_ismapped() and self.merged_layout() != "panel":   # opens above the bar
                     ov.cfg.update(notes_x=w.winfo_x() + max(0, w.winfo_width() - int(ov.cfg.get("notes_w", 300))),
                                   notes_y=max(0, w.winfo_y() - int(ov.cfg.get("notes_h", 220)) - 6))
                 elif w is not None and w.winfo_ismapped():
@@ -1197,7 +1203,8 @@ class MergedOverlay:
         P = pal()
         size = self.ov_font(10)
         kind = style.split(".")[0] if "." in style else "TButton"
-        sig = "|".join(str(P.get(k)) for k in ("bg", "text", "muted", "line", "head", "accent", "cell_bg", "font", "poe"))
+        sig = "|".join(str(P.get(k)) for k in ("bg", "text", "muted", "line", "head", "accent", "cell_bg", "font", "body",
+                                               "poe"))
         name = f"Ov{size}x{abs(hash(sig)) % 10 ** 6}.{style}"
         acc = P["head"] if P.get("poe") else (P.get("accent") or P["head"])
         face = P.get("cell_bg") or P["bg"]
@@ -1209,7 +1216,8 @@ class MergedOverlay:
             st.layout(name, [("Button.border", {"sticky": "nswe", "border": "1", "children": [
                 ("Button.focus", {"sticky": "nswe", "children": [("Button.padding", {"sticky": "nswe", "children": [
                     ("Button.label", {"sticky": "nswe"})]})]})]})])
-            st.configure(name, font=(P.get("font") or "Segoe UI", size, "bold" if on else "normal"), anchor="center",
+            st.configure(name, font=(P.get("body") or P.get("font") or "Segoe UI", size, "bold" if on else "normal"),
+                         anchor="center",
                          padding=(self.ov_px(8), self.ov_px(4)), background=bg,
                          foreground=P["text"] if on else (P["text"] if kind != "Quiet" else P["text"]),
                          bordercolor=acc if on else P["line"], lightcolor=bg, darkcolor=bg,
@@ -1229,7 +1237,7 @@ class MergedOverlay:
         from .overlaywin import pal
         P = pal()
         face = P.get("field") or P.get("cell_bg") or P["bg"]
-        sig = "|".join(str(P.get(k)) for k in ("bg", "text", "line", "field", "cell_bg", "font"))
+        sig = "|".join(str(P.get(k)) for k in ("bg", "text", "line", "field", "cell_bg", "font", "body"))
         name = f"Ov{abs(hash(sig)) % 10 ** 6}.TCombobox"
         try:
             st = ttk.Style(self.root)
@@ -1238,11 +1246,11 @@ class MergedOverlay:
                          darkcolor=face, selectbackground=face, selectforeground=P["text"])
             st.map(name, fieldbackground=[("readonly", face)], foreground=[("readonly", P["text"])],
                    selectbackground=[("readonly", face)], selectforeground=[("readonly", P["text"])])
-            cb.configure(style=name, font=(P.get("font") or "Segoe UI", self.ov_font(10)))
+            cb.configure(style=name, font=(P.get("body") or P.get("font") or "Segoe UI", self.ov_font(10)))
             pd = cb.tk.call("ttk::combobox::PopdownWindow", str(cb))
             cb.tk.call(f"{pd}.f.l", "configure", "-background", P["bg"], "-foreground", P["text"],
                        "-selectbackground", P.get("cell_bg") or P["line"], "-selectforeground", P["head"],
-                       "-font", (P.get("font") or "Segoe UI", self.ov_font(10)))
+                       "-font", (P.get("body") or P.get("font") or "Segoe UI", self.ov_font(10)))
         except tk.TclError:
             pass
         return cb

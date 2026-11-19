@@ -37,7 +37,7 @@ class ContrastTests(unittest.TestCase):
         names = " ".join(n for n, _f, _b in CC.overlay_pairs())
         for k in OS.ORNATE:
             self.assertIn(k + " ", names)
-        for k in ("hairline", "slate", "flanks", "micro"):
+        for k in ("hairline", "slate", "micro"):
             self.assertIn(k + "/", names)
 
     def test_ornate_muted_reads_six_to_one(self):

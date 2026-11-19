@@ -82,7 +82,8 @@ from .ledger_page import LedgerPage           # 2.45.0: Money Makers > Strat Tra
 from .feedback_page import FeedbackPage       # 2.48.0: the update badge and Report a bug (taskbar)
 from .feed_page import FeedPage               # 2.51.0: Mod book › Manual feed
 from .merged_page import MergedOverlay        # 2.55.0: one overlay window for timer, Mechanic Helper and Notes
-from .ovlight import LightOverlay             # 2.101.0: the light looks (Hairline, Slate, Flanks, Micro)
+from .ovlight import LightOverlay             # 2.101.0: the light looks (Hairline, Slate, Micro)
+from .ovsplit import SplitOverlay             # the Split layout: two halves by the orbs, in every style
 from .utilities_page import UtilitiesPage
 from .look_page import LookPage
 from .readmark import ReadMarkPage          # GGG policy: the read mark - each screen / clipboard read shows
@@ -273,7 +274,7 @@ def _box_line(cv, enabled):
 KIND_WORD = {"Implicit": "Implicit", "Enchant": "Enchant", "Rune": "Rune"}
 
 
-class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage, BoardModPage, LeaderboardPage, WellSoulsPage, RumoursPage, ListKeys, AlertsPage, AboutPage, TabReaderPage, SearchOptsPage, ExchangePage, WealthPage, LibraryPage, RegexPage, UtilitiesPage, TrackerPage, SearchPage, CalcOverlay, InsightsPage, MoneyMakersPage, MapLibraryPage, RemnantPage, FavoursPage, LedgerPage, FeedbackPage, FeedPage, MergedOverlay, LightOverlay, GamePlanPage, FocusPokes, OverlayHelp, OverlayParts, CampaignUI, OverlayRates, CommunityPage, RateModsPage, StashScanPage, OverlayQuick, FeaturesPage, TopUpPage, MapProfitPage, TemplePage, SekhemasPage, HoverPage, SharePage, MusicPage, OverlayA8, LookPage, ReadMarkPage, DrawerHost):
+class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage, BoardModPage, LeaderboardPage, WellSoulsPage, RumoursPage, ListKeys, AlertsPage, AboutPage, TabReaderPage, SearchOptsPage, ExchangePage, WealthPage, LibraryPage, RegexPage, UtilitiesPage, TrackerPage, SearchPage, CalcOverlay, InsightsPage, MoneyMakersPage, MapLibraryPage, RemnantPage, FavoursPage, LedgerPage, FeedbackPage, FeedPage, MergedOverlay, LightOverlay, SplitOverlay, GamePlanPage, FocusPokes, OverlayHelp, OverlayParts, CampaignUI, OverlayRates, CommunityPage, RateModsPage, StashScanPage, OverlayQuick, FeaturesPage, TopUpPage, MapProfitPage, TemplePage, SekhemasPage, HoverPage, SharePage, MusicPage, OverlayA8, LookPage, ReadMarkPage, DrawerHost):
     COLS = [("added", "#", 46, "e"), ("name", "Item", 220, "w"), ("type", "Type", 110, "w"), ("mark", "Status", 90, "center"),
             ("est", "Price", 110, "e"), ("conf", "Confidence", 95, "center"), ("listings", "Listings", 70, "e"), ("priced", "Priced at", 130, "w"),
             ("match", "How it was priced", 300, "w"), ("vmods", "★", 60, "center"),
@@ -5157,7 +5158,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
                                      f"Any {it.get('class') or 'base'}", fill=C["text"] if st["on"] else C["muted"])
                 except tk.TclError:
                     pass
-        self._card_click(cv, tag, click)
+        self._card_tick_box(cv, rec, tag, lambda: st["on"], lambda on_: click() if st["on"] != on_ else None)
         self.card_opts["base"] = on
         return y + 22
 
@@ -5235,7 +5236,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
                     return
             self._card_opt_store(rec, key, vals if vals["min"] is not None or vals["max"] is not None else None)
             rec["changed"] = True
-        self._card_click(cv, tag, lambda: take(not st["on"]))
+        self._card_tick_box(cv, rec, tag, lambda: st["on"], lambda on: take(on))
         for e in boxes.values():
             e.bind("<KeyRelease>", keep, add="+")
             e.bind("<Return>", lambda _e: (take(True), "break")[-1])
@@ -5405,9 +5406,9 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
             self.card_paint[idx].update(obx=bx0, oby=y1, ofc=fc)
             ox = cv.create_text(bx0 + ob + 4, y1 - 2, text=f"{src} only", anchor="nw", font=("Segoe UI", 8), fill=fc,
                                 tags=(otag,))
-            cv.tag_bind(otag, "<Button-1>", lambda e, mm=m: self.card_only_click(rec, mm))
-            cv.tag_bind(otag, "<Enter>", lambda e: cv.configure(cursor="hand2"))
-            cv.tag_bind(otag, "<Leave>", lambda e: cv.configure(cursor=""))
+            self._card_tick_box(cv, rec, otag, lambda mm=m: bool((rec.get("only") or {}).get(norm(mm["text"]))),
+                                lambda on, mm=m: self.card_only_click(rec, mm)
+                                if bool((rec.get("only") or {}).get(norm(mm["text"]))) != on else None)
             self.card_onlys[idx] = (m, only, src)
             y1 = max(y1, (cv.bbox(ox) or (0, 0, 0, y1))[3] + 2)
         # (2.97.1: no "RUNE / SOCKETED" line - runes have their own AUGMENTS section)
@@ -5430,9 +5431,8 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
             cv.tag_bind(star, "<Button-1>", lambda e, mm=m: self.card_set(      # 2.103.3: painted in place
                 rec, mm, "normal" if mod_impact(rec, mm) == "high" else "high"))
         if can:
-            cv.tag_bind(tag, "<Button-1>", lambda e, mm=m: self.card_toggle(rec, mm, mod_impact(rec, mm) == "ignore"))
-            cv.tag_bind(tag, "<Enter>", lambda e: cv.configure(cursor="hand2"))
-            cv.tag_bind(tag, "<Leave>", lambda e: cv.configure(cursor=""))
+            self._card_tick_box(cv, rec, tag, lambda mm=m: mod_impact(rec, mm) != "ignore",
+                                lambda on, mm=m: self.card_toggle(rec, mm, on))
         if rkey:
             self._card_thumbs(cv, rec, m, rkey, idx, w, y)
         self.card_rows[idx] = (m, on, rect)
@@ -5675,6 +5675,46 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
                None: "Your rating for this mod is cleared."}.get(what) or f"Rated {what} - on every item like it."
         self.status_text, self.status_until = msg, time.time() + 6
         return what
+
+    # ---------------- 3.0.6 (owner: tick boxes by holding the left button and dragging across them - every box on
+    # the card, as on the card over the game): the first box flips; every box the mouse then crosses takes that state.
+    def _card_tick_box(self, cv, rec, tag, get_on, set_on):
+        """A box on the card that drag-to-tick can cross: get_on() -> ticked now; set_on(on) ticks / unticks it
+        (painted in place)."""
+        ticks = getattr(cv, "_soe_ticks", None)
+        if ticks is None:
+            ticks = cv._soe_ticks = {}
+        ticks[tag] = (get_on, set_on)
+        cv.tag_bind(tag, "<Button-1>", lambda e: self._card_drag_start(cv, rec, tag))
+        cv.tag_bind(tag, "<Enter>", lambda e: cv.configure(cursor="hand2"))
+        cv.tag_bind(tag, "<Leave>", lambda e: cv.configure(cursor=""))
+        if getattr(cv, "_soe_drag", None) is not True:
+            cv._soe_drag = True
+            cv.bind("<B1-Motion>", lambda e: self._card_drag_over(cv, e.x, e.y), add="+")
+            cv.bind("<ButtonRelease-1>", lambda e: setattr(self, "_cdrag", None), add="+")
+
+    def _card_drag_start(self, cv, rec, tag):
+        get_on, set_on = cv._soe_ticks[tag]
+        to = not get_on()
+        self._cdrag = {"cv": cv, "to": to, "seen": {tag}}
+        set_on(to)
+
+    def _card_drag_over(self, cv, x, y):
+        d = getattr(self, "_cdrag", None)
+        if not d or d["cv"] is not cv:
+            return
+        ticks = getattr(cv, "_soe_ticks", None) or {}
+        try:
+            cx, cy = cv.canvasx(x), cv.canvasy(y)
+            tags = [t for i in cv.find_overlapping(cx, cy, cx, cy) for t in cv.gettags(i)]
+        except tk.TclError:
+            return
+        for t in tags:
+            if t in ticks and t not in d["seen"]:
+                d["seen"].add(t)
+                get_on, set_on = ticks[t]
+                if get_on() != d["to"]:
+                    set_on(d["to"])
 
     def card_toggle(self, rec, m, checked):
         """2.74.4: a tick on the card - the same as the mod's switch further down (this item only)."""

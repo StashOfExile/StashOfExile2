@@ -123,9 +123,10 @@ class SekhemasPage:
         return self.sek_show()
 
     def sek_avoid_rects(self):
-        """Our own windows the legend keeps off: the overlay (Bar or Panel) and the Drawer - (l, t, r, b) each."""
+        """Our own windows the legend keeps off: the overlay (Bar, Panel or both Split halves) and the Drawer -
+        (l, t, r, b) each."""
         out = []
-        wins = [getattr(self, "mg_win", None)]
+        wins = [getattr(self, "mg_win", None), getattr(self, "mg_win2", None)]
         try:
             if self.drawer_shown_as_drawer() and not self.drawer_is_away():
                 wins.append(self.root)

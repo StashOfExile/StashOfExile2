@@ -719,7 +719,8 @@ class TrackerPage:
         self.merged_build()
 
     SPOTS = {"xpbar": {"bottom": "Bottom (on the XP bar)", "top": "Top"},
-             "panel": {"left": "Left", "right": "Right"}}
+             "panel": {"left": "Left", "right": "Right"},
+             "split": {"bottom": "Bottom (by the orbs)", "top": "Top"}}
 
     def ov_spots(self):
         """2.130.0: the places the overlay can sit, for its layout -> {key: name}."""
@@ -751,7 +752,7 @@ class TrackerPage:
         """2.130.0 (feedback: a button to move the bar overlay back to its default bottom centered location):
         every place the overlay was dragged to is forgotten - each layout and style goes back to its own spot."""
         cfg = self.tracker_cfg()
-        for k in ("mx", "my", "x", "y", "hud_pos", "hud_res", "lt_pos", "lt_res"):
+        for k in ("mx", "my", "x", "y", "hud_pos", "hud_res", "lt_pos", "lt_res", "sp_pos", "sp_res"):
             cfg.pop(k, None)
         self.tracker_save()
         try:

@@ -238,13 +238,21 @@ class Card:
             RED = P.get("bad") or _C.get("red") or "#ff6b5e"
         except Exception:
             RED = "#ff6b5e"
-        hfont, font = P.get("hfont") or "Segoe UI", P.get("font") or "Segoe UI"
+        # the style's fonts: its display font for the titles, its body font for the small text
+        hfont, font = P.get("hfont") or "Segoe UI", P.get("body") or P.get("font") or "Segoe UI"
         win = self.win
         for ch in win.winfo_children():
             ch.destroy()
         top = self.rows[0]
         many = len(self.rows) > 1
-        box = tk.Frame(win, bg=BG, highlightthickness=1, highlightbackground=LINE)
+        # the style's own frame round the card (its edge, width and inner line), as the overlay's windows have
+        from .overlaywin import skin_inner
+        try:
+            win.configure(bg=P.get("leather") or LINE, highlightthickness=1, highlightbackground=P.get("edge") or LINE)
+        except tk.TclError:
+            pass
+        host = skin_inner(win, P, True, max(1, int(P.get("border") or 0)), BG)
+        box = tk.Frame(host, bg=BG)
         box.pack(fill="both", expand=True)
         tk.Frame(box, bg=top.color, width=max(3, int(4 * ui))).pack(side="left", fill="y")
         body = tk.Frame(box, bg=BG, padx=int(12 * ui), pady=int(9 * ui))
