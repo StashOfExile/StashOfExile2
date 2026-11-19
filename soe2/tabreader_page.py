@@ -137,10 +137,10 @@ class TabReaderPage:
             self.pc_tabrow.pack(fill="x")
             self.pc_beta.show(fill="x", after=self.pc_tabrow, pady=(4, 0))
             self.pc_msg.pack(fill="x", after=self.pc_tabrow if self.pc_beta.closed() else self.pc_beta)
-            self.pc_mode_hint.config(text="reads a public stash tab and adds what it can (Ctrl+Alt+C still works)")
+            self.pc_mode_hint.config(text="reads a public stash tab and adds what it can. Ctrl+Alt+C still works.")
             if not self.pc_msg.cget("text"):
                 self.pc_msg.config(text="Make a Premium stash tab public and give the whole tab one price nobody would "
-                                        "pay (like 37882 Divine Orbs). Type that price here and press Read tab.",
+                                        "pay, like 37882 Divine Orbs. Type that price here and press Read tab.",
                                    fg=C["muted"])
         else:
             if stash is not None:
@@ -354,9 +354,9 @@ class TabReaderPage:
     def pctab_explain(self):
         self.pc_msg.config(fg=C["text"], text=(
             "How it works: Path of Exile 2 has no stash access for tools, so the app reads your tab through the trade "
-            "site. In game: pick a Premium stash tab, make it public, and give the whole tab one price nobody would pay "
-            "(e.g. 37882 Divine Orbs) - that odd price is how the app finds your tab, and a price that high keeps "
-            "whispers away (your own listings never count when items are priced). Any currency works. Don't use a "
+            "site. In game: pick a Premium stash tab, make it public, and give the whole tab one price nobody would pay, "
+            "like 37882 Divine Orbs. That odd price is how the app finds your tab, and a price that high keeps "
+            "whispers away. Your own listings never count when items are priced. Any currency works. Don't use a "
             "Merchant's tab: those "
             "sell instantly. Press Read tab: every item on it is added here and priced. Items already in the list are "
             "skipped. A new tab listing can take a minute to show on the trade site. The same tab works for Wealth."))
@@ -509,7 +509,7 @@ class TabReaderPage:
         if not PCTAB["found"]:
             return self.pc_msg.config(fg=C["good"], text=(
                 "No listings found at that price. Is the tab public, priced at exactly this amount and currency, and "
-                "has the trade site had a minute to show it? Check the account name too (with its #number)."))
+                "has the trade site had a minute to show it? Check the account name too, including the #number."))
         parts = [f"Found {PCTAB['found']} listing{'s' if PCTAB['found'] != 1 else ''} at that price, read "
                  f"{PCTAB['read']}: added {st['added']} to the list"]
         if st["already"]:

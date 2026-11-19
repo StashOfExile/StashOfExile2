@@ -616,8 +616,8 @@ class PricePopup:
         info = tk.Label(hr, text=(socket_words(it).strip(" ()") or "") + "  ⓘ", bg=P["bg"], fg=P["muted"],
                         font=(body, 9))
         info.pack(side="left", padx=(8, 0))
-        Tooltip(info, "What the item's sockets hold. The game's copy (Ctrl+C) lists what each socketed rune, soul "
-                      "core or talisman does - not its name - and nothing about a socketed jewel. Socketed effects "
+        Tooltip(info, "What the item's sockets hold. Ctrl+C in game lists what each socketed rune, soul "
+                      "core or talisman does, not its name, and says nothing about a socketed jewel. Socketed effects "
                       "can be swapped, so they aren't searched unless you tick one.")
         ticked = {id(m) for m in self.pc_ticked(rec)}
         for m in runes:

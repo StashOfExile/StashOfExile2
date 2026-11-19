@@ -91,8 +91,8 @@ class BoardModPage:
         self.bn_win = win
         tk.Label(win, text="Pick a new community name" if reset else "Pick your community name", bg=P2, fg=C["accent"],
                  font=("Segoe UI", 12, "bold"), anchor="w").pack(fill="x")
-        tk.Label(win, text=("Your old name isn't allowed on the community board (slurs and hate words aren't), so it "
-                            "was reset. Pick a new one - you can do it now." if reset else
+        tk.Label(win, text=("Your old name isn't allowed on the community board, because slurs and hate words aren't. "
+                            "It was reset. Pick a new one now." if reset else
                             "Used for published Strats and Leaderboards."),
                  bg=P2, fg=C["muted"], wraplength=380, justify="left", anchor="w").pack(fill="x", pady=(4, 4))
         from .privacy import NAME_RULE, NAME_TIP                  # 2.131.1: a made-up name, never yours in game

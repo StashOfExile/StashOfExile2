@@ -1038,8 +1038,8 @@ class DrawerHost:
         tip = tk.Label(r1, text="ⓘ", bg=P2, fg=C["muted"], font=("Segoe UI", 10), cursor="question_arrow")
         tip.pack(side="left", padx=(8, 0), anchor="n")
         Tooltip(tip, "Drawer: the app over the game's side, from the top of the game to just above the skill bar. "
-                     "The Drawer key (Settings › Keybinds) shows it and puts it away; so do Esc and a click on the "
-                     "game. If Ctrl+Shift+Space switches your keyboard layout, set F3 instead. Full window: a normal "
+                     "The Drawer key shows it and puts it away, and so do Esc and a click on the game. "
+                     "Set the key in Settings › Keybinds. If Ctrl+Shift+Space switches your keyboard layout, set F3 instead. Full window: a normal "
                      "window, where you left it.")
         self._drawer_rb_tip = Tooltip(self._drawer_seg.btns["Drawer"][0], "")
         self._drawer_note = tk.Label(row, text="", bg=P2, fg=C["muted"], font=("Segoe UI", 9), anchor="w")
@@ -1074,7 +1074,7 @@ class DrawerHost:
             has_key = bool(self.drawer_key_label())
             self._drawer_rb_tip.text = "" if has_key else "Set a Drawer key first (Settings › Keybinds)"
             k = self.drawer_key_label()
-            self._drawer_note.config(text=(f"{k} shows the app and puts it away (Settings › Keybinds)." if k else
+            self._drawer_note.config(text=(f"{k} shows the app and puts it away. Change it in Settings › Keybinds." if k else
                                            "No Drawer key: set one in Settings › Keybinds to use the Drawer."))
         except (tk.TclError, AttributeError):
             pass

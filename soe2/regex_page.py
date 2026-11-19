@@ -88,8 +88,8 @@ class RegexPage:
         info.pack(fill="x", pady=(4, 0))
         self.rx_len = tk.Label(info, text="", bg=P2, fg=C["muted"], font=(MONO, 9), anchor="w")
         self.rx_len.pack(side="left")
-        self.rx_test_out = tk.Label(info, text="Copy (Ctrl+C) a tablet, waystone or relic in game, click here and press "
-                                               "Ctrl+V: it says if this search would light it up.",
+        self.rx_test_out = tk.Label(info, text="Press Ctrl+C on a tablet, waystone or relic in game, click here and press "
+                                               "Ctrl+V. It says if this search would light it up.",
                                     bg=P2, fg=C["muted"], anchor="w", justify="left", font=("Segoe UI", 9),
                                     cursor="xterm", takefocus=1, highlightthickness=1,
                                     highlightbackground=P2, highlightcolor=C["accent"])
@@ -123,9 +123,9 @@ class RegexPage:
         hq = tk.Label(fbar, text=" ? ", bg=P1, fg=C["muted"], cursor="question_arrow", highlightthickness=1,
                       highlightbackground=C["line"])
         hq.pack(side="left", padx=12)
-        Tooltip(hq, "Click a mod to select it Click again to remove it. In \"I want\", click its Value to type a number: 50 means at "
+        Tooltip(hq, "Click a mod to select it. Click again to remove it. In \"I want\", click its Value to type a number: 50 means at "
                     "least 50, 50-80 means from 50 to 80, <80 means at most 80. \"I don't want\" leaves items with that mod out.\n"
-                    "★ marks a mod that is valuable in your Mod Book (your rules, or learned from prices). Right-click a mod to rate it.")
+                    "★ marks a mod that is valuable in your Mod Book, by your rules or learned from prices. Right-click a mod to rate it.")
         self.rx_info = tk.Label(fbar, text="", bg=P1, fg=C["muted"])
         self.rx_info.pack(side="right")
         flowify(fbar)                                       # 2.109.0: ★ first / Only ★ / Select valuable gone
@@ -293,7 +293,7 @@ class RegexPage:
         if getattr(self, "_rx_last_kind", None) not in (None, self.rx_kind.get()):
             self.rx_test_text = ""                           # a copied tablet says nothing about waystones
             self.rx_pick_btn.pack_forget()
-            self.rx_test_out.config(text="Copy (Ctrl+C) an item in game, click here and press Ctrl+V.", fg=C["muted"])
+            self.rx_test_out.config(text="Press Ctrl+C on an item in game, click here and press Ctrl+V.", fg=C["muted"])
         self._rx_last_kind = self.rx_kind.get()
         self.rx_build_cards()
         self.rx_build_lists()
@@ -800,8 +800,8 @@ class RegexPage:
         ok = save_json(FAV_FILE, data)
         save_json(FAV_BACKUP, data)
         if not ok and hasattr(self, "rx_fav_msg"):
-            self.rx_fav_msg.config(text="⚠ Couldn't save your Favorites to the app's data folder (is another program "
-                                        "using the file?). They're kept while the app is open - Report a bug "
+            self.rx_fav_msg.config(text="⚠ Couldn't save your Favorites to your Data folder. Is another program "
+                                        "using the file? They're kept while the app is open. Report a bug "
                                         "sends the details.", fg=C["red"])
         return ok
 

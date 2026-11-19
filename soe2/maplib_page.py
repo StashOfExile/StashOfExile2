@@ -92,9 +92,9 @@ class MapLibraryPage:
         self.ml_tv = tv
         self.ml_info = tk.Label(page, text="", bg=P1, fg=C["text"], font=("Segoe UI", 9, "bold"), anchor="w")
         self.ml_info.pack(fill="x", pady=(4, 0))
-        tk.Label(page, text="Rank maps S (best) to D, or ✖ Avoid - right-click, the buttons, or press S A B C D / X. "
-                            "Your ranks also count toward the Community column (anonymous). Areas the game adds later "
-                            "are learned the first time you enter them (in italics).", bg=P1, fg=C["muted"],
+        tk.Label(page, text="Rank maps from S, the best, to D, or ✖ Avoid. Use right-click, the buttons, or the keys S A B C D and X. "
+                            "Your ranks also count toward the Community column, anonymously. Areas the game adds later "
+                            "are learned the first time you enter them and show in italics.", bg=P1, fg=C["muted"],
                  font=("Segoe UI", 9), anchor="w", justify="left", wraplength=760).pack(fill="x", pady=(4, 0))
         return page
 

@@ -898,7 +898,7 @@ class LedgerPage:
         m.add_command(label="CSV - every drop", command=lambda: self.fl_export("loot"))
         m.add_command(label="CSV - logs of every setup", command=lambda: self.fl_export("all"))
         m.add_command(label="Setup file for a friend's Strat Tracker", command=lambda: self.fl_export("json"))
-        m.add_command(label="Strat guide (CSV) - share this setup as a strat", command=lambda: self.fl_export("strat"))
+        m.add_command(label="Strat guide as CSV - share this setup as a strat", command=lambda: self.fl_export("strat"))
         m.add_command(label="Copy summary for Discord", command=self.fl_copy_summary)
         m.add_command(label="📤 Upload to the community strats…", command=self.fl_upload)
         m.add_separator()
@@ -1218,8 +1218,8 @@ class LedgerPage:
         p = d.get("pending")
         if p and p.get("setup") == s["id"]:
             if p.get("runs") and not messagebox.askyesno(
-                    "Stop counting", f"{p['runs']} run(s) haven't been logged yet. Stop counting anyway?\n"
-                                     "(✎ Log loot now logs them first.)", parent=self.dlg_parent()):
+                    "Stop counting", f"Unlogged runs: {p['runs']}. Stop counting anyway?\n"
+                                     "✎ Log loot now logs them first.", parent=self.dlg_parent()):
                 return
             d["pending"] = None
         else:
@@ -2278,7 +2278,7 @@ class LedgerPage:
         way = bool(e.get("props"))
         tk.Label(f, text=f"{e['name']}: which {'numbers' if way else 'mods'} make this setup work?", bg=C["panel"],
                  fg=C["accent"], font=("Segoe UI", 10, "bold"), anchor="w").pack(fill="x")
-        tk.Label(f, text="Tick the ones you'd pay for (pack size, rarity, +1 Breach …). They're shown on the setup and "
+        tk.Label(f, text="Tick the ones you'd pay for, like pack size, rarity or +1 Breach. They're shown on the setup and "
                          "used to check what it costs.", bg=C["panel"], fg=C["muted"], font=("Segoe UI", 9),
                  wraplength=420, justify="left", anchor="w").pack(fill="x", pady=(2, 8))
         vars_ = []

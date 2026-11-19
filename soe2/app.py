@@ -2002,9 +2002,9 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
             if MARKET.has_data(old) and not MARKET.has_data(new):
                 carry = messagebox.askyesno(
                     "New league?",
-                    f"You switched from {old} to {new}.\n\nIs {new} a NEW league (a fresh start)?\n\n"
+                    f"You switched from {old} to {new}.\n\nIs {new} a NEW league, a fresh start?\n\n"
                     "Yes: prices start fresh, but the app keeps what it learned about which mods are valuable.\n"
-                    "No: prices start fresh as well (they never mix between leagues), and the old league's mod "
+                    "No: prices start fresh as well, because they never mix between leagues. The old league's mod "
                     "knowledge is NOT carried over.")
             if carry:
                 n = MARKET.snapshot_league(old)
@@ -2416,7 +2416,7 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
         def num(x):
             return _amt(x) if x >= 1 else f"{x:.3g}"
         self.ex_market.config(text=f"1 {hn}  ≈  {num(r)} {wn}")
-        self.ex_back.config(text=f"Market rate (poe.ninja).  1 {wn} ≈ {num(1 / r)} {hn}.")
+        self.ex_back.config(text=f"Market rate from poe.ninja.  1 {wn} ≈ {num(1 / r)} {hn}.")
         P1 = C["panel"]
         # UI rule 22: the three offer cards are made once; a typed amount or a new pair changes their words in place
         # (built again only when the number of offers changes).
@@ -3686,14 +3686,14 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
             if t == TIER_F:
                 Tooltip(tb_, F_TIP)
         ttk.Button(tbar, text="Clear", command=lambda: self.tiers_selected(None), style="Quiet.TButton").pack(side="left", padx=(4, 0))
-        help_ = tk.Label(tab, text="S and A are High (always searched), B, C and D are Normal, F is Ignore (never searched). When no "
+        help_ = tk.Label(tab, text="S and A are High and always searched. B, C and D are Normal. F is Ignore and never searched. When no "
                            "listing has all of an item's mods, D mods are left out first, then C. \"auto\" is the app's "
                            "own rating until you rate it.", bg=C["panel"], fg=C["muted"], font=("Segoe UI", 9),
                  anchor="w", justify="left", wraplength=900, padx=12)
         help_.pack(fill="x", pady=(8, 0))
         help_.bind("<Configure>", lambda e, l=help_: l.config(wraplength=max(300, e.width - 24)))
         if cat in SCOPED_CATS:                           # 2.6.0: what these rules are for
-            tk.Label(tab, text={"waystone": "Waystones are priced on their numbers (pack size, rarity ...), not their "
+            tk.Label(tab, text={"waystone": "Waystones are priced on their numbers, like pack size and rarity, not their "
                                             "mods. Rate the mods you want or don't want, and Regex uses it: ★ on the "
                                             "mod, and ★ Select valuable.",
                                 "relic": "Rate the relic mods you're after. Regex marks them ★ and ★ Select valuable "
@@ -4536,8 +4536,8 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
         """Clear the list you're looking at (2.42.0: Manual Add, or one stash tab's list - the others stay)."""
         mine = [rid for rid, r in self.records.items() if self.in_list(r)]
         src = self.list_src()
-        what = "this tab's list" if src != "manual" else "your list (Manually Add)"
-        if mine and not messagebox.askyesno("Clear All", f"Remove all items from {what}?\n(The mod book is kept.)"):
+        what = "this tab's list" if src != "manual" else "your Manually Add list"
+        if mine and not messagebox.askyesno("Clear All", f"Remove all items from {what}?\nThe Mod Book is kept."):
             return
         for rid in mine:
             del self.records[rid]
@@ -5478,7 +5478,7 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
                            cursor="hand2",
                            command=lambda g=("ignore" if g_ == "F" else g_): self.pc_ask_answer(rec, m, key, g))
             b_.pack(side="left", padx=(0 if i_ == 0 else 4, 0))
-            Tooltip(b_, tips[g_] + " - for every item like it (Rate Mods' grades)")
+            Tooltip(b_, tips[g_] + " - for every item like it. Same grades as Rate Mods.")
         fr.update_idletasks()
         h = fr.winfo_reqheight()
         cv.create_window(x, y, window=fr, anchor="nw", width=max(160, w - x - 12))

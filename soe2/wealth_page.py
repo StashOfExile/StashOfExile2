@@ -75,10 +75,10 @@ class WealthPage:
         mm.add_command(label="Update prices from poe.ninja", command=self.wealth_update_prices)
         # UI overhaul (feedback: drop the duplicate - Count by hand stays as a fallback): Scan stash is the
         # way; Count by hand is for a currency it can't read
-        mm.add_command(label="Count by hand (Ctrl+C each stack)…", command=self.wealth_count_toggle)
+        mm.add_command(label="Count by hand…", command=self.wealth_count_toggle)
         mm.add_separator()
-        mm.add_command(label="Export history (CSV)…", command=self.wealth_export_history)    # 2.2.0
-        mm.add_command(label="Export items (CSV)…", command=self.wealth_export_items)
+        mm.add_command(label="Export history as CSV…", command=self.wealth_export_history)    # 2.2.0
+        mm.add_command(label="Export items as CSV…", command=self.wealth_export_items)
         mm.add_separator()
         mm.add_command(label="How Wealth works", command=self.wealth_guide)
         more.config(menu=mm)
@@ -293,7 +293,7 @@ class WealthPage:
                                         "2.  Price the whole tab at something nobody would pay, like 37882 Divine Orbs. "
                                         "Each tab needs its own price. Never a Merchant's Tab: those sell instantly, "
                                         "even when you're offline.\n"
-                                        "3.  Type that price here (or paste the trade link) and press Add tab.\n"
+                                        "3.  Type that price here, or paste the trade link, and press Add tab.\n"
                                         "Currency doesn't need a tab: Scan stash reads it.",
                                bg=P2, fg=C["text"], justify="left", anchor="w", font=("Segoe UI", 9), wraplength=760)
         self.w_help.pack(fill="x", pady=(0, 8))
@@ -1063,8 +1063,8 @@ class WealthPage:
         if not WEALTH.tabs and not self.wealth_pending():          # 2.0 beta 7: only counted currency: just re-price it
             if WEALTH.holdings:
                 self.wealth_update_prices()
-                self.w_msg.config(text="Updating prices… (no stash tabs are set up, so Sync only updates the prices of "
-                                       "what you counted by hand; Wealth ↳ Stash tabs adds a tab)", fg=C["muted"])
+                self.w_msg.config(text="Updating prices… No stash tabs are set up, so Sync only updates the prices of "
+                                       "what you counted by hand. Add a tab in Wealth ↳ Stash tabs.", fg=C["muted"])
                 return
             self.wealth_show_page("Stash tabs")
         if self.wealth_pending():                       # 1.36: a price still in the boxes counts - add it first
@@ -1161,8 +1161,8 @@ class WealthPage:
             self.refresh_wealth(force=True)
         elif kind == "rare":
             R = WEALTH_RARES
-            self.w_msg.config(text=f"Price-checking magic / rare items: {R['done']} of {R['total']} done, {R['priced']} priced "
-                                   f"(behind anything you copy; F2 pauses)…", fg=C["muted"])
+            self.w_msg.config(text=f"Price-checking magic and rare items: {R['done']} of {R['total']} done, {R['priced']} priced. "
+                                   f"Anything you copy goes first. F2 pauses…", fg=C["muted"])
             if R["done"] % 5 == 0:
                 self.refresh_wealth(force=True)
         elif kind == "rares_done":
@@ -1401,8 +1401,8 @@ class WealthPage:
             self.w_filter_chip.pack_forget()
         shown_total = sum(r[4] or 0 for r in shown)
         self.w_count.config(text=f"{len(shown)} shown, worth {fmt_div(shown_total)}.   Click an item for its week; "
-                                 f"double-click a quantity to change it. Select rows and press Delete to remove them "
-                                 f"(Ctrl+Z undoes).")
+                                 f"double-click a quantity to change it. Select rows and press Delete to remove them. "
+                                 f"Ctrl+Z undoes.")
         if rows or getattr(self, "w_steps_shown", False):
             self.w_empty.place_forget()
         else:

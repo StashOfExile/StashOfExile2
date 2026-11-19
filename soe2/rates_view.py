@@ -524,6 +524,6 @@ class RatesList(tk.Frame):
                 else:
                     cv.create_text(W - 12, cy, text=f"{vol:,.0f}", anchor="e", font=("Segoe UI", 9), fill=mut)
         self.status.config(text=RATES.status_text() + (f"  ·  last problem: {RATES.error}" if RATES.error else "")
-                           + f"  ·  {len(rows)} items. 7 days: the price change in divines over the last week "
-                             f"(poe.ninja). Traded: how much poe.ninja saw change hands, in divines; "
-                             f"under {THIN} is marked ! Thin - its price is shaky.")
+                           + f"  ·  {len(rows)} items. 7 days: the price change in divines over the last week, "
+                             f"from poe.ninja. Traded: how much poe.ninja saw change hands, in divines. "
+                             f"Under {THIN} is marked ! Thin, its price is shaky.")

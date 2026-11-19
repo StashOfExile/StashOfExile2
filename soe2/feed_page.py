@@ -40,7 +40,7 @@ class FeedPage:
         tk.Label(top, text="Teach the Mod Book a price", bg=P1, fg=C["accent"], font=("Segoe UI", 12, "bold"),
                  anchor="w").pack(fill="x")
         tk.Label(top, text="Know what an item is worth - an expensive tablet you saw sell, one the trade site hardly "
-                           "shows? Ctrl+Alt+C it in game (or paste it in the box with Ctrl+V), type its price if you know it, and Feed it. "
+                           "shows? Ctrl+Alt+C it in game, or paste it in the box with Ctrl+V, type its price if you know it, and Feed it. "
                            "With a price it joins the listings the Mod Book learns from, like a sale; the numbers "
                            "below show what changed. No price? Tick the mods that matter and they're rated High.",
                  bg=P1, fg=C["muted"], font=("Segoe UI", 9), wraplength=720, justify="left", anchor="w").pack(fill="x")
@@ -150,8 +150,8 @@ class FeedPage:
         tv.delete(*tv.get_children())
         self.fd_rows = []
         if not item:
-            self.fd_msg.config(text="" if not text.strip() else "That isn't an item the price checker reads "
-                                                                 "(tablets, jewels, waystones, relics, gear).",
+            self.fd_msg.config(text="" if not text.strip() else "That isn't an item the price checker reads. "
+                                                                 "It reads tablets, jewels, waystones, relics and gear.",
                                fg=C["red"])
             return None
         sids = []
@@ -187,7 +187,7 @@ class FeedPage:
         txt = self.fd_price.get().strip()
         div = parse_price(txt) if txt else None          # 2.54.1: the price is optional
         if txt and not div:
-            self.fd_msg.config(text="Can't read that price (8, 8 div, 35c, 2 ex ...) - or leave it empty.", fg=C["red"])
+            self.fd_msg.config(text="Can't read that price. Try 8, 8 div, 35c or 2 ex, or leave it empty.", fg=C["red"])
             return None
         ticked = self.fd_rate.get() and any(r["rate"] for r in self.fd_rows)
         if div is None and not ticked:

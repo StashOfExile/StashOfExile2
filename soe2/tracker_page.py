@@ -274,7 +274,7 @@ class TrackerPage:
         prow = tk.Frame(ph, bg=P1)
         prow.pack(fill="x")
         tk.Label(prow, text="Double-click a session to write a note like 'T15 Breach + Delirium'. Delete removes "
-                            "the selected ones (Ctrl+Z undoes).", bg=P1,
+                            "the selected ones, and Ctrl+Z undoes it.", bg=P1,
                  fg=C["muted"], font=("Segoe UI", 9), anchor="w").pack(side="left")
         ttk.Button(prow, text="Export CSV", command=self.tracker_export_sessions).pack(side="right", pady=(4, 0))
         self.undo_button(prow, "tracker").pack(side="right", padx=8, pady=(4, 0))
@@ -336,8 +336,8 @@ class TrackerPage:
         bv.tag_configure("live", foreground=C["green"])
         bv.pack(fill="both", expand=True, pady=(4, 0))
         self.tk_board = bv
-        tk.Label(right, text="Your fastest runs of the map you pick on the left. Time is how long you were inside the map "
-                             "(hideout visits in between don't count); visits under 30 seconds aren't counted.",
+        tk.Label(right, text="Your fastest runs of the map you pick on the left. Time is how long you were inside the map. "
+                             "Hideout visits in between don't count, and visits under 30 seconds aren't counted.",
                  bg=P2, fg=C["muted"], font=("Segoe UI", 9), anchor="w", justify="left", wraplength=320).pack(fill="x", pady=(4, 0))
         # ---- 2.7.0: maps per day
         dyo, day = chrome_section(page, "Maps per day, last 14 days", padx=8, pady=8)   # 2.69.0
@@ -462,11 +462,11 @@ class TrackerPage:
         self._ov_on_overlay(self.ovh_areas["On the Overlay"].inner)
         self._ov_options(self.ovh_areas["Options"].inner)
         mo, mb = chrome_section(self.ovh_areas["Helpers"].inner, "Helpers",
-                                "Helpers that read the screen read it once each time you press your Read Key in the "
-                                "game. Each row: on / off, what it does, its options. They never act in the game, and "
-                                "no screen read runs by itself (GGG's rule: one read per key press) - each read shows "
-                                "for a second over the game. Your Read Key is a key just for this: Settings › "
-                                "Keybinds. A helper marked Beta still has rough edges.")
+                                "Helpers read the screen once each time you press your Read Key. "
+                                "Each row: on or off, what it does, its options. They never act in the game. "
+                                "No screen read runs by itself: GGG's rule is one read per key press. "
+                                "Each read shows for a second over the game. Your Read Key is only for this. "
+                                "Set it in Settings › Keybinds. A helper marked BETA still has rough edges.")
         mo.pack(fill="x")
         self.look_needed(mb, C["panel2"]).pack(fill="x")      # (no Read Key yet: one line, Set the Read Key)
         self.build_alerts_panel(mb).pack(fill="x")
@@ -790,8 +790,8 @@ class TrackerPage:
         cfg = self.tracker_cfg()
         if getattr(self, "tk_key_msg", None) is not None:
             self.tk_key_msg.config(text=f"Show or hide the overlay: {key_label(cfg.get('key_overlay')) or 'none'}     "
-                                        f"Pause or resume the timer: {key_label(cfg.get('key_pause')) or 'none'} "
-                                        f"(or ⏸ / ▶ on the overlay)")
+                                        f"Pause or resume the timer: {key_label(cfg.get('key_pause')) or 'none'}, "
+                                        f"or ⏸ / ▶ on the overlay")
 
     def tracker_keys_hint(self):
         """The keys next to Start (2.10.0), so you know they exist."""
@@ -839,11 +839,11 @@ class TrackerPage:
             return True
         path = find_log(self.tracker_cfg().get("log_path"))
         if not path:
-            self.tk_log_lbl.config(text="Client.txt wasn't found, so maps aren't counted (the timer still "
-                                        "works). It's in the game's logs folder, usually:\n"
+            self.tk_log_lbl.config(text="Client.txt wasn't found, so maps aren't counted. The timer still "
+                                        "works. It's in the game's logs folder, usually:\n"
                                         "  Steam: C:\\Program Files (x86)\\Steam\\steamapps\\common\\Path of Exile 2\\logs\n"
                                         "  Standalone: C:\\Program Files (x86)\\Grinding Gear Games\\Path of Exile 2\\logs\n"
-                                        "(or the same folders in your Steam library on another drive).",
+                                        "The same folders can be in your Steam library on another drive.",
                                    fg=C["good"], justify="left")
             if not self.tk_pick_btn.winfo_ismapped():
                 self.tk_pick_btn.pack(side="right", anchor="n", before=self.tk_log_lbl)   # 2.34.0: keeps its room

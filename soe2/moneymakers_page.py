@@ -1482,13 +1482,14 @@ class MoneyMakersPage(StratViews, StratNewPage):
         pane.add(right, weight=3)
         intro = tk.Frame(right, bg=P1)
         intro.pack(fill="x", pady=(0, 8))
-        tk.Label(intro, text="Each mod's rating, S (best) to F (ignored), and where it came from.  ⓘ", bg=P1,
+        tk.Label(intro, text="Each mod's rating and where it came from. S is best, F is ignored.  ⓘ", bg=P1,
                  fg=C["muted"], font=("Segoe UI", 9), anchor="w").pack(side="left")
         Tooltip(intro.winfo_children()[0],
-                "From: you (your Mod Book rating) > players (3+ votes on the community board) > market (items with "
-                "the mod sell clearly above that kind's middle price, across 12+ listings; this league). No prices "
-                "are shown here - they change too fast. To know what an item is worth, press your price check key "
-                "on it. Right-click a mod to rate it; double-click to search the trade site for it.")
+                "Where a rating comes from, in this order: You is your Mod Book rating. Players is 3+ votes on the "
+                "community board. Market is items with the mod selling clearly above that kind's middle price, "
+                "across 12+ listings in this league. No prices are shown here, they change too fast. To know what "
+                "an item is worth, press your price check key on it. Right-click a mod to rate it. Double-click "
+                "to search the trade site for it.")
         # 2.125.6 (feedback: the pairs that sell together were crammed at the bottom): the mods and the pairs share the
         # height on a divider you drag (remembered)
         from .style import VSplitter

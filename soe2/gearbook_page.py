@@ -112,9 +112,9 @@ class GearBookPage:
                 Tooltip(b, F_TIP)
         ttk.Button(tbar, text="Clear", style="Quiet.TButton", command=lambda: self.gb_grade(cat, None)).pack(
             side="left", padx=(4, 0))
-        help_ = tk.Label(tab, text=GRADE_TIP + " " + ("Every line that can roll on this item class (RePoE); your rating is "
+        help_ = tk.Label(tab, text=GRADE_TIP + " " + ("Every line that can roll on this item class, from RePoE. Your rating is "
                                               "used when you price check one." if cat == "gear" else
-                            "A unique's lines come from the ones you price check (pick it after checking one). A line "
+                            "A unique's lines come from the ones you price check Pick it after checking one. A line "
                             "with a choice, like Mageblood's Legacies, lists every option: rate the ones that matter."),
                  bg=P, fg=C["muted"], anchor="w", justify="left", wraplength=900, padx=12,
                  font=("Segoe UI", 9))
@@ -200,8 +200,8 @@ class GearBookPage:
                 ns.tv.selection_add(iid)
         rated = sum(1 for r in self.gb_rows(cat) if r["key"] in RULES)
         if cat == "unique" and ns.uname and not rows and not q:
-            ns.empty.config(text=f"No lines for {ns.uname} yet.\nPrice check one (Ctrl+Alt+C on it in game, or on the "
-                                 "trade site) and its lines show here, with every option of a choice line.")
+            ns.empty.config(text=f"No lines for {ns.uname} yet.\nPrice check one with Ctrl+Alt+C, in game or on the "
+                                 "trade site. Its lines show here, with every option of a choice line.")
             ns.empty.place(relx=0.5, rely=0.3, anchor="center")
         elif cat == "unique" and not ns.uname:
             ns.empty.config(text="Pick a unique above. Ones you've price checked come first.")

@@ -316,8 +316,8 @@ class StashScanPage:
         dlg.title("Scan stash - check the numbers")
         dlg.configure(bg=C["panel2"], padx=16, pady=12)
         dlg.transient(par)
-        tk.Label(dlg, text="Check what was read. Double-click a number to fix it; Delete drops a row. Save sets these "
-                           "in Wealth › Counted by hand (it replaces their counts; everything else is kept).",
+        tk.Label(dlg, text="Check what was read. Double-click a number to fix it. Delete drops a row. Save sets these "
+                           "in Wealth › Counted by hand. It replaces their counts and keeps everything else.",
                  bg=C["panel2"], fg=C["text"], justify="left", anchor="w", wraplength=520).pack(fill="x")
         f = tk.Frame(dlg, bg=C["panel2"])
         f.pack(fill="both", expand=True, pady=(8, 0))
@@ -342,7 +342,7 @@ class StashScanPage:
         if wild_rows:
             u = len(wild_rows)
             tk.Label(dlg, text=f"{u} wildcard slot{'s' if u != 1 else ''} held something that looks like nothing on the "
-                               "tabs read: double-click to type its name (Ctrl+C on it in game shows it) - the app "
+                               "tabs read. Double-click to type its name. Ctrl+C on it in game shows the name. The app "
                                "remembers what it looks like for next time. Or leave it out.",
                      bg=C["panel2"], fg=C["muted"], justify="left", anchor="w", wraplength=520).pack(fill="x",
                                                                                                    pady=(8, 0))

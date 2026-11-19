@@ -405,8 +405,8 @@ class SettingsPage:
         from .style import THEMES
         from . import themes as _th
         row = section("Appearance", "Theme", "The look of every window. Point at one to see it; click it and the "
-                                             "app changes at once, nothing restarts. Your own: put a .json in the "
-                                             "themes folder of your data folder (Settings › Advanced › Data folder).")
+                                             "app changes at once, nothing restarts. Your own: put a .json file in the "
+                                             "themes folder of your Data folder. Open it from Settings › Advanced › Data folder.")
         self.set_anchors["theme"] = row.master
         self.look_vars = {"theme": tk.StringVar(value=THEMES.get(SETTINGS.get("theme"), (_th.DEFAULT,))[0])}
         # 2.118.0 (feedback): names beside a big live preview, like the overlay styles (themepick.py) - were cards
@@ -470,12 +470,13 @@ class SettingsPage:
         # (2.132.0, feedback: it was in the wrong place: Hide the overlay from screen captures is
         # in Overlay › Options now, beside Lock position and Click-through)
         # 2.74.0: Under the hood (with the Mod book inside it) is hidden unless you want it - both keep working
-        row = section("Advanced", "Under the Hood", "How the price checker reads an item (its base, which bases it "
-                                                    "is compared with, which trade-site search each mod becomes), and "
-                                                    "the Mod Book: what it has learned about each mod from real "
-                                                    "listings and the rules for which tablet / jewel mods count. Both "
-                                                    "work on their own whether they're shown or not - learning, "
-                                                    "community data sharing and Regex's ratings carry on.")
+        row = section("Advanced", "Under the Hood", "How the price checker reads an item, and what the Mod Book has learned. "
+                                                    "It covers the item's base, which bases it is compared with, and "
+                                                    "which trade-site search each mod becomes. The Mod Book holds what "
+                                                    "the app learned about each mod from real listings, and the rules "
+                                                    "for which tablet or jewel mods count. Both work on their own "
+                                                    "whether they're shown or not. Learning, Community data sharing "
+                                                    "and Regex's ratings carry on.")
         self.adv_var = tk.BooleanVar(value=self.shell.advanced_on())
         cb = ttk.Checkbutton(row, text="Show advanced tools - Price Checks ↳ Under the Hood ↳ Mod Book",
                              variable=self.adv_var, command=self.advanced_switch, style="Card.TCheckbutton")
@@ -497,7 +498,7 @@ class SettingsPage:
                    self._say("Nothing logged yet - no errors, crashes or freezes.", 6)).pack(side="left", padx=(8, 0))
         self.adv_log_paint()
         self.debug_var = tk.BooleanVar(value=bool(SETTINGS.get("debug_mode")))
-        ttk.Checkbutton(row, text="Debug mode - every trade-site request (its answer and time) in the app's "
+        ttk.Checkbutton(row, text="Debug mode - every trade-site request, with its answer and time, in the app's "
                                   "log, and a debug line in the status bar", variable=self.debug_var,
                         command=self.dev_paint, style="Card.TCheckbutton").pack(anchor="w", pady=(8, 0))
         ur = tk.Frame(row, bg=P2)
@@ -507,11 +508,12 @@ class SettingsPage:
         self.dev_unm_lbl.pack(side="left", padx=(8, 0))
         mr = ttk.Button(ur, text="Measure resizing", style="Quiet.TButton", command=self.measure_resizing)
         mr.pack(side="right")                            # 3.0.6: the Drawer drag's lag, measured on your PC
-        Tooltip(mr, "Resizes the window step by step on four pages and times each step (about 20 seconds - "
-                    "don't touch it meanwhile). Writes resize_test_drawer.txt (or _full.txt) in the data folder: times only.")
+        Tooltip(mr, "Resizes the window step by step on four pages and times each step. It takes about 20 seconds, "
+                    "so don't touch it meanwhile. Writes resize_test_drawer.txt, or resize_test_full.txt in Full window, "
+                    "to your Data folder. It holds times only.")
         self.dev_paint(save=False)
-        row = section("Advanced", "Recent messages", "The last 20 messages the app showed you (they go away "
-                                                     "by themselves, so they're kept here). Hover one to keep it up.")
+        row = section("Advanced", "Recent messages", "The last 20 messages the app showed you. They go away "
+                                                     "by themselves, so they're kept here. Hover one to keep it up.")
         self.build_toast_log(row)
         row = section("Advanced", "Data folder", "Settings, price-check lists, the Mod Book, Wealth and sessions are "
                                                "kept here, shared by every version of the app.")
@@ -519,8 +521,8 @@ class SettingsPage:
         ttk.Button(row, text="Open folder", command=lambda: self.open_path(DATA_DIR), style="Quiet.TButton").pack(side="left", padx=8)
         ch = ttk.Button(row, text="Change…", command=self.data_dir_change, style="Quiet.TButton")   # 2.131.0: portable
         ch.pack(side="left")
-        Tooltip(ch, "Keep your data somewhere else (a USB stick, the app's own folder for a portable copy). It's "
-                    "copied there; the old folder is kept.")
+        Tooltip(ch, "Keep your data somewhere else like a USB stick or the app's own folder for a portable copy. It's "
+                    "copied there and the old folder is kept.")
         # 2.59.0: the game's log file. UI overhaul (owner): beside Data folder - both are where files live - and one line
         row = section("Advanced", "Game log", "The game's own log (Client.txt): the timer and the helpers read it.")
         self.set_anchors["game"] = row.master
@@ -616,9 +618,9 @@ class SettingsPage:
         w.transient(self.root)
         tk.Label(w, text="Mods the trade site didn't know", bg=P1, fg=C["accent"], font=("Segoe UI", 12, "bold"),
                  anchor="w").pack(fill="x")
-        tk.Label(w, text="Each one can't be searched for. Beside it: the closest trade-site wording (or the item it "
-                         "was on). From unmatched_mods.txt in your data folder. With Community data sharing on, "
-                         "the wording (numbers as #) is shared so they can be fixed.", bg=P1, fg=C["muted"],
+        tk.Label(w, text="Each one can't be searched for. Beside it: the closest trade-site wording, or the item it "
+                         "was on. From unmatched_mods.txt in your Data folder. With Community data sharing on, "
+                         "the wording is shared so they can be fixed. Numbers are shared as #.", bg=P1, fg=C["muted"],
                  font=("Segoe UI", 9), anchor="w", justify="left", wraplength=640).pack(fill="x", pady=(2, 8))
         f = tk.Frame(w, bg=P1)
         f.pack(fill="both", expand=True)
@@ -837,9 +839,9 @@ class SettingsPage:
         from .style import SegBar
         # 2.124.0 (feedback: the previews only showed the bar): the Layout first, then the Style - its preview
         # shows the layout picked (2.111.0: no Colors - each style keeps its own)
-        row = section("Layout", "The overlay's shape: Bar, Panel or Split. Bar: rests on the game's XP bar (unlocked, "
-                                "drag it; picking it again puts it back). Panel: a card like the game's vendor windows "
-                                "- place it anywhere. Split: two halves by the orbs - the middle stays clear.")
+        row = section("Layout", "The overlay's shape: Bar, Panel or Split. Bar rests on the game's XP bar. Unlocked, "
+                                "you can drag it, and picking it again puts it back. Panel is a card like the game's "
+                                "vendor windows, placed anywhere. Split is two halves by the orbs, with the middle clear.")
         names = list(LAYOUTS.values())
         self.ov_layout_var = tk.StringVar(value=LAYOUTS.get(self.merged_layout(), LAYOUTS["xpbar"]))
 
@@ -864,7 +866,7 @@ class SettingsPage:
         self.ov_style_pick.pack(anchor="w")
         # 2.56.1: ONE opacity for everything over the game (it was one slider each)
         row = section("Opacity", "How see-through the overlay is: 100% is solid, lower lets the game show through, text and "
-                                 "all (24% is the lowest). Over a busy spot, 95-100% reads best.")
+                                 "all. 24% is the lowest. Over a busy spot, 95-100% reads best.")
         v = tk.IntVar(value=self.ov_opacity_get("session"))
         self.ov_op_vars = {"all": v}
         ttk.Scale(row, from_=60, to=255, variable=v, orient="horizontal", length=260,

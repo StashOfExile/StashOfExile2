@@ -130,10 +130,10 @@ class LeaderboardPage:
         self.list_register("leaderboards", bv, multi=False)
         self.list_register("leaderboards", kv, multi=False)
         self.lb_tv = bv
-        tk.Label(right, text="Times are self-reported - they come from the game's log (Client.txt), like the overlay's "
-                             "session timer: a map's time is time inside it; a campaign act is its split (away time "
-                             "left out). The board refuses impossible times, and reports, reviewers and admins hide "
-                             "the rest. Your community name shows - never your account or character.",
+        tk.Label(right, text="Times are self-reported. They come from the game's log, Client.txt, like the Session timer. "
+                             "A map's time is time inside it. A campaign act's time is its split, without time away. "
+                             "The board refuses impossible times, and reports, reviewers and admins hide "
+                             "the rest. Your community name shows, never your account or character.",
                  bg=P1, fg=C["muted"], font=("Segoe UI", 9), anchor="w", justify="left", wraplength=760).pack(
             fill="x", pady=(8, 0))
         self.lb_rows = {}                                     # (filled when the page is opened: on_show)
@@ -264,7 +264,7 @@ class LeaderboardPage:
             self.lb_msg.config(text="The community board isn't set up yet - showing yours.", fg=C["muted"])
             return self._lb_keys_fill(None, classes)
         if not LB.sharing_on():
-            self.lb_msg.config(text="Everyone's times show once Community data sharing is on (Settings) - yours are "
+            self.lb_msg.config(text="Everyone's times show once Community data sharing is on in Settings. Yours are "
                                     "added then too.", fg=C["muted"])
         self.lb_msg.config(text="Loading…", fg=C["muted"]) if LB.sharing_on() else None
         self._lb_kgen = kgen = getattr(self, "_lb_kgen", 0) + 1     # (2.125.8: only the newest answer is drawn)
@@ -375,7 +375,7 @@ class LeaderboardPage:
             others = sum(1 for r in rows if not r.get("mine"))
             if rows and not others:                       # (say why it's only you - not a fault)
                 self.lb_msg.config(text="Only your time on this board so far. Other players' times show here once "
-                                        "they share theirs (Community data sharing).", fg=C["muted"])
+                                        "they share theirs through Community data sharing.", fg=C["muted"])
             top = self.lb_top_n()
             for place, (_name, runs) in enumerate(self.lb_groups(rows)[:top]):
                 for j, r in enumerate(runs):

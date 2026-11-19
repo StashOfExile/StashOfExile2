@@ -75,7 +75,7 @@ class LibraryPage:
 
         P2 = C["panel2"]
         tk.Label(right, text="Check an item", bg=P2, fg=C["text"], font=("Segoe UI", 12, "bold"), anchor="w").pack(fill="x")
-        tk.Label(right, text="Copy an item in game (Ctrl+C), click the box below and press Ctrl+V: it's read at once. "
+        tk.Label(right, text="Press Ctrl+C on an item in game, click the box below and press Ctrl+V. It's read at once. "
                              "Price it runs the same search as your price check key.",
                  bg=P2, fg=C["muted"], anchor="w", justify="left", wraplength=420, font=("Segoe UI", 9)).pack(fill="x", pady=(2, 8))
         btns = tk.Frame(right, bg=P2)

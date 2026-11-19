@@ -149,8 +149,8 @@ class Sidebar(tk.Canvas):
             mod = self.shell.modules.get(k)
             if k == "_update" and self.update_tag():
                 from .config import pretty_version
-                self.shell.app._say(f"Version {self.update_tag()} is out - you have {pretty_version()}. Click: see "
-                                    "what's new and update (it asks first).", 6)
+                self.shell.app._say(f"Version {self.update_tag()} is out - you have {pretty_version()}. Click to see "
+                                    "what's new and update. It asks first.", 6)
             self._rail_tip(k)
             if k == "_goto":
                 self.shell.app._say("Find any page, setting or helper (Ctrl+K).", 4)

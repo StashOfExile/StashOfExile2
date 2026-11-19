@@ -109,8 +109,8 @@ class FeedbackPage:
             if not self.upd_badge.winfo_ismapped():
                 self.upd_badge.pack(in_=self.shell.task_right, side="left", padx=4, before=self.bug_btn)
             from .style import Tooltip
-            Tooltip(self.upd_badge, f"Version {pretty_version(tag)} is out - you have {pretty_version()}. Click: see "
-                                    "what's new and update (it asks first).")
+            Tooltip(self.upd_badge, f"Version {pretty_version(tag)} is out - you have {pretty_version()}. Click to see "
+                                    "what's new and update. It asks first.")
         else:
             self.upd_latest = None
             self.upd_badge.pack_forget()

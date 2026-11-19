@@ -575,9 +575,9 @@ class PriceCheckPage:
         self.pc_where.pack(side="left")
         tip = tk.Label(row, text="ⓘ", bg=C["panel"], fg=C["muted"], font=("Segoe UI", 10), cursor="question_arrow")
         tip.pack(side="left", padx=(8, 0))
-        Tooltip(tip, "In the app: the Drawer (or your full window) opens on Price Checks and the game keeps the "
-                     "keyboard; Ctrl+Shift+Space or Esc puts it away. Price check overlay: a card over the game with "
-                     "the price; the app stays put and Price Checks has it next time. Every check is kept in Recent.")
+        Tooltip(tip, "In the app: the Drawer, or your Full window, opens on Price Checks and the game keeps the "
+                     "keyboard. Ctrl+Shift+Space or Esc puts it away. Price check overlay: a card over the game with "
+                     "the price. The app stays put and Price Checks has it next time. Every check is kept in Recent.")
         self.pc_where_note = tk.Label(row, text="", bg=C["panel"], fg=C["muted"], font=("Segoe UI", 9))
         self.pc_where_note.pack(side="left", padx=(8, 0))
         from . import gearicon                            # (UI overhaul: drawn - the ⚙ glyph looked like a flower)
@@ -827,7 +827,7 @@ class PriceCheckPage:
                                              cursor="hand2")
         clear.pack(side="right", padx=(8, 0))
         clear.bind("<Button-1>", lambda e: self.pc_clear())
-        Tooltip(clear, "Clears every check on Price Checks (Recent and History). Bulk Pricing and Favorites stay.")
+        Tooltip(clear, "Clears every check on Price Checks, in Recent and History. Bulk Pricing and Favorites stay.")
         flowify(f)
         self._pc_foot_show(self.pc_fewer_btn, False)
 
@@ -1414,8 +1414,8 @@ class PriceCheckPage:
             self.pcv.shown_rid = None                    # (no card: nothing to draw again for a new width)
             self._pc_card_sig_last = None
             tk.Label(self.pc_left, text=f"No item yet. Hover an item in game and press {pc_key_label()}: its price "
-                                        "and the trade site's cheapest listings show here.\n\n(Ctrl+Alt+C adds items "
-                                        "to Bulk Pricing.)", bg=P2, fg=C["muted"], font=("Segoe UI", 10),
+                                        "and the trade site's cheapest listings show here.\n\nCtrl+Alt+C adds items "
+                                        "to Bulk Pricing.", bg=P2, fg=C["muted"], font=("Segoe UI", 10),
                      justify="left", anchor="nw", wraplength=360).pack(fill="x", pady=(0, 12))
             ttk.Button(self.pc_left, text="Price check settings",
                        command=lambda: self.settings_open("Price checking", "pc_single")).pack(anchor="w")

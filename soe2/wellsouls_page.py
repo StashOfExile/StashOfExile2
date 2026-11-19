@@ -93,8 +93,8 @@ class WellSoulsPage:
             self.log_error("the Desecration Helper question")
             return None
         bg = P["bg"]
-        tk.Label(body, text="You're at The Well of Souls. Want each revealed option to show its tier (T1 = the best "
-                            "for that item type)?", bg=bg, fg=P["text"], font=(P["font"], self.ov_font(10)),
+        tk.Label(body, text="You're at The Well of Souls. Want each revealed option to show its tier? T1 is the best "
+                            "for that item type.", bg=bg, fg=P["text"], font=(P["font"], self.ov_font(10)),
                  justify="left", anchor="w", wraplength=self.ov_px(420)).pack(fill="x")
         tk.Label(body, text=f"It reads your screen once each time you press {self.look_key_text()}, only while you're "
                             f"here. Change it any time: Overlay › Helpers.", bg=bg, fg=P["muted"], font=(P["font"], self.ov_font(9)),

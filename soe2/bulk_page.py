@@ -233,7 +233,7 @@ class BulkPage:
         self.clear_btn = ttk.Button(foot, text="✕ Clear filters", command=self.cat_reset, state="disabled",
                                     style="Quiet.TButton")
         self.clear_btn.pack(side="left")
-        Tooltip(self.clear_btn, "Shows every item again (the search box too)")
+        Tooltip(self.clear_btn, "Clears the search box and shows every item again")
         done = tk.Label(foot, text="Done", bg=P2, fg=C["muted"], font=("Segoe UI", 9), cursor="hand2")
         done.pack(side="right")
         done.bind("<Button-1>", lambda e: self.bk_filters_toggle(False))
@@ -290,7 +290,7 @@ class BulkPage:
             for key, name in (("columns", "Down columns"), ("rows", "Across rows")):
                 sub.add_radiobutton(label=name, value=key, variable=self._order_var,
                                     command=lambda k=key: self.stash_order_set(k))
-            m.add_cascade(label="List order (as the tab holds them)", menu=sub)
+            m.add_cascade(label="List order", menu=sub)
         m.add_separator()
         m.add_command(label="Export CSV…", command=self.export)
         b = self.cols_btn
@@ -316,7 +316,7 @@ class BulkPage:
         self.undo_btn = ttk.Button(lcol, text="↺ Undo", command=self.undo_mark, state="disabled", style="Strip.TButton")
         Tooltip(self.undo_btn, "Bring back what you last deleted (Ctrl+Z)")
         Tooltip(self.delete_btn, "Delete the picked items from the list (Del)")
-        Tooltip(self.clear_all_btn, "Remove every item from this list (asks first)")
+        Tooltip(self.clear_all_btn, "Remove every item from this list. It asks first.")
         for b in (self.undo_btn, self.delete_btn, self.clear_all_btn):
             self.list_head.add_right(b)
         self.undo = []                                   # [(record id, previous mark, previous listed-at)] of the last mark
