@@ -81,15 +81,30 @@ def scale_for(app, v):
 
 
 def cur_icon(app, cur, k=1.0):
-    """The currency's picture (the app's own Currency Exchange pictures, shipped - no download), or None."""
+    """The currency's picture: poe.ninja's clean icon from the art cache Exchange Rates fills (the same downloads and
+    rules as there; 3.0.6, owner: the shipped crops looked rough), else the shipped Currency Exchange crop. Or None."""
     from .pricecheck_page import cur_label
-    from .rates_view import LocalIcons
+    from .rates_view import Icons, LocalIcons, picture_paths, url_for
     size = max(14, int(round(CUR_PX * k)))
     box = app.__dict__.setdefault("_lc_cur_icons", {})
     if size not in box:
-        box[size] = LocalIcons(app.root, size=size)
+        def ready():                                  # new pictures arrived: the listings draw again (once)
+            for v in (getattr(app, "pcv", None), getattr(app, "favv", None)):     # (Bulk: its next draw)
+                fn = getattr(v, "redraw", None)
+                if fn:
+                    try:
+                        fn()
+                    except Exception:
+                        pass
+        box[size] = (Icons(app.root, ready, size=size), LocalIcons(app.root, size=size), {"paths": None, "at": 0.0})
+    icons, local, st = box[size]
     try:
-        return box[size].get(cur_label(cur))
+        import time as _t
+        if st["paths"] is None or _t.time() - st["at"] > 60:
+            st["paths"], st["at"] = picture_paths(), _t.time()
+        name = cur_label(cur)
+        url = url_for(cur, st["paths"]) or url_for(name, st["paths"])
+        return (icons.get(url) if url else None) or local.get(name)
     except Exception:
         return None
 
