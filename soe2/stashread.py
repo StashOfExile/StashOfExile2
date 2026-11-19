@@ -181,6 +181,19 @@ def filled(bgr, rect):
     return float(navy.mean()) >= FILLED_SHARE
 
 
+INK_MIN = 40            # 3.0.6: white pixels in a slot's number corner at 1440p - real stacks 46+, empty slots 0-34
+
+
+def number_ink(bgr, rect):
+    """How many white (number) pixels a slot's top-left corner holds - an empty slot's faint picture has none."""
+    _cv2, np = _np()
+    x, y, w, h = rect
+    c = bgr[max(0, y):y + int(h * 0.38), max(0, x):x + int(w * 0.62)].astype(np.int16)
+    if not c.size:
+        return 0
+    return int(((c.min(2) > 175) & ((c.max(2) - c.min(2)) < 45)).sum())
+
+
 def read_number(bgr, rect, k, sure=0.0):
     """The stack number in a slot's top-left corner -> int or None. sure: the run must score at least this (2.114.2:
     for a slot whose backing doesn't show)."""
@@ -300,8 +313,11 @@ def read_tab(bgr, game_h, want):
         n = read_number(bgr, r, dk)
         if n:
             items.append((name, n))
-        else:
+        elif number_ink(bgr, r) >= INK_MIN * k * k:
             unread.append(name)
+        else:
+            continue                                 # 3.0.6: no number drawn at all - an empty slot's faint picture
+            #                                          (Delirium, Breach, Essence tabs), not a stack to type in
         icons[name] = _icon(bgr, r)
     # 2.114.3 (feedback: the 1193 divs in the wildcard slot were not counted): a wildcard slot holds anything -
     # what it holds is told by its picture, matched with the tab's own fixed slots in the same shot (Divine Orb's

@@ -144,3 +144,16 @@ class IslandRumours(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class StashEmptySlots(unittest.TestCase):
+    """3.0.6: empty stash slots (a faint picture, no number) were listed as red '?' rows."""
+
+    def test_no_ink_is_empty(self):
+        import numpy as np
+        from soe2 import stashread as SR
+        img = np.zeros((80, 80, 3), np.uint8)
+        img[10:70, 10:70] = (90, 40, 20)                     # a faint picture
+        self.assertLess(SR.number_ink(img, (5, 5, 70, 70)), SR.INK_MIN)
+        img[8:22, 10:16] = 255                               # a white digit
+        self.assertGreaterEqual(SR.number_ink(img, (5, 5, 70, 70)), SR.INK_MIN)
