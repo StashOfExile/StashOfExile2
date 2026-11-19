@@ -4904,7 +4904,16 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
     # ---------------- the card
     def _detail_card(self, d, rec, it, wrap):
         """The item as a card: name band, price, then every filter - each with its check box and
-        Min / Max where it has a number. A click / Enter prices it again."""
+        Min / Max where it has a number. A click / Enter prices it again. Price Checks (owner pick, mockup C) has its
+        own look and order: the name, what it is, its flags as chips; Base and Properties, Mods · n of m searched,
+        Augments, Item Flags, Requirements (folded), Trade filters. Favorites and Bulk Pricing keep theirs."""
+        self._card_order = {}
+        try:
+            return self._detail_card_draw(d, rec, it, wrap)
+        finally:
+            self._card_order = {}
+
+    def _detail_card_draw(self, d, rec, it, wrap):
         from . import themes as _th
         from .searchopts_page import item_facts
         P2 = C["panel2"]
@@ -4936,7 +4945,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         else:
             big = "Pricing…" if st == "pricing" else "Waiting in line…"
         cv = tk.Canvas(d, width=w, height=200, bg=P2, highlightthickness=0, bd=0)
-        cv._look = "drawer" if getattr(self, "_pc_dl", False) and getattr(self, "_card_no_price", False) else ""
+        cv._look = "drawer" if getattr(self, "_card_no_price", False) else ""     # (Price Checks: its own look)
         dl = _cl(cv)
         cv.pack(fill="x")
         fmod = ("Segoe UI", 10)
@@ -4948,8 +4957,8 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
             bg = _card_bg(cv)
             cv.create_rectangle(0, 0, w - 1, 199, fill=bg, outline=bg if dl else
                                 t.c(t.part("card", "border", default="border_light")), tags=("cardframe",))
-            if dl:                                             # the Drawer (mockups.html): the name, then its
-                y = self._card_head_drawer(cv, it, rar, col, w)  # rarity as a chip and the base in one line
+            if dl:                                             # Price Checks: the name, what it is in one line,
+                y = self._card_head_drawer(cv, rec, it, rar, col, w)    # then its flags as chips
             else:
                 name_c = _th.card_header(cv, 4, 4, w - 5, 54, col, bg)
                 cv.create_text(w // 2, 20, text=it["name"], fill=name_c, font=(_th.head_font(), 12, "bold"),
@@ -4958,15 +4967,15 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
                     cv.create_text(w // 2, 40, text=it["base"], fill=_th.mix(name_c, C["text"], .45),
                                    font=("Segoe UI", 10))
                 y = 62
-            from .pricecheck_page import flag_text, own_flags
-            flags = own_flags(rec)
-            if flags:                                          # Round 18: the item's flags under its name (a mark +
-                cv.create_text(0 if dl else w // 2, y, text=flag_text(flags), anchor="nw" if dl else "n",   # a word)
-                               font=("Segoe UI", 9, "bold"), fill=C["red"] if "corrupted" in flags else C["text"],
-                               width=w - 24, tags=("cardflags",))
-                y += 20
-            if getattr(self, "_card_no_price", False):          # 2.123.0 (p4): Price Checks' strip says the price
-                y += 18
+                from .pricecheck_page import flag_text, own_flags
+                flags = own_flags(rec)
+                if flags:                                      # Round 18: the item's flags under its name (a mark +
+                    cv.create_text(w // 2, y, text=flag_text(flags), anchor="n",                     # a word)
+                                   font=("Segoe UI", 9, "bold"), fill=C["red"] if "corrupted" in flags else C["text"],
+                                   width=w - 24, tags=("cardflags",))
+                    y += 20
+            if getattr(self, "_card_no_price", False):          # 2.123.0 (p4): Price Checks' price card says it
+                y += 0 if dl else 18
             else:
                 good = st == "done" and big not in ("No match", "Check by hand")
                 cv.create_text(16, y + 14, text=big, anchor="w", font=("Segoe UI", 16, "bold"),
@@ -4981,25 +4990,28 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
             if "req" not in fold and SETTINGS.get("card_req"):
                 fold["req"] = False                            # (Requirements was opened before 2.97.2)
             self.card_sections = {}
-            # fold all / unfold all
+            # fold all / unfold all (Price Checks: a plain muted link, top right)
             keys_all = ("props", "req", "misc", "aug", "stats", "pseudo", "trade")
             all_open = any(not fold.get(k, k == "req") for k in keys_all)    # (any open: "Fold all")
-            cv.create_text(w - 16, y - 2, text="Fold all ▴" if all_open else "Unfold all ▾", anchor="e",
-                                font=("Segoe UI", 9), fill=C["accent"], tags=("cardfoldall",))
+            cv.create_text(w - 4 if dl else w - 16, 2 if dl else y - 2, text="Fold all ▴" if all_open else
+                           "Unfold all ▾", anchor="ne" if dl else "e", font=("Segoe UI", 9),
+                           fill=C["muted"] if dl else C["accent"], tags=("cardfoldall",))
             self._card_click(cv, "cardfoldall", lambda: self.card_fold_all(rec, all_open))
 
             def section(title, key, count=None, boxes=False, summary=""):
                 """▾ TITLE (n) ─── MIN MAX: a click folds / unfolds it. -> open?"""
                 nonlocal y
                 shut = bool(fold.get(key, key == "req"))
-                y += 4
-                lab = ("▸ " if shut else "▾ ") + title + (f"  ({count})" if count else "")
+                y += 12 if dl else 4
+                lab = ("▸ " if shut else "▾ ") + title + ((f" · {count} searched" if dl else f"  ({count})") if count
+                                                          else "")
                 if shut and summary:
                     lab += "   " + summary
                 tag = f"cardsec_{key}"
                 tid = cv.create_text(12 if not dl else 0, y, text=lab, anchor="nw",
-                                     font=("Segoe UI", 9, "bold"),
-                                     fill=C["text"] if not shut else C["muted"], tags=(tag, "cardsec"))
+                                     font=("Segoe UI", 9, "bold"), fill=C["text"] if not shut else C["muted"],
+                                     tags=(tag, "cardsec"), **({"width": w - (2 * CARD_BOX + 48 if boxes and not shut
+                                                                                else 8)} if dl else {}))
                 bb = cv.bbox(tid)
                 x_end = w - 12
                 if boxes and not shut:
@@ -5008,48 +5020,91 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
                                    font=("Segoe UI", 9, "bold"), fill=C["muted"])
                     cv.create_text(w - 12 - 18 - CARD_BOX // 2, y, text="MAX", anchor="n",
                                    font=("Segoe UI", 9, "bold"), fill=C["muted"])
-                if bb and bb[2] + 8 < x_end:
+                if bb and bb[2] + 8 < x_end and not dl:          # (Price Checks: no rule - the heads are enough)
                     cv.create_line(bb[2] + 8, y + 8, x_end, y + 8, fill=sep)
                 self._card_click(cv, tag, lambda k=key, s=shut: self.card_fold(rec, k, not s))
                 self.card_sections[key] = not shut
-                y += 20
+                y = max(y + 20, (bb[3] + 4) if bb else 0) if dl else y + 20
                 return not shut
-            # ---- properties
-            if section("PROPERTIES", "props", boxes=True):
+
+            # ---- properties (Price Checks: Base and Properties - base, item level, quality, sockets, defences)
+            def props_section():
+                nonlocal y
+                if not section("BASE AND PROPERTIES" if dl else "PROPERTIES", "props", boxes=True):
+                    return
                 s = it.get("search") or {}
                 if it.get("gear") and not it.get("waystone") and s.get("rarity") != "unique":
                     y = self._card_base_row(cv, rec, it, y, w)
+
+                def ilvl_row():
+                    nonlocal y
+                    if it.get("ilvl"):
+                        y = self._card_opt_row(cv, rec, "ilvl", f"Item level: {it['ilvl']}", it["ilvl"], y, w)
+
+                def sockets_row():
+                    nonlocal y
+                    if it.get("sockets"):
+                        from .pcpop import socket_words
+                        y = self._card_opt_row(cv, rec, "sockets", f"Sockets: {it['sockets']}" + socket_words(it),
+                                               it["sockets"], y, w)
+
+                def way_rows():
+                    nonlocal y
+                    if it.get("waystone") and it.get("tier"):     # 2.103.2 (feedback): the tier can be widened
+                        y = self._card_opt_row(cv, rec, "tier", "Waystone tier:", it["tier"], y, w)
+                    if it.get("waystone") and it.get("area_level"):   # searched by its tier; owner decision C: the
+                        y = self._card_opt_row(cv, rec, "area_level", f"Area level: {it['area_level']}",   # area
+                                               it["area_level"], y, w)                                # level if ticked
+                        TagTip(cv, "cardopt_area_level", "Ticked: only waystones of this area level (Min / Max). "
+                                                         "Unticked: searched by its tier only.")
+                if dl:
+                    way_rows()
+                    ilvl_row()
                 if it.get("quality"):
                     y = self._card_opt_row(cv, rec, "quality", f"Quality: +{it['quality']}%", it["quality"], y, w)
+                if dl:
+                    sockets_row()
                 for m in totals:
                     y = self._card_mod_row(cv, rec, m, y, w, fmod, C["good"], card_text(m))
-                if it.get("waystone") and it.get("tier"):     # 2.103.2 (feedback): the tier can be widened
-                    y = self._card_opt_row(cv, rec, "tier", "Waystone tier:", it["tier"], y, w)
-                if it.get("waystone") and it.get("area_level"):   # searched by its tier; owner decision C: the
-                    y = self._card_opt_row(cv, rec, "area_level", f"Area level: {it['area_level']}",   # area level
-                                           it["area_level"], y, w)                                     # if ticked
-                    TagTip(cv, "cardopt_area_level", "Ticked: only waystones of this area level (Min / Max). "
-                                                     "Unticked: searched by its tier only.")
-                if it.get("ilvl"):
-                    y = self._card_opt_row(cv, rec, "ilvl", f"Item level: {it['ilvl']}", it["ilvl"], y, w)
-                if it.get("sockets"):
-                    from .pcpop import socket_words
-                    y = self._card_opt_row(cv, rec, "sockets", f"Sockets: {it['sockets']}" + socket_words(it),
-                                           it["sockets"], y, w)
+                if not dl:
+                    way_rows()
+                    ilvl_row()
+                    sockets_row()
+
             # ---- requirements (folded at first)
-            req = facts.get("req") or {}
-            if req and section("REQUIREMENTS", "req", summary="  ·  ".join(f"{REQ_NAMES[k]} {v}" for k, v in req.items())):
-                for k, v in req.items():
-                    y = self._card_opt_row(cv, rec, "req_" + k, f"{REQ_NAMES[k]}: {v}", v, y, w)
-            # ---- miscellaneous: Any / Yes / No - the item's own flags first, at Yes (Round 18: the only place)
-            from .searchopts_page import default_opts as _dopts
-            _cur = {**_dopts(it), **(rec.get("opts") or {})}
-            grid = self._card_misc_keys(it)
-            nset = sum(1 for key, _l in grid if _cur.get(key) not in (None, "any", "", "Any"))
-            if grid and section("MISCELLANEOUS", "misc", count=nset):
+            def req_section():
+                nonlocal y
+                req = facts.get("req") or {}
+                if req and section("REQUIREMENTS", "req",
+                                   summary="  ·  ".join(f"{REQ_NAMES[k]} {v}" for k, v in req.items())):
+                    for k, v in req.items():
+                        y = self._card_opt_row(cv, rec, "req_" + k, f"{REQ_NAMES[k]}: {v}", v, y, w)
+
+            # ---- miscellaneous (Price Checks: Item Flags): Any / Yes / No - the item's own flags first, at Yes
+            def misc_section():
+                nonlocal y
+                from .searchopts_page import default_opts as _dopts
+                _cur = {**_dopts(it), **(rec.get("opts") or {})}
+                grid = self._card_misc_keys(it)
+                nset = sum(1 for key, _l in grid if _cur.get(key) not in (None, "any", "", "Any"))
+                if not grid:
+                    return
+                if dl:
+                    if not section("ITEM FLAGS" + (f" · {nset} set" if nset else ""), "misc"):
+                        return
+                elif not section("MISCELLANEOUS", "misc", count=nset):
+                    return
                 import tkinter.font as _tkf
                 f9 = _tkf.Font(family="Segoe UI", size=9)
                 lw = max(f9.measure(label) for _k, label in grid) + 10
+                if dl:                                        # two columns of label + value ▾ (one when narrow)
+                    cols = 2 if w >= 2 * (lw + 64) else 1
+                    col_w = (w + 8) // cols
+                    for i, (key, label) in enumerate(grid):
+                        self._card_tri(cv, rec, key, label, (i % cols) * col_w, y + (i // cols) * 30, facts, lw,
+                                       cell=col_w - 8)
+                    y += 30 * ((len(grid) + cols - 1) // cols)
+                    return
                 cols = 2 if 2 * (lw + 52) <= w - 24 else 1
                 col_w = (w - 24) // cols
                 for i, (key, label) in enumerate(grid):
@@ -5061,34 +5116,52 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
                 return sum(1 for m in ms if mod_impact(rec, m) != "ignore")
             # ---- each mod: its color says where it comes from (2.97.2)
             aug = [m for m in own if m.get("kind") == "Rune"]
-            if aug and section("AUGMENTS", "aug", count=ticked(aug),
-                               boxes=any(self._card_has_vals(rec, m) for m in aug)):   # 2.97.1: runes on their own
-                for m in aug:
-                    y = self._card_mod_row(cv, rec, m, y, w, fmod, MOD_COL["rune"], card_text(m))
             own = [m for m in own if m not in aug]
+            first = [m for m in own if m.get("kind") in ("Implicit", "Enchant")]
+            stats_seq = first + [m for m in own if m not in first]
+
+            def aug_section():
+                nonlocal y
+                if aug and section("AUGMENTS", "aug", count=ticked(aug),
+                                   boxes=any(self._card_has_vals(rec, m) for m in aug)):   # 2.97.1: runes on their own
+                    for m in aug:
+                        y = self._card_mod_row(cv, rec, m, y, w, fmod, MOD_COL["rune"], card_text(m))
 
             def pseudo_section():
                 nonlocal y
                 if pseudo and section("PSEUDO FILTERS", "pseudo", count=ticked(pseudo), boxes=True):
                     for m in pseudo:
                         y = self._card_mod_row(cv, rec, m, y, w, fmod, MOD_COL["pseudo"], card_text(m))
-            # Round 18: a waystone's own numbers (Item Rarity, Pack Size ...) first, as the card over the game has them
-            top_pseudo = bool(it.get("waystone") or it.get("class") == "Tablet")
-            if top_pseudo:
-                pseudo_section()
-            if own and section("STAT FILTERS", "stats", count=ticked(own),
-                               boxes=any(self._card_has_vals(rec, m) for m in own)):
-                first = [m for m in own if m.get("kind") in ("Implicit", "Enchant")]
-                for m in first + [m for m in own if m not in first]:
-                    y = self._card_mod_row(cv, rec, m, y, w, fmod, imp_c if m in first else mod_c, card_text(m))
-            if not top_pseudo:
-                pseudo_section()
+
+            def mods_head():
+                """MODS · 6 of 7 searched (the count follows the ticks, in place: _card_row_paint)."""
+                n = sum(1 for m in own if mod_impact(rec, m) != "ignore" and (m.get("sid") or not rec.get("resolved")))
+                return f"MODS · {n} of {len(own)} searched"
+
+            def stats_section():
+                nonlocal y
+                if not own:
+                    return
+                if dl:
+                    cv._stats_head = mods_head
+                    is_open = section(mods_head(), "stats", boxes=any(self._card_has_vals(rec, m) for m in own))
+                else:
+                    is_open = section("STAT FILTERS", "stats", count=ticked(own),
+                                      boxes=any(self._card_has_vals(rec, m) for m in own))
+                if is_open:
+                    for m in stats_seq:
+                        y = self._card_mod_row(cv, rec, m, y, w, fmod, imp_c if m in first else mod_c, card_text(m))
+
             # ---- trade filters
-            if section("TRADE FILTERS", "trade"):
+            def trade_section():
+                nonlocal y
+                if not section("TRADE FILTERS", "trade"):
+                    return
                 from .searchopts_page import default_opts
                 cur = {**default_opts(it), **(rec.get("opts") or {})}
                 for key, label, choices in (("status", "Seller", STATUS_CHOICES), ("currency", "Priced in", CURRENCY_CHOICES)):
-                    cv.create_text(16, y + 13, text=label, anchor="w", font=("Segoe UI", 9), fill=C["muted"])
+                    cv.create_text(0 if dl else 16, y + 13, text=label, anchor="w", font=("Segoe UI", 9),
+                                   fill=C["muted"])
                     names = [n for n, _v in choices]
                     var = tk.StringVar(value=next((n for n, v in choices if v == cur.get(key)), names[0]))
                     cb = ttk.Combobox(cv, textvariable=var, values=names, state="readonly")
@@ -5115,6 +5188,34 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
                     TagTip(cv, f"cardopt_{key}", f"Ticked: only listings with this {label.lower()} - "
                            + ("at most yours (Max)" if key == "reload" else "yours or more (Min)")
                            + ", as the trade site counts it. Unticked: any.")
+            # Round 18: a waystone's own numbers (Item Rarity, Pack Size ...) first, as the card over the game has them
+            top_pseudo = bool(it.get("waystone") or it.get("class") == "Tablet")
+            if dl:
+                # (the rows keep the numbers - the order of the ticked mods - they had before this look: the search's
+                # own picks, e.g. Broaden Search's "the last on the card on a tie", don't depend on where they're drawn)
+                old_seq = totals + aug + (pseudo + stats_seq if top_pseudo else stats_seq + pseudo)
+                self._card_order = {id(m): i for i, m in enumerate(old_seq)}
+                props_section()
+                if top_pseudo:
+                    pseudo_section()
+                stats_section()
+                aug_section()
+                if not top_pseudo:
+                    pseudo_section()
+                misc_section()
+                req_section()
+                trade_section()
+            else:
+                props_section()
+                req_section()
+                misc_section()
+                aug_section()
+                if top_pseudo:
+                    pseudo_section()
+                stats_section()
+                if not top_pseudo:
+                    pseudo_section()
+                trade_section()
             h2 = y + 8
             cv.configure(height=h2)
             cv.coords("cardframe", 0, 0, w - 1, h2 - 1)
@@ -5181,30 +5282,49 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
             except tk.TclError:
                 pass
 
-    def _card_head_drawer(self, cv, it, rar, col, w):
-        """The Drawer's card head (mockups.html): the name; under it the rarity as a chip (a mark and a word) and the
-        base, item level and quality in one muted line. -> the y under it."""
+    def _card_head_drawer(self, cv, rec, it, rar, col, w):
+        """Price Checks' card head (owner pick, mockup C): the name in its rarity color; under it what it is in one
+        muted line ("Rare Sirenscale Gloves · item level 82 · quality 30%"); then its flags as chips, each a mark and
+        a word (◆ Fractured, ✚ Desecrated, ✎ Crafted). -> the y under it."""
         from . import themes as _th
-        tid = cv.create_text(0, 0, text=it.get("name") or it.get("base") or "Item", anchor="nw", fill=col,
-                             font=(_th.head_font(), 13, "bold"), width=w - 8)   # (Round 18: its rarity color)
+        from .pricecheck_page import FLAG_MARKS, own_flags
+        name = it.get("name") or it.get("base") or "Item"
+        tid = cv.create_text(0, 0, text=name, anchor="nw", fill=col, font=(_th.head_font(), 13, "bold"),
+                             width=max(120, w - 96))                    # (room for Fold all, top right)
         bb = cv.bbox(tid) or (0, 0, 0, 20)
-        y = bb[3] + 6
-        x = 0
-        if rar:
-            chip = cv.create_text(x + 10, y + 2, text=f"\u25c6 {rar.title()}", anchor="nw", fill=C["text"],
-                                  font=("Segoe UI", 9))
-            cb = cv.bbox(chip) or (x + 10, y, x + 60, y + 16)
-            _th.round_rect(cv, x, cb[1] - 3, cb[2] + 10, cb[3] + 3, 9, fill=C["panel2"], outline=C["line"])
+        y = bb[3] + 4
+        what = " ".join(x for x in (rar.title() if rar else "", it.get("base") if it.get("base") and
+                                    it.get("base") != name else it.get("class") or "") if x)
+        bits = [what, f"item level {it['ilvl']}" if it.get("ilvl") else "",
+                f"quality {it['quality']}%" if it.get("quality") else ""]
+        sid = cv.create_text(0, y, text=" \u00b7 ".join(b for b in bits if b), anchor="nw", fill=C["muted"],
+                             font=("Segoe UI", 9), width=max(80, w - 8), tags=("cardwhat",))
+        y = (cv.bbox(sid) or (0, y, 0, y + 14))[3] + 8
+        flags = own_flags(rec)
+        kc = {"fractured": MOD_COL["fractured"], "desecrated": MOD_COL["desecrated"], "crafted": MOD_COL["enchant"],
+              "corrupted": C["red"], "twice_corrupted": C["red"]}
+        x, row_h = 0, 0
+        for key, mark, word in FLAG_MARKS:
+            if key not in flags:
+                continue
+            fc = kc.get(key, C["text"])                  # (the mark and the edge in the flag's color, the word in
+            chip = cv.create_text(x + 8, y + 3, text=f"{mark} {word}", anchor="nw", fill=C["text"],   # the text's)
+                                  font=("Segoe UI", 9), tags=("cardflags",))
+            cb = cv.bbox(chip) or (x + 8, y, x + 70, y + 16)
+            if cb[2] + 8 > w and x > 0:                  # (no room on this line: the next one)
+                y += row_h + 4
+                x = 0
+                cv.coords(chip, x + 8, y + 3)
+                cb = cv.bbox(chip) or cb
+            _th.round_rect(cv, x, cb[1] - 3, cb[2] + 8, cb[3] + 3, 9, fill=_card_bg(cv), outline=fc,
+                           tags=("cardflags",))
             cv.tag_raise(chip)
-            if rar in ("rare", "magic", "unique"):              # (the mark in the game's rarity color, the word says it)
-                cv.create_text(x + 10, y + 2, text="\u25c6", anchor="nw", fill=col, font=("Segoe UI", 9))
-            x = cb[2] + 18
-        bits = [it.get("class") or "", it.get("base") if it.get("base") and it.get("base") != it.get("name") else "",
-                f"item level {it['ilvl']}" if it.get("ilvl") else "", f"{it['quality']}% quality" if it.get("quality")
-                else ""]
-        cv.create_text(x, y + 2, text=" \u00b7 ".join(b for b in bits if b), anchor="nw", fill=C["muted"],
-                       font=("Segoe UI", 9), width=max(80, w - x - 8))
-        return y + 34
+            cv.create_text(cb[0], cb[1], text=mark, anchor="nw", fill=fc, font=("Segoe UI", 9), tags=("cardflags",))
+            row_h = max(row_h, cb[3] + 3 - (cb[1] - 3))
+            x = cb[2] + 16
+        if row_h:
+            y += row_h + 4
+        return y
 
     def _card_click(self, cv, tag, fn):
         cv.tag_bind(tag, "<Button-1>", lambda e: fn())
@@ -5336,17 +5456,29 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         self.card_changed(rec)
         return n
 
-    def _card_tri(self, cv, rec, key, label, x, y, facts, lw=92):
-        """Corrupted: Any / Yes / No - a click steps through them (this item's search only). lw: the labels' width."""
+    def _card_tri(self, cv, rec, key, label, x, y, facts, lw=92, cell=None):
+        """Corrupted: Any / Yes / No - a click steps through them (this item's search only). lw: the labels' width.
+        cell: Price Checks' look - a box that wide, the label on its left and the value ▾ on its right."""
         from .searchopts_page import default_opts
         cur = {**default_opts(rec["item"]), **(rec.get("opts") or {})}.get(key) or "any"
         has = facts.get("flags", set())
         tag = f"cardtri_{key}"
-        cv.create_text(x, y, text=label, anchor="nw", font=("Segoe UI", 9),
-                       fill=C["text"] if key in has else C["muted"], tags=(tag,))
-        lit = C["accent"]                                     # (the word says it too - Yes / No / Any)
-        val = cv.create_text(x + lw, y, text=f"{cur.title()} ▾", anchor="nw", font=("Segoe UI", 9, "bold"),
-                             fill=lit if cur != "any" else C["text"], tags=(tag,))
+        if cell:
+            from . import themes as _th
+            _th.round_rect(cv, x, y, x + cell, y + 24, 4, fill=C["panel"], outline=C["line"], tags=(tag,))
+            cv.create_text(x + 8, y + 12, text=label, anchor="w", font=("Segoe UI", 9),
+                           fill=C["text"] if key in has else C["muted"], tags=(tag,), width=max(40, cell - 64))
+            lit = C["text"]                                   # (the word says it - Yes / No / Any - never orange)
+            val = cv.create_text(x + cell - 8, y + 12, text=f"{cur.title()} ▾", anchor="e",
+                                 font=("Segoe UI", 9, "bold"), fill=lit if cur != "any" else C["muted"], tags=(tag,))
+            off = C["muted"]
+        else:
+            cv.create_text(x, y, text=label, anchor="nw", font=("Segoe UI", 9),
+                           fill=C["text"] if key in has else C["muted"], tags=(tag,))
+            lit = C["accent"]                                 # (the word says it too - Yes / No / Any)
+            val = cv.create_text(x + lw, y, text=f"{cur.title()} ▾", anchor="nw", font=("Segoe UI", 9, "bold"),
+                                 fill=lit if cur != "any" else C["text"], tags=(tag,))
+            off = C["text"]
         st = {"cur": cur}
 
         def click():
@@ -5355,8 +5487,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
             self.card_tris[key] = nxt
             if self._card_mark(rec):                  # 2.104.1: painted in place
                 try:
-                    cv.itemconfigure(val, text=f"{nxt.title()} ▾", fill=lit if nxt != "any" else
-                                     C["text"])
+                    cv.itemconfigure(val, text=f"{nxt.title()} ▾", fill=lit if nxt != "any" else off)
                     self._card_misc_count(cv, rec)
                 except tk.TclError:
                     pass
@@ -5365,11 +5496,13 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         self.card_tris[key] = cur
 
     def _card_misc_count(self, cv, rec):
-        """MISCELLANEOUS  (n) - the count follows the picks, in place."""
+        """MISCELLANEOUS  (n) (Price Checks: ITEM FLAGS · n set) - the count follows the picks, in place."""
         from .searchopts_page import default_opts, item_facts
         cur = {**default_opts(rec["item"]), **(rec.get("opts") or {})}
         grid = self._card_misc_keys(rec["item"])
         n = sum(1 for key, _l in grid if cur.get(key) not in (None, "any", "", "Any"))
+        if _cl(cv):                                   # (Price Checks: ITEM FLAGS · 2 set)
+            return cv.itemconfigure("cardsec_misc", text="▾ ITEM FLAGS" + (f" · {n} set" if n else ""))
         cv.itemconfigure("cardsec_misc", text="▾ MISCELLANEOUS" + (f"  ({n})" if n else ""))
 
     # ---------------- ▸ Advanced (2.79.0): everything that isn't a filter
@@ -5418,7 +5551,8 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
 
     def _card_mod_row(self, cv, rec, m, y, w, font, colr, text):
         """2.74.4: one mod on the item card: [✓] tier  text. -> the next row's y."""
-        idx = len(self.card_rows)
+        order = getattr(self, "_card_order", None) or {}         # (Price Checks: the number it had before its look)
+        idx = order.get(id(m), 1000 + len(self.card_rows)) if order else len(self.card_rows)
         tag = f"cardrow{idx}"
         on = mod_impact(rec, m) != "ignore"
         can = bool(m.get("sid")) or not rec.get("resolved")
@@ -5434,7 +5568,10 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         hit = cv.create_rectangle(4, y - 2, w - 4, y + 18, outline="", fill=_card_bg(cv), tags=(tag,))   # the row's click area
         tier = f"{(m.get('kind') or ' ')[0]}{m['tier']}" if m.get("tier") else ""
         if tier:
-            cv.create_text(tx, y + 1, text=tier, anchor="nw", font=("Segoe UI", 8), fill=C["muted"], tags=(tag,))
+            cv.create_text(tx, y + 1, text=tier, anchor="nw", font=("Segoe UI", 8), fill=C["muted"],
+                           tags=(tag, f"cardtier{idx}"))
+            if dl:                                           # (one hover: what P1 / S3 means)
+                TagTip(cv, f"cardtier{idx}", f"{m.get('kind') or 'Mod'}, tier {m['tier']} (1 is the best roll)")
             tx += 22
         right = (2 * CARD_BOX + 16 if self._card_has_vals(rec, m) else 0) + 20     # 2.78.3: Min / Max; 2.79.0: ★
         from .ratemods import key_for
@@ -5480,7 +5617,8 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
                 cv.create_line(bx0 + 1, y1 + 4, bx0 + 3, y1 + 7, bx0 + 7, y1 + 1, fill="#120a04", width=2,
                                tags=(otag, otag + "_c"))
             self.card_paint[idx].update(obx=bx0, oby=y1, ofc=fc)
-            ox = cv.create_text(bx0 + ob + 4, y1 - 2, text=f"{src} only", anchor="nw", font=("Segoe UI", 8), fill=fc,
+            word = f"{src.title() if dl else src} only"
+            ox = cv.create_text(bx0 + ob + 4, y1 - 2, text=word, anchor="nw", font=("Segoe UI", 8), fill=fc,
                                 tags=(otag,))
             self._card_tick_box(cv, rec, otag, lambda mm=m: bool((rec.get("only") or {}).get(norm(mm["text"]))),
                                 lambda on, mm=m: self.card_only_click(rec, mm)
@@ -5506,6 +5644,8 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
                                   tags=(f"cardstar{idx}",))
             cv.tag_bind(star, "<Button-1>", lambda e, mm=m: self.card_set(      # 2.103.3: painted in place
                 rec, mm, "normal" if mod_impact(rec, mm) == "high" else "high"))
+            if dl:
+                TagTip(cv, f"cardstar{idx}", "★ Must match: only listings with this mod. A click turns it on or off.")
         if can:
             self._card_tick_box(cv, rec, tag, lambda mm=m: mod_impact(rec, mm) != "ignore",
                                 lambda on, mm=m: self.card_toggle(rec, mm, on))
@@ -5707,7 +5847,10 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         tag = f"cardrate{idx}"
         label = ("F" if cur == "ignore" else cur) if cur else "Rate"
         cv.create_text(x + 6, y + 1, text=label + " ▾", anchor="n", font=("Segoe UI", 8, "bold" if cur else "normal"),
-                       fill=C["accent"] if cur else C["muted"], tags=(tag, "cardthumb"))
+                       fill=(C["text"] if _cl(cv) else C["accent"]) if cur else C["muted"], tags=(tag, "cardthumb"))
+        if _cl(cv):
+            TagTip(cv, tag, f"Rated {label}: how much this mod matters - for every item like it." if cur else
+                   "Rate this mod: how much it matters, for every item like it (Rate Mods' grades).")
         cv.tag_bind(tag, "<Button-1>", lambda e: self.card_rate_menu(e, rec, m, key, cur))
         cv.tag_bind(tag, "<Enter>", lambda e: cv.configure(cursor="hand2"))
         cv.tag_bind(tag, "<Leave>", lambda e: cv.configure(cursor=""))
@@ -5856,6 +5999,12 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         except tk.TclError:
             return
         v.card_rows[idx] = (m, on, rect)
+        head = getattr(cv, "_stats_head", None)          # (Price Checks: MODS · n of m searched follows, in place)
+        if head is not None:
+            try:
+                cv.itemconfigure("cardsec_stats", text="▾ " + head())
+            except tk.TclError:
+                pass
         self._card_search_paint(rec, v)
 
     def _detail_how(self, d, rec, wrap):

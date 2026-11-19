@@ -1153,59 +1153,22 @@ class Splitter(tk.Frame):
         self.left.config(width=self._want)
         return self._want
 
-    def set_stacked(self, on, top_share=0.56):
-        """The Drawer's look (mockups.html): .left over .right, each the page's whole width, no grip. Off: side by
-        side again (the divider's own place is kept)."""
+    def set_solo(self, on):
+        """Price Checks in a narrow window: .left takes the whole width (one column), .right and the grip are hidden.
+        Off: side by side again (the divider's own place is kept). Nothing is drawn again here."""
         on = bool(on)
-        if on == getattr(self, "_stacked", False):
+        if on == getattr(self, "_solo", False):
             return
-        self._stacked = on
-        self._top_share = top_share
+        self._solo = on
         for w in (self.left, self.grip, self.right):
             w.pack_forget()
-            w.place_forget()
         if on:
-            if not getattr(self, "_stack_bound", False):
-                self._stack_bound = True
-                self.bind("<Configure>", lambda e: self._stack_place(), add="+")
-            self._stack_place()
+            self.left.pack(side="left", fill="both", expand=True)
         else:
             self.left.pack(side="left", fill="y")
             self.grip.pack(side="left", fill="y")
             self.right.pack(side="left", fill="both", expand=True)
             self.left.config(width=self.clamp(self._want))
-
-
-    STACK_KEEP = 200                     # px the part under the top keeps, at least (the listings' head and a row)
-
-    def stack_need(self, px):
-        """Round 18 (feedback: the item card scrolled with room to spare): stacked, the top part is as tall as it
-        needs (px) - all of it when the page has the room, else all but STACK_KEEP; it scrolls only then."""
-        px = int(px or 0)
-        if px and abs(px - (getattr(self, "_need", 0) or 0)) < 2:
-            return
-        self._need = px
-        if getattr(self, "_stacked", False):
-            self._stack_place()
-
-    def _stack_place(self):
-        if not getattr(self, "_stacked", False):
-            return
-        try:
-            ph = self.winfo_height()
-            need = getattr(self, "_need", 0) or 0
-            if ph <= 1 or not need:
-                share = getattr(self, "_top_share", 0.56)
-                self.left.place(relx=0, rely=0, relwidth=1, relheight=share, height=0, y=0)
-                self.right.place(relx=0, rely=share, relwidth=1, relheight=1 - share, height=0, y=0)
-                return
-            h = max(160, min(need, ph - self.STACK_KEEP))
-            if self.left.place_info().get("height") == str(h) and self.left.place_info().get("relheight") in ("", "0"):
-                return
-            self.left.place(relx=0, rely=0, relwidth=1, relheight=0, height=h, y=0)
-            self.right.place(relx=0, rely=0, relwidth=1, relheight=1, height=-h, y=h)
-        except tk.TclError:
-            pass
 
 
 class VSplitter(tk.Frame):
@@ -1294,10 +1257,12 @@ class SegBar(tk.Frame):
     """A row of joined toggle buttons (2.0 beta 7), like  [ Total | Daily ].  One is picked at a time; the picked one is
     lit with an orange line under it. command(value) is called when you pick another."""
 
-    def __init__(self, parent, options, value=None, command=None, bg=None, size=10, pad=(16, 4), badges=None):
+    def __init__(self, parent, options, value=None, command=None, bg=None, size=10, pad=(16, 4), badges=None,
+                 plain=False):
         super().__init__(parent, bg=C["line"], padx=1, pady=1)
         self.command, self.value, self.btns = command, value if value is not None else options[0], {}
         self.size, self.pad = size, pad
+        self.plain = bool(plain)                    # Price Checks: no accent - the picked one says "✓" and its word
         self.badges = dict(badges or {})            # 2.38.0: {"Stash tab": "BETA"} - a small tag inside that button
         for i, opt in enumerate(options):
             self._add(opt, i)
@@ -1338,6 +1303,13 @@ class SegBar(tk.Frame):
         with _th.raw():                             # Round 18: the theme's own tokens (a light theme's picked one
             for opt, (lab, line) in self.btns.items():     # read white on light blue), in the Drawer and the Full
                 on = opt == self.value                     # window alike: picked = its selection, bold, the accent
+                if self.plain:                             # (a plain toggle: a mark and a word, never the accent)
+                    bg = t.c("surface_high") if on or opt == hover else t.c("surface_sunken")
+                    lab.config(bg=bg, fg=t.c("text") if on or opt == hover else t.c("text_muted"),
+                               text=("\u2713 " if on else "") + opt)
+                    lab.master.config(bg=bg)
+                    line.config(bg=bg)
+                    continue
                 bg = t.c("selection") if on else (t.c("surface_high") if opt == hover else t.c("surface_sunken"))
                 lab.config(bg=bg, fg=t.c("selection_text") if on else t.c("text") if opt == hover else
                            t.c("text_muted"))

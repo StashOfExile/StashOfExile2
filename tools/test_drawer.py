@@ -659,15 +659,13 @@ def a_T11(ctx):
     ctx.check(int(float(str(sb.cget("width")))) == RAIL, f"the rail is the Drawer's wide one: {sb.cget('width')}")
     ctx.check(sb.rail_label("rates") == "Rates" and sb.rail_label("pricecheck") == "Price Checks",
               f"rail labels: {sb.rail_label('rates')!r} {sb.rail_label('pricecheck')!r}")
-    ctx.check(getattr(app, "_pc_dl", False) and app.pc_side.winfo_manager() == "pack", "the price card is shown")
-    ctx.check(getattr(app.pc_pane, "_stacked", False), "Price Checks is stacked in the Drawer")
+    ctx.check(not app.pc_layout_wide(), "Price Checks is one column in the Drawer (the listings under the card)")
     app.drawer_cfg()["share"] = D.SHARE
     app.drawer_full()
     yield 1200
     ctx.check(int(float(str(bar.cget("height")))) == bar.H, "Full window: the normal header")
-    ctx.check(not getattr(app.pc_pane, "_stacked", True), "Full window: side by side")
+    ctx.check(app.pc_layout_wide() == (app.pc_pane.winfo_width() >= 1100), "Full window: side by side when wide")
     ctx.check(tabs is None or not tabs.winfo_ismapped(), "Full window: the tabs are in the sidebar again")
-    ctx.check(not app.pc_side.winfo_manager(), "Full window: the price strip, not the card")
     app.drawer_dock()
     yield 600
     yield from _put_away(ctx)

@@ -509,8 +509,7 @@ class DrawerHost:
         return st is not None and st.eff == "drawer"
 
     def drawer_look(self):
-        """The Drawer's look (mockups.html): the rail, a tighter page header, the price check stacked (the item over
-        its listings). The Full window keeps its own."""
+        """The Drawer's look (mockups.html): the rail, a tighter page header. The Full window keeps its own."""
         on = self.drawer_look_on()
         sh = getattr(self, "shell", None)
         if sh is None:
@@ -533,13 +532,7 @@ class DrawerHost:
                 sb.redraw()                                # (the rail's own look)
         except tk.TclError:
             pass
-        self.drawer_tabs()
-        pane = getattr(self, "pc_pane", None)
-        try:
-            if pane is not None and pane.winfo_exists():
-                pane.set_stacked(on)
-        except tk.TclError:
-            pass
+        self.drawer_tabs()                                 # (Price Checks lays itself out by its width: pc_layout)
         for fn in getattr(self, "_drawer_look_hooks", []):
             try:
                 fn(on)
