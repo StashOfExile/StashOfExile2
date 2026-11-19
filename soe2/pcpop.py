@@ -563,6 +563,10 @@ class PricePopup:
                 if can:
                     for wdg in (cb, tl):
                         wdg.bind("<Button-1>", lambda e, mm=m, o=on: self._pcpop_tick(rec, mm, not o))
+                src = next((x for x in ("fractured", "desecrated")
+                            if x in flags or str(m.get("sid") or "").startswith(x + ".")), None)
+                if src and can:
+                    self._pcpop_only(inner, P, rec, m, src, body)
 
         # the cheapest listings - a summary each; click opens the whole item (no seller names)
         if st == "done":
@@ -1008,6 +1012,32 @@ class PricePopup:
             return is_own(seller)
         except Exception:
             return False
+
+    def _pcpop_only(self, inner, P, rec, m, src, body):
+        """3.0.6 (owner: the box under a fractured / desecrated mod was missing here - Price Checks has it): right
+        under the mod, tied with └, a small box to search it only as fractured / desecrated. Ticking it ticks the
+        mod too."""
+        from .mods import norm
+        only = bool((rec.get("only") or {}).get(norm(m["text"])))
+        col = ink(MOD_COL[src], P["bg"])
+        row = tk.Frame(inner, bg=P["bg"])
+        row.pack(fill="x", padx=(34, 16))
+        parts = [tk.Label(row, text="└", bg=P["bg"], fg=col, font=(body, 9)),
+                 tk.Label(row, text="☑" if only else "☐", bg=P["bg"], fg=col, font=("Segoe UI Symbol", 9),
+                          cursor="hand2"),
+                 tk.Label(row, text=f"{src.capitalize()} only", bg=P["bg"], fg=col, font=(body, 9), cursor="hand2")]
+        for w in parts:
+            w.pack(side="left", padx=(0, 3))
+        for w in parts[1:]:
+            w.bind("<Button-1>", lambda _e: self._pcpop_only_click(rec, m, not only))
+
+    def _pcpop_only_click(self, rec, m, on):
+        self._card_quiet = True                          # (the app's card redraws itself when it's shown)
+        try:
+            self.card_only(rec, m, on)
+        finally:
+            self._card_quiet = False
+        self.pcpop_fill(rec)
 
     def _pcpop_tick(self, rec, mod, on):
         self.toggle_mod(rec, mod, on)
