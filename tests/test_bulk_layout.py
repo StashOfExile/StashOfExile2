@@ -385,7 +385,7 @@ class Layout(unittest.TestCase):
         self.app.update_row(3)
         vals = {i: self.app.tree.item(str(i), "values") for i in (1, 2, 3)}
         self.assertEqual(vals[1][3], "✓ Priced")
-        self.assertEqual(vals[1][5], "~ Fair guess")
+        self.assertEqual(vals[1][5], "~ Medium")
         self.assertEqual(vals[2][3], "– No listings")
         self.assertEqual(vals[3][3], "✗ Error")
         self.assertIn("worth", self.app.bk_worth_lbl.cget("text"))

@@ -470,13 +470,13 @@ class Layout(unittest.TestCase):
         self.assertLessEqual(int(str(f.cget("padx"))), 12)
         self.assertLessEqual(int(str(f.cget("pady"))), 8)
         self.assertEqual(int(str(how.cget("highlightthickness"))), 0, "how sure: no box")
-        self.assertEqual(how.cget("text"), "~ Fair guess", "a mark and a word")
+        self.assertEqual(how.cget("text"), "~ Medium confidence", "a mark and a word")
         self.assertTrue(how.winfo_viewable())
         big = self.app.pc_v_big
         self.assertGreaterEqual(how.winfo_rootx(), big.winfo_rootx() + big.winfo_width(), "beside the price")
         self.assertLess(f.winfo_height(), 100)
         from soe2.pricecheck_page import CONF_CHIP
-        self.assertEqual(CONF_CHIP["medium"][:2], ("~", "Fair guess"), "the words themselves are the owner's")
+        self.assertEqual(CONF_CHIP["medium"][:2], ("~", "Medium confidence"), "the words themselves are the owner's")
 
 
 if __name__ == "__main__":

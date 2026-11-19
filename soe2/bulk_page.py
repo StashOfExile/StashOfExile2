@@ -24,12 +24,11 @@ STACK_ROWS = 7          # a narrow window: the list's rows over the picked item
 
 
 def conf_words(conf):
-    """Confidence in the list, in Price Checks' chip words (a mark and a word) - "! Thin data" without its "check by
-    hand" (the Price column says Price manually, the Status ! Review)."""
+    """Confidence in the list (its column is headed Confidence): Price Checks' mark and level word, "✓ High"."""
     c = str(conf or "").lower()
     if c in CONF_CHIP:
         mark, word, _k = CONF_CHIP[c]
-        return f"{mark} {word.split(' - ')[0]}"
+        return f"{mark} {word.replace(' confidence', '')}"
     return ""
 
 

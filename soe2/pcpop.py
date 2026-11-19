@@ -502,7 +502,7 @@ class PricePopup:
             tk.Label(box, text="≈ " + fmt_div(rec["est"]), bg=box["bg"], fg=P["big"], font=(head, 18, "bold"),
                      anchor="w").pack(fill="x", padx=8, pady=(8, 0))
             entries, total, n = self.pc_entries(rec)
-            conf = {"high": "a solid price", "medium": "a fair guess", "low": "thin data - check by hand"}.get(
+            conf = {"high": "high confidence", "medium": "medium confidence", "low": "low confidence"}.get(
                 str(rec.get("conf") or "").lower(), "")
             sub = f"from the {min(n, 5) or n} cheapest of {total} listing{'s' if total != 1 else ''}" + \
                 (f" · {conf}" if conf else "")

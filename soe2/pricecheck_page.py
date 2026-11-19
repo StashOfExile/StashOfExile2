@@ -398,8 +398,8 @@ class PCView:
 
 # Price Checks (owner pick, mockup C): how sure the price is - a mark and a word (the wording the card over the game
 # uses, pcpop.py), never a color alone
-CONF_CHIP = {"high": ("✓", "Solid price", "good"), "medium": ("~", "Fair guess", "orange"),
-             "low": ("!", "Thin data - check by hand", "orange")}
+CONF_CHIP = {"high": ("✓", "High confidence", "good"), "medium": ("~", "Medium confidence", "orange"),
+             "low": ("!", "Low confidence", "orange")}     # 3.0.6 (owner): High / Medium / Low, the word "confidence"
 WIDE_PX = 1100          # Price Checks: from this page width up the listings go beside the item card; one column below
 
 
@@ -880,7 +880,7 @@ class PriceCheckPage:
         info, tip, chip, why = "", "", None, ""
         if st == "done" and rec.get("est") is not None and not rec.get("nomatch"):
             conf = str(rec.get("conf") or "").lower()
-            mark, word, ck = CONF_CHIP.get(conf, ("~", "A guess", "orange"))
+            mark, word, ck = CONF_CHIP.get(conf, ("~", "Confidence unknown", "orange"))
             chip = (f"{mark} {word}", C[ck])
             big = ("≥ " if rec.get("partial") else "≈ ") + fmt_div(rec["est"])
             _e, total, n = self.pc_entries(rec)
