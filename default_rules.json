@@ -59,6 +59,7 @@
  },
  "tablet": {
   "high": [
+   "#% chance to gain an additional Crystal from Vaal Beacons in Map",
    "#% increased chance for Abyssal monsters in Map to have Abyssal Modifiers",
    "#% increased effect of prefixes",
    "#% increased effect of suffixes",
