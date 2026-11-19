@@ -484,9 +484,14 @@ def _parse_gear(text):
             elif stat["ref"] in FILLER:
                 m["auto"] = "ignore"
                 m["note"] = "rarely adds to a rare's price - not searched - tick it to search on it"
-            elif str(gm.get("tier") or "").isdigit() and int(gm["tier"]) >= LOW_TIER:
-                m["auto"] = "ignore"
-                m["note"] = f"low tier (T{gm['tier']}) - rarely adds to the price, not searched - tick it to search on it"
+            else:
+                if str(gm.get("tier") or "").isdigit() and int(gm["tier"]) >= LOW_TIER:
+                    m["auto"] = "ignore"
+                    m["note"] = (f"low tier (T{gm['tier']}) - rarely adds to the price, not searched - tick it to "
+                                 "search on it")
+                    m["low_tier"] = True
+                from .gearbook import gear_key            # owner (Rate Mods, By roll): the letter of its roll's
+                m["roll_key"] = gear_key(cls, clean)        # group (weighed once the totals are known)
         mods.append(m)
         refs_of.append(stat["ref"] if stat else None)
     _merge_same_stat(mods, refs_of)
@@ -569,8 +574,10 @@ def _parse_gear(text):
             for m in feeding:
                 m["covered"] = f"counted in the {name}"
         totals += hybrid_split(mods, totals)
+    from .ratemods import apply_roll
     for m in mods:
-        if m["covered"] and not m.get("note"):
+        apply_roll(m)                                        # owner: By roll in Rate Mods - an F group is left out
+        if m["covered"] and not m.get("note"):               # the low-tier way; another letter orders it
             m["note"] = m["covered"]
         if m.get("header"):                                  # a header word the app doesn't know yet: read as usual
             words = " ".join(w.title() for w in m["header"])

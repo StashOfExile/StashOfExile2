@@ -90,6 +90,9 @@ def mod_impact(rec, mod):
     ov = (rec.get("ov") or {}).get(ov_key(mod))
     if ov in IMPACTS:
         return ov
+    rg = mod.get("roll_grade")              # owner: By roll in Rate Mods - this roll's group has its own letter
+    if rg:                                  # (a tick on the item still wins)
+        return "ignore" if rg == "ignore" else "high" if rg in ("S", "A") else "normal"
     if mod.get("covered"):                  # gear (1.41): already counted in a total, or an implicit / rune
         return "ignore"
     if (rec.get("item") or {}).get("gear"):  # 2.96.0: your ▲ / ▼ for this gear class (or waystones)

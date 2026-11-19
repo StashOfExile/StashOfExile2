@@ -194,8 +194,9 @@ class PageBar(GradientBar):
                              tags="pg")
             mod = self.win.shell.modules.get(self.win.key)
             blurb = getattr(mod, "blurb", "") if mod is not None else ""
-            if blurb:
-                bid = self.create_text(24, y_blurb, text=blurb, anchor="w", font=("Segoe UI", 9), fill=mut, tags="pg")
+            if blurb:                                               # (a long line wraps at Drawer width)
+                bid = self.create_text(24, y_blurb, text=blurb, anchor="w", font=("Segoe UI", 9), fill=mut, tags="pg",
+                                       width=max(200, w - 48 - (24 if getattr(mod, "blurb_tip", None) else 0)))
                 if getattr(mod, "blurb_tip", None) is not None:     # Bulk Pricing: ⓘ after the line - more on hover,
                     bb = self.bbox(bid) or (0, 0, 24, 0)            # a click opens where it's set
                     self.create_text(bb[2] + 8, y_blurb, text="ⓘ", anchor="w", font=("Segoe UI", 9), fill=mut,

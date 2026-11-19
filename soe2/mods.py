@@ -465,7 +465,13 @@ def roll_tier(m):
 
 def drop_rank(letter_rank, m):
     """How soon a mod is left out when too few listings have every mod: its letter's rank (S = 0 ... D = 4), one
-    lower for a roll of tier ROLL_STEP_DOWN or worse, then the worse roll first. Automatic - nothing to set."""
+    lower for a roll of tier ROLL_STEP_DOWN or worse, then the worse roll first. Automatic - nothing to set.
+    Owner (Rate Mods, By roll): a roll whose group has its own letter (m["roll_grade"]) counts by that letter instead
+    - and then no automatic step down (the player said what this roll is worth)."""
+    rg = (m or {}).get("roll_grade")
+    if rg in TIER_ORDER:
+        rt = roll_tier(m)
+        return (tier_rank(rg), rt if rt is not None else ROLL_STEP_DOWN - 1)
     rt = roll_tier(m)
     eff = letter_rank + (1 if rt is not None and rt >= ROLL_STEP_DOWN and letter_rank < len(TIER_ORDER) - 1 else 0)
     return (eff, rt if rt is not None else ROLL_STEP_DOWN - 1)

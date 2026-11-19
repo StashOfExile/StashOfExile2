@@ -88,7 +88,7 @@ class CommunityPage:
         # 2.120.0: Rate Mods is a page under Price Checks now (it was a window opened from here); nav phase 1: in Trade
         tk.Label(hr, text="Your mod ratings are part of it:", bg=P2, fg=C["muted"], font=("Segoe UI", 9)).pack(
             side="left")
-        lk = tk.Label(hr, text="Trade › Rate Mods ›", bg=P2, fg=C["accent"], cursor="hand2",
+        lk = tk.Label(hr, text="Mods › Rate Mods ›", bg=P2, fg=C["accent"], cursor="hand2",
                       font=("Segoe UI", 9, "bold"))
         lk.pack(side="left", padx=(8, 0))
         lk.bind("<Button-1>", lambda e: self.rm_open())

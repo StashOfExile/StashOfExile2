@@ -135,6 +135,21 @@ FEATURES = (
     "Waystone modifiers",       # 3.0.6 Waystone by hand: its numbers (at least), as a waystone reads them
     "From the author",          # 3.0.6 an opened strat: its older free text, folded at the bottom
     "Parts",                    # 3.0.6 New strat's side panel: what's done
+    # Rate Mods (owner, the Rate Mods redesign): the page's two views, the card's three facts, the Table's bar and the
+    # tier groups (MIX B: "How much is each kind of roll worth?" - Top rolls, Middle rolls, Low rolls)
+    "One at a Time",            # Rate Mods: one mod on a card, S A B C D F
+    "Table",                    # Rate Mods: many mods at once, ticked rows and Rate selected
+    "Seen in listings",         # the middle asking price and how many listings the app saw with the mod
+    "Players",                  # what most players rate the mod (the community's ratings) and how many votes
+    "Your rating",              # your letter for the mod and what it counts as (High, Normal, Ignore)
+    "Rate selected",            # Rate Mods › Table: one rating for every ticked row
+    "By roll",                  # a mod's letter per group of rolls (Top rolls, Middle rolls, Low rolls) - the Table
+                                # shows "same" or "S · B · F"; a price check gives a roll its group's letter (F: left
+                                # out the low-tier way - not searched, a note, tick it to search on it)
+    "Same for every roll",      # By roll's default: every group takes the mod's one letter
+    "Next up",                  # Rate Mods › One at a Time, under the card: the next 3 mods
+    "Just rated",               # Rate Mods › One at a Time, under the card: the last 5 you rated
+    "Rate mods one at a time",  # Rate Mods › Table: the one orange button (opens One at a Time)
     "Linux check",              # Linux build: Settings › Advanced and  StashOfExile2 --check-linux  - session, keys,
                                 # screen picture, clipboard, key sending, OCR, Client.txt, each with its fix
 )

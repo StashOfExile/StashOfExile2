@@ -47,12 +47,16 @@ This product isn't affiliated with or endorsed by Grinding Gear Games in any way
 **Trade**
 - **Price Checks** - hover an item, press **Ctrl+D**: price, how sure, and how it was worked out. Too few listings for a base? **Broaden Search** widens it, one step a click.
 - **Bulk Pricing** - **Ctrl+Alt+C** on many items (tablets, waystones, jewels): priced as a list.
-- **Favorites**, **Rate Mods** (your ratings tune your price checks), **Exchange Rates** (poe.ninja, a converter, a flip check), **Market Insights**.
+- **Favorites**, **Exchange Rates** (poe.ninja, a converter, a flip check).
+
+**Mods**
+- **Rate Mods** - rate mods One at a Time or in a Table; your ratings tune your price checks. A mod that rolls in tiers can have a letter for its top, middle and low rolls (By roll).
+- **Market Insights** - your most valuable items, the top mods and the priciest listings seen.
+- **Craft Helper** (BETA) - each mod of a tablet or jewel rated S to F, and a next step.
 
 **Stash**
 - **Wealth** - what your stash is worth: Scan stash reads one tab per Read Key press.
 - **Regex** - stash search strings for tablets, waystones, relics, jewels and gear.
-- **Craft Helper** (BETA) - each mod of a tablet or jewel rated S to F, and a next step.
 
 **League**
 - **League Plan**, **Map Profit** (BETA), **Farming Strategies** (BETA), **Map Library**, **Leaderboards** (opt-in).

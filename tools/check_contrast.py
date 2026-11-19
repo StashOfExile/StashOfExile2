@@ -70,6 +70,9 @@ def edge_pairs():
         out.append((f"button outline on {uname}", _hex(lk["n"][1]), under))
         out.append((f"button outline (hover) on {uname}", _hex(lk["h"][1]), under))
         out.append((f"tab chip (shown) outline on {uname}", _hex(on["n"][1]), under))
+    under = t.c("surface_raised")                           # Rate Mods: each letter's color strip on its button
+    for g in S.LETTER_ROLES:
+        out.append((f"letter {g} strip on its button", S.letter_color(g, under), under))
     return out
 
 
@@ -107,6 +110,9 @@ def pairs():
     if "section" in (t.part("bars") or {}):
         spec = t.part("bars", "section")
         out.append(("section bar note", C["steel"], TH.grad_at(t.grad(spec["fill"]), 0.5)))
+    for g in S.LETTER_ROLES:                                # Rate Mods: a picked letter button is filled with its color
+        col = S.letter_color(g)
+        out.append((f"letter {g} on its picked button", S.text_on(col), col))
     return out
 
 

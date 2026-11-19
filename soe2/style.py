@@ -103,6 +103,32 @@ def text_on(bg, light="#fff7ea", dark="#1a1206"):
     return light if contrast(light, bg) >= contrast(dark, bg) else dark
 
 
+# Rate Mods (owner): one letter palette, here only - S gold, A orange, B / C / D cool to neutral, F muted. Each letter
+# is a theme role (so it follows every theme pack), nudged toward the theme's text until it stands out 3 : 1 from the
+# surface it sits on (tools/check_contrast.py checks it). Always shown with its letter and its word, never alone.
+LETTER_ROLES = {"S": "money", "A": "orange", "B": "link", "C": ("link", "text_muted"), "D": ("text", "text_muted"),
+                "F": "text_muted"}
+LETTER_EDGE = 3.0
+
+
+def letter_color(g, under=None):
+    """The color strip of a letter (S A B C D F; "ignore" = F) on `under` (default: the theme's raised surface)."""
+    from . import themes as TH
+    t = TH.ST.theme
+    g = "F" if g == "ignore" else g
+    role = LETTER_ROLES.get(g, "text_muted")
+    with TH.raw():
+        base = mix(t.c(role[0]), t.c(role[1]), 0.5) if isinstance(role, tuple) else t.c(role)
+        under = under or t.c("surface_raised")
+        ink = t.c("text")
+    c = base
+    for i in range(1, 11):
+        if contrast(c, under) >= LETTER_EDGE:
+            break
+        c = mix(base, ink, i / 10)
+    return c
+
+
 def hotkey_blocked(state, platform=None):
     """True when Ctrl or Alt is held. On Windows bit 0x8 is NUM LOCK, not Alt (Alt is 0x20000): treating it as Alt made every
     shortcut key dead whenever Num Lock was on. On Linux/Mac bit 0x8 is Alt."""
