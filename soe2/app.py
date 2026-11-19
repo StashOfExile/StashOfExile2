@@ -2604,8 +2604,7 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
                     where = ("nothing - " + self.pc_missed) if self.pc_missed else "Price Checks"
                 elif self.gate_ok(text):
                     self.last_heard = time.time()
-                    self.accept_clip(text)
-                    where = "Bulk Pricing"
+                    where = self.accept_clip(text) or "Bulk Pricing"     # (3.0.6: where it really went)
                 else:
                     where = "nothing (not your copy key)"
         except Exception:
@@ -2707,49 +2706,67 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
     ADVANCED = re.compile(r"\{\s*(?:Prefix|Suffix|Implicit|Unique|Desecrated|Enchant)[^}]*\}", re.I)
 
     def accept_clip(self, text):
-        """Only a real Ctrl+Alt+C copy of an item we haven't already got becomes a new row."""
+        """Only a real Ctrl+Alt+C copy of an item we haven't already got becomes a new row. -> where it went, in the
+        app log's words (3.0.6: a copy that went somewhere else said "Bulk Pricing" all the same)."""
         if not SETTINGS.get("listen", True):
-            return
+            return "nothing - Bulk Pricing isn't listening"
         if text.lstrip().startswith("Item Class:"):               # 2.45.0: the Strat Tracker's loot box / setup takes it
             if self.fd_capturing():                               # 2.51.0: Mod book › Manual feed, while it shows
-                return self.fd_take_clip(text)
+                self.fd_take_clip(text)
+                return "Mod Book's Manual feed"
             if self.fl_capturing():
-                return self.fl_take_clip(text)
+                self.fl_take_clip(text)
+                return "the Strat Tracker's loot box"
             if self.fl_ed_open() and self.fl_ed_take(text):
-                return None
+                return "the Strat Tracker's setup"
             try:                                                  # 2.129.3: a copy while the Favours window is
                 if self.favours_copy_learn(text) and not self.ADVANCED.search(text):     # open teaches that
                     self.status_text, self.status_until = "Favours prices: learned its look", time.time() + 5
-                    return None                                   # reward's look
+                    return "Favours prices"                       # reward's look
             except Exception:
                 buglog.caught()
         if not text.lstrip().startswith("Item Class:"):          # something else on the clipboard
             if text != self.own_clip:                            # (our own "copy name" isn't worth mentioning)
                 self.status_text, self.status_until = "Heard a copy, but it isn't an item (ignored)", time.time() + 6
-            return
+            return "nothing - not an item"
         from .wealth import parse_currency_item
         cur = parse_currency_item(text)                          # (a Wombgift: a trade search - feedback)
         if parse_stack(text) or (cur and cur[2] != "Wombgifts"):  # currency & other stacks: offer the Wealth window
-            return self.not_priceable_yet(text)                  # (2.129.0: and any exchange item: its going rate)
+            self.not_priceable_yet(text)                         # (2.129.0: and any exchange item: its going rate)
+            return "nothing - a currency stack"
         from . import features as FEAT
         if not FEAT.on("bulk") and text != self.own_clip:        # 2.131.0: Bulk Pricing is off (Features)
-            return
+            return "nothing - Bulk Pricing is off"
         if not self.ADVANCED.search(text):                       # plain Ctrl+C: no mod tiers/ranges, can't be priced well
             self.status_text = "Ignored a normal copy - use Ctrl+Alt+C so the mod details are included"
             self.status_until = time.time() + 10
-            return
+            return "nothing - a plain Ctrl+C copy"
         item = self.read_any(text)
         if not item:
             self.not_priceable_yet(text)
-            return
+            return "nothing - not an item the price checker reads"
         same = [r for r in self.records.values() if self.item_sig(r["item"]) == self.item_sig(item)
                 and r.get("src", "manual") == "manual"]           # 2.42.0: your own list (not a stash tab's)
         if same:                                                 # exact same name + exact same mods: ask
             self.dup_pending.append((text, item, same[-1], len(same)))
             if not self.dup_win:
                 self.show_dup()
-            return
+            self.dup_notice(item)
+            return "Bulk Pricing - waiting on 'Same item again?'"
         self.add_clean(text)
+        return "Bulk Pricing"
+
+    def dup_notice(self, item):
+        """3.0.6: 'Same item again?' waits in the app window, which you don't see in game: one line over the game too."""
+        try:
+            from . import alertcard
+            from .alerts_page import game_rect
+            n = len(self.dup_pending)
+            alertcard.show(self.root, "Same item again?",
+                           f"{item['name']}: answer in Bulk Pricing" + (f" - {n} waiting" if n > 1 else ""),
+                           color=C["accent"], mark="?", secs=6, game=game_rect(), tag="Bulk Pricing")
+        except Exception:
+            buglog.caught()
 
     def trade_stat_lookup(self, line):
         """For gamedata: find a mod wording on the trade site's own stat list (downloaded daily by the engine).
