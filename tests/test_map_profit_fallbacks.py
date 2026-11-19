@@ -271,3 +271,22 @@ class ArtDownloads(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class LooseAndLetters(unittest.TestCase):
+    def test_fragments_and_logbooks_are_loose(self):
+        from soe2 import mapprofit as MP
+        parts = {"Fragments": {"names": {"a": "Faded Crisis Fragment"}}, "Currency": {"names": {"b": "Chaos Orb"}}}
+        got = MP.loose_names(parts)
+        self.assertIn("Faded Crisis Fragment", got)
+        self.assertIn("Expedition Logbook", got)
+        self.assertNotIn("Chaos Orb", got)
+
+    def test_letters_only_at_the_right_edge(self):
+        import numpy as np
+        from soe2 import mapprofit as MP
+        img = np.zeros((70, 70, 3), np.uint8)
+        img[49:63, 64:67] = 255                          # I at the right edge
+        img[49:63, 58:61] = 255                          # I
+        img[42:52, 25:35] = 255                          # a highlight, off the line, far left
+        self.assertEqual(MP.tier_letters(img, white=True), "II")

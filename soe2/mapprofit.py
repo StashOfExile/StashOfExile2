@@ -62,6 +62,21 @@ def gem_names(parts):
     return gems - other
 
 
+LOOSE_TYPES = ("Fragments",)
+LOOSE_NAMES = ("Expedition Logbook",)
+LOOSE_MIN = 0.72                    # 3.0.6: fragments that don't stack show no number (crisis fragments 0.74-0.77, the
+#                                     next item 0.63 or less on the owner's inventory; gear corners under 0.65)
+
+
+def loose_names(parts):
+    """3.0.6: exchange items that may show no stack number - fragments (Crisis Fragments), Expedition Logbooks."""
+    out = set(LOOSE_NAMES)
+    for typ, p in (parts or {}).items():
+        if typ in LOOSE_TYPES:
+            out.update(((p or {}).get("names") or {}).values())
+    return out
+
+
 def build_refs(parts):
     """3.0.6: the pictures Map Profit names cells with, best trusted first: learned and shipped pictures (Scan
     stash's slots among them), Scan stash's wildcard pictures (refs.stash), the Currency Exchange's icons, and last
@@ -71,6 +86,7 @@ def build_refs(parts):
     refs = FV.build_refs(items, exchange=True)
     known = {n for n, _p in items.values()}
     refs.gems = gem_names(parts)
+    refs.loose = loose_names(parts)
     try:
         from . import stashread as SR
         refs.stash = {n: ic for n, ic in SR.learned_icons().items() if n in known}
@@ -221,12 +237,13 @@ def unlettered(bgr):
     return cv2.inpaint(np.ascontiguousarray(bgr), m * 255, 3, cv2.INPAINT_TELEA)
 
 
-def gem_match(cell, refs):
+def gem_match(cell, refs, pool=None, least=None):
     """3.0.6 (a lineage support gem was missed): a cell with no stack number (PIL) -> the lineage or uncut gem it
     is, or None (gear, a jewel, an item poe.ninja doesn't list). Only gems' pictures compete: GEM_MIN and GEM_BY
     ahead of the next gem, the colors not beaten, no other item's learned or shipped picture close; an uncut gem by
     its level (the white roman number). Then poe.ninja's art (art_match), gems only."""
-    gems = getattr(refs, "gems", None) or set()
+    gems = pool if pool is not None else (getattr(refs, "gems", None) or set())
+    least = GEM_MIN if least is None else least
     if not gems or cell is None or not hasattr(cell, "convert"):
         return None
     try:
@@ -237,7 +254,7 @@ def gem_match(cell, refs):
         view = FV.Refs()
         view.items = {n: v for n, v in refs.items.items() if n in gems}
         got = _collapsed(view.ranked(f, len(view.items), refs=True)) if view.items else []
-        if got and got[0][0] >= GEM_MIN and got[0][0] - (got[1][0] if len(got) > 1 else -1.0) >= GEM_BY \
+        if got and got[0][0] >= least and got[0][0] - (got[1][0] if len(got) > 1 else -1.0) >= GEM_BY \
                 and not view.hue_veto(f, got[0][0]):
             key = got[0][1]
             names = [n for n in view.items if _base(n) == key]
@@ -386,13 +403,29 @@ def tier_letters(bgr, white=False):
     else:
         m = ((r > 150) & (g < 90) & (b < 90)).astype(np.uint8)
     m[:int(h * 0.55)] = 0
-    m[:, :int(w * (0.6 if white else 0.45))] = 0
+    m[:, :int(w * (0.3 if white else 0.45))] = 0         # (3.0.6: an uncut gem's XVIII starts at 0.37)
     n, lab, st, _c = cv2.connectedComponentsWithStats(m, 8)
     out = []
-    for i in sorted(range(1, n), key=lambda k: st[k][0]):
+    keep = [i for i in range(1, n) if 0.12 * w <= st[i][3] <= 0.30 * w and st[i][4] >= 6]
+    if white:                                     # (3.0.6: only the run of letters at the right edge, on one line -
+        keep.sort(key=lambda k: -st[k][0])        # a gem's art has white highlights too)
+        run = []
+        for i in keep:
+            x, y, bw, bh = (int(v) for v in st[i][:4])
+            if not run:
+                if x + bw < 0.85 * w:
+                    break
+                run.append(i)
+                continue
+            if abs((y + bh) - int(st[run[0]][1] + st[run[0]][3])) > 0.05 * w:
+                continue                          # (a highlight above the line)
+            if int(st[run[-1]][0]) - (x + bw) <= 0.09 * w:
+                run.append(i)
+            else:
+                break
+        keep = run
+    for i in sorted(keep, key=lambda k: st[k][0]):
         x, y, bw, bh, area = (int(v) for v in st[i])
-        if not (0.12 * w <= bh <= 0.30 * w) or area < 6:
-            continue
         if bw < 0.45 * bh:
             out.append("I")
             continue
@@ -470,7 +503,9 @@ def identify(cells, taught, refs=None, price=None, info=None):
             t = waystone_tier(c["img"]) if c.get("img") is not None else None
             if t is None:
                 gem = gem_match(c.get("img"), refs) if refs is not None else None     # 3.0.6: lineage / uncut
-                if gem is None:                                                       # gems show no stack number
+                if gem is None and refs is not None and getattr(refs, "loose", None):  # gems, crisis fragments,
+                    gem = gem_match(c.get("img"), refs, pool=refs.loose, least=LOOSE_MIN)   # logbooks: no number
+                if gem is None:
                     skipped += 1
                     continue
                 out[gem] = out.get(gem, 0) + 1
