@@ -171,7 +171,14 @@ class RemnantPage:
             if share < RM.PARCHMENT:
                 return []                             # no book open: the tags go
             t0 = time.time()
-            lines = RM.shift(RM.ocr(img), ar[0] - rect[0], ar[1] - rect[1])
+            raw = RM.ocr(img)
+            try:                                      # 3.0.6 (reader.py): lines that matched no item, read again alone
+                raw = RM.reread_lines(img, raw, self.remnant_names_now(league)[1])
+            except (RM.OcrUnavailable, RM.OcrStuck):
+                pass
+            except Exception:
+                buglog.caught()
+            lines = RM.shift(raw, ar[0] - rect[0], ar[1] - rect[1])
             self.rm_lines = (rect, lines, league)         # (kept to price again when a gem's price comes in)
             rows = self.remnant_price(lines, league)
             used = {r.get("text") for r in rows}
@@ -292,6 +299,13 @@ class RemnantPage:
         threading.Thread(target=go, daemon=True).start()
 
     def remnant_price(self, lines, league):
+        cache = self.remnant_names_now(league)
+        from . import gamedata
+        return RM.price_lines(lines, cache[1], cache[2], lambda k, lv, n: self.remnant_gem_value(k, lv, n, league),
+                              self.remnant_unique_pool, gem_vocab=gamedata.TRADE_ITEMS.get("bases") or None)
+
+    def remnant_names_now(self, league):
+        """-> ((league, prices' time), Names, value_of, built at): the item names and prices, built once a while."""
         from .wealth import WPRICES
         key = (league, getattr(WPRICES, "ts", 0))
         cache = getattr(self, "rm_names", None)
@@ -301,9 +315,7 @@ class RemnantPage:
                 self.remnant_prefetch(league)
             names, value_of = self.remnant_names_values(league, fetch=not held)
             cache = self.rm_names = ((league, getattr(WPRICES, "ts", 0)), names, value_of, time.time())
-        from . import gamedata
-        return RM.price_lines(lines, cache[1], cache[2], lambda k, lv, n: self.remnant_gem_value(k, lv, n, league),
-                              self.remnant_unique_pool, gem_vocab=gamedata.TRADE_ITEMS.get("bases") or None)
+        return cache
 
     POOL_SHOWN = 3                                    # the most valuable uniques named on a "Unique Ring" line
 

@@ -291,6 +291,35 @@ def price_lines(lines, names, value_of, gem_value=None, unique_pool=None, gem_vo
     return out
 
 
+REREAD_MOST = 8                   # 3.0.6: the most unmatched lines of one book read again on their own
+
+
+def reread_lines(img, lines, names, ocr=None, most=REREAD_MOST):
+    """3.0.6 (reader.py): the book's lines (in img's pixels) -> the same, with each reward line that matched no item
+    read again on its own, enlarged and made clean - its new text kept only when it is an item with an amount
+    (a reward line always has one) and the old one wasn't. Gem and unique lines are left as they were."""
+    from . import reader as R
+    out, tries = list(lines), 0
+    for k, (text, box) in enumerate(lines):
+        if tries >= most:
+            break
+        if not box or len(str(text).strip()) < 4 or gem_line(text) or unique_line(text):
+            continue
+        base, _q = split_qty(text)
+        if names.match(base, cut_ok=explicit_qty(text)):
+            continue
+        tries += 1
+        pad = max(2, int((box[3] - box[1]) * 0.3))
+
+        def priced(t):
+            return explicit_qty(t) and bool(names.match(split_qty(t)[0], cut_ok=True))
+        t, _tb, _how = R.read_one(img, (box[0] - pad, box[1] - pad, box[2] + pad * 4, box[3] + pad), kind="book-line",
+                                  want=priced, ocr=ocr)
+        if t and priced(t):
+            out[k] = (t, box)
+    return out
+
+
 # ================================================================ where the list is
 # The remnant's reward book opens at the left of the game (seen on a 2000x1125 screenshot, Nov 2026:
 # reward lines at x 44-560, y 110-740). The game scales its UI with the window's HEIGHT and anchors this panel to the

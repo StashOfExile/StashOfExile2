@@ -153,19 +153,22 @@ def _run(args, data, timeout):
     return r.stdout.decode("utf-8", "replace")
 
 
-def tesseract(img, timeout=8.0):
-    """PIL image -> [(line text, (x0, y0, x1, y1))] with the tesseract command (one run)."""
-    pic, scale = prep(img)
+def tesseract(img, timeout=8.0, psm=None, prepped=False):
+    """PIL image -> [(line text, (x0, y0, x1, y1))] with the tesseract command (one run).
+    3.0.6 (reader.py): psm - Tesseract's page layout for this read ("7": one line); prepped - the picture is already
+    made ready (dark text on light, enlarged), so it is read as it is."""
+    pic, scale = (img, 1.0) if prepped else prep(img)
+    psm = str(psm or PSM)
     if engine() == "pytesseract" and RUNNER[0] is None:
         import pytesseract
         try:
-            tsv = pytesseract.image_to_data(pic, lang=LANG, config=f"--psm {PSM}", timeout=timeout)
+            tsv = pytesseract.image_to_data(pic, lang=LANG, config=f"--psm {psm}", timeout=timeout)
         except RuntimeError:
             raise Slow("slow")
         return parse_tsv(tsv, scale)
     buf = io.BytesIO()
     pic.save(buf, "PNG")
-    args = [tesseract_path() or "tesseract", "stdin", "stdout", "-l", LANG, "--psm", PSM, "tsv"]
+    args = [tesseract_path() or "tesseract", "stdin", "stdout", "-l", LANG, "--psm", psm, "tsv"]
     return parse_tsv(_run(args, buf.getvalue(), timeout), scale)
 
 

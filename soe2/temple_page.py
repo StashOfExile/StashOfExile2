@@ -130,9 +130,17 @@ class TemplePage:
                     SR.capture(box, "Temple")
                 if img is None:
                     return None, None, None, None
-                img = img.resize((img.width * 3, img.height * 3))      # small digits read better bigger
-                lines = RM.ocr(img)
+                # 3.0.6 (reader.py): the count is one line - read on its own, made clean (measured: 27 of 27 at
+                # 1440p, the whole box's read 20); the read before stays as the fallback
+                from . import reader as R
+                t, tb, _how = R.read_one(img, (0, 0, img.width, img.height), kind="console",
+                                         want=lambda s: TM.parse_console([(s, None)], most))
+                lines = [(t, tb)] if t else []
                 got = TM.parse_console(lines, most)
+                if not got:
+                    img = img.resize((img.width * 3, img.height * 3))      # small digits read better bigger
+                    lines = lines + list(RM.ocr(img))
+                    got = TM.parse_console(lines, most)
             except Exception as e:
                 buglog.caught()
                 return None, e.__class__.__name__, None, None
@@ -465,6 +473,21 @@ class TemplePage:
         mb = V.side_box(g, V.MEDAL_BOX, right=True)
         pic = full.crop((mb[0] - gx, mb[1] - gy, mb[2] - gx, mb[3] - gy))
         lines = [(t, (b[0] + mb[0], b[1] + mb[1], b[2] + mb[0], b[3] + mb[1])) for t, b in RM.ocr(pic) if b]
+        # 3.0.6 (reader.py): the panel's title read on its own line (measured on 90 of the owner's pictures: 89
+        # right, none wrong; the panel's one read: 69 right, 8 wrong - 5/6 and 3/6 read as 1/6). Its count wins
+        # over the panel read's; that read stays for the hovered medallion's name and as the fallback.
+        try:
+            from . import reader as R
+            tb = V.side_box(g, V.MEDAL_TITLE, right=True)
+            t, tbox, _how = R.read_one(full, (tb[0] - gx, tb[1] - gy, tb[2] - gx, tb[3] - gy), kind="medallion-title",
+                                       want=M.head_count)
+            if t and M.head_count(t):
+                lines = [ln for ln in lines if not M.head_count(ln[0])] + [
+                    (t, (tbox[0] + gx, tbox[1] + gy, tbox[2] + gx, tbox[3] + gy))]
+        except (RM.OcrUnavailable, RM.OcrStuck):
+            raise
+        except Exception:
+            buglog.caught()
         got = M.parse(lines)
         if not got["head"]:
             # 3.0.6 (a 6/6 panel read "MEDALLIONS (616)"): the title alone is enough - the slots are counted

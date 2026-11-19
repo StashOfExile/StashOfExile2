@@ -580,6 +580,7 @@ def on_screen(game, x, y):
 # (Room Cards) on the left, the Medallions panel on the right. Boxes in 2560x1440 frame coordinates.
 CARD_BOX = (0, 200, 480, 1150)      # 3.0.6: from the edge - "ROYAL ACCESS CHAMBER" starts at x 14
 MEDAL_BOX = (1700, 560, 2560, 1110)      # the panel and where a hovered medallion's tooltip shows (left of it)
+MEDAL_TITLE = (2310, 600, 2514, 670)      # 3.0.6: the panel's "Medallions (n/m)" title alone (not its arrow button)
 DIAMOND_X = (290, 480)                   # a card's diamond, from the card list box's left
 
 
@@ -628,6 +629,7 @@ ROW_FIRST, ROW_STEP, ROW_HALF, ROW_TEXT_W = 138, 144, 28, 290   # the card list'
 TITLE_TO_ROW = 101                       # the "ROOM CARDS" title's middle -> the first row's middle (the list moves)
 PATH_FLAT = 34                           # a diamond this flat (gray spread) holds a path's lines, not a room icon
 CARD_PICS = {}                           # {card name: its diamond's picture} seen this session (in memory only)
+READER_ROWS = [True]                     # 3.0.6: rows read with reader.py first (tests: off to check the fallback)
 
 
 def _gold_text(row):
@@ -677,10 +679,15 @@ def card_rows_read(img, ocr, lines=None):
         row = img.crop((0, int(y - ROW_HALF * s), int(ROW_TEXT_W * s), int(y + ROW_HALF * s)))
         pic, framed, flat = _diamond(img, y, s)
         t = ""
-        for look in (_gold_text(row), row):
-            t = " ".join(" ".join(str(x) for x, _b in ocr(look.resize((look.width * 3, look.height * 3))) or []).split())
-            if VP.card(t):
-                break
+        if READER_ROWS[0]:                       # 3.0.6 (reader.py): the row's name read as one line, made clean
+            from . import reader as R
+            t = R.read_one(img, (0, int(y - ROW_HALF * s), int(ROW_TEXT_W * s), int(y + ROW_HALF * s)),
+                           kind="card-name", want=VP.card, ocr=ocr)[0]
+        if not VP.card(t):                       # (as before: the fallback)
+            for look in (_gold_text(row), row):
+                t = " ".join(" ".join(str(x) for x, _b in ocr(look.resize((look.width * 3, look.height * 3))) or []).split())
+                if VP.card(t):
+                    break
         if VP.card(t):
             out.append((t, y * 2))
             CARD_PICS[VP.card_title(t)] = pic

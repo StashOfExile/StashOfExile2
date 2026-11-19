@@ -117,6 +117,11 @@ def title_above(img, lines, ocr, game_h):
             max(1, b[1] - int(0.004 * h)))
     if band[2] <= band[0] or band[3] <= band[1]:
         return []
+    # 3.0.6 (reader.py): the strip read as one line, made clean, until a medallion's name is in it; else as before
+    from . import reader as R
+    t, tb, _how = R.read_one(img, band, kind="tooltip-title", want=M.name_of, ocr=ocr)
+    if t and M.name_of(t):
+        return [(t, tb)]
     cut = img.crop(band)
     out = ocr(cut.resize((cut.width * 2, cut.height * 2)))
     return [(t, tuple(band[i % 2] + int(v / 2) for i, v in enumerate(bb))) for t, bb in out]

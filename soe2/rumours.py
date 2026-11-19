@@ -146,6 +146,116 @@ def find_card(img, game_h):
     return (x0 * SCALE, y0 * SCALE, (x1 + 1) * SCALE, (y1 + 1) * SCALE)
 
 
+BANNER_SHARE = 0.15            # 3.0.6: a row of the card that is the "Island Rumours" banner's blue-gray (its share)
+
+
+def card_lines(img, card):
+    """3.0.6 (reader.py): the card's box (find_card) -> (the "Use a logbook" strip's box, the banner's box, the 3
+    rumor rows' boxes), in the picture's pixels. The rows are fixed: the parchment below the banner, in three. The
+    banner is found by its blue-gray (measured on two cards: rows 0.43-0.60 of it, the parchment none); not found,
+    it is where it sits on those cards (0.2-0.35 of the card's height)."""
+    import numpy as np
+    x0, y0, x1, y1 = card
+    h, w = y1 - y0, x1 - x0
+    a = np.asarray(img.convert("RGB").crop(card)).astype(np.int16)
+    r, g, b = a[..., 0], a[..., 1], a[..., 2]
+    teal = ((b - r > 8) & (g > 120)).mean(axis=1) if a.size else np.zeros(0)
+    ys = np.flatnonzero(teal > BANNER_SHARE)
+    ys = ys[ys < h * 0.6]
+    if len(ys) >= max(3, h * 0.05):
+        top, bottom = y0 + int(ys[0]) - 4, y0 + int(ys[-1]) + 4
+    else:
+        top, bottom = y0 + int(0.2 * h), y0 + int(0.35 * h)
+    xa, xb = x0 + int(0.05 * w), x1 - int(0.05 * w)
+    end = min(img.height, y1 + int(0.03 * h))
+    rows = _ink_rows(img, (xa, bottom, xb, end), (bottom - top) or int(0.15 * h))
+    if not rows:                                  # (no ink found: the parchment below the banner, in three)
+        step = (end - bottom) / 3.0
+        rows = [(xa, int(bottom + i * step), xb, int(bottom + (i + 1) * step)) for i in range(3)]
+    return (xa, y0, xb, max(y0 + 4, top)), (xa, top, xb, bottom), rows
+
+
+def _ink_rows(img, box, banner_h):
+    """The parchment below the banner -> a box per handwritten line in it (1 to 3), top to bottom: the bands of rows
+    holding dark ink (a card with fewer rumors is shorter - the rows are found, not counted). Each band is padded to
+    about a row's height (the banner's height x 1.4)."""
+    import numpy as np
+    x0, y0, x1, y1 = box
+    if y1 - y0 < 8 or x1 - x0 < 20:
+        return []
+    g = np.asarray(img.convert("L").crop(box)).astype(np.float32)
+    med = float(np.median(g))
+    ink = g < med * 0.55
+    ink[:, ink.mean(axis=0) > 0.7] = False         # (a dark edge)
+    share = ink.mean(axis=1)
+    share[share > 0.6] = 0                         # (the dark lines between the rows)
+    on = np.flatnonzero(share >= 0.03)
+    bands, gap = [], max(2, int(banner_h * 0.25))
+    for y in on:
+        if bands and y - bands[-1][1] <= gap:
+            bands[-1][1] = int(y)
+        else:
+            bands.append([int(y), int(y)])
+    bands = [b for b in bands if b[1] - b[0] >= banner_h * 0.25]
+    bands = sorted(sorted(bands, key=lambda b: -float(share[b[0]:b[1] + 1].sum()))[:3])
+    out = []
+    row_h = banner_h * 1.4
+    for a, b in bands:
+        mid = y0 + (a + b) / 2.0
+        half = max((b - a) / 2.0 + banner_h * 0.2, row_h / 2.0)
+        out.append((x0, int(max(y0 - banner_h * 0.1, mid - half)), x1, int(min(img.height, mid + half))))
+    return out
+
+
+def read_card(img, card, ocr=None):
+    """3.0.6 (reader.py): the card's rows read one by one -> (is the card, [(rumor, island, box)] top to bottom).
+    The "Use a logbook" strip (then the banner) says it is the card; each row is matched by its picture (rows matched
+    for sure before) or its text - never a guess between two rumors."""
+    from . import reader as R
+    anchor, banner, rows = card_lines(img, card)
+    card_ok = False
+    for box, kind in ((anchor, "rumor-anchor"), (banner, "rumor-anchor")):
+        t, _b, _how = R.read_one(img, box, kind=kind, want=lambda s: is_card([(s, None)]), ocr=ocr)
+        if is_card([(t, None)]):
+            card_ok = True
+            break
+    out, seen = [], set()
+    for box in rows:
+        hit = R.read_closed(img, box, _VOCAB, kind="rumor-row", match=_closed, ocr=ocr, learn=card_ok,
+                            among=None)
+        if hit and hit.entry[1] not in seen:
+            seen.add(hit.entry[1])
+            out.append((hit.entry[0], hit.entry[1], box))
+    return card_ok, out
+
+
+def merge_rows(first, more):
+    """The rows read one by one (first) and those of the whole card's read (more) -> one list, top to bottom: a row
+    of `more` counts only for an island not found yet and a place on the card no row of `first` holds."""
+    out = list(first)
+    for r, i, b in more:
+        mid = (b[1] + b[3]) / 2.0
+        if any(i == o[1] for o in out) or any(o[2][1] <= mid <= o[2][3] for o in first):
+            continue
+        out.append((r, i, b))
+    out.sort(key=lambda x: (x[2][1], x[2][0]))
+    return out
+
+
+_VOCAB = {r: (r, i) for r, i in RUMOURS}
+
+
+def _closed(text):
+    """A row's text -> reader.Hit of (rumor, island), sure (MATCH, LEAD - the same rule as match()), or None."""
+    from . import reader as R
+    hit = R.match_closed(text, _VOCAB, min_score=MATCH, min_lead=LEAD, parts=False, detail=True)
+    if hit is None:
+        p = part_match(text)
+        if p and not any(a in squash(text) for a in ("rumour", "rumor", "logbook", "requires", "chart")):
+            return R.Hit(p, 0.0, 0.0, "part")
+    return hit
+
+
 PART_MIN = 5                   # 3.0.6: a line the reader cut short ("least..." for "It's dry at least...")
 
 
