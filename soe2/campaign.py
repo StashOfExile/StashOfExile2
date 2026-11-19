@@ -15,6 +15,7 @@
 The guide pack is campaign.json: bundled with the app, and updated from GitHub without an app update ("Check for a
 newer one"). Stored in SETTINGS["campaign"]. Reads only Client.txt; nothing is sent to the game."""
 import copy
+import threading
 import json
 import os
 import re
@@ -68,10 +69,31 @@ DEFAULTS = {
     "pack_checked": 0,
 }
 CAMP_ID = re.compile(r"^(G|P)(\d+)(?:_|$)")
+_TL = threading.local()           # 3.0.6: rebuild_from_log() replays a log into a throwaway copy of the data (see there)
+
+
+def _sandbox():
+    return getattr(_TL, "sb", None)
+
+
+def _league():
+    sb = _sandbox()
+    return sb["league"] if sb else (SETTINGS.get("league") or "")
+
+
+def _who():
+    """The character the log is about: in a rebuild from the log, the name its level-up lines gave so far."""
+    sb = _sandbox()
+    return sb["char"] if sb else current_char()
+
+
+def _lvl():
+    return 0 if _sandbox() else char_level()
 
 
 def cfg():
-    c = SETTINGS.setdefault("campaign", {})
+    sb = _sandbox()
+    c = sb["cfg"] if sb else SETTINGS.setdefault("campaign", {})
     for k, v in DEFAULTS.items():
         if k not in c:                                   # 2.125.4: copied only when missing (it ran on every call)
             c[k] = copy.deepcopy(v)
@@ -95,6 +117,8 @@ def cfg():
 
 
 def save():
+    if _sandbox():
+        return
     save_json("settings.json", SETTINGS)
 
 
@@ -222,10 +246,18 @@ def short_gives(r):
 # ---------------------------------------------------------------- a character's run
 def char(name=None):
     c = cfg()
-    name = current_char() if name is None else name
+    name = _who() if name is None else name
+    if name and name not in c["chars"] and isinstance(c["chars"].get(""), dict) and not c["chars"][""].get("done"):
+        # 3.0.6: a campaign that began before the log said the character's name (the first level-up line) goes on
+        # under that name - its act and zone times keep counting (they were left behind in the nameless run)
+        c["chars"][name] = c["chars"].pop("")
     run = c["chars"].setdefault(name or "", {})
     if not run.get("league"):                             # 2.86.0: a new run - its league (for the leaderboards)
-        run["league"] = SETTINGS.get("league") or ""      # (2.124.1: and an older run that had none)
+        run["league"] = _league()                         # (2.124.1: and an older run that had none)
+    return _fill(run)
+
+
+def _fill(run):
     for k, v in (("act", None), ("zone", None), ("here", None), ("seen", {}), ("levels", {}), ("rewards", {}),
                  ("ask", []), ("secs", {}), ("last_ts", None), ("afk", False), ("done", False), ("zone_level", 0),
                  ("pending", None), ("unknown", None), ("visit", False),
@@ -238,6 +270,9 @@ def char(name=None):
 
 
 def current_char():
+    sb = _sandbox()
+    if sb:
+        return sb["char"]
     from . import focus as F
     st = F.cfg().get("state") or {}
     return (st.get("last_char") or (SETTINGS.get("tracker") or {}).get("character") or cfg().get("last_char")
@@ -247,6 +282,8 @@ def current_char():
 def char_level():
     """Your level: League Plan's, or the Campaign Helper's own (it reads the level-up lines too - League Plan can be
     off)."""
+    if _sandbox():
+        return 0
     from . import focus as F
     st = F.cfg().get("state") or {}
     who = current_char()
@@ -431,7 +468,8 @@ def _close_act(run, key, now):
     run["closed"].append(key)
     secs = run["secs"].get(key)
     if secs:
-        league = SETTINGS.get("league") or ""
+        run.setdefault("secs_at", {})[key] = int(now or time.time())          # 3.0.6: when it was set
+        league = _league()
         b = c["best"].setdefault(league, {})
         if key not in b or secs < b[key]:
             b[key] = round(secs)
@@ -459,6 +497,8 @@ EVENTS = []
 
 
 def _event(kind, **kw):
+    if _sandbox():
+        return                                                # (a rebuild from the log makes no pop-ups)
     EVENTS.append(dict(kind=kind, **kw))
     del EVENTS[:-8]
 
@@ -550,7 +590,7 @@ def _said(run, data, ts):
         _tick(run, ts)
         _close_act(run, key, ts)
         _event("act", act=act_name(key), secs=run["secs"].get(key),
-               best=cfg()["best"].get(SETTINGS.get("league") or "", {}).get(key))
+               best=cfg()["best"].get(_league(), {}).get(key))
     save()
     return "zone"
 
@@ -603,6 +643,8 @@ def log_event(kind, ts, data, area_kind=None):
         who, lvl = data.get("who") or "", int(data.get("level") or 0)        # set, else the last one)
         mine = ((SETTINGS.get("tracker") or {}).get("character") or "").strip()
         if who and (not mine or mine.lower() == who.lower()):
+            if _sandbox():
+                _sandbox()["char"] = who                          # (a rebuild: the name from here on)
             lv = c.setdefault("char_levels", {})
             lv[who] = lvl
             if len(lv) > 30:
@@ -623,7 +665,16 @@ def log_event(kind, ts, data, area_kind=None):
         if area_kind == "map":
             run["visit"] = False
             _tick(run, ts)
+            _zone_done(run, ts)                                   # 3.0.6: leaving for a map ends the zone's time too
             run["area"] = aid
+            if not run["done"] and not run["secs"]:
+                # 3.0.6 (owner: the Leaderboards had no campaign times): a run is finished only with its times. One
+                # with none - a character that was never timed in the campaign (the nameless run took the first
+                # map it saw) - was marked done for good, and every campaign after it counted as "a visit": no
+                # act or zone time was ever kept. Not done: it just hides here (away) and times the next campaign.
+                run["away"] = True
+                run["visit"] = False
+                return out
             if not run["done"]:
                 run["done"] = True
                 for key in list(run["seen"]):                     # every act you were in is over (the interludes
@@ -636,7 +687,7 @@ def log_event(kind, ts, data, area_kind=None):
         if ak is None:
             run["visit"] = False                                  # 2.97.0: left the campaign zones
             _tick(run, ts)
-            _zone_done(run)                                       # (2.124.0: a hideout ends the zone's time)
+            _zone_done(run, ts)                                   # (2.124.0: a hideout ends the zone's time)
             run["away"] = True
             run["last_ts"] = ts                                   # (a hideout: time there isn't the act's)
             run["area"] = aid
@@ -677,13 +728,14 @@ def act_time(run=None, now=None):
     return secs
 
 
-def _zone_done(run):
+def _zone_done(run, ts=None):
     """2.124.0: leaving a campaign zone - its time is kept, the best per zone (for the Campaign zones leaderboard)."""
     z, secs = run.get("zone"), run.get("zone_secs") or 0
     if z and secs > 0 and not run.get("away"):
         b = run.setdefault("zone_best", {})
         if z not in b or secs < b[z]:
             b[z] = round(secs, 1)
+            run.setdefault("zone_at", {})[z] = int(ts or time.time())      # 3.0.6: the day it was set (the board's "at")
     run["zone_secs"] = 0
 
 
@@ -716,8 +768,11 @@ def _enter(run, name, area_id, level, ts, id_act=None):
     key = key or id_act or act_of_id(area_id)
     if key is None:
         return None
+    if run.get("done") and _new_campaign(key, step, area_id, level):
+        run = _restart(run)                                   # 3.0.6: a new character on a finished (nameless) run
+        run["last_ts"] = ts
     left, fight = run.get("area"), run.get("fight")
-    _zone_done(run)                                           # 2.124.0: the zone you left, timed; this one starts
+    _zone_done(run, ts)                                       # 2.124.0: the zone you left, timed; this one starts
     run["away"] = False
     run["zone_t0"] = ts                                       # 2.124.1: when you came in (the overlay's Zone time)
     run["area"] = area_id
@@ -769,7 +824,7 @@ def _enter(run, name, area_id, level, ts, id_act=None):
             run["rewards"][r["id"]] = "got"
     if town and c["warn"] and _town_asks(run, key):           # rewards the log can't see: asked once, in town
         out = "ask"
-    you, zl = char_level(), int(level or 0)
+    you, zl = _lvl(), int(level or 0)
     lv = level_check(you, zl)
     if lv and lv[0] == "under" and (step or {}).get("boss") and area_id not in run["warned"] \
             and not 0 <= ts - (run.get("low_ts") or 0) < LOW_QUIET:          # (a boss zone; not again for a while)
@@ -787,6 +842,36 @@ def _enter(run, name, area_id, level, ts, id_act=None):
         run["unknown"] = None
     save()
     return out
+
+
+def _new_campaign(key, step, area_id, level):
+    """3.0.6: the first zone of the first act at a low area level - a new campaign (a finished run doesn't come back
+    here), also for a new character that shares the nameless run."""
+    first = (acts() or [{}])[0]
+    ids = ((first.get("steps") or [{}])[0].get("ids") or [])
+    return bool(first) and key == first.get("key") and area_id in ids and int(level or 0) <= 3 \
+        and _lvl() < MAPS_LEVEL
+
+
+def _restart(run):
+    """3.0.6: a finished run with times is kept (as its own run, still on the leaderboards); the one in use starts
+    again. -> the fresh run."""
+    c = cfg()
+    if run.get("secs") or run.get("zone_best"):
+        old = {k: copy.deepcopy(v) for k, v in run.items()}
+        name = _who() or "unnamed"
+        old["char"], old["archived"] = name, True
+        n = 1
+        while f"{name} #{n}" in c["chars"]:
+            n += 1
+        c["chars"][f"{name} #{n}"] = old
+        for k in [k for k, r in c["chars"].items() if isinstance(r, dict) and r.get("archived")][:-10]:
+            c["chars"].pop(k, None)                           # (the newest 10)
+    keep = {k: run.get(k) for k in ("league", "route") if run.get(k)}
+    run.clear()
+    run.update(keep)
+    run.setdefault("league", _league())
+    return _fill(run)
 
 
 def _town_asks(run, key):
@@ -860,7 +945,9 @@ MAPS_LEVEL = 65                   # 2.90.0: a character this level is past the c
 def active(run=None):
     c = cfg()
     run = run or char()
-    if not run.get("done") and run.get("act") is not None and char_level() >= MAPS_LEVEL:
+    if not run.get("done") and run.get("act") is not None and _lvl() >= MAPS_LEVEL:
+        if not run.get("secs"):
+            return False                # 3.0.6: no times - not marked done (it would stop timing the next campaign)
         run["done"] = True              # 2.90.0: maps were reached while the log wasn't being read (it showed in the
                                         # hideout, post-campaign)
     return bool(c["on"]) and run.get("act") is not None and not (run.get("done") and c["off_at_maps"]
@@ -1027,7 +1114,7 @@ def vendor_searches(act_key=None):
 def splits(run=None):
     """-> [(act name, this run's secs or None, best or None, here?)] for every act in the pack."""
     run = run or char()
-    best = cfg()["best"].get(SETTINGS.get("league") or "", {})
+    best = cfg()["best"].get(_league(), {})
     return [(a.get("name"), run["secs"].get(a["key"]), best.get(a["key"]), run.get("act") == a["key"])
             for a in acts()]
 
@@ -1076,3 +1163,96 @@ def pooled(rows):
             c["sent"].append(k)
     c["sent"] = c["sent"][-500:]
     save()
+
+
+# ---------------------------------------------------------------- 3.0.6: campaign times rebuilt from Client.txt
+def rebuild_from_log(path, max_bytes=64 * 1024 * 1024, league=None):
+    """Replay the end of Client.txt (64 MB at most) through the live tracker's own rules (gamelog.parse and log_event:
+    _enter / _tick, GAP, AFK, hideouts) into a fresh throwaway run - the live data is never touched. The log doesn't
+    name the league, so a run gets the one set in Settings (league). Safe in a thread (no Tk).
+    -> [{"char", "league", "secs": {act key: secs}, "zone_best": {zone: secs}, "secs_at", "zone_at", "done",
+         "total"}] - only finished act splits (the act the log ends in isn't finished), only runs with times."""
+    from .gamelog import parse, area_kind
+    sb = {"cfg": {}, "char": "", "league": SETTINGS.get("league") or "" if league is None else league}
+    _TL.sb = sb
+    try:
+        cfg()
+        try:
+            size = os.path.getsize(path)
+            with open(path, "rb") as f:
+                start = max(0, size - max_bytes)
+                f.seek(start)
+                if start:
+                    f.readline()                                   # (a line cut in half)
+                for raw in f:
+                    ev = parse(raw.decode("utf-8", "replace"))
+                    if not ev or ev[0] not in ("area", "scene", "afk", "level", "say"):
+                        continue
+                    kind, ts, data = ev
+                    ak = area_kind(data.get("area"), data.get("seed"), data.get("level", 0)) if kind == "area" else None
+                    log_event(kind, ts, data, ak)
+        except OSError:
+            return []
+        out = []
+        names = [a["key"] for a in acts()]
+        for key, run in (sb["cfg"].get("chars") or {}).items():
+            if not isinstance(run, dict):
+                continue
+            finished = run.get("done")
+            secs = {k: round(v, 1) for k, v in (run.get("secs") or {}).items()
+                    if v and (finished or k in run.get("closed", []) or k != run.get("act"))}
+            zb = dict(run.get("zone_best") or {})
+            if not secs and not zb:
+                continue
+            total = round(sum(secs[k] for k in names), 1) if names and all(k in secs for k in names) else None
+            out.append({"char": run.get("char") or key, "league": run.get("league") or sb["league"], "secs": secs,
+                        "zone_best": zb, "secs_at": dict(run.get("secs_at") or {}),
+                        "zone_at": dict(run.get("zone_at") or {}), "done": bool(finished), "total": total})
+        return out
+    finally:
+        _TL.sb = None
+
+
+def names_last(r):
+    """The newest 'when' among a rebuilt run's acts (the day its whole campaign was done)."""
+    at = r.get("secs_at") or {}
+    return max(at, key=lambda k: at[k]) if at else None
+
+
+def merge_rebuilt(rebuilt):
+    """Rebuilt runs (rebuild_from_log) into the campaign data (window thread): per character the faster of old and new
+    for each act, each zone and the whole campaign - kept as bests beside the run (best_secs / zone_best /
+    best_total), so a run's own splits and its live state stay as they are. -> (acts, zones, totals) improved."""
+    c = cfg()
+    n_acts = n_zones = n_tot = 0
+    for r in rebuilt or []:
+        name = r.get("char") or ""
+        run = c["chars"].get(name)
+        if not isinstance(run, dict):
+            run = c["chars"][name] = {}
+            run["league"] = r.get("league") or _league()
+            _fill(run)
+        if not run.get("league"):
+            run["league"] = r.get("league") or _league()
+        league = r.get("league") or run["league"]
+        bs, bat = run.setdefault("best_secs", {}), run.setdefault("best_at", {})
+        lb = c["best"].setdefault(league, {})
+        for k, v in (r.get("secs") or {}).items():
+            if v and (k not in bs or v < bs[k]):
+                bs[k] = v
+                bat[k] = (r.get("secs_at") or {}).get(k) or int(time.time())
+                n_acts += 1
+            if v and (k not in lb or v < lb[k]):
+                lb[k] = round(v)
+        zb, zat = run.setdefault("zone_best", {}), run.setdefault("zone_at", {})
+        for z, v in (r.get("zone_best") or {}).items():
+            if v and (z not in zb or v < zb[z]):
+                zb[z] = v
+                zat[z] = (r.get("zone_at") or {}).get(z) or int(time.time())
+                n_zones += 1
+        t = r.get("total")
+        if t and (not run.get("best_total") or t < run["best_total"]):
+            run["best_total"], run["best_total_at"] = t, (r.get("secs_at") or {}).get(names_last(r)) or int(time.time())
+            n_tot += 1
+    save()
+    return n_acts, n_zones, n_tot

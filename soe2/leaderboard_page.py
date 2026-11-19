@@ -14,6 +14,8 @@ from . import buglog
 from .style import C, SegBar, Tooltip
 
 ALL_LEAGUES = "All leagues"
+LEVEL_HEADER = "Area level"
+LEVEL_TIP = "The map's area level when it was run (Waystone tier 1 = area level 65, tier 16 = 80)"
 TOPS = (5, 10, 20, 30, 50, 100)             # 2.104.1 (feedback): how many rows a board shows
 
 
@@ -63,6 +65,16 @@ class LeaderboardPage:
         exb = ttk.Button(top2, text="Export my times…", style="Quiet.TButton", command=self.lb_export)
         exb.pack(side="right", padx=(0, 8))
         Tooltip(exb, "Your fastest maps, bosses, trials and acts to a CSV - from this PC, no character names")
+        top3 = tk.Frame(body, bg=P1, padx=8)
+        top3.pack(fill="x", pady=(0, 4))
+        self.lb_rebuild_btn = ttk.Button(top3, text="Rebuild campaign times from the game's log", style="Quiet.TButton",
+                                         command=self.lb_rebuild)
+        self.lb_rebuild_btn.pack(side="left")
+        Tooltip(self.lb_rebuild_btn, "Reads the end of Client.txt (the game's log file) and works out your act and zone "
+                                     "times again. It only reads that file - the game isn't touched. The faster of old and "
+                                     "new is kept.")
+        tk.Label(top3, text="Works out your act and zone times again from the game's log.", bg=P1, fg=C["muted"],
+                 font=("Segoe UI", 9)).pack(side="left", padx=(8, 0))
         self.lb_msg = tk.Label(body, text="", bg=P1, fg=C["muted"], anchor="w", justify="left", padx=12)
         self.lb_msg.pack(fill="x")
         split = tk.Frame(body, bg=P1)
@@ -90,16 +102,28 @@ class LeaderboardPage:
         right.pack(side="left", fill="both", expand=True, padx=(8, 0))
         self.lb_title = tk.Label(right, text="", bg=P1, fg=C["accent"], font=("Segoe UI", 12, "bold"), anchor="w")
         self.lb_title.pack(fill="x")
-        cols = (("rank", "#", 40, "e"), ("name", "Player", 150, "w"), ("time", "Time", 80, "e"), ("cls", "Class", 120, "w"),
-                ("lvl", "Level", 60, "e"), ("deaths", "Deaths", 66, "e"), ("league", "League", 120, "w"),
+        cols = (("rank", "#", 40, "e"), ("name", "Player", 170, "w"), ("time", "Time", 80, "e"), ("cls", "Class", 120, "w"),
+                ("lvl", LEVEL_HEADER, 84, "e"), ("deaths", "Deaths", 66, "e"), ("league", "League", 120, "w"),
                 ("when", "When", 100, "w"))
         bv = ttk.Treeview(right, columns=[c[0] for c in cols], show="headings", selectmode="browse")
         for cid, title, w, a in cols:
             bv.heading(cid, text=title)
             bv.column(cid, width=w, anchor=a, stretch=cid in ("name", "cls"))
+        lvl_tip = Tooltip(bv, "")                                # the header's hover (a Treeview heading has no widget)
+
+        def lvl_hover(e, tip=lvl_tip, col="#%d" % (1 + [c[0] for c in cols].index("lvl"))):
+            on = bv.identify_region(e.x, e.y) == "heading" and bv.identify_column(e.x) == col
+            if (LEVEL_TIP if on else "") != tip.text:
+                tip.hide()
+                tip.text = LEVEL_TIP if on else ""
+                if on:
+                    tip._enter()
+            tip.at = (bv.winfo_rootx() + e.x, bv.winfo_rooty() + e.y + 22)
+        bv.bind("<Motion>", lvl_hover, add="+")
         bv.tag_configure("gold", foreground="#ffd25a")
         bv.tag_configure("me", foreground=C["green"])
         bv.tag_configure("hidden", foreground=C["muted"])
+        bv.tag_configure("sub", foreground=C["muted"])          # 3.0.6: a player's other runs (under their best)
         bv.pack(fill="both", expand=True, pady=(4, 0))
         self.lb_board_empty = tk.Label(right, text="Pick a board on the left.", bg=self._lb_field(), fg=C["muted"])
         bv.menu_actions = self.lb_menu_actions
@@ -316,14 +340,22 @@ class LeaderboardPage:
         league, cls = self.lb_filters()
         self.lb_title.config(text=f"🏆 {key}" + (f" · {cls}" if cls else "") + (f" · {league}" if league else " · all leagues"))
         if self.lb_who.get() == "Mine":
+            # 3.0.6: all your own runs for this entry, fastest first - kept on this PC; only the 10 fastest per league
+            # and class are shared
             rows = sorted((e for e in self.lb_my if e["cat"] == cat and e["key"] == key
                            and (not league or e["league"] == league) and (not cls or e.get("cls") == cls)),
-                          key=lambda e: e["secs"])[:self.lb_top_n()]
+                          key=lambda e: e["secs"])
             for i, e in enumerate(rows):
-                bv.insert("", "end", iid=f"m{i}", values=(i + 1, e.get("char") or "me", LB.fmt(e["secs"]),
-                                                          e.get("cls") or "", e.get("level") or "", e.get("deaths", 0),
+                sub = i > 0
+                bv.insert("", "end", iid=f"m{i}", values=(i + 1, ("   ↳ " if sub else "") + (e.get("char") or "me")
+                                                          + (f" · run {i + 1}" if sub else ""), LB.fmt(e["secs"]),
+                                                          e.get("cls") or "", LB.level_text(e.get("level")), e.get("deaths", 0),
                                                           e["league"], time.strftime("%b %d", time.localtime(e["at"]))),
-                          tags=("gold",) if i == 0 else ())
+                          tags=("sub",) if sub else ("gold",))
+            if rows:
+                self.lb_msg.config(text=f"{len(rows)} run{'s' if len(rows) != 1 else ''} on this PC. The "
+                                        f"{LB.PER_PLAYER} fastest per league and class are shared; the rest stay here.",
+                                   fg=C["muted"])
             return
 
         # 2.125.8 (feedback: no one else's map times showed; app_log: "Item b1767 already exists"):
@@ -344,18 +376,83 @@ class LeaderboardPage:
             if rows and not others:                       # (say why it's only you - not a fault)
                 self.lb_msg.config(text="Only your time on this board so far. Other players' times show here once "
                                         "they share theirs (Community data sharing).", fg=C["muted"])
-            for i, r in enumerate(rows):
-                iid = f"b{r['id']}"
-                if bv.exists(iid):
-                    continue
-                self.lb_rows[iid] = r
-                tags = ("hidden",) if r.get("hidden") else ("me",) if r.get("mine") else ("gold",) if i == 0 else ()
-                bv.insert("", "end", iid=iid, values=(i + 1, r["name"] + (" (you)" if r.get("mine") else ""),
-                                                      LB.fmt(r["secs"]), r.get("cls") or "", r.get("level") or "",
-                                                      r.get("deaths", 0), r.get("league", ""),
-                                                      time.strftime("%b %d", time.localtime(r["at"]))), tags=tags)
+            top = self.lb_top_n()
+            for place, (_name, runs) in enumerate(self.lb_groups(rows)[:top]):
+                for j, r in enumerate(runs):
+                    iid = f"b{r['id']}"
+                    if bv.exists(iid):
+                        continue
+                    self.lb_rows[iid] = r
+                    sub = j > 0
+                    tags = ("hidden",) if r.get("hidden") else ("sub",) if sub else ("me",) if r.get("mine") \
+                        else ("gold",) if place == 0 else ()
+                    who = r["name"] + (" (you)" if r.get("mine") else "")
+                    bv.insert("", "end", iid=iid, values=(
+                        "" if sub else place + 1, f"   ↳ run {j + 1}" if sub else who, LB.fmt(r["secs"]),
+                        r.get("cls") or "", LB.level_text(r.get("level")), r.get("deaths", 0), r.get("league", ""),
+                        time.strftime("%b %d", time.localtime(r["at"]))), tags=tags)
         top = self.lb_top_n()
-        self._lb_bg(lambda: B.lb_board(cat, key, league, cls, limit=top), done)
+        self._lb_bg(lambda: B.lb_board(cat, key, league, cls, limit=min(200, top * LB.PER_PLAYER), per=LB.PER_PLAYER),
+                    done)
+
+    @staticmethod
+    def lb_groups(rows):
+        """3.0.6: the board's rows (fastest first, up to 10 per player) -> [(player, [their runs, fastest first])], the
+        players in the order of their best run - so the board isn't ten rows of one name."""
+        order, by = [], {}
+        for r in sorted(rows, key=lambda r: (r.get("rank_in_player") or 1, r["secs"])):
+            who = (r.get("name"), bool(r.get("mine")))
+            if who not in by:
+                by[who] = []
+                order.append(who)
+            by[who].append(r)
+        order.sort(key=lambda w: min(r["secs"] for r in by[w]))
+        return [(w[0], sorted(by[w], key=lambda r: r["secs"])) for w in order]
+
+    # ---------------------------------------------------------------- 3.0.6: campaign times from the game's log
+    def lb_rebuild(self):
+        """Rebuild the campaign's act and zone times from Client.txt (the last 64 MB), in the background. Reads the
+        game's log only. The faster of old and new is kept; then the times are sent (when sharing is on)."""
+        if getattr(self, "_lb_rebuilding", False):
+            return None
+        from .gamelog import find_log
+        path = find_log(self.tracker_cfg().get("log_path")) if hasattr(self, "tracker_cfg") else None
+        if not path:
+            self._say("Couldn't find the game's log (Client.txt). Pick it in the Overlay's Session timer options.", 8)
+            return None
+        self._lb_rebuilding = True
+        self.lb_rebuild_btn.state(["disabled"])
+        self.lb_msg.config(text="Reading the game's log…", fg=C["muted"])
+
+        def done(res):
+            self._lb_rebuilding = False
+            self.lb_rebuild_btn.state(["!disabled"])
+            if res is None:
+                self.lb_msg.config(text="Couldn't read the game's log.", fg=C["red"])
+                return
+            a, z, t = res
+            txt = (f"Rebuilt from the log: {a} act time{'s' if a != 1 else ''} and {z} zone time{'s' if z != 1 else ''} "
+                   "new or faster" + (", and the whole campaign" if t else "") + ".")
+            self.lb_msg.config(text=txt, fg=C["muted"])
+            self._say(txt, 8)
+            self.lb_send(force=True)
+            self.lb_refresh()
+
+        def work():
+            try:
+                runs = LB.rebuild_campaign(path)
+            except Exception:
+                buglog.caught()
+                return None
+            return ("merge", runs)
+
+        def merged(res):
+            if res is None:
+                return done(None)
+            from . import campaign as CP
+            done(CP.merge_rebuilt(res[1]))
+        self._lb_bg(work, merged)
+        return True
 
     # ---------------------------------------------------------------- reports / reviewers
     def lb_menu_actions(self, sel):

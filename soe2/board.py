@@ -226,7 +226,8 @@ def set_reviewer(on=True):
 
 # ---------------------------------------------------------------- 2.86.0: global leaderboards
 def lb_send(entries):
-    """Your best times (leaderboard.payload). -> (True, {"kept", "refused"}); the board takes one batch per 10 min."""
+    """Your fastest runs (leaderboard.payload: up to 10 per board entry). -> (True, {"kept", "refused"}); the board
+    takes one batch per 10 min."""
     return call("POST", "/lb", body={"entries": entries})
 
 
@@ -234,9 +235,10 @@ def lb_keys(cat, league="", cls=""):
     return call("GET", "/lb", {k: v for k, v in (("cat", cat), ("league", league), ("cls", cls)) if v})
 
 
-def lb_board(cat, key, league="", cls="", limit=100):
+def lb_board(cat, key, league="", cls="", limit=100, per=10):
+    """One board's rows, fastest first. per = the most rows of one player (10 at most; 1 = the best of each player)."""
     return call("GET", "/lb", {k: v for k, v in (("cat", cat), ("key", key), ("league", league), ("cls", cls),
-                                                  ("limit", limit)) if v})
+                                                  ("limit", limit), ("per", per)) if v})
 
 
 def lb_report(lid, reason=""):

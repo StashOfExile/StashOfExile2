@@ -118,16 +118,19 @@ CREATE TABLE IF NOT EXISTS limits (   -- per-day counters (edits, suggestions, r
 );
 
 -- 2.86.0: global leaderboards (the Worker also creates these itself on first use)
+-- 3.0.6: up to 10 rows per account / board / key / league / class (its fastest runs): UNIQUE now ends with (secs, at).
+-- A database made before 3.0.6 has the old UNIQUE (user_id, cat, key, league, cls): the Worker copies it into the new
+-- table by itself on its first request (lbMulti() in src/index.js; rows and ids kept) - nothing to run by hand.
 CREATE TABLE IF NOT EXISTS lb (
   id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL,
   cat TEXT NOT NULL,                  -- campaign, zone (2.124.0), map, boss, trial
   key TEXT NOT NULL,                  -- the act / map / fight
   league TEXT NOT NULL, cls TEXT NOT NULL DEFAULT '',
-  secs REAL NOT NULL,                 -- the best time (self-reported, from the game's log)
+  secs REAL NOT NULL,                 -- one of the account's fastest times (self-reported, from the game's log)
   level INTEGER NOT NULL DEFAULT 0, deaths INTEGER NOT NULL DEFAULT 0,
   at INTEGER NOT NULL, sent INTEGER NOT NULL,
   reports INTEGER NOT NULL DEFAULT 0, hidden INTEGER NOT NULL DEFAULT 0,
-  UNIQUE (user_id, cat, key, league, cls)
+  UNIQUE (user_id, cat, key, league, cls, secs, at)
 );
 CREATE INDEX IF NOT EXISTS lb_board ON lb (cat, key, league, hidden, secs);
 CREATE TABLE IF NOT EXISTS lb_reports (
