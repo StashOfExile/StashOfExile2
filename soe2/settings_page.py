@@ -23,6 +23,12 @@ from .chrome import section as chrome_section
 PC_SHOW = {"both": "Price check overlay", "front": "In the app"}
 
 
+
+
+def hk_clash_text(what, clash):
+    """A key row's words: a clash gets a mark and a word as well as the red (never color alone)."""
+    return f"⚠ {what} - same key as another" if clash else what
+
 class SettingsPage:
     """Settings › every tab, and their handlers."""
 
@@ -966,7 +972,7 @@ class SettingsPage:
                     continue
                 lab, kc = row
                 col = C["red"] if what in clash_keys else C["text"]
-                set_cfg(lab, fg=col)
+                set_cfg(lab, fg=col, text=hk_clash_text(what, what in clash_keys))
                 v = self.hk_vars.get(kid)
                 if v is not None and v.get() != key and not kc.waiting:
                     v.set(key)
@@ -998,7 +1004,8 @@ class SettingsPage:
                     row=i, column=0, columnspan=3, sticky="w", pady=(10 if i else 0, 2))
                 i += 1
             col = C["red"] if what in clash_keys else C["text"]
-            lab = tk.Label(f, text=what, bg=P2, fg=col, anchor="w", justify="left", wraplength=360)
+            lab = tk.Label(f, text=hk_clash_text(what, what in clash_keys), bg=P2, fg=col, anchor="w",
+                           justify="left", wraplength=360)
             lab.grid(row=i, column=0, sticky="w", padx=(12, 12))      # (wraps: the Read Key's line fits the Drawer)
             if kid:
                 v = tk.StringVar(value=key)

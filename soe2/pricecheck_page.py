@@ -1213,8 +1213,6 @@ class PriceCheckPage:
             return False
         if not text.lstrip().startswith("Item Class:"):
             return False
-        if getattr(keys, "tu_recent", None) and keys.tu_recent():
-            return False                                         # (2.131.1: the Top Up key's copy - not priced)
         if pc_key_is_copy():
             return keys.copy_recent() and not keys.combo_recent()
         return keys.pc_recent()
