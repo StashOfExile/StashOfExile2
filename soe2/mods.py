@@ -453,6 +453,24 @@ def tier_rank(t):
     return TIER_ORDER.index(t) if t in TIER_ORDER else 9
 
 
+ROLL_STEP_DOWN = 4      # 3.0.6 (owner: "a T4 max mana and a T1 max mana have different values"): from this roll tier
+                        # on, a mod counts one letter lower when the search has to leave mods out
+
+
+def roll_tier(m):
+    """A mod's roll tier from the copy ("(Tier: 4)" -> 4), or None when the copy doesn't say."""
+    t = str((m or {}).get("tier") or "").strip()
+    return int(t) if t.isdigit() else None
+
+
+def drop_rank(letter_rank, m):
+    """How soon a mod is left out when too few listings have every mod: its letter's rank (S = 0 ... D = 4), one
+    lower for a roll of tier ROLL_STEP_DOWN or worse, then the worse roll first. Automatic - nothing to set."""
+    rt = roll_tier(m)
+    eff = letter_rank + (1 if rt is not None and rt >= ROLL_STEP_DOWN and letter_rank < len(TIER_ORDER) - 1 else 0)
+    return (eff, rt if rt is not None else ROLL_STEP_DOWN - 1)
+
+
 DEFAULT_TIERS = {}
 
 

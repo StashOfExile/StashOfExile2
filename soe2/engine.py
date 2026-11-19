@@ -76,7 +76,8 @@ def fewer_offer(rec, ticked):
             return (-1, i)
         k = key_for(rec, m)
         g = current([k]) if k else None
-        return (tier_rank(g) if g in TIER_ORDER else tier_rank("C"), i)
+        from .mods import drop_rank                    # (the worse roll goes first: drop_rank)
+        return (*drop_rank(tier_rank(g) if g in TIER_ORDER else tier_rank("C"), m), i)
     _i, worst = max(enumerate(mods), key=rank)
     shown = re.sub(r"\s+", " ", str(worst.get("shown") or worst.get("text") or "")).strip()
     return {"next": f"without {shown[:48]}", "drop": ov_key(worst), "text": worst.get("text")}
@@ -619,7 +620,9 @@ class Engine(TabReaderJobs, WealthJobs, StratCostJobs, threading.Thread):
             allg = suffixes + prefixes
             if len(allg) >= 3:
                 from .mods import tier_key, tier_rank                  # 2.20.0: the lowest tier is left out first
-                order = sorted(reversed(allg), key=lambda g: -min(tier_rank(tier_key(norm(m["text"]))) for m in g["mods"]))
+                from .mods import drop_rank                            # 3.0.6: a worse roll goes sooner
+                order = sorted(reversed(allg), key=lambda g: tuple(-x for x in min(
+                    drop_rank(tier_rank(tier_key(norm(m["text"]))), m) for m in g["mods"])))
                 plan += [(f"without {short(d)}", [g for g in allg if g is not d]) for d in order]
         vals = {m["sid"]: m["value"] for g in groups for m in g["mods"] if m.get("sid")}
         mem = MARKET.lower_bound(item["base"], vals, SETTINGS.get("memory_hours", 24) or 24)
@@ -644,8 +647,9 @@ class Engine(TabReaderJobs, WealthJobs, StratCostJobs, threading.Thread):
         relaxed = None
         if not found and len(plan[0][1]) >= 2:                  # 2.20.0: leave out the lowest-tier mods, then the next
             from .mods import tier_key, tier_rank, TIER_ORDER
-            for g in plan[0][1]:
-                ranks = [tier_rank(tier_key(norm(m["text"]))) for m in g["mods"]]
+            from .mods import drop_rank
+            for g in plan[0][1]:                                # (3.0.6: a roll of T4 or worse counts a letter lower)
+                ranks = [drop_rank(tier_rank(tier_key(norm(m["text"]))), m)[0] for m in g["mods"]]
                 g["tier_rank"] = min(ranks + ([1] if g["impact"] == "high" else []))
             keep = list(plan[0][1])
             for _ in range(2):                                  # at most 2 more searches (the trade site's limits)
