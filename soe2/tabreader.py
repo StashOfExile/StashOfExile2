@@ -43,9 +43,9 @@ class TabReaderJobs:
         if not league:
             return "Pick a league first (Settings)."
         if not account_ok(account):
-            return "Type your account name with its number, for example YourName#1234 (it's shown on the trade site)."
+            return "Type your account name with its number, for example YourName#1234 as the trade site shows it."
         if not amount or amount <= 0:
-            return "Type the price you put on the tab in game (for example 37882) and pick its currency."
+            return "Type the price you put on the tab in game, like 37882, and pick its currency."
         PCTAB["gen"] += 1
         PCTAB.update(running=True, cancel=False, msg="Searching your tab…", found=0, read=0, error="", warnings=[],
                      qid=None, seen=set(), skipped={}, raw_logged=False, log=[f"{time.strftime('%Y-%m-%d %H:%M:%S')}  league {league}, "

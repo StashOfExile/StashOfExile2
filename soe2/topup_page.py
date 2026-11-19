@@ -207,6 +207,51 @@ class TopUpPage:
             box[size] = LocalIcons(self.root, size=size)
         return box[size]
 
+    def tu_display(self, size=ROW_ICON):
+        """The pictures this window DRAWS: poe.ninja's currency icons from the art cache Exchange Rates fills (the
+        same downloads and rules as there), else the shipped crop. -> get(name) -> PhotoImage or None. Recognition
+        never uses these: it reads cells with tu_refs() (Map Profit's matcher pictures)."""
+        from .rates_view import Icons, picture_paths, url_for
+        box = self.__dict__.setdefault("_tu_disp", {})
+        if size not in box:
+            icons = Icons(self.root, lambda: self._tu_icons_ready(), size=size)
+            local = self.tu_icons_local(size)
+            st = {"paths": None, "at": 0.0}
+
+            def get(name):
+                import time as _t
+                if st["paths"] is None or _t.time() - st["at"] > 60:
+                    st["paths"], st["at"] = picture_paths(), _t.time()
+                url = url_for(name, st["paths"])
+                return (icons.get(url) if url else None) or local.get(name)
+            box[size] = get
+        return box[size]
+
+    def _tu_icons_ready(self):
+        """New poe.ninja pictures arrived: the window's rows and the picker draw again (once)."""
+        win = getattr(self, "tu_items_win", None)
+        try:
+            if win is None or not win.winfo_exists():
+                return
+        except tk.TclError:
+            return
+        pick = getattr(self, "tu_add_pick", None)
+        if pick is not None:
+            try:
+                pick.refresh_pictures()
+            except tk.TclError:
+                pass
+        if not getattr(self, "_tu_repaint", False):
+            self._tu_repaint = True
+
+            def again():
+                self._tu_repaint = False
+                try:
+                    self.topup_paint_list()
+                except tk.TclError:
+                    pass
+            self.root.after(200, again)
+
     def topup_totals(self):
         last = getattr(self, "tu_last", None) or {}
         if not last.get("open"):
@@ -324,7 +369,7 @@ class TopUpPage:
         have = {it["name"].lower() for it in TU.cfg()["items"]}
         small = self.tu_icons_local(24)
         self.tu_add_var = tk.StringVar()
-        pick = ImagePick(box, [n for n in small.names() if n.lower() not in have], small.get,
+        pick = ImagePick(box, [n for n in small.names() if n.lower() not in have], self.tu_display(24),
                          textvariable=self.tu_add_var, width=22)
         pick.pack(side="left", padx=8)
         self.tu_add_pick = pick
@@ -474,13 +519,13 @@ class TopUpPage:
             if txt == "In inventory":
                 Tooltip(h, "How many your inventory held at your last read, all stacks added up.")
         tot = self.topup_totals()
-        local = self.tu_icons_local()
+        local = self.tu_display()
         self.tu_seen_tips = {}
         for it in items:
             name = it["name"]
             r = tk.Frame(box, bg=P2)
             r.pack(fill="x", pady=2)
-            img = local.get(name)                           # the app's own picture; an older taught one if none
+            img = local(name)                               # poe.ninja's icon, else the shipped crop, else a taught one
             if img is None and TU.icon_b64(name):
                 try:
                     img = tk.PhotoImage(data=TU.icon_b64(name))

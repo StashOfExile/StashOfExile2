@@ -937,7 +937,7 @@ class StratViews:
                                 "\nClick: copy its stash search, or open the Trade Site")
                 cv.acts[tag] = lambda it=it, tg=tag: self.mm_item_menu(it, tg)
             else:
-                cv.tips[tag] = f"{sl['word']}: {sl['sub']} (from the author's text)"
+                cv.tips[tag] = f"{sl['word']}: {sl['sub']} - from the author's text"
             x += sz + gap
         yy += sz + 52
         keys = list(dict.fromkeys(m for it in tabs for m in it.get("key_mods") or []))

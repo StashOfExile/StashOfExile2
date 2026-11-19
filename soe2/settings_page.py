@@ -364,9 +364,9 @@ class SettingsPage:
         row2.pack(fill="x", pady=(8, 0))
         self.auto_check_var = tk.BooleanVar(value=bool(SETTINGS.get("auto_check_updates")))
         self.auto_update_var = tk.BooleanVar(value=bool(SETTINGS.get("auto_update")))
-        ttk.Checkbutton(row2, text="Check when the app starts (asks before installing)",
+        ttk.Checkbutton(row2, text="Check when the app starts",
                         variable=self.auto_check_var, command=lambda: self.on_update_options("check")).pack(anchor="w")
-        ttk.Checkbutton(row2, text="Install by itself when the app starts (it restarts itself)",
+        ttk.Checkbutton(row2, text="Install by itself when the app starts",
                         variable=self.auto_update_var, command=lambda: self.on_update_options("update")).pack(anchor="w")
 
         # ======== Appearance
@@ -383,7 +383,7 @@ class SettingsPage:
             lb.pack(side="left")
             lb.bind("<<ComboboxSelected>>", lambda e: self.on_launcher())
 
-            row = section("Appearance", "Wallpaper", "Any picture for the desktop background (it is scaled to fill).")
+            row = section("Appearance", "Wallpaper", "Any picture for the desktop background, scaled to fill.")
             ttk.Button(row, text="Choose wallpaper…", command=self.pick_wallpaper).pack(side="left")
             ttk.Button(row, text="Default", command=lambda: self.shell.set_wallpaper(None), style="Quiet.TButton").pack(side="left", padx=8)
 
@@ -428,8 +428,8 @@ class SettingsPage:
         ttk.Button(row, text="Open Overlay › Look", command=lambda: self.ovh_open("Look")).pack(side="left")
 
         # ======== Keys (2.116.0, P10: Hotkeys and Chat commands on one tab)
-        row = section("Keybinds", "Hotkeys", "Every key the app listens for. Click a box and press the key (with Ctrl / "
-                                         "Alt / Shift, or a mouse button) - it saves at once. Esc keeps the old key, "
+        row = section("Keybinds", "Hotkeys", "Every key the app listens for. Click a box and press the key, with Ctrl, "
+                                         "Alt, Shift or a mouse button. It saves at once. Esc keeps the old key, "
                                          "Backspace or right-click clears it. Two things on one key are shown in red.")
         self.hk_frame = row
         self.hk_vars = {}
@@ -437,7 +437,7 @@ class SettingsPage:
         row2.pack(fill="x", pady=(8, 0))
         self.hk_defaults_btn = ttk.Button(row2, text="↺ Defaults", command=self.hotkeys_defaults)   # 2.127.0
         self.hk_defaults_btn.pack(side="left", padx=8)
-        Tooltip(self.hk_defaults_btn, "Every keybind back to how the app comes (your chat command keys stay)")
+        Tooltip(self.hk_defaults_btn, "Every keybind back to how the app comes. Your chat command keys stay.")
         self.hk_msg = tk.Label(row2, text="", bg=P2, fg=C["muted"], anchor="w", justify="left")
         self.hk_msg.pack(side="left", padx=8)
         self.fill_hotkeys()
@@ -1007,6 +1007,8 @@ class SettingsPage:
             lab = tk.Label(f, text=hk_clash_text(what, what in clash_keys), bg=P2, fg=col, anchor="w",
                            justify="left", wraplength=360)
             lab.grid(row=i, column=0, sticky="w", padx=(12, 12))      # (wraps: the Read Key's line fits the Drawer)
+            if kid in getattr(self, "HOTKEY_TIPS", {}):
+                Tooltip(lab, self.HOTKEY_TIPS[kid])
             if kid:
                 v = tk.StringVar(value=key)
                 self.hk_vars[kid] = v

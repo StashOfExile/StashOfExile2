@@ -581,7 +581,7 @@ class InsightsPage:
             save_json("settings.json", SETTINGS)
             self.refresh_insights()
         self.push_undo("insights", label, restore)
-        self._say(f"Removed {label} from Market Insights. Ctrl+Z (or Undo) puts them back.", 8)
+        self._say(f"Removed {label} from Market Insights. Ctrl+Z or Undo puts them back.", 8)
         self.refresh_insights()
         return len(xs)
 
@@ -602,7 +602,7 @@ class InsightsPage:
             self.refresh_insights()
         label = f"{len(keys)} mod{'s' if len(keys) != 1 else ''}"
         self.push_undo("insights", label, restore)
-        self._say(f"Removed {label} from Market Insights. Ctrl+Z (or Undo) puts them back.", 8)
+        self._say(f"Removed {label} from Market Insights. Ctrl+Z or Undo puts them back.", 8)
         self.refresh_insights()
         return len(keys)
 
@@ -725,7 +725,7 @@ class InsightsPage:
             VALUE_LOG.save()
             self.refresh_insights()
         self.push_undo("insights", label, restore)
-        self._say(f"Removed {label} from Market Insights. Ctrl+Z (or Undo) puts them back.", 8)
+        self._say(f"Removed {label} from Market Insights. Ctrl+Z or Undo puts them back.", 8)
         self.refresh_insights()
 
     def ins_price_again(self):

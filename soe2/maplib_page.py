@@ -61,7 +61,7 @@ class MapLibraryPage:
         arow = tk.Frame(page, bg=P1)
         arow.pack(fill="x", pady=(0, 8))
         self.ml_rank_ask = tk.BooleanVar(value=self.rank_ask_on())
-        ttk.Checkbutton(arow, text="Ask me to rank a map I haven't ranked (a card when I leave it)",
+        ttk.Checkbutton(arow, text="Ask me to rank a map I haven't ranked",
                         variable=self.ml_rank_ask, style="Card.TCheckbutton",
                         command=lambda: self.rank_ask_set(bool(self.ml_rank_ask.get()))).pack(side="left")
 
@@ -180,7 +180,7 @@ class MapLibraryPage:
         learned = [n for n in tv.selection() if lib.get(n, {}).get("learned")]
         if learned:
             m.add_separator()
-            m.add_command(label="Not a map (stop counting it)", command=lambda: self.ml_not_map(learned))
+            m.add_command(label="Not a map", command=lambda: self.ml_not_map(learned))
         m.tk_popup(e.x_root, e.y_root)
 
     def ml_not_map(self, names):

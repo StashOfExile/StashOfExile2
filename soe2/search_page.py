@@ -287,7 +287,7 @@ class SearchPage:
                                         + (f" in {self.gs_active}" if self.gs_active else " across all categories"))
         else:                                              # 2.0 beta 21: a category on its own lists all of it
             self.gs_summary.config(text=f"All {len(lst):,} in {self.gs_active}. Type to narrow it down."
-                                   + ("  Type an emotion (for example Isolation) to see every anoint that uses it. "
+                                   + ("  Type an emotion like Isolation to see every anoint that uses it. "
                                       "Prices: poe.ninja." if self.gs_active == gamesearch.ANOINTS else ""))
 
     @staticmethod

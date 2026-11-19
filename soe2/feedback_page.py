@@ -88,7 +88,7 @@ class FeedbackPage:
             return False
         self._upd_told = tag
         later = "Later" if not SETTINGS.get("auto_update") else "When I next start the app"
-        self.info_card(f"Version {pretty_version(tag)} is out (you have {pretty_version()}).",
+        self.info_card(f"Version {pretty_version(tag)} is out - you have {pretty_version()}.",
                        [("Install now", lambda: self.check_updates("ask")), (later, lambda: None)], secs=120)
         return True
 
@@ -109,7 +109,7 @@ class FeedbackPage:
             if not self.upd_badge.winfo_ismapped():
                 self.upd_badge.pack(in_=self.shell.task_right, side="left", padx=4, before=self.bug_btn)
             from .style import Tooltip
-            Tooltip(self.upd_badge, f"Version {pretty_version(tag)} is out (you have {pretty_version()}). Click: see "
+            Tooltip(self.upd_badge, f"Version {pretty_version(tag)} is out - you have {pretty_version()}. Click: see "
                                     "what's new and update (it asks first).")
         else:
             self.upd_latest = None
@@ -183,16 +183,16 @@ class FeedbackPage:
                 ttk.Entry(f, textvariable=v).pack(fill="x")
                 v.trace_add("write", lambda *a: self._bug_preview())
                 self.bug_vars[key] = v
-        field("title", "In a few words (the title)")
+        field("title", "The title, in a few words")
         field("what", "What happened?", 3)
-        field("steps", "How can it be made to happen? (steps - optional)", 3)
+        field("steps", "How can it be made to happen? Steps, optional", 3)
         field("expected", "What did you expect? (optional)", 2)
         self.bug_log = tk.BooleanVar(value=True)
         from . import buglog                         # 2.115.0: what the log holds, said plainly
         n = buglog.counts()
         seen = ", ".join(f"{v} {k}{'es' if k == 'crash' and v != 1 else 's' if v != 1 else ''}"
                          for k, v in sorted(n.items()) if v) or "nothing"
-        ttk.Checkbutton(f, text="Add the app's log: errors, crashes, freezes - code locations only (helps a lot)",
+        ttk.Checkbutton(f, text="Add the app's log: errors, crashes, freezes - code locations only. Helps a lot",
                         variable=self.bug_log, command=self._bug_preview).pack(anchor="w", pady=(8, 0))
         tk.Label(f, text=f"In the last week: {seen}.", bg=P1, fg=C["muted"], font=("Segoe UI", 9),
                  anchor="w").pack(fill="x", padx=(24, 0), pady=(0, 4))

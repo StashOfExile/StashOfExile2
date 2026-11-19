@@ -159,7 +159,7 @@ class WealthPage:
         tk.Label(head2, text="Last 7 days", bg=P2, fg=C["muted"], font=("Segoe UI", 9)).pack(side="left")
         mi = tk.Label(head2, text="ⓘ", bg=P2, fg=C["muted"], font=("Segoe UI", 10))
         mi.pack(side="right")
-        Tooltip(mi, "Prices: what you hold now times how much each price changed this week (poe.ninja's 7-day line). "
+        Tooltip(mi, "Prices: what you hold now times how much each price changed this week - poe.ninja's 7-day line. "
                     "Amounts: the rest of the change since your snapshot from about 7 days ago. Click an item for its week.")
         self.w_mv = tk.Frame(c2, bg=P2)
         self.w_mv.pack(fill="both", expand=True, pady=(4, 0))
@@ -593,7 +593,7 @@ class WealthPage:
             WEALTH.save()
             self.refresh_wealth(force=True)
         self.push_undo("wealth", label, restore)
-        self._w_tell(f"Removed {label}. Ctrl+Z (or Undo) puts them back.", "ok")
+        self._w_tell(f"Removed {label}. Ctrl+Z or Undo puts them back.", "ok")
         self.refresh_wealth(force=True)
 
     def wealth_clear_items(self):
@@ -602,7 +602,7 @@ class WealthPage:
         if not n:
             return self._w_tell("The list is already empty.", "note")
         if not messagebox.askyesno("Clear Wealth items",
-                                   f"Clear all {n:,} items from the list?\n\nYour history (the chart and snapshots) "
+                                   f"Clear all {n:,} items from the list?\n\nYour history - the chart and snapshots - "
                                    "stays. Scan stash fills it again.\n\n"
                                    "You can undo this with Ctrl+Z or the Undo button.", parent=self.dlg_parent()):
             return
@@ -619,7 +619,7 @@ class WealthPage:
             WEALTH.save()
             self.refresh_wealth(force=True)
         self.push_undo("wealth", f"{n:,} items", restore)
-        self._w_tell(f"Cleared {n:,} items. Ctrl+Z (or Undo) puts them back.", "ok")
+        self._w_tell(f"Cleared {n:,} items. Ctrl+Z or Undo puts them back.", "ok")
         self.refresh_wealth(force=True)
 
     def wealth_remove_snaps(self, rows):
@@ -642,7 +642,7 @@ class WealthPage:
             self.refresh_wealth(force=True)
             self.wealth_side()
         self.push_undo("wealth", label, restore)
-        self._w_tell(f"Removed {label}. Ctrl+Z (or Undo) puts them back.", "ok")
+        self._w_tell(f"Removed {label}. Ctrl+Z or Undo puts them back.", "ok")
         self.refresh_wealth(force=True)
         self.wealth_side()
 
@@ -966,7 +966,7 @@ class WealthPage:
                 name = ""
         if not amount or amount <= 0:
             self.w_amt_entry.focus_set()
-            self._w_tell("Type the price you put on the tab in game in the Price box (for example 37882), pick its currency, "
+            self._w_tell("Type the price you put on the tab in game in the Price box like 37882, pick its currency, "
                          "then press Add tab.")
             return False
         cur = cur or next((cid for cid, n in WEALTH_CURRENCIES if n == self.w_new_cur.get()), "divine")
@@ -1101,12 +1101,12 @@ class WealthPage:
         if not lg:
             return self._say("Pick a league first.", 8)
         if (WEALTH_SYNC["cur"] or {}).get("running") or WEALTH_RARES["running"]:
-            return self._say("Already busy - wait for the sync / rare checks to finish (or press Stop).", 8)
+            return self._say("Already busy - wait for the sync and rare checks to finish, or press Stop.", 8)
         n = self.engine.wealth_queue_rares(lg)
         if not n:
             n = self.engine.wealth_queue_rares(lg, force=True)       # all fresh: the button means "do them all again"
         self.w_msg.config(text=f"Price-checking {n} magic / rare item{'s' if n != 1 else ''} in the background…" if n else
-                          "No magic or rare items in your tabs (sync first).", fg=C["muted"])
+                          "No magic or rare items in your tabs. Sync first.", fg=C["muted"])
         self.wealth_buttons()
 
     def wealth_update_prices(self):
@@ -1251,7 +1251,7 @@ class WealthPage:
         self.w_delta.config(text=delta)
         facts = []
         if rows:
-            facts.append(f"{priced} of {len(rows)} items priced (all in divines)."
+            facts.append(f"{priced} of {len(rows)} items priced all in divines."
                          + (f" {len(rows) - priced} without a price aren't in the total." if priced < len(rows) else ""))
         if WPRICES.ts:
             facts.append(f"Prices from poe.ninja, {self._w_ago(WPRICES.ts)}.")
@@ -1279,16 +1279,16 @@ class WealthPage:
         tiles.set([
             Tile("Stash worth", fmt_div(total) if rows else "—",
                  f"{priced:,} of {len(rows):,} items priced" if rows else "Press Scan stash to start", "text_muted",
-                 "Each item's price (from poe.ninja) times how many you hold, added up. "
+                 "Each item's price from poe.ninja times how many you hold, added up. "
                  "Items without a price aren't in it."),
             Tile("Change", delta or "—", (f"▲ Up {since}" if up else f"▼ Down {since}") if delta else
                  "Shows from your second scan", ("good" if up else "bad") if delta else "text_muted",
-                 "Stash worth now, minus your snapshot from about a day ago (or the last one at least 30 minutes old)."),
+                 "Stash worth now, minus your snapshot from about a day ago, or the last one at least 30 minutes old."),
             Tile("In Exalted", eq[0].split(" ")[0] if eq else "—", "at poe.ninja's rate" if eq else "No rate yet",
-                 "text_muted", "Stash worth divided by what one Exalted Orb is worth in divines (poe.ninja)."),
+                 "text_muted", "Stash worth divided by what one Exalted Orb is worth in divines, from poe.ninja."),
             Tile("Last stash scan", self._w_ago(last_count) if last_count else "—",
                  f"prices updated {self._w_ago(WPRICES.ts)}" if WPRICES.ts else "No prices yet", "text_muted",
-                 "When you last pressed Scan stash (your counts). Prices update by themselves from poe.ninja about "
+                 "When you last pressed Scan stash. Prices update by themselves from poe.ninja about "
                  "hourly - that doesn't count your stash again."),
         ])
 

@@ -324,7 +324,7 @@ class Dashboard(tk.Canvas):
                 tiles.append(("Today", ("+" if d >= 0 else "−") + fmt_div(abs(d)),
                               "▲ Up" if d > 0 else "▼ Down" if d < 0 else "— No change",
                               good if d > 0 else bad if d < 0 else mut,
-                              "Stash worth now, minus your last scan before midnight (or your first scan today).", "wealth"))
+                              "Stash worth now, minus your last scan before midnight, or your first scan today.", "wealth"))
             else:
                 tiles.append(("Stash worth", "—", "Scan your stash on Wealth", mut,
                               "Shows after your first stash scan on the Wealth page.", "wealth"))

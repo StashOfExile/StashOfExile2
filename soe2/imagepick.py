@@ -1,16 +1,19 @@
 """A drop-down list with a picture beside each name (Top Up Reminders' Item).
 
-ttk's Combobox can't show pictures, so this is an entry with a small picture and a list that opens under it: the list
+ttk's Combobox can't show pictures, so this IS a ttk Combobox (one field, the arrow inside it, the look of every other
+Combobox in every theme) with the picked item's picture laid over its left padding, and a list of our own that opens under
+it; a click anywhere on the field opens it. The list
 is one canvas that draws only the rows in view (hundreds of items cost nothing). Typing narrows the list (names that
 start with what you typed come first), Up / Down move, Enter picks, Esc closes. The pictures come from icon(name) ->
 PhotoImage or None - the app's own, nothing is fetched."""
 import tkinter as tk
 from tkinter import ttk
 
-from .style import C, Tooltip
+from .style import C
 
 ROW = 28                    # one row's height
 ICON_PX = 24                # the picture's room
+PAD_LEFT = 36               # the field's left padding: the picture sits in it
 SHOW = 8                    # rows in view before it scrolls
 
 
@@ -22,19 +25,19 @@ class ImagePick(tk.Frame):
         self.var = textvariable or tk.StringVar()
         self.shown, self.sel, self.top, self.pop = [], 0, 0, None
         self._imgs = {}
-        self.pic = tk.Label(self, bg=bg, width=3)
-        self.pic.pack(side="left", padx=(0, 4))
-        self.entry = ttk.Entry(self, textvariable=self.var, width=width)
-        self.entry.pack(side="left", fill="x", expand=True)
-        self.arrow = ttk.Button(self, text="▾", width=2, command=self.toggle)
-        self.arrow.pack(side="left", padx=(4, 0))
-        Tooltip(self.arrow, "Show every item")
+        ttk.Style(self).configure("Pick.TCombobox", padding=(PAD_LEFT, 4, 4, 4))     # room for the picture
+        self.entry = ttk.Combobox(self, textvariable=self.var, width=width, style="Pick.TCombobox")
+        self.entry.pack(fill="x", expand=True)
+        self.pic = tk.Label(self.entry, bd=0, highlightthickness=0)
+        self.pic.place(x=6, rely=0.5, anchor="w")
+        self.pic.bind("<Button-1>", self._click_field)
+        self.arrow = self.entry                  # (the arrow is the field's own: no separate button)
         self.entry.bind("<KeyRelease>", self._typed)
         self.entry.bind("<Down>", self._down)
         self.entry.bind("<Up>", self._up)
         self.entry.bind("<Return>", self._enter)
         self.entry.bind("<Escape>", self._esc)
-        self.entry.bind("<Button-1>", lambda _e: self.open() if self.pop is None else None, add="+")
+        self.entry.bind("<Button-1>", self._click_field)
         self.var.trace_add("write", lambda *_a: self._paint_pic())
         self.bind("<Destroy>", lambda _e: self.close(), add="+")
         self._paint_pic()
@@ -52,18 +55,43 @@ class ImagePick(tk.Frame):
         return next((n for n in self.names if n.lower() == t), None)
 
     def _picture(self, name):
-        if name not in self._imgs:
-            self._imgs[name] = self.icon(name)
-        return self._imgs[name]
+        img = self._imgs.get(name)
+        if img is None:
+            img = self.icon(name)
+            if img is not None:                  # (no picture yet: asked again next time, it may have arrived)
+                self._imgs[name] = img
+        return img
 
     def _paint_pic(self):
         name = self.exact()
         img = self._picture(name) if name else None
         try:
-            self.pic.config(image=img or "", width=3 if not img else ICON_PX)
+            bg = ttk.Style(self).lookup("TCombobox", "fieldbackground") or C["odd"]
+            self.pic.config(image=img or "", bg=bg, width=ICON_PX if img else 0)
             self.pic.image = img
+            if img:
+                self.pic.place(x=6, rely=0.5, anchor="w")
+            else:
+                self.pic.place_forget()
         except tk.TclError:
             pass
+
+    def refresh_pictures(self):
+        """Pictures arrived later (poe.ninja's, once cached): draw the field and the open list again."""
+        self._imgs.clear()
+        self._paint_pic()
+        if self.pop is not None:
+            self._draw()
+
+    def _click_field(self, _e):
+        """A click anywhere on the field (text, picture or arrow) opens the list, or closes it."""
+        self.entry.focus_set()
+        if self.pop is not None:
+            self.close()
+        else:
+            self.open(everything=True)
+            self.entry.selection_range(0, "end")
+        return "break"
 
     # ------------------------------------------------------------ the list
     def _match(self):

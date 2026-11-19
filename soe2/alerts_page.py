@@ -279,7 +279,7 @@ class AlertsPage:
         tb = ttk.Button(top, text="Test", command=self.alert_card_test, width=6)
         tb.pack(side="left", padx=(8, 0))
         flowify(top)                                           # D3: wraps at Drawer width
-        Tooltip(wcb, "Where every helper's alert card shows over the game (trade whisper cards stay at the top).")
+        Tooltip(wcb, "Where every helper's alert card shows over the game. Trade whisper cards stay at the top.")
         Tooltip(scb, "How big the alert card is.")
         Tooltip(tb, "Shows a sample alert card over the game.")
         self.al_card_where, self.al_card_size = wcb, scb
@@ -435,7 +435,7 @@ class AlertsPage:
             elif key == "campaign":                               # (its options are a card on Overlay › Options)
                 cb_ = ttk.Button(oc, text="Options…", command=self.ov_campaign_options_open)
                 cb_.pack(side="left")
-                Tooltip(cb_, "The Campaign Helper's options (route, optional zones, tips…): Overlay › Options.")
+                Tooltip(cb_, "The Campaign Helper's options: Overlay › Options.")
                 out.append("Options route")
             return out
 
@@ -831,8 +831,8 @@ class AlertsPage:
         where = tk.Label(dlg, text="", bg=P2, fg=C["muted"], font=("Segoe UI", 9), anchor="w", justify="left",
                          wraplength=460)
         where.pack(fill="x")
-        steps = ("1.  Close the game (it rewrites this file when it closes).",
-                 f"2.  Open folder (where your item filters are), then open {RF.FILE} in Notepad.",
+        steps = ("1.  Close the game. It rewrites this file when it closes.",
+                 f"2.  Open folder, then open {RF.FILE} in Notepad.",
                  "3.  Use Edit › Find in Notepad and paste (Copy line puts it on your clipboard).",
                  "4.  Change false to true, then save.",
                  "5.  Start the game and open a Ritual altar's Favours window.")
@@ -925,7 +925,7 @@ class AlertsPage:
             _st, path = RF.state()
             if game_rect() is not None:
                 wait["gone"], wait["mt"] = None, None
-                said.config(text="Close the game fully (not just to the character screen) - waiting for it…",
+                said.config(text="Close the game fully, not just to the character screen - waiting for it…",
                             fg=C.get("warn", C["text"]))
                 on_btn.state(["disabled"])
                 wait["job"] = dlg.after(1000, turn_on)
@@ -1163,7 +1163,7 @@ class AlertsPage:
         path = find_log(tc().get("log_path") if tc else None)
         if not path:
             self.br_reader = None
-            self.br_note = "On - waiting for Client.txt (see the note above)"     # 2.119.0: the banner says why
+            self.br_note = "On - waiting for Client.txt"     # 2.119.0: the banner says why
         else:
             self.br_reader = LogReader(path)
             tail = self.br_reader.start()             # only what the game writes from now on

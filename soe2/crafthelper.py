@@ -334,7 +334,7 @@ def advice(kind, rarity, n_mods, n_good):
         if n_good >= 2:
             return "Both mods are good (S or A): Regal Orb, then Exalted Orbs to fill it."
         if n_good == 1:
-            return ("One good mod: your call - Regal + Exalt if that mod is rated S (see its rating below), "
+            return ("One good mod: your call - Regal + Exalt if that mod is rated S - see its rating below, "
                     "otherwise start over on another jewel.")
         return "No good mods: not worth more currency - start over on another jewel."
     if rarity == "Rare":
@@ -400,7 +400,7 @@ def verdict(kind, text, letters, pair_lines=()):
     unrated = sum(1 for l in letters if l == "-")
     why = (f"{good} of {n} mod{'s' if n != 1 else ''} rated S or A" if n else f"No mods yet - a white {one}")
     if unrated:
-        why += f"; {unrated} not rated yet (right-click it in the list to rate it)"
+        why += f"; {unrated} not rated yet - right-click it in the list to rate it"
     for pl in pair_lines:                                # 2.125.5: learned pairs it carries
         why += f"; {pl}"
     return {"key": key, "mark": mark, "word": word, "tone": tone, "next": nxt, "why": why + "."}

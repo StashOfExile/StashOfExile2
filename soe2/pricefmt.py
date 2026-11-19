@@ -51,7 +51,7 @@ def confidence(n_best, loosened, any_roll, ratio, unverifiable, dropped, age_h, 
     return ("High" if score >= 85 else "Medium" if score >= 55 else "Low"), why
 
 
-PRICE_UNITS = [("auto", "Auto (div / chaos / ex)"), ("divine", "Divine Orbs"), ("exalted", "Exalted Orbs"),
+PRICE_UNITS = [("auto", "Auto"), ("divine", "Divine Orbs"), ("exalted", "Exalted Orbs"),
                ("chaos", "Chaos Orbs"), ("vaal", "Vaal Orbs")]
 UNIT_NAMES = {"divine": "div", "exalted": "ex", "chaos": "chaos", "vaal": "vaal"}
 

@@ -309,7 +309,7 @@ class MapProfitPage:
                 return
             name = tv.item(iid, "text")
             if iid in cells and name.startswith("?"):
-                nm = simpledialog.askstring("Name this item", "What is it? (its name, as the game shows it)",
+                nm = simpledialog.askstring("Name this item", "What is it? Its name, as the game shows it.",
                                             parent=dlg)
                 if not nm or not nm.strip():
                     return
@@ -1004,7 +1004,7 @@ class MapProfitPage:
         P1 = C["panel"]                                     # (UX: empty - what it is + one button)
         self.mp_empty.place(relx=0.5, rely=0.35, anchor="center")
         if nh and not (self.mp_q.get() if getattr(self, "mp_q", None) else ""):
-            tk.Label(self.mp_empty, text=f"Your {nh} map{'s are' if nh != 1 else ' is'} hidden (kept on your PC).",
+            tk.Label(self.mp_empty, text=f"Your {nh} map{'s are' if nh != 1 else ' is'} hidden and kept on your PC.",
                      bg=P1, fg=C["muted"]).pack()
             ttk.Button(self.mp_empty, text="Show hidden maps", style="Primary.TButton", command=self.mp_unhide).pack(
                 pady=(8, 0))

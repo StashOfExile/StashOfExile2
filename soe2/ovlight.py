@@ -22,7 +22,7 @@ from .overlaywin import CanvasText, OverlayWindow, _P
 
 from .ovskins import NAMES as _ORN_NAMES, ORNATE, palette as _ornate_palette
 
-STYLES = {"classic": "Classic (stone and bronze)", "hairline": "Hairline", "slate": "Slate", "micro": "Micro"}
+STYLES = {"classic": "Classic", "hairline": "Hairline", "slate": "Slate", "micro": "Micro"}
 STYLES.update(_ORN_NAMES)                                    # 2.110.0: Herald, Warbanner, Verdant, Gloom
 _FM_CACHE = {}                   # 2.112.3: measuring fonts, kept (see _lt_fm)
 LIGHT = ("hairline", "slate", "micro") + ORNATE

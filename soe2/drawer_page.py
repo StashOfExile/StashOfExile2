@@ -627,7 +627,7 @@ class DrawerHost:
         self.drawer_strip_paint()
 
     def drawer_flip_side(self):
-        """⇄ Move to the other side (remembered)."""
+        """⇄ Move to the other side - remembered."""
         c = self.drawer_cfg()
         c["side"] = D.other_side(self._drawer_side_now or c["side"])     # (from where it is: a price check may
                                                                           # have opened it on the other side)
@@ -1256,11 +1256,11 @@ class DrawerStrip(tk.Frame):
         self.keys = tk.Frame(self, bd=0)                      # the key caps: Ctrl Shift Space or Esc puts it away
         self.keys.pack(side="left", fill="x", expand=True)
         self.btns = {}
-        for key, cmd, tip in (("away", lambda: app.drawer_put_away("strip"), "Put the app away (the Drawer key brings "
+        for key, cmd, tip in (("away", lambda: app.drawer_put_away("strip"), "Put the app away - the Drawer key brings "
                                                                               "it back)"),
                               ("side", app.drawer_flip_side, "The Drawer on the other side of the game"),
-                              ("full", app.drawer_full, "A normal window, where you left it (remembered)"),
-                              ("dock", app.drawer_dock, "The Drawer: the app over the game's side (remembered)")):
+                              ("full", app.drawer_full, "A normal window, where you left it - remembered"),
+                              ("dock", app.drawer_dock, "The Drawer: the app over the game's side - remembered")):
             b = IconButton(self, self.ICONS[key], cmd)
             self.btns[key] = (b, Tooltip(b, tip))
         TH.subscribe(lambda t: self.paint(), owner=self)
@@ -1346,8 +1346,8 @@ class DrawerStrip(tk.Frame):
             show = ("dock", "away")
             self._caps(t, bg, k, "full")
         self.say.config(text=text)
-        tips = {"full": "Full window: a normal window, where you left it (remembered)",
-                "dock": "Drawer: the app over the game's side (remembered)" if k else
+        tips = {"full": "Full window: a normal window, where you left it - remembered",
+                "dock": "Drawer: the app over the game's side - remembered" if k else
                         "Set a Drawer key first (Settings \u203a Keybinds)",
                 "away": "Put away" + (f" ({k} or Esc)" if k else " (Esc)") + ": the app is off screen",
                 "side": "Move to the " + ("right" if side == "left" else "left") + " side of the game"}

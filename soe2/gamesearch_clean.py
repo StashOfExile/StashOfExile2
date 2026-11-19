@@ -69,6 +69,19 @@ def clean_text(text):
     return " | ".join(parts)
 
 
+_ROLLS_ON = re.compile(r"can roll on:\s*([^|]*)", re.I)
+GONE_CLASSES = {"fishing_rod"}                              # item classes the game no longer has (Fishing Rod)
+
+
+def rolls_only_on_gone(row):
+    """A Modifiers row whose 'can roll on: ...' list holds only classes that are gone (fishing rods)."""
+    if row.get("g") != "Modifiers":
+        return False
+    m = _ROLLS_ON.search(row.get("t") or "")
+    tags = {x.strip().lower() for x in m.group(1).split(",") if x.strip()} if m else set()
+    return bool(tags) and tags <= GONE_CLASSES
+
+
 def hide_names(entries):
     """The hide list's {"name", "group"} entries -> {(name, group or None)}."""
     return {(e["name"], e.get("group")) for e in entries or [] if isinstance(e, dict) and e.get("name")}
@@ -81,6 +94,8 @@ def keep(row, hidden=()):
         return False
     if (n, row.get("g")) in hidden or (n, None) in hidden:
         return False
+    if rolls_only_on_gone(row):
+        return False                                       # a fishing-rod-only prefix or suffix
     if row.get("g") in GEM_GROUPS and not clean_text(row.get("t") or ""):
         return False                                       # (an unfinished gem: no description at all)
     return True

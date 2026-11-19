@@ -358,7 +358,7 @@ class StashScanPage:
                 return
             name, q, tabl = tv.item(iid, "values")
             if iid in wild_rows and name == WILD_NAME:
-                nm = simpledialog.askstring("Wildcard slot", "What is it? (its name, as Ctrl+C shows it)", parent=dlg)
+                nm = simpledialog.askstring("Wildcard slot", "What is it? Its name, as Ctrl+C shows it.", parent=dlg)
                 if not nm or not nm.strip():
                     return
                 name = nm.strip()

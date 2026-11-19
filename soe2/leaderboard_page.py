@@ -70,7 +70,7 @@ class LeaderboardPage:
         self.lb_rebuild_btn = ttk.Button(top3, text="Rebuild campaign times from the game's log", style="Quiet.TButton",
                                          command=self.lb_rebuild)
         self.lb_rebuild_btn.pack(side="left")
-        Tooltip(self.lb_rebuild_btn, "Reads the end of Client.txt (the game's log file) and works out your act and zone "
+        Tooltip(self.lb_rebuild_btn, "Reads the end of Client.txt, the game's log file, and works out your act and zone "
                                      "times again. It only reads that file - the game isn't touched. The faster of old and "
                                      "new is kept.")
         tk.Label(top3, text="Works out your act and zone times again from the game's log.", bg=P1, fg=C["muted"],
@@ -227,7 +227,7 @@ class LeaderboardPage:
         def done(res):
             ok, d = res
             if ok and getattr(self, "lb_msg", None) is not None and isinstance(d, dict) and d.get("refused"):
-                self.lb_msg.config(text=f"{d['refused']} of your times were refused (faster than anyone can play).",
+                self.lb_msg.config(text=f"{d['refused']} of your times were refused as faster than anyone can play.",
                                    fg=C["muted"])
         self._lb_bg(lambda: B.lb_send(data), done)
         return True
@@ -465,7 +465,7 @@ class LeaderboardPage:
             acts.append(("⚑ Report this time…", lambda: self.lb_report(r)))
         if (me.get("reviewer") or me.get("admin")) and not r.get("mine"):
             acts += [("Reviewer: hide it", lambda: self.lb_review(r, "hide")),
-                     ("Reviewer: keep it (clear reports)", lambda: self.lb_review(r, "keep"))]
+                     ("Reviewer: keep it, clear reports", lambda: self.lb_review(r, "keep"))]
         return acts
 
     def lb_report(self, r):

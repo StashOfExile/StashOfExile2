@@ -48,22 +48,22 @@ DETAILS = (
      "matter"),
     ("Your map ranks", "the rank you gave a map", "the community map ranks"),
     ("Your best times", "map, boss, trial and act times with your class, level, deaths and league - under your "
-     "community name, never your character's", "the Leaderboards (you can turn this one off on its own)"),
+     "community name, never your character's", "the Leaderboards, which you can turn off on their own"),
     ("Campaign zones the guide doesn't know", "the zone's name, its act and level", "the next update of the campaign "
      "guide"),
-    ("Mod lines the app couldn't read", "the wording only, numbers as #, and the item's base type (like Solar Amulet)",
+    ("Mod lines the app couldn't read", "the wording only, numbers as #, and the item's base type like Solar Amulet",
      "fixing them in the next update"),
-    ("Strats you upload yourself", "only when you press Upload / Post - with rates (div per hour), never your totals",
+    ("Strats you upload yourself", "only when you press Upload / Post - with rates in div per hour, never your totals",
      "the Farming Strategies and Strat Tracker boards"),
     ("Your community name, votes and reports", "only when you join, vote or report yourself", "the board itself"),
 )
-WHERE = ("It all goes to the StashOfExile2 community server (run by the app's developer on Cloudflare) - not to GGG, "
+WHERE = ("It all goes to the StashOfExile2 community server run by the app's developer on Cloudflare - not to GGG, "
          "not to anyone else. It is never sold and never used for ads or tracking. Your internet address is never "
          "stored: only a keyed scramble of it, to stop spam, deleted the next day. Private leagues are never shared, and "
          "leaderboard times show the day, not the time. Settings › Privacy & community › Leave and delete my data "
          "deletes your name, strats and leaderboard times. What you shared anonymously (mod prices, ratings, map "
          "ranks, unmatched mods) stays in the pool for everyone - it was never linked to you.")
-NEVER = ("Never sent: your account or character names, your wealth (stash value, net worth), your items or stash, "
+NEVER = ("Never sent: your account or character names, your wealth like stash value and net worth, your items or stash, "
          "listing ids, files from your computer. Check a screenshot before you upload it - it's public. Bug reports are "
          "separate: they go only when you press Report a bug, and you see every word first. Error reports have their own "
          "switch.")

@@ -346,7 +346,7 @@ class RateModsPage:
         box = tk.Frame(w, bg=P2, padx=16, pady=16)
         box.pack(fill="both", expand=True)
         tk.Label(box, text="Help rate mods?", bg=P2, fg=C["text"], font=("Segoe UI", 12, "bold"), anchor="w").pack(fill="x")
-        tk.Label(box, text="You pick the items you know best, then rate their mods one at a time: S (the price hangs "
+        tk.Label(box, text="You pick the items you know best, then rate their mods one at a time: S, the price hangs "
                            "on it) to F (ignore). Rate as many or as few as you like - Done ends it.",
                  bg=P2, fg=C["text"], wraplength=440, justify="left", anchor="w").pack(fill="x", pady=(8, 4))
         tk.Label(box, text="Your ratings tune your own price checks right away. With Community data sharing on, "

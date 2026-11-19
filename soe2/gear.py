@@ -474,19 +474,19 @@ def _parse_gear(text):
                 m["note"] = f"well rolled ({r:.0%} of its range): searched at least this high"
             else:
                 m["covered"] = ("uniques are searched by name" + (f" - this roll is {r:.0%} of its range" if r is not None
-                                                                   else "") + " (tick it to search on its roll too)")
+                                                                   else "") + " - tick it to search on its roll too")
         elif kind in AFFIX_KINDS and stat and g["rarity"] in ("Magic", "Rare"):     # 2.72.0: what buyers pay for
             if "modifier magnitudes" in stat["ref"].lower():
                 # 2.120.1 (feedback): "#% increased Explicit Resistance Modifier magnitudes" (a crafted line) - what
                 # it adds is already in the mods' own numbers, which are searched; asking for it too only hid listings
                 m["auto"] = "ignore"
-                m["note"] = "its effect is already in the other mods' numbers - not searched (tick it to search on it)"
+                m["note"] = "its effect is already in the other mods' numbers - not searched - tick it to search on it"
             elif stat["ref"] in FILLER:
                 m["auto"] = "ignore"
-                m["note"] = "rarely adds to a rare's price - not searched (tick it to search on it)"
+                m["note"] = "rarely adds to a rare's price - not searched - tick it to search on it"
             elif str(gm.get("tier") or "").isdigit() and int(gm["tier"]) >= LOW_TIER:
                 m["auto"] = "ignore"
-                m["note"] = f"low tier (T{gm['tier']}) - rarely adds to the price, not searched (tick it to search on it)"
+                m["note"] = f"low tier (T{gm['tier']}) - rarely adds to the price, not searched - tick it to search on it"
         mods.append(m)
         refs_of.append(stat["ref"] if stat else None)
     _merge_same_stat(mods, refs_of)
@@ -510,7 +510,7 @@ def _parse_gear(text):
                     m.update(auto="high", covered=None, novalue=False,
                              note="your Legacies have a duplicate: this roll counts - searched at least this high")
                 else:
-                    m["note"] = "no duplicate Legacy: this roll doesn't count (tick it to search on it anyway)"
+                    m["note"] = "no duplicate Legacy: this roll doesn't count - tick it to search on it anyway"
             elif m["kind"] == "Implicit" and "charm slot" in low and m["sid"] and m.get("value"):
                 m.update(auto="high", covered=None,
                          note=f"{int(m['value'])} charm slots - searched at least that")
@@ -591,13 +591,13 @@ def _parse_gear(text):
             # unique's name. The one unique on that base by name; with several (or none known), any unique on it.
             on = gamedata.uniques_on(g["base"])
             search["name"] = on[0] if len(on) == 1 else None
-            notes.append("unidentified: " + (f"searched as {on[0]} (the only unique on this base)" if len(on) == 1
+            notes.append("unidentified: " + (f"searched as {on[0]} - the only unique on this base" if len(on) == 1
                                              else "any unique on this base" + (f" ({', '.join(on)})" if on else "")))
         rolls = [m["roll"] for m in mods if m["roll"] is not None and m["kind"] in AFFIX_KINDS]
         if rolls:                                           # 2.72.0: how well its rolls came out, on the whole
             avg = sum(rolls) / len(rolls)
-            notes.append(f"rolls: {avg:.0%} of their ranges" + (" (well rolled)" if avg >= GOOD_ROLL else
-                                                                 " (low: most listings roll better)" if avg < 0.3 else ""))
+            notes.append(f"rolls: {avg:.0%} of their ranges" + (" - well rolled" if avg >= GOOD_ROLL else
+                                                                 " - low, most listings roll better" if avg < 0.3 else ""))
     elif cls in PER_BASE_CLASSES or not totals:
         search.update(type=g["base"], category=None)        # its own market (and anything without totals to compare on)
     if g["rarity"] in ("Normal", "Magic"):              # 2.79.0 (feedback): white and blue bases - the exact item

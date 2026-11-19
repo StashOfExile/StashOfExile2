@@ -18,7 +18,7 @@ from .config import SETTINGS, save_json
 from .style import C, autowrap
 
 PAGE = "Privacy & community"
-NAME_STORED = ("Stored: the name, and a key on this PC (board_session.json in your data folder) - no email, no "
+NAME_STORED = ("Stored: the name, and a key on this PC - board_session.json in your data folder - - no email, no "
                "password, never your account or character name. The board keeps a scrambled internet address for "
                "daily limits only, deleted the next day.")
 KEY_WARN = ("This file works like a password: anyone who has it can post as you. Keep it to yourself - don't upload, "
@@ -60,13 +60,13 @@ class CommunityPage:
         from . import usage as US
         self.usage_var = tk.BooleanVar(value=US.on())
         items = ((self.usage_var, "Count me as a user", lambda: US.set_on(bool(self.usage_var.get())),
-                  "On until you switch it off: a random id (not you, your account or your PC) every 10 minutes, so "
+                  "On until you switch it off: a random id not you, your account or your PC every 10 minutes, so "
                   "we know how many people use the app. Dashboard shows the count."),
                  (self.cm_share_var, "Share anonymous data with the community", self.cm_share_changed,
                   "Mod prices and ratings, map ranks, campaign zones the guide doesn't know - to the StashOfExile2 "
                   "community server, for better prices and guides for everyone."),
                  (self.cy_lb_var, "Leaderboard times", self.cy_lb_switch,
-                  "Your best map, boss, trial and act times (the day, not the time) under your community name - needs "
+                  "Your best map, boss, trial and act times - the day, not the time - under your community name - needs "
                   "data sharing on and a community name."),
                  (self.er_var, "Error reports", lambda: self.er_set(bool(self.er_var.get())),
                   "What went wrong in the app - where in the code and the error's type - so it gets fixed. Its own "
@@ -108,7 +108,7 @@ class CommunityPage:
         self.cy_msg.pack(fill="x", pady=(8, 0))
         # ---- your rights
         row = section(PAGE, "Your rights", "Turn any switch off at any time - your leaderboard times come off at once. "
-                                           "Leave and delete my data (under your name above) removes everything of "
+                                           "Leave and delete my data under your name above removes everything of "
                                            "yours from the board.")
         self.cy_rights = tk.Label(row, text="", bg=P2, fg=C["muted"], font=("Segoe UI", 9), anchor="w")
         self.cy_rights.pack(fill="x")

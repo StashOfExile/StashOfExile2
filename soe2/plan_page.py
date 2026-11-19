@@ -625,8 +625,8 @@ class GamePlanPage:
         nums = tk.Frame(box, bg=P2)
         nums.pack(fill="x")
         for i, (key, lab, lo, hi) in enumerate((("per_hour", "Pokes an hour, at most", 0, 12),
-                                                 ("checkin_min", "Check-in every (min of play)", 0, 240),
-                                                 ("snooze_min", "Snooze for (min)", 5, 480))):
+                                                 ("checkin_min", "Check-in every, minutes of play", 0, 240),
+                                                 ("snooze_min", "Snooze for, minutes", 5, 480))):
             tk.Label(nums, text=lab, bg=P2, fg=C["text"], anchor="w").grid(row=i, column=0, sticky="w", pady=2)
             v = tk.StringVar(value=str(pk[key]))
             ttk.Spinbox(nums, from_=lo, to=hi, textvariable=v, width=5).grid(row=i, column=1, sticky="w", padx=8)

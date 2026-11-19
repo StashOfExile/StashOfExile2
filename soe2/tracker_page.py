@@ -273,7 +273,7 @@ class TrackerPage:
         self.list_register("tracker", hv, delete=self.tracker_remove_sessions)          # 2.4.0
         prow = tk.Frame(ph, bg=P1)
         prow.pack(fill="x")
-        tk.Label(prow, text="Double-click a session to write a note (for example 'T15 Breach + Delirium'). Delete removes "
+        tk.Label(prow, text="Double-click a session to write a note like 'T15 Breach + Delirium'. Delete removes "
                             "the selected ones (Ctrl+Z undoes).", bg=P1,
                  fg=C["muted"], font=("Segoe UI", 9), anchor="w").pack(side="left")
         ttk.Button(prow, text="Export CSV", command=self.tracker_export_sessions).pack(side="right", pady=(4, 0))
@@ -340,7 +340,7 @@ class TrackerPage:
                              "(hideout visits in between don't count); visits under 30 seconds aren't counted.",
                  bg=P2, fg=C["muted"], font=("Segoe UI", 9), anchor="w", justify="left", wraplength=320).pack(fill="x", pady=(4, 0))
         # ---- 2.7.0: maps per day
-        dyo, day = chrome_section(page, "Maps per day (last 14 days)", padx=8, pady=8)   # 2.69.0
+        dyo, day = chrome_section(page, "Maps per day, last 14 days", padx=8, pady=8)   # 2.69.0
         dyo.pack(fill="x", pady=(8, 0))
         self.tk_daily = tk.Canvas(day, height=110, bg=P2, highlightthickness=0)
         self.tk_daily.pack(fill="x")
@@ -576,8 +576,8 @@ class TrackerPage:
         self.tk_hidecap = tk.BooleanVar(value=bool(cfg.get("hide_capture", False)))
         self._ov_rows(box, (
             ("Lock position", self.tk_lock, lambda: self.overlay_lock(bool(self.tk_lock.get())),
-             "The overlay stays where it is (the 🔒 on the overlay too)."),
-            ("Click-through (clicks go to the game)", self.tk_ct,
+             "The overlay stays where it is - the 🔒 on the overlay too."),
+            ("Click-through", self.tk_ct,
              lambda: self.ov_click_through_set(bool(self.tk_ct.get())),
              "Your clicks go through the overlay to the game.",
              "Your clicks go through the overlay to the game - its buttons can't be clicked then (the Pause key "
@@ -596,7 +596,7 @@ class TrackerPage:
         rp.pack(side="left")
         tk.Label(op, text="Puts the overlay back in its own place, wherever you dragged it.", bg=P2, fg=C["muted"],
                  font=("Segoe UI", 9), anchor="w").pack(side="left", padx=(12, 0))
-        Tooltip(rp, "Put the overlay back in its own place (the Bar: centered on the XP bar), wherever you dragged it.")
+        Tooltip(rp, "Put the overlay back in its own place, wherever you dragged it.")
         # (2.96.1: Your character name is gone - deaths are counted for the character the game's log names; the keys
         # are in Settings › Hotkeys. Nav phase 2: no "Overlay appearance…" button - Look is the tab beside this one)
 
@@ -717,9 +717,9 @@ class TrackerPage:
         self.tracker_helpers_sync()
         self.merged_build()
 
-    SPOTS = {"xpbar": {"bottom": "Bottom (on the XP bar)", "top": "Top"},
+    SPOTS = {"xpbar": {"bottom": "Bottom, on the XP bar", "top": "Top"},
              "panel": {"left": "Left", "right": "Right"},
-             "split": {"bottom": "Bottom (by the orbs)", "top": "Top"}}
+             "split": {"bottom": "Bottom, by the orbs", "top": "Top"}}
 
     def ov_spots(self):
         """2.130.0: the places the overlay can sit, for its layout -> {key: name}."""
@@ -803,7 +803,7 @@ class TrackerPage:
 
     # ---------------- the game log
     def tracker_pick_log(self):
-        p = filedialog.askopenfilename(parent=self.root, title="Find Path of Exile 2's Client.txt (in its logs folder)",
+        p = filedialog.askopenfilename(parent=self.root, title="Find Path of Exile 2's Client.txt in its logs folder",
                                        filetypes=[("Client.txt", "Client.txt"), ("Text", "*.txt"), ("All files", "*.*")])
         if p:
             self.tracker_set_log(p)
@@ -1222,7 +1222,7 @@ class TrackerPage:
             self.tk_sessions.save()
             self.tracker_fill_history()
         self.push_undo("tracker", label, restore)
-        self._say(f"Removed {label}. Ctrl+Z (or Undo) puts them back.", 8)
+        self._say(f"Removed {label}. Ctrl+Z or Undo puts them back.", 8)
         self.tracker_fill_history()
 
     def tracker_edit_note(self, e):
@@ -1388,11 +1388,11 @@ class TrackerPage:
         tc = self.tracker_cfg()
         # 2.57.0 (feedback: every key in Settings › Hotkeys, nowhere else): the third field is the group the key
         # belongs to (a heading on the Hotkeys page); every key but Ctrl+Alt+C is set here and only here
-        rows = [("Show or hide the app (the Drawer)", SETTINGS.get("drawer_key", "Ctrl+Shift+Space"), "App",
+        rows = [("Show or hide the app", SETTINGS.get("drawer_key", "Ctrl+Shift+Space"), "App",
                  "checks:drawer_key"),                        # drawer build: the Drawer key
-                ("Price check the item under the mouse (in game)", SETTINGS.get("pc_key", "Ctrl+D"), "Price Checks",
+                ("Price check the item under the mouse", SETTINGS.get("pc_key", "Ctrl+D"), "Price Checks",
                  "checks:pc_key"),
-                ("Close the price check (the Drawer or the price check overlay)", SETTINGS.get("pc_close_key", "Esc"),
+                ("Close the price check", SETTINGS.get("pc_close_key", "Esc"),
                  "Price Checks", "checks:pc_close_key"),      # 2.121.1
                 ("Add the item under the mouse to Bulk Pricing", "Ctrl+Alt+C", "Bulk Pricing", None),
                 ("Open poe2db's modifier list in your browser", SETTINGS.get("poe2db_key", ""), "Tools",
@@ -1402,21 +1402,25 @@ class TrackerPage:
                 ("Show or hide the overlay", tc.get("key_overlay", ""), "Overlay", "tracker:key_overlay"),
                 ("Go back one campaign step", tc.get("key_camp_prev", ""), "Overlay", "tracker:key_camp_prev"),
                 ("Go on to the next campaign step", tc.get("key_camp_next", ""), "Overlay", "tracker:key_camp_next"),
-                ("Read the screen once for the helpers (pick a key the game doesn't use)",
+                ("Read the screen once for the helpers",
                  self.look_key(), "Overlay", "checks:look_key"),       # GGG policy (Nov 2026)
-                ("Mark a run as done in the Strat Tracker (for setups counted by key)", SETTINGS.get("ledger_key") or "Ctrl+Alt+N",
+                ("Mark a run as done in the Strat Tracker", SETTINGS.get("ledger_key") or "Ctrl+Alt+N",
                  "Farming Strategies", "checks:ledger_key"),
                 ("Go to hideout", oc.get("hideout_key", ""), "Chat commands", "overlay:hideout_key")]
         rx = self.rx_keys() if hasattr(self, "rx_keys") else []
         at = next((n + 1 for n, r in enumerate(rows) if r[2] == "Tools"), len(rows))
         for i, k in enumerate(rx):                     # 2.132.7: Regex keys - each copies one favorite (Regex › Favorites)
-            rows.insert(at + i, (f"Copy {self.rx_ref_label(k['fav'])} (Regex key {i + 1})", k.get("key", ""), "Regex",
+            rows.insert(at + i, (f"Regex key {i + 1}: copy {self.rx_ref_label(k['fav'])}", k.get("key", ""), "Regex",
                                  f"rxkey:{i}"))
         for i, c in enumerate(oc.get("commands", []) or []):
             if c.get("cmd"):
                 rows.append((f"Send the chat command {c.get('name') or c.get('cmd', '')}", c.get("key", ""), "Chat commands",
                              f"cmd:{i}"))
         return rows
+
+    HOTKEY_TIPS = {"checks:look_key": "Pick a key the game does not use.",
+                   "checks:ledger_key": "For strats counted by key.",
+                   "checks:pc_close_key": "Works on the Drawer and on the price check overlay."}
 
     def hotkey_clashes(self):
         seen, out = {}, []

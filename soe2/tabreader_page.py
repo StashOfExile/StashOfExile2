@@ -51,7 +51,7 @@ class TabReaderPage:
         self.pc_amt = tk.StringVar(value=str(cfg.get("amount") or ""))
         amt = ttk.Entry(row, textvariable=self.pc_amt, width=9)
         amt.pack(side="left", padx=(8, 4))
-        Tooltip(amt, "The one price you gave the whole tab in game (or paste the trade site's link to your tab)")
+        Tooltip(amt, "The one price you gave the whole tab in game or paste the trade site's link to your tab")
         # 2.40.0: the box is built before the trade site's full currency list arrives, so a saved Mirror of Kalandra
         # isn't in the list yet - it showed "Divine Orb", and Read tab then searched in divines. Show the saved name.
         cid = cfg.get("currency") or "divine"
@@ -69,12 +69,12 @@ class TabReaderPage:
         how = self.pc_how_lbl = tk.Label(row, text="ⓘ How", bg=P1, fg=C["muted"], cursor="hand2", font=("Segoe UI", 9))
         how.pack(side="right", padx=(12, 0))
         how.bind("<Button-1>", lambda e: self.pctab_explain())
-        Tooltip(how, "How reading a stash tab works (shown under this row)")
+        Tooltip(how, "How reading a stash tab works shown under this row")
         self.pc_stop = tk.Label(row, text="■ Stop", bg=P1, fg=C["muted"], disabledforeground=C["muted"],
                                 font=("Segoe UI", 9), state="disabled", cursor="hand2")      # (shown while reading)
         self.pc_stop.bind("<Button-1>", lambda e: str(self.pc_stop.cget("state")) == "normal" and self.pctab_stop())
         self.pc_stop.pack(side="right", padx=(12, 0))
-        Tooltip(self.pc_stop, "Stops reading the tab (what was added stays)")
+        Tooltip(self.pc_stop, "Stops reading the tab - what was added stays")
         self.pc_read_btn = ttk.Button(row, text="Read tab", style="Primary.TButton", command=self.pctab_read)
         self.pc_read_btn.pack(side="right", padx=(8, 0))
         Tooltip(self.pc_read_btn, "Finds the tab by its price and adds every item on it to this list")
@@ -348,7 +348,7 @@ class TabReaderPage:
         if not hasattr(self, "_wealth_add"):
             return
         if cfg.get("amount") and self._wealth_add(cfg["amount"], cfg.get("currency") or "divine", "Price Checks tab"):
-            self.pc_msg.config(text="Added to Wealth. Sync there to count it (it's read the same way).", fg=C["green"])
+            self.pc_msg.config(text="Added to Wealth. Sync there to count it. It's read the same way.", fg=C["green"])
         self.pctab_wealth_link()
 
     def pctab_explain(self):

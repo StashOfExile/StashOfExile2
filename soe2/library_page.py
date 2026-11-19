@@ -64,7 +64,7 @@ class LibraryPage:
 
         self.lib_stats = ttk.Treeview(sf, columns=("mod", "better", "trade", "local"), show="headings")
         self.list_register("library", self.lib_stats)
-        for cid, title, w, anchor in (("mod", "Mod wording (# stands for a number)", 290, "w"), ("better", "Better", 60, "center"),
+        for cid, title, w, anchor in (("mod", "Mod wording", 290, "w"), ("better", "Better", 60, "center"),
                                       ("trade", "Trade-site stat id", 190, "w"), ("local", "Local", 50, "center")):
             self.lib_stats.heading(cid, text=title)
             self.lib_stats.column(cid, width=w, anchor=anchor, stretch=(cid in ("mod", "trade")))
@@ -182,7 +182,7 @@ class LibraryPage:
             return
         it = gamedata.read_item(txt)
         if not it:
-            o.insert("end", "That isn't a copied item (it should start with \"Item Class:\").", "bad")
+            o.insert("end", "That isn't a copied item It should start with \"Item Class:\"..", "bad")
             o.config(state="disabled")
             return
         g = gamedata.group(it["group"]) if it["group"] else None
@@ -242,7 +242,7 @@ class LibraryPage:
         if not item:
             self.lib_rid = None
             self.lib_price_lbl.config(text="Nothing to price: paste a copied item first." if not txt else
-                                      "This item can't be price-checked (only gear, tablets and jewels can).", fg=C["red"])
+                                      "This item can't be price-checked Only gear, tablets and jewels can be..", fg=C["red"])
             self.lib_open_btn.pack_forget()
             return
         same = [r for r in self.records.values() if self.item_sig(r["item"]) == self.item_sig(item)]

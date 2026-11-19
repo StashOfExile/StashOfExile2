@@ -123,7 +123,7 @@ class RegexPage:
         hq = tk.Label(fbar, text=" ? ", bg=P1, fg=C["muted"], cursor="question_arrow", highlightthickness=1,
                       highlightbackground=C["line"])
         hq.pack(side="left", padx=12)
-        Tooltip(hq, "Click a mod to select it (click again to remove it). In \"I want\", click its Value to type a number: 50 means at "
+        Tooltip(hq, "Click a mod to select it Click again to remove it. In \"I want\", click its Value to type a number: 50 means at "
                     "least 50, 50-80 means from 50 to 80, <80 means at most 80. \"I don't want\" leaves items with that mod out.\n"
                     "★ marks a mod that is valuable in your Mod Book (your rules, or learned from prices). Right-click a mod to rate it.")
         self.rx_info = tk.Label(fbar, text="", bg=P1, fg=C["muted"])
@@ -356,7 +356,7 @@ class RegexPage:
             rows.append(chips("Type", "type:", R.TABLET_TYPES, set(o.get("types") or [])))
             f = row("Uses remaining")
             number(f, "uses", "At least")
-            check(f, "round10", "Round down to 10 (shorter)")
+            check(f, "round10", "Round down to 10")
             rows.append(f)
         elif kind == "waystone":
             f = chips("Rarity", "rar:", R.RARITIES, rarity)
@@ -371,7 +371,7 @@ class RegexPage:
             f = row("Quantity & yield")
             for key, label, _w in R.WAYSTONE_PROPS:
                 number(f, key, label + " at least")
-            check(f, "round10", "Round down to 10 (shorter)")
+            check(f, "round10", "Round down to 10")
             rows.append(f)
         elif kind == "jewel":
             f = chips("Rarity", "rar:", R.RARITIES, rarity)
@@ -379,18 +379,18 @@ class RegexPage:
             check(f, "cor_not", "Not corrupted", value=o.get("corrupted") == "not")
             rows.append(f)
             f = chips("Type", "type:", R.JEWEL_TYPES, set(o.get("types") or []))
-            check(f, "round10", "Round down to 10 (shorter)")
+            check(f, "round10", "Round down to 10")
             rows.append(f)
         elif kind == "gear":
             f = chips("Rarity", "rar:", R.RARITIES, rarity)
             check(f, "cor_only", "Corrupted", value=o.get("corrupted") == "only")
             check(f, "cor_not", "Not corrupted", value=o.get("corrupted") == "not")
-            check(f, "round10", "Round down to 10 (shorter)")
+            check(f, "round10", "Round down to 10")
             rows.append(f)
             rows.append(chips("Show mods for", "slot:", R.GEAR_SLOTS, set(o.get("slots") or [])))
         else:
             f = chips("Rarity", "rar:", R.RARITIES, rarity)
-            check(f, "round10", "Round down to 10 (shorter)")
+            check(f, "round10", "Round down to 10")
             rows.append(f)
             rows.append(chips("Size", "size:", list(R.RELIC_SIZES), set(o.get("sizes") or []),
                               text=lambda sz: f"{sz}  ({', '.join(R.RELIC_SIZES[sz])})"))
@@ -841,7 +841,7 @@ class RegexPage:
         self.rx_fav_view.pack(side="left", padx=(12, 0))
         self.rx_fav_btns = {}
         for text, fn, accent, tip in (
-                ("📋 Copy", self.rx_fav_copy, True, "Copy the search (or double-click it)"),
+                ("📋 Copy", self.rx_fav_copy, True, "Copy the search, or double-click it"),
                 ("Open in the builder", self.rx_fav_open, False, "Open it in Build a search"),
                 ("⌨ Key…", self.rx_fav_hotkey, False, "Put it on a Regex key: in game, the key types it in the "
                                                      "stash search"),
@@ -1099,7 +1099,7 @@ class RegexPage:
             self.rx_fav_changed()
         self.push_undo("regex", label, restore)
         self.rx_fav_changed()
-        self._say(f"Removed {label}. Ctrl+Z (or Undo) puts them back.", 8)
+        self._say(f"Removed {label}. Ctrl+Z or Undo puts them back.", 8)
 
     def _rx_unique(self, kind, name):
         taken = {f["name"] for f in self.rx_favs if f["kind"] == kind}

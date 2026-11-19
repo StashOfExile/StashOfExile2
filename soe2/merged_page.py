@@ -813,7 +813,7 @@ class MergedOverlay:
         """A tool's name on hover. App ▸ says where it opens the app (the Drawer or the full window)."""
         tip = self.TOOL_TIPS[what]
         if what == "app" and getattr(self, "drawer_eff", lambda: "drawer")() == "full":
-            tip = "Open the app (full window)"
+            tip = "Open the app in the full window"
         return tip
 
     def ov_tip(self, cv, tag, text, hand=True):

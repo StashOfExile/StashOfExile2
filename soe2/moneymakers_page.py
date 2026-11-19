@@ -635,9 +635,9 @@ class MoneyMakersPage(StratViews, StratNewPage):
         rx = MM.item_regex([it])
         m = self._mm_menu()
         name = it.get("name") or it.get("base")
-        m.add_command(label="Copy its stash search (regex)", command=lambda: self.mm_item_copy(rx, name),
+        m.add_command(label="Copy its regex stash search", command=lambda: self.mm_item_copy(rx, name),
                       state="normal" if rx else "disabled")
-        m.add_command(label="Trade Site ↗ (cheapest first)", command=lambda: self.mm_item_trade(it))
+        m.add_command(label="Trade Site ↗, cheapest first", command=lambda: self.mm_item_trade(it))
         x, y = self.mm_detail_cv.at_root(tag)
         try:
             m.tk_popup(x, y)
@@ -722,7 +722,7 @@ class MoneyMakersPage(StratViews, StratNewPage):
         if s["origin"] == "mine":
             m.add_command(label="📤 Post to Community", command=self.mm_post)
         else:
-            m.add_command(label="Copy to Mine (to change it)", command=self.mm_copy_mine)
+            m.add_command(label="Copy to Mine to change it", command=self.mm_copy_mine)
         if post and not post.get("mine"):                          # 2.85.0
             m.add_command(label="✎ Suggest an edit…", command=self.mm_suggest)
         if post:
@@ -946,7 +946,7 @@ class MoneyMakersPage(StratViews, StratNewPage):
     def mm_rename(self, name=None):
         from tkinter import simpledialog
         from .privacy import NAME_RULE                        # 2.131.1
-        name = name or simpledialog.askstring("Community board", f"Your new name (it can change again in 7 days).\n\n"
+        name = name or simpledialog.askstring("Community board", f"Your new name. It can change again in 7 days.\n\n"
                                               f"{NAME_RULE}", parent=self.root)
         if name:
             ok, d = B.rename(name.strip())
@@ -962,7 +962,7 @@ class MoneyMakersPage(StratViews, StratNewPage):
             ok, d = B.become_admin(key)
             self.mm_account_paint()
             if ok:
-                self._say("You're an admin on the board now (right-click a post for the admin tools).", 8)
+                self._say("You're an admin on the board now. Right-click a post for the admin tools.", 8)
                 self.mm_board_fetch()
                 try:                                         # 2.88.0: admin-only tools show (none since 2.114.0)
                     self.shell.set_advanced(self.shell.advanced_on())
@@ -1412,7 +1412,7 @@ class MoneyMakersPage(StratViews, StratNewPage):
         from tkinter import simpledialog
         if self.mm_need_login("report"):
             return None
-        why = simpledialog.askstring("Report", "What's wrong with it? (spam, wrong, offensive ...)", parent=self.root)
+        why = simpledialog.askstring("Report", "What's wrong with it? Spam, wrong, offensive ...", parent=self.root)
         if why is not None:
             self._mm_bg(lambda: B.report(post["id"], why), lambda r: self.mm_board_result(r, "Reported - thanks."))
 
@@ -1474,7 +1474,7 @@ class MoneyMakersPage(StratViews, StratNewPage):
         self.mm_ch_vwhy.bind("<Configure>", lambda e: self.mm_ch_vwhy.config(wraplength=max(150, e.width - 4)))
         self.mm_ch_price_btn = ttk.Button(vb, text="Price it", command=self.mm_ch_price)
         self.mm_ch_price_btn.pack(anchor="w", pady=(8, 0))
-        Tooltip(self.mm_ch_price_btn, "Run your price check on this item (one trade-site search) and open Price Checks")
+        Tooltip(self.mm_ch_price_btn, "Run your price check on this item - one trade-site search and open Price Checks")
         self.mm_ch_text = ""
         self.mm_tab_advice.bind("<Configure>", lambda e: self.mm_tab_advice.config(wraplength=max(150, e.width - 4)))
 
@@ -1703,7 +1703,7 @@ class MoneyMakersPage(StratViews, StratNewPage):
             return None
         m, _g, _r, sid = self.mm_tab_rows[sel[0]]
         if not sid:
-            self._say("The trade site's name for this mod isn't known yet (it loads with the first price check).", 8)
+            self._say("The trade site's name for this mod isn't known yet. It loads with the first price check.", 8)
             return None
         url = MM.trade_link(SETTINGS.get("league"), sid, None)
         webbrowser.open(url)

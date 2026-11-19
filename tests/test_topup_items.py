@@ -54,6 +54,34 @@ class ItemsWindow(unittest.TestCase):
         self.root.update_idletasks()
         self.root.update()
 
+    def test_display_icons_are_not_the_recognition_refs(self):
+        """The window DRAWS poe.ninja's icons (fallback: the shipped crop); a read names cells with its own refs."""
+        import inspect
+        from soe2 import mapprofit as MP
+        a = self.make([{"name": "Exalted Orb", "keep": 20}])
+        self.assertTrue(a.tu_display(24)("Exalted Orb") is not None)          # (the crop stands in when nothing cached)
+        self.assertIs(a.tu_display(24), a.tu_display(24))
+        refs_src = inspect.getsource(a.tu_refs)
+        self.assertIn("build_refs", refs_src)
+        self.assertNotIn("tu_display", refs_src)
+        self.assertNotIn("tu_display", inspect.getsource(a.tu_name))
+        self.assertTrue(callable(MP.build_refs))
+
+    def test_picker_is_one_combobox_field(self):
+        from tkinter import ttk
+        from soe2.imagepick import ImagePick
+        a = self.make([])
+        pick = ImagePick(self.root, ["Exalted Orb", "Chaos Orb"], a.tu_display(24))
+        pick.pack()
+        self.pump()
+        self.assertIsInstance(pick.entry, ttk.Combobox)                       # arrow inside the field, no extra button
+        self.assertFalse([w for w in pick.winfo_children() if isinstance(w, ttk.Button)])
+        pick.entry.event_generate("<Button-1>", x=5, y=5)
+        self.pump()
+        self.assertIsNotNone(pick.pop)
+        pick.close()
+        pick.destroy()
+
     def test_plain_words(self):
         a = self.make([{"name": "Exalted Orb", "keep": 20}])
         w = a.topup_items()

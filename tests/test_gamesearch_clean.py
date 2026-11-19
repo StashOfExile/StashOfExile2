@@ -33,6 +33,15 @@ class DevEntries(unittest.TestCase):
         self.assertFalse(GX.keep(row("Fishing Rod", "Other Items"), hid))
         self.assertTrue(GX.keep(row("Fishing Rod", "Weapons"), hid))         # (only in that group)
 
+    def test_fishing_rod_only_mods_are_gone(self):
+        fish = "(30-50)% increased Fishing Range | ilvl 1 | can roll on: fishing_rod"
+        self.assertFalse(GX.keep(row("of Flight", "Modifiers", fish, "Suffix")))
+        shared = "+(5-8) to Strength | ilvl 1 | can roll on: ring, fishing_rod"
+        self.assertTrue(GX.keep(row("of the Brute", "Modifiers", shared, "Suffix")))
+        rows = [dict(r, ln=r["n"].lower()) for r in gamesearch.load()["rows"]]
+        self.assertFalse([r for r in rows if r["g"] == "Modifiers" and GX.rolls_only_on_gone(r)])
+        self.assertFalse([r for r in rows if r["g"] == "Modifiers" and "Fishing" in r["t"]])
+
     def test_text_is_tidied(self):
         self.assertEqual(GX.clean_text("DNT Fill me in DNT-UNUSED Supports Spells you use yourself"),
                          "Supports Spells you use yourself")

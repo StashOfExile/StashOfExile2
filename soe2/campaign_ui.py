@@ -27,10 +27,10 @@ PAGES = ("Route", "Rewards", "Act times")
 POP_GOOD, POP_BAD, POP_WARN = "#7fd9a0", "#e05a4f", "#ffb347"
 # The Campaign Helper's switches (Overlay › Options › Campaign Helper and the route card's Options ▾ - one setting each)
 CAMP_OPTS = (("ask_route", "Ask which route when a campaign starts"),          # 2.89.0
-             ("optional", "Optional zones"), ("tips", "Tips (bosses, vendor checks)"),
+             ("optional", "Optional zones"), ("tips", "Tips"),
              ("warn", "Ask about rewards in town (Got it / Not yet)"),
              ("popups", "Pop-ups: boss down, left a fight, too low"),
-             ("off_at_maps", "Hide it in maps (back in campaign zones)"))   # 2.89.2: "Splits" said nothing to most players
+             ("off_at_maps", "Hide it in maps"))   # 2.89.2: "Splits" said nothing to most players
 
 
 _MEASURE = {}
@@ -240,7 +240,7 @@ class CampaignUI:
                      wraplength=self.ov_px(290)).pack(side="left", fill="x", padx=(8, 0))
             self.camp_rq_btns[k] = b
         self.camp_rq_keep = tk.BooleanVar(value=False)
-        tk.Checkbutton(body, text="Use this every time (don't ask again)", variable=self.camp_rq_keep, bg=bg,
+        tk.Checkbutton(body, text="Use this every time", variable=self.camp_rq_keep, bg=bg,
                        fg=P["text"], activebackground=bg, activeforeground=P["text"], selectcolor=P["bg"],
                        font=(P["font"], self.ov_font(9)), anchor="w", highlightthickness=0).pack(anchor="w", pady=(8, 0))
         tk.Label(body, text="Change it any time: Overlay › Options › Campaign › Route.", bg=bg, fg=P["muted"],
@@ -626,7 +626,7 @@ class CampaignUI:
             self.camp_act_cb = cb
         # 2.125.3 (feedback: pick the route and the options from that screen itself): Routes ▾
         # and Options ▾, each a small panel inside the card (a window of its own sent the card behind the game)
-        for key, label, tip in (("options", "Options ▾", "The Campaign Helper's options (as on Overlay › Options)"),
+        for key, label, tip in (("options", "Options ▾", "The Campaign Helper's options"),
                                 ("routes", "Routes ▾", "Pick the route: Full, Speedrun or Rush (carry)")):
             b = ttk.Button(top, text=label, style=self.ov_btn("Quiet.TButton"),
                            command=lambda k=key: self.camp_pop_toggle(k), width=len(label) + 1)

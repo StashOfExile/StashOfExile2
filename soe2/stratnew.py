@@ -353,7 +353,7 @@ class StratNewPage:
         from .style import menu_popup
         d = self.mm_nd
         m = tk.Menu(self.root, tearoff=0, bg=C["panel2"], fg=C["text"], activebackground="#2c4a84")
-        m.add_command(label="Waystone" + (" (replaces yours)" if d["way"] else ""),
+        m.add_command(label="Waystone" + (" - replaces yours" if d["way"] else ""),
                       command=lambda: self.mm_new_hand_open("way"))
         m.add_command(label="Tablet", command=lambda: self.mm_new_hand_open(len(d["cards"])),
                       state="normal" if len(d["cards"]) < MM.TABLETS_MAX else "disabled")
@@ -727,7 +727,7 @@ class StratNewPage:
         if post and d["suggest"]:                        # 2.85.0: someone else's: a suggestion for its author
             from tkinter import simpledialog
             note = getattr(self, "mm_new_note", None) or simpledialog.askstring(
-                "Suggest an edit", "What did you change, and why? (the author reads this)", parent=self.root)
+                "Suggest an edit", "What did you change, and why? The author reads this.", parent=self.root)
             if not note or len(note.strip()) < 3:
                 d["msg"] = ("✕ Not sent: say in a few words what you changed and why.", "bad")
                 self.mm_new_cv.later(1)
@@ -916,7 +916,7 @@ class StratNewPage:
             for word, tag in MM.MAP_TYPE_CHIPS:
                 on = tag in d["maptype"]
                 chips.append((word, f"nw_mt_{tag}", on, lambda t=tag: self.mm_new_pick("maptype", t),
-                              "Ticked for you: 4 tablets (only Cities have a 4th slot)" if on and tag == "City"
+                              "Ticked for you: 4 tablets, only Cities have a 4th slot" if on and tag == "City"
                               and d.get("city_auto") else None,
                               "AUTO" if on and tag == "City" and d.get("city_auto") else None))
             return self._nw_chips(cv, ix, cr, yy, chips)
@@ -1405,7 +1405,7 @@ class StratNewPage:
         sx0, _sx1 = cv.button(x1 - 24, y, label, "nw_save", self.mm_new_save, kind="primary",
                               enabled=not miss and not busy, anchor="e", h=44,
                               tip=PICKER_BUSY if busy else ("Needs: " + ", ".join(miss)) if miss else
-                              ("Saves it to Mine (on this PC until you post it)" if not d.get("post") else
+                              ("Saves it to Mine, on this PC until you post it" if not d.get("post") else
                                "Saves it on the community board"))
         msg = d.get("msg")
         if busy:

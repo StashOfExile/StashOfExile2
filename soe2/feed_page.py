@@ -96,7 +96,7 @@ class FeedPage:
         self.fd_tv.bind("<Button-1>", self._fd_click)
         h = tk.Frame(right, bg=P1)
         h.pack(fill="x", pady=(12, 2))
-        tk.Label(h, text="Fed so far (this league)", bg=P1, fg=C["accent"], font=("Segoe UI", 10, "bold")).pack(side="left")
+        tk.Label(h, text="Fed so far in this league", bg=P1, fg=C["accent"], font=("Segoe UI", 10, "bold")).pack(side="left")
         ttk.Button(h, text="Export CSV", command=self.fd_export, style="Quiet.TButton").pack(side="right")
         ttk.Button(h, text="Forget selected", command=self.fd_forget, style="Danger.TButton").pack(side="right",
                                                                                                 padx=(0, 8))

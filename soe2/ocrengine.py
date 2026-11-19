@@ -85,7 +85,7 @@ def problem():
 def help_text():
     """The ⓘ tooltip for a helper that needs OCR (Linux): every distro's line."""
     from .linsys import install_all
-    return ("The screen-reading helpers read text with Tesseract (free OCR). Install it, then restart the app: "
+    return ("The screen-reading helpers read text with Tesseract - free OCR. Install it, then restart the app: "
             + install_all("tesseract").replace(" / ", " · ") + ". Helpers that match pictures (the Sekhemas map "
             "check, Ritual's Favours prices), Client.txt helpers and price checks work without it.")
 

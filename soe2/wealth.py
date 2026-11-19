@@ -949,10 +949,10 @@ class WealthJobs:
         if not league:
             return "Pick a league first (Settings › General)."
         if not re.search(r"#\d+$", acc):
-            return "Enter your account name with its number, for example YourName#1234 (it's shown on the trade site)."
+            return "Enter your account name with its number, for example YourName#1234 as the trade site shows it."
         if not tabs:
             return ("Add your priced tab first: under \"Your priced tabs\", type the price you put on the tab in game "
-                    "(for example 37882 and Divine Orb) and press Add tab, or paste a trade link for it and press Add from link.")
+                    "like 37882 and Divine Orb, and press Add tab, or paste a trade link for it and press Add from link.")
         sid = time.time()
         WEALTH_RARES["gen"] += 1                       # a new sync replaces any rare pricing still queued
         WEALTH_RARES["running"] = False
@@ -1073,7 +1073,7 @@ class WealthJobs:
                 WEALTH.results[tab_id] = res
             WEALTH.last_sync = now
         WEALTH.save()
-        self._wsay(s, "Pricing currency, stackables and uniques with poe.ninja (magic / rare items get price-checked next)…")
+        self._wsay(s, "Pricing currency, stackables and uniques with poe.ninja - magic and rare items get price-checked next…")
         try:
             WPRICES.ensure(s["league"])
         except Exception as e:

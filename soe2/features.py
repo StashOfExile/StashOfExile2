@@ -27,7 +27,7 @@ GROUPS = (
              "runs).",
      "modules": ("plan", "maps", "leaderboards")},
     {"key": "rates", "name": "Exchange Rates", "keys": "",
-     "what": "What each currency is worth in divines (poe.ninja), a converter, and the Rates menu on the Overlay.",
+     "what": "What each currency is worth in divines, from poe.ninja, a converter, and the Rates menu on the Overlay.",
      "modules": ("rates",)},
     {"key": "wealth", "name": "Wealth",
      "what": "What your stash is worth in divines: Scan stash reads your currency and league tabs from the screen; "

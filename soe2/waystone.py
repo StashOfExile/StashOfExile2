@@ -86,9 +86,9 @@ def parse_waystone(text):
                      "kind": "Endgame", "tier": None, "mid": f"map:{fid}",
                      "flags": set(), "value": v, "lo": None, "hi": None, "roll": None, "sid": f"map:{fid}",
                      "ids": [f"map:{fid}"], "group": "total", "guess": None, "key": None, "novalue": False,
-                     "covered": "not searched by default (tick it to search on it)" if default == "ignore" else None,
+                     "covered": "not searched by default - tick it to search on it" if default == "ignore" else None,
                      "note": ("searched at your value or more (all the numbers are lowered together when too few "
-                              "listings match)" if default != "ignore" else "not searched by default (tick it to search on it)"),
+                              "listings match)" if default != "ignore" else "not searched by default - tick it to search on it"),
                      "endgame": True})
         mid += 1
     cur = None                                          # the monster / area mods: shown, never searched

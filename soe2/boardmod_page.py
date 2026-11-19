@@ -279,7 +279,7 @@ class BoardModPage:
     def bm_rev_act(self, rev, action, after=None, why=""):
         if action == "decline" and not why:
             from tkinter import simpledialog
-            why = simpledialog.askstring("Decline", "Why? (optional - the one who suggested it sees this)",
+            why = simpledialog.askstring("Decline", "Why? Optional. The one who suggested it sees this.",
                                          parent=self.root) or ""
 
         def done(res):
@@ -428,7 +428,7 @@ class BoardModPage:
                 v = p.get("votes") or {}
                 tv.insert(b, "end", iid=f"p{p['id']}", values=(p["data"].get("name", "?"), p["author"]["name"],
                                                                f"⚑{p.get('reports', 0)} hide {v.get('hide', 0)} keep {v.get('keep', 0)}"))
-            msg.config(text="Two reviewers (or an admin) decide each one. Never your own posts or versions. Check the "
+            msg.config(text="Two reviewers or an admin decide each one. Never your own posts or versions. Check the "
                             "numbers and steps: does the change make the strat better and true?", fg=C["muted"])
 
         def picked(_e=None):
@@ -461,7 +461,7 @@ class BoardModPage:
                     t.insert("end", "• " + why + "\n")
                 t.insert("end", "\n" + (r["data"].get("summary") or "") + "\n")
                 t.config(state="disabled")
-                for label, v in (("Hide it", "hide"), ("Keep it (clear the reports)", "keep")):
+                for label, v in (("Hide it", "hide"), ("Keep it, clear the reports", "keep")):
                     ttk.Button(btns, text=label, command=lambda v=v: self._bm_bg(lambda: B.review_post(r["id"], v),
                                                                                 lambda res: (self.bm_vote_said(res), reload()))).pack(
                         side="left", padx=(0, 8))

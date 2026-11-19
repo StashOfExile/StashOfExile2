@@ -673,7 +673,7 @@
     "min_max": {
      "min": 6
     },
-    "note": "low tier (T7) - rarely adds to the price, not searched (tick it to search on it)",
+    "note": "low tier (T7) - rarely adds to the price, not searched - tick it to search on it",
     "shown": "+7 to Dexterity",
     "sid": "explicit.stat_3261801346",
     "text": "+7(5-8) to Dexterity",
@@ -2869,7 +2869,7 @@
     "min_max": {
      "min": 13
     },
-    "note": "rarely adds to a rare's price - not searched (tick it to search on it)",
+    "note": "rarely adds to a rare's price - not searched - tick it to search on it",
     "shown": "+15% increased Light Radius",
     "sid": "explicit.stat_1263695895",
     "text": "+15(10-15)% increased Light Radius",
@@ -5759,7 +5759,7 @@
     "min_max": {
      "min": 7
     },
-    "note": "low tier (T7) - rarely adds to the price, not searched (tick it to search on it)",
+    "note": "low tier (T7) - rarely adds to the price, not searched - tick it to search on it",
     "shown": "+8 to Dexterity",
     "sid": "explicit.stat_3261801346",
     "text": "+8(5-8) to Dexterity",
@@ -6170,7 +6170,7 @@
     "min_max": {
      "min": 7
     },
-    "note": "low tier (T7) - rarely adds to the price, not searched (tick it to search on it)",
+    "note": "low tier (T7) - rarely adds to the price, not searched - tick it to search on it",
     "shown": "+8 to Dexterity",
     "sid": "explicit.stat_3261801346",
     "text": "+8(5-8) to Dexterity",
@@ -8209,7 +8209,7 @@
     "min_max": {
      "min": 7
     },
-    "note": "low tier (T7) - rarely adds to the price, not searched (tick it to search on it)",
+    "note": "low tier (T7) - rarely adds to the price, not searched - tick it to search on it",
     "shown": "+8 to Dexterity",
     "sid": "explicit.stat_3261801346",
     "text": "+8(5-8) to Dexterity",
@@ -10145,7 +10145,7 @@
   "label": "no listings match - not priced (searched on its endgame numbers by base type (waystone (tier 15)), rare only, uncorrupted only)",
   "mods": [
    {
-    "covered": "not searched by default (tick it to search on it)",
+    "covered": "not searched by default - tick it to search on it",
     "group": "total",
     "ids": [
      "map:map_revives"
@@ -10155,7 +10155,7 @@
     "min_max": {
      "min": 0
     },
-    "note": "not searched by default (tick it to search on it)",
+    "note": "not searched by default - tick it to search on it",
     "shown": "Revives Available: 0",
     "sid": "map:map_revives",
     "text": "Revives Available: #"
@@ -11189,7 +11189,7 @@
    "ilvl": 82,
    "name": "Headhunter",
    "notes": [
-    "rolls: 78% of their ranges (well rolled)"
+    "rolls: 78% of their ranges - well rolled"
    ],
    "quality": 0,
    "rarity": "Unique",
@@ -11248,7 +11248,7 @@
     "value": 52
    },
    {
-    "covered": "uniques are searched by name - this roll is 53% of its range (tick it to search on its roll too)",
+    "covered": "uniques are searched by name - this roll is 53% of its range - tick it to search on its roll too",
     "group": "explicit",
     "hi": 55,
     "ids": [
@@ -11260,7 +11260,7 @@
     "min_max": {
      "min": 43
     },
-    "note": "uniques are searched by name - this roll is 53% of its range (tick it to search on its roll too)",
+    "note": "uniques are searched by name - this roll is 53% of its range - tick it to search on its roll too",
     "shown": "+48 to Dexterity",
     "sid": "explicit.stat_3261801346",
     "text": "+48(40-55) to Dexterity",
@@ -11285,7 +11285,7 @@
     "value": 60
    },
    {
-    "covered": "uniques are searched by name (tick it to search on its roll too)",
+    "covered": "uniques are searched by name - tick it to search on its roll too",
     "group": "explicit",
     "ids": [
      "explicit.stat_2913235441"
@@ -11295,7 +11295,7 @@
     "min_max": {
      "min": 54
     },
-    "note": "uniques are searched by name (tick it to search on its roll too)",
+    "note": "uniques are searched by name - tick it to search on its roll too",
     "shown": "When you kill a Rare monster, you gain its Modifiers for 60 seconds",
     "sid": "explicit.stat_2913235441",
     "text": "When you kill a Rare monster, you gain its Modifiers for 60 seconds",
@@ -11533,7 +11533,7 @@
    "ilvl": 80,
    "name": "Conqueror Plate",
    "notes": [
-    "unidentified: searched as Kaom's Heart (the only unique on this base)"
+    "unidentified: searched as Kaom's Heart - the only unique on this base"
    ],
    "quality": 0,
    "rarity": "Unique",
@@ -11719,7 +11719,7 @@
     "text": "Legacy of Quicksilver"
    },
    {
-    "covered": "uniques are searched by name - this roll is 50% of its range (tick it to search on its roll too)",
+    "covered": "uniques are searched by name - this roll is 50% of its range - tick it to search on its roll too",
     "group": "explicit",
     "hi": 30,
     "impact": "ignore",
@@ -12057,7 +12057,7 @@
    "ilvl": 70,
    "name": "Andvarius",
    "notes": [
-    "rolls: 25% of their ranges (low: most listings roll better)"
+    "rolls: 25% of their ranges - low, most listings roll better"
    ],
    "quality": 0,
    "rarity": "Unique",
@@ -12098,7 +12098,7 @@
     "value": 25
    },
    {
-    "covered": "uniques are searched by name - this roll is 25% of its range (tick it to search on its roll too)",
+    "covered": "uniques are searched by name - this roll is 25% of its range - tick it to search on its roll too",
     "group": "explicit",
     "hi": 100,
     "ids": [
@@ -12111,14 +12111,14 @@
     "min_max": {
      "min": 80
     },
-    "note": "uniques are searched by name - this roll is 25% of its range (tick it to search on its roll too)",
+    "note": "uniques are searched by name - this roll is 25% of its range - tick it to search on its roll too",
     "shown": "85% increased Rarity of Items found",
     "sid": "explicit.stat_3917489142",
     "text": "85(80-100)% increased Rarity of Items found",
     "value": 85
    },
    {
-    "covered": "uniques are searched by name (tick it to search on its roll too)",
+    "covered": "uniques are searched by name - tick it to search on its roll too",
     "group": "explicit",
     "hi": -30,
     "ids": [
@@ -12130,7 +12130,7 @@
     "min_max": {
      "max": -22
     },
-    "note": "uniques are searched by name (tick it to search on its roll too)",
+    "note": "uniques are searched by name - tick it to search on its roll too",
     "shown": "-25% to all Elemental Resistances",
     "sid": "explicit.stat_2901986750",
     "text": "-25(-20--30)% to all Elemental Resistances",

@@ -307,7 +307,7 @@ class UtilitiesPage:
         from .style import KeyCapture
         cg = tk.Frame(body, bg=P2)
         cg.pack(fill="x", pady=(8, 0))
-        for col, t in enumerate(("Name", "Key", "Command (for example /leave, /dnd or /invite Name)")):
+        for col, t in enumerate(("Name", "Key", "Command, like /leave, /dnd or /invite Name")):
             tk.Label(cg, text=t, bg=P2, fg=C["muted"], font=("Segoe UI", 9, "bold"), anchor="w").grid(row=0, column=col,
                                                                                                    sticky="w")
         self.ov_vars["hideout_key"] = tk.StringVar(value=ov.get("hideout_key", ""))
@@ -548,7 +548,7 @@ class UtilitiesPage:
             from .linsys import install_cmd
             st, col = f"On, but chat keys need xdotool ({install_cmd('xdotool')})", C["red"]
         elif sys.platform != "win32" and not sys.platform.startswith("linux"):
-            st, col = "On (keys work on Windows only)", C["good"]
+            st, col = "On - keys work on Windows only", C["good"]
         elif getattr(self, "keys", None) is None or not self.keys.active:
             keys = getattr(self, "keys", None)
             st, col = ("Starting…", C["muted"]) if keys is None or keys.err is None else \
