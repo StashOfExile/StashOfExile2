@@ -425,8 +425,7 @@ class AlertsPage:
                 Tooltip(ib, "Your items and how many of each to keep.")
                 info(oc, f"Back from a map, a card asks you to open your inventory and press "
                          f"{self.look_key_text()}: that one read checks your top ups (and counts the map's loot when "
-                         f"Map profit is on). To track an item: after that read, hover it in your inventory and press "
-                         f"{self.topup_key_text()}.").pack(side="left", padx=(8, 0))
+                         f"Map profit is on). Pick the items you keep in Items….").pack(side="left", padx=(8, 0))
                 out.append("Items")
             elif key == "mapprofit":                              # 2.132.0: Map profit
                 info(oc, f"Back from a map, a card asks you to open your inventory and press "

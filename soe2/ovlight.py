@@ -356,7 +356,7 @@ class LightOverlay:
                     cv.tag_bind(tag, b, lambda e=None: e is not None and self.ov_quick_toggle(e))
             else:
                 cv.tag_bind(tag, "<Button-1>", lambda e=None, c=cmd: e is not None and c())
-            self.ov_tip(cv, tag, "Quick settings" if tag == "mg_cog" else "Lock / unlock the overlay")
+            self.ov_tip(cv, tag, "Quick settings" if tag == "mg_cog" else "Lock or unlock the overlay")
             bb = cv.bbox(it)
             x = (bb[0] if bb else x - 16) - self._u(6)
         return x

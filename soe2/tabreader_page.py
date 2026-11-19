@@ -51,7 +51,7 @@ class TabReaderPage:
         self.pc_amt = tk.StringVar(value=str(cfg.get("amount") or ""))
         amt = ttk.Entry(row, textvariable=self.pc_amt, width=9)
         amt.pack(side="left", padx=(8, 4))
-        Tooltip(amt, "The one price the whole tab has in game (or paste the trade site's link to your tab)")
+        Tooltip(amt, "The one price you gave the whole tab in game (or paste the trade site's link to your tab)")
         # 2.40.0: the box is built before the trade site's full currency list arrives, so a saved Mirror of Kalandra
         # isn't in the list yet - it showed "Divine Orb", and Read tab then searched in divines. Show the saved name.
         cid = cfg.get("currency") or "divine"

@@ -58,7 +58,6 @@ CLIP_WATCH = (r"\b(GetClipboardSequenceNumber|AddClipboardFormatListener|SetClip
 KEY_WATCHER = {(os.path.join("soe2", "look_page.py"), "look_on_key"),
                (os.path.join("soe2", "utilities_page.py"), "clip_on_key"),
                (os.path.join("soe2", "utilities_page.py"), "pc_hotkey"),
-               (os.path.join("soe2", "utilities_page.py"), "topup_hotkey"),
                (os.path.join("soe2", "overlay.py"), "on_key")}
 SCREEN_GRANT = {"screenread", "SR", "_sr"}
 LOOK_WATCHER = (os.path.join("soe2", "look_page.py"), "look_on_key")     # the only caller of screenread.grant
@@ -222,7 +221,7 @@ def timer_senders(trees):
 
 
 LISTENER_FILE = os.path.join("soe2", "utilities_page.py")
-LISTENER_OK = re.compile(r"CAPTURING|0x4B|pc_hotkey|pc_close_hotkey|rx_key_hit|topup_hotkey|poe2db_key|tracker_on_key|"
+LISTENER_OK = re.compile(r"CAPTURING|0x4B|pc_hotkey|pc_close_hotkey|rx_key_hit|poe2db_key|tracker_on_key|"
                          r"overlay\.on_key|drawer_hotkey|drawer_esc_hotkey")
 # (what the key watcher swallowed before the compliance work; drawer build: the Drawer key and, while the Drawer
 # shows, your close key - both the app's own keys, never the Read Key: Settings › Keybinds keeps them apart)

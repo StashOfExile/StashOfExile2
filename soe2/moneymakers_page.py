@@ -95,7 +95,7 @@ class MoneyMakersPage(StratViews, StratNewPage):
                       relief="flat", highlightthickness=0, bd=0, font=("Segoe UI", 10))
         se.pack(side="left", padx=8, ipady=8, fill="x", expand=True)
         self.mm_search = se
-        ph = tk.Label(sbox, text="Search strats, e.g. breach", bg=C["odd"], fg=C["muted"], font=("Segoe UI", 10))
+        ph = tk.Label(sbox, text="Search strats, for example breach", bg=C["odd"], fg=C["muted"], font=("Segoe UI", 10))
         ph.bind("<Button-1>", lambda e: se.focus_set())
 
         def placeholder(*_a):

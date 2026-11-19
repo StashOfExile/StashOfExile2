@@ -64,7 +64,7 @@ class LibraryPage:
 
         self.lib_stats = ttk.Treeview(sf, columns=("mod", "better", "trade", "local"), show="headings")
         self.list_register("library", self.lib_stats)
-        for cid, title, w, anchor in (("mod", "Mod wording (# = a number)", 290, "w"), ("better", "Better", 60, "center"),
+        for cid, title, w, anchor in (("mod", "Mod wording (# stands for a number)", 290, "w"), ("better", "Better", 60, "center"),
                                       ("trade", "Trade-site stat id", 190, "w"), ("local", "Local", 50, "center")):
             self.lib_stats.heading(cid, text=title)
             self.lib_stats.column(cid, width=w, anchor=anchor, stretch=(cid in ("mod", "trade")))

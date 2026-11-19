@@ -31,19 +31,19 @@ HIDECAP = "Hide all overlay information from screen captures"      # (names.py: 
 # 2.124.0 (feedback: each toggle should say what it is on hover): the one-line tips (the helpers' come from
 # alerts_page.HELPER_BLURBS - the same line as on Helpers)
 QUICK_TIPS = {"Style": "How the overlay looks over the game",
-              "Reload Overlay": "Reload Overlay: builds the overlay again - for when something looks stuck or wrong",
+              "Reload Overlay": "Builds the overlay again, for when something looks stuck or wrong",
               "Layout": "Bar: on the game's XP bar. Panel: a card you place anywhere. Split: two halves by the orbs",
-              "Swap sides": "Swap sides: the session's half goes by the mana orb, the tools' half by the life orb",
+              "Swap sides": "Puts the session's half by the mana orb and the tools' half by the life orb, or the other way round",
               "Sound": "Every helper's alert sound, on or off",
               "Lock position": "Keeps the overlay where it is - no dragging it by accident",
               "Place": "Where the overlay sits: the Bar on the XP bar or at the top, the Panel left or right. Picking "
                        "one puts it there, wherever you dragged it",
               "Click-through": "Clicks go through the overlay to the game",
-              "notes": "Notes ▾ on the overlay: your own notes in a window over the game",
-              "calc": "Calc ▾ on the overlay: a small calculator over the game",
-              "regex": "Regex ▾ on the overlay: your saved stash searches, one click to copy",
-              "rates": "Rates ▾ on the overlay: today's currency exchange rates",
-              "app": "App ▸ on the overlay: opens the Drawer"}
+              "notes": "Opens your own notes in a window over the game",
+              "calc": "Opens a small calculator over the game",
+              "regex": "Your saved stash searches - click one to copy it",
+              "rates": "Today's currency exchange rates",
+              "app": "Opens the Drawer"}
 
 
 def chip_colors(Q, on):

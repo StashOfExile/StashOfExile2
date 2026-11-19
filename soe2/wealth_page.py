@@ -391,7 +391,7 @@ class WealthPage:
                          "it; select rows (Ctrl+A for all) and press Delete to remove them."),
         ("Prices", "Currency, fragments and other stackables come from poe.ninja. An item "
                    "poe.ninja doesn't list says not found on poe.ninja and isn't in the total."),
-        ("Total and What moved it", "Total is everything added up; the chart shows it over time (Daily = the change "
+        ("Total and What moved it", "Total is everything added up; the chart shows it over time (Daily shows the change "
                                     "per day). What moved it splits the week's change into prices and amounts, and "
                                     "shows each item's week (click it)."),
         ("Snapshots", "Each count, scan or price update saves your total, so the chart and the Session timer can "
@@ -966,7 +966,7 @@ class WealthPage:
                 name = ""
         if not amount or amount <= 0:
             self.w_amt_entry.focus_set()
-            self._w_tell("Type the price you put on the tab in game in the Price box (e.g. 37882), pick its currency, "
+            self._w_tell("Type the price you put on the tab in game in the Price box (for example 37882), pick its currency, "
                          "then press Add tab.")
             return False
         cur = cur or next((cid for cid, n in WEALTH_CURRENCIES if n == self.w_new_cur.get()), "divine")

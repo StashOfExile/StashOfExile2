@@ -410,7 +410,7 @@ TIER_ORDER = ("S", "A", "B", "C", "D")
 # that reads rules changes. F_TIP says what it means wherever F appears.
 TIER_F = "F"
 SHOWN_TIERS = TIER_ORDER + (TIER_F,)
-F_TIP = "F = ignore: buyers don't pay for it, so it's left out of searches."
+F_TIP = "F means ignore: buyers don't pay for it, so it's left out of searches."
 TIERS = load_json("mod_tiers.json", {})        # your tiers: rule key -> "S".."D"
 
 

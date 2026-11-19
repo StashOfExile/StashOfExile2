@@ -109,11 +109,6 @@ class UtilitiesPage:
                     return True
         except Exception:
             buglog.caught()
-        try:                                           # 2.131.1: the Top Up key - copies the item to teach it
-            if self.topup_hotkey(vk, ctrl, alt, shift):
-                return True
-        except Exception:
-            buglog.caught()
         try:                                           # 2.12.0: the poe2db key - in game or in the app only
             k = parse_key(SETTINGS.get("poe2db_key") or "")
             if k and k == (vk, ctrl, alt, shift):
@@ -166,10 +161,9 @@ class UtilitiesPage:
 
     def clip_wanted(self, alt):
         """(keyboard thread) Does anything take a copy made with Ctrl+Alt+C (alt) / Ctrl+C right now? Bulk Pricing and
-        the Strat Tracker's boxes take Ctrl+Alt+C; Price Checks and Top Up take Ctrl+C when it's their key; Wealth's
+        the Strat Tracker's boxes take Ctrl+Alt+C; Price Checks takes Ctrl+C when it's its key; Wealth's
         Count by hand takes either while you count."""
         from . import features as FEAT
-        from . import topup as TU
         from .pricecheck_page import pc_key_is_copy
         if getattr(self, "w_counting", False):
             return True
@@ -190,10 +184,7 @@ class UtilitiesPage:
                 return True
         except Exception:
             pass
-        try:
-            return bool(self.topup_key_is_copy() and (TU.cfg().get("on") or self.mp_on()))
-        except Exception:
-            return False
+        return False
 
     def ev_goto(self):
         self.shell.goto()
@@ -274,32 +265,6 @@ class UtilitiesPage:
         threading.Thread(target=go, daemon=True).start()
         return True
 
-    def topup_hotkey(self, vk, ctrl, alt, shift):
-        """2.131.1 (feedback: the price check key on top up items left the item's card stuck on screen, so a
-        different key is needed): Top Up's own key (F7) in game -> the game's copy once; the copy only teaches Top
-        Up (never priced, never Bulk Pricing)."""
-        from .overlay import parse_key, game_active, send_copy, POE_TITLE
-        from . import topup as TU
-        k = parse_key(SETTINGS.get("topup_key") or "")
-        if not k or k != (vk, ctrl, alt, shift) or not TU.cfg().get("on") or self.topup_key_is_copy():
-            return False                                   # (Ctrl+C: the game copies by itself - nothing to send)
-        if not game_active((getattr(self, "overlay", None) and self.overlay.cfg.get("poe_title")) or POE_TITLE):
-            return False
-        from . import clipread
-        if vk in clipread.MOUSE:
-            return False                                   # (a mouse button is not a key press: no read)
-        gid = clipread.grant(key_label_vk(vk, ctrl, alt, shift), hold=vk)
-        if not gid:
-            return True
-
-        def go():
-            self.keys.tu_time = time.time()
-            clipread.clear()
-            send_copy()
-            self.clip_granted(gid)
-        threading.Thread(target=go, daemon=True).start()
-        return True
-
     def open_utilities(self, key="notes"):
         """The ⚙ on the note: bring the app up with the Notes window in front."""
         try:
@@ -342,7 +307,7 @@ class UtilitiesPage:
         from .style import KeyCapture
         cg = tk.Frame(body, bg=P2)
         cg.pack(fill="x", pady=(8, 0))
-        for col, t in enumerate(("Name", "Key", "Command (e.g. /leave  /dnd  /invite Name)")):
+        for col, t in enumerate(("Name", "Key", "Command (for example /leave, /dnd or /invite Name)")):
             tk.Label(cg, text=t, bg=P2, fg=C["muted"], font=("Segoe UI", 9, "bold"), anchor="w").grid(row=0, column=col,
                                                                                                    sticky="w")
         self.ov_vars["hideout_key"] = tk.StringVar(value=ov.get("hideout_key", ""))

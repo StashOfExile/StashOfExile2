@@ -31,7 +31,7 @@ GAME_KEYS = {0x09: "Tab (the game's map key)", 0x0D: "Enter (the game's chat)", 
 AREA_WORDS = {"map": "in a map", "hideout": "in your hideout", "town": "in a town", "other": "in this area",
               "login": "at the character screen"}
 UNSET_STATUS = "No Read Key set: it reads nothing until you set one."
-NEED_LINE = "The screen helpers read only when you press your Read Key - a key just for that. None is set yet."
+NEED_LINE = "The screen helpers read only when you press your Read Key, a key you use only for that. None is set yet."
 
 
 def look_key_problem(text, others=()):

@@ -392,12 +392,6 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
         from . import listkit                        # 2.12.0: keys, right-click menus and striped rows everywhere
         listkit.install(self)
         SETTINGS.setdefault("poe2db_key", "Ctrl+Shift+D")
-        # 2.131.1: Top Up teaches with its own key; 2.131.4 (feedback: F7 did not work, so Ctrl+C):
-        # the game's own Ctrl+C by default (F7, the old default, moves to it once)
-        if not SETTINGS.get("topup_key_2131") and SETTINGS.get("topup_key") in (None, "F7"):
-            SETTINGS["topup_key"] = "Ctrl+C"
-        SETTINGS["topup_key_2131"] = True
-        SETTINGS.setdefault("topup_key", "Ctrl+C")
         SETTINGS.setdefault("copy_marker", True)            # 2.19.0: a mark where you pressed Ctrl+Alt+C
         SETTINGS.setdefault("copy_marker_secs", 10)         # 2.24.0: how long it stays
         SETTINGS.setdefault("copy_marker_hold", False)      # 2.24.0: or until Esc is tapped twice (2.25.0)
@@ -1046,12 +1040,13 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
     # (key, name, kind, low, high, step, what it does) - 2.59.0: Settings › Advanced › Fine tuning
     # 2.123.1 (feedback: other price checkers offer 20% / 15% / 10% / 5% / 0%): the Min a search asks for, as
     # how far below your roll - 0% = your exact roll. Saved as before (range_factor 0.9 = 10% below).
-    FINE = (("range_factor", "Search Min", "below", 0, 30, 5, "below your item's roll (more = more listings; 0% = your "
-                                                               "exact roll)"),
-            ("min_results", "Fewest listings for a price", "int", 1, 20, 1, "fewer than this: no price, only a hint"),
-            ("spread_warn", "Warn when prices vary", "int", 0, 200, 5, "x - when the highest listing costs this many "
-                                                                      "times the lowest (0 = off)"),
-            ("tray", "Put away to the system tray", "bool", 0, 0, 0, "takes effect when the app starts"))
+    FINE = (("range_factor", "Search Min", "below", 0, 30, 5, "your item's roll. A bigger share finds more listings; "
+                                                               "0% is its exact roll."),
+            ("min_results", "Fewest listings for a price", "int", 1, 20, 1, "With fewer listings you get a hint, not a "
+                                                                            "price."),
+            ("spread_warn", "Warn when prices vary", "int", 0, 200, 5, "times the lowest listing (0 turns the warning "
+                                                                      "off)"),
+            ("tray", "Put away to the system tray", "bool", 0, 0, 0, "Takes effect the next time the app starts."))
     # (3.0.6: the "messages stay for x seconds" setting is removed - toasts keep their default time)
 
     FINE_WINDOW = ("tray",)                   # 2.116.0 (P10): on General › Window, not Price checking
@@ -2599,8 +2594,6 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
                 if self.mm_new_wants(text):                  # 3.0.6: Farming Strategies › New strat is open: a
                     self.mm_new_take_clip(text)              # tablet / waystone goes there, whichever copy key you
                     where = "New strat"                      # pressed (Ctrl+Alt+C, Ctrl+C, the price check key)
-                elif self.topup_wants(text) and self.topup_take(text):    # 2.131.4: Top Up's copy first
-                    where = "Top Up Reminders"
                 elif self.wealth_takes(text):                # Count by hand: a copied stack, while counting
                     self.wealth_clip(text)
                     where = "Wealth"
@@ -3403,7 +3396,7 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
         if mark == "sold":                                # 2.21.0: what it really sold for
             typed_sold = (getattr(self, "sold_var", None).get().strip() if getattr(self, "sold_var", None) else "")
             if len(sel) != 1 or not parse_price(typed_sold):
-                return self._say("Type what it sold for in the item's panel (e.g. 3 div, 150 chaos, 40 ex), then press "
+                return self._say("Type what it sold for in the item's panel (for example 3 div, 150 chaos, 40 ex), then press "
                                  "Mark as sold.", 10)
         self.undo = [(r["id"], r.get("mark", "new"), r.get("list_price")) for r in recs]
         self.undo_deleted = []
@@ -3693,8 +3686,8 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
             if t == TIER_F:
                 Tooltip(tb_, F_TIP)
         ttk.Button(tbar, text="Clear", command=lambda: self.tiers_selected(None), style="Quiet.TButton").pack(side="left", padx=(4, 0))
-        help_ = tk.Label(tab, text="S / A = High (always searched), B / C / D = Normal, F = Ignore (never searched). When no "
-                           "listing has all of an item's mods, D mods are left out first, then C. \"auto\" = the app's "
+        help_ = tk.Label(tab, text="S and A are High (always searched), B, C and D are Normal, F is Ignore (never searched). When no "
+                           "listing has all of an item's mods, D mods are left out first, then C. \"auto\" is the app's "
                            "own rating until you rate it.", bg=C["panel"], fg=C["muted"], font=("Segoe UI", 9),
                  anchor="w", justify="left", wraplength=900, padx=12)
         help_.pack(fill="x", pady=(8, 0))
@@ -3986,7 +3979,7 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
         if differ:
             ans = messagebox.askyesnocancel(
                 "Import rules", f"{len(new)} new rule(s) will be added.\n\n{len(differ)} rule(s) in the file differ from "
-                                f"yours. Use the file's for those?\n\nYes = use the file's   ·   No = keep yours")
+                                f"yours. Use the file's for those?\n\nYes uses the file's. No keeps yours.")
             if ans is None:
                 return
             take = bool(ans)

@@ -38,7 +38,7 @@ class LocalIcons:
     the user's screenshots of its lists) - no download. {name: PhotoImage}, made on first use."""
 
     def __init__(self, root, size=ICON):
-        self.root, self.size, self.cache, self.idx, self.im = root, size, {}, None, None
+        self.root, self.size, self.cache, self.idx, self.im, self._names = root, size, {}, None, None, []
 
     def _load(self):
         import json
@@ -51,8 +51,20 @@ class LocalIcons:
             from PIL import Image
             self.im = Image.open(d / "exchange_icons.png").convert("RGB")
             self.idx = {str(n).lower(): i for i, n in enumerate(names)}
+            self._names = [str(n) for n in names]
         except Exception:
-            self.idx, self.im = {}, None
+            self.idx, self.im, self._names = {}, None, []
+
+    def names(self):
+        """Every item the app has a picture for, in the game's spelling."""
+        if self.idx is None:
+            self._load()
+        return list(self._names)
+
+    def has(self, name):
+        if self.idx is None:
+            self._load()
+        return str(name or "").lower() in self.idx
 
     def get(self, name):
         if self.idx is None:

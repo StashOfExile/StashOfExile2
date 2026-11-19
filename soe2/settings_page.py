@@ -424,7 +424,7 @@ class SettingsPage:
         # ======== Keys (2.116.0, P10: Hotkeys and Chat commands on one tab)
         row = section("Keybinds", "Hotkeys", "Every key the app listens for. Click a box and press the key (with Ctrl / "
                                          "Alt / Shift, or a mouse button) - it saves at once. Esc keeps the old key, "
-                                         "Backspace or right-click clears it. Two things on one key show in red.")
+                                         "Backspace or right-click clears it. Two things on one key are shown in red.")
         self.hk_frame = row
         self.hk_vars = {}
         row2 = tk.Frame(row.master, bg=P2)
@@ -857,8 +857,8 @@ class SettingsPage:
                                                                          self.on_ov_look(style=st)), self.ov_preview)
         self.ov_style_pick.pack(anchor="w")
         # 2.56.1: ONE opacity for everything over the game (it was one slider each)
-        row = section("Opacity", "How solid the overlay is. 100% = fully solid; lower = see-through, text and all "
-                                 "(24% is the lowest). Over a busy spot, 95-100% reads best.")
+        row = section("Opacity", "How see-through the overlay is: 100% is solid, lower lets the game show through, text and "
+                                 "all (24% is the lowest). Over a busy spot, 95-100% reads best.")
         v = tk.IntVar(value=self.ov_opacity_get("session"))
         self.ov_op_vars = {"all": v}
         ttk.Scale(row, from_=60, to=255, variable=v, orient="horizontal", length=260,
@@ -986,7 +986,7 @@ class SettingsPage:
                 if not chat_said:
                     tk.Label(f, text="CHAT COMMANDS", bg=P2, fg=C["accent"], font=("Segoe UI", 9, "bold"),
                              anchor="w").grid(row=i, column=0, columnspan=3, sticky="w", pady=(10 if i else 0, 2))
-                    tk.Label(f, text="set below, with their commands", bg=P2, fg=C["muted"],
+                    tk.Label(f, text="Set below, next to each command", bg=P2, fg=C["muted"],
                              font=("Segoe UI", 9), anchor="w").grid(row=i + 1, column=0, columnspan=3, sticky="w",
                                                                     padx=(12, 0))
                     i += 2
@@ -1047,8 +1047,8 @@ class SettingsPage:
         yes. The
         keys of your own chat commands and Regex keys stay (they have no default); the Read Key is Ctrl+Shift+R again."""
         from .tracker_page import DEFAULT_HOTKEYS
-        if not messagebox.askyesno("Keybinds", "Set every keybind back to the default?\n\nYour chat commands, "
-                                   "Regex keys keep their keys. The Read Key goes back to Ctrl+Shift+R.", parent=self.dlg_parent()):
+        if not messagebox.askyesno("Keybinds", "Set every keybind back to the default?\n\nYour chat command "
+                                   "keys and Regex keys stay as they are. The Read Key goes back to Ctrl+Shift+R.", parent=self.dlg_parent()):
             return False
         for kid, key in DEFAULT_HOTKEYS.items():
             v = self.hk_vars.get(kid)

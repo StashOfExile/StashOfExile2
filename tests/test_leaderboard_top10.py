@@ -88,7 +88,7 @@ class AreaLevelColumn(unittest.TestCase):
         except ImportError:
             self.skipTest("no tkinter")
         self.assertEqual(LP.LEVEL_HEADER, "Area level")
-        self.assertEqual(LP.LEVEL_TIP, "The map's area level when it was run (Waystone tier 1 = area level 65, tier 16 = 80)")
+        self.assertEqual(LP.LEVEL_TIP, "The map's area level when it was run (Waystone tier 1 is area level 65, tier 16 is 80)")
         src = open(os.path.join(ROOT, "soe2", "leaderboard_page.py"), encoding="utf-8").read()
         self.assertIn('("lvl", LEVEL_HEADER,', src, "the column uses the header text")
         self.assertNotIn('"Level"', src)

@@ -171,7 +171,7 @@ class StratNewPage:
         cv = self.mm_new_cv
         for w in list(cv.winfo_children()):
             w.destroy()
-        nw = self.mm_nw = {"name": self._mm_new_entry(s.get("name", ""), "e.g. Delirium into Simulacrums")}
+        nw = self.mm_nw = {"name": self._mm_new_entry(s.get("name", ""), "for example Delirium into Simulacrums")}
         nw["steps"] = [self._mm_new_entry(x) for x in s.get("steps") or []]
         nw["steps"].append(self._mm_new_entry("", "Next step…"))
         nw["loot"] = self._mm_new_entry("", "Add an item…")

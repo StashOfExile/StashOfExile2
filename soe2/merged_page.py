@@ -675,7 +675,7 @@ class MergedOverlay:
                     cv.tag_bind(tag, b, lambda e=None: e is not None and self.ov_quick_toggle(e))
             else:
                 cv.tag_bind(tag, "<Button-1>", lambda e=None, c=cmd: e is not None and c())
-            self.ov_tip(cv, tag, "Quick settings" if tag == "mg_cog" else "Lock / unlock the overlay")
+            self.ov_tip(cv, tag, "Quick settings" if tag == "mg_cog" else "Lock or unlock the overlay")
             x -= 20
         return x
 
@@ -989,7 +989,7 @@ class MergedOverlay:
         body.pack(fill="both", expand=True)
         bg = P["bg"]
         favs = self.rx_ov_favs()
-        tip = "Click one = copied · Ctrl+V in the stash or shop search" if favs else \
+        tip = "Click one to copy it, then paste it into the stash or shop search with Ctrl+V" if favs else \
             "No favorites yet. Build a search on the Regex page, then press ☆ Add to Favorites."
         tk.Label(body, text=tip, bg=bg, fg=P["muted"], font=(P.get("body") or P["font"], self.ov_font(9)), anchor="w",
                  justify="left",

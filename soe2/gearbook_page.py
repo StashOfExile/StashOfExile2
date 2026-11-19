@@ -16,7 +16,7 @@ from .chrome import BarNote, SectionBar, Viewport
 from .style import C, Tooltip
 
 IMPACT_LABEL = {"high": "High", "normal": "Normal", "ignore": "Ignore"}
-GRADE_TIP = "S / A = High (always searched), B / C / D = Normal, F = Ignore (never searched)."
+GRADE_TIP = "S and A are High (always searched), B, C and D are Normal, F is Ignore (never searched)."
 
 
 class GearBookPage:

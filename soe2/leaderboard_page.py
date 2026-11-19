@@ -15,7 +15,7 @@ from .style import C, SegBar, Tooltip
 
 ALL_LEAGUES = "All leagues"
 LEVEL_HEADER = "Area level"
-LEVEL_TIP = "The map's area level when it was run (Waystone tier 1 = area level 65, tier 16 = 80)"
+LEVEL_TIP = "The map's area level when it was run (Waystone tier 1 is area level 65, tier 16 is 80)"
 TOPS = (5, 10, 20, 30, 50, 100)             # 2.104.1 (feedback): how many rows a board shows
 
 

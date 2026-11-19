@@ -62,7 +62,7 @@ also ask for this notice, word for word, and a User-Agent that says how to reach
    | What | Trigger (and only this) | Who uses it |
    |---|---|---|
    | Your screen (one picture of the game window, kept in memory) | one per press of your Read Key in the game - a key only for this, Ctrl+Shift+R as the app comes; held = one; no Read Key (cleared) = never | Temple (the Temple Console's crystal count and board, Vaal Lens); Expedition reward book; Favours prices (the Ritual helper); Island rumors; Desecration Helper; Top Up Reminders and Map profit; Trial of the Sekhemas (is the trial map open, and a hovered affliction or boon's name); Scan stash (once Start reading armed it) |
-   | Your clipboard's text | one per copy key pressed in the game, 0.2 s after it, no retry: Ctrl+C / Ctrl+Alt+C (only when something takes it: Bulk Pricing, the Strat Tracker's boxes, Price Checks or Top Up on Ctrl+C, Wealth's Count by hand), the price check key, the Top Up key | Price Checks, Bulk Pricing, Wealth's Count by hand, Top Up teaching, Map profit, the Strat Tracker, Mod Book › Manual feed |
+   | Your clipboard's text | one per copy key pressed in the game, 0.2 s after it, no retry: Ctrl+C / Ctrl+Alt+C (only when something takes it: Bulk Pricing, the Strat Tracker's boxes, Price Checks on Ctrl+C, Wealth's Count by hand), the price check key | Price Checks, Bulk Pricing, Wealth's Count by hand, Map profit, the Strat Tracker, Mod Book › Manual feed |
    | Your clipboard's text | one per chat command key press (before the command is pasted - to put your text back; a mouse-button chat key reads nothing and doesn't put it back) | chat commands |
    | Your clipboard's text or picture | one per Ctrl+V / Shift+Insert in one of the app's boxes (Tk's own paste in text boxes; Favorites' list, the Strat Tracker's item and Atlas steps, Craft Helper's and Regex's check boxes) | what you paste |
    | Client.txt (the game's log) | all the time, new lines only | area changes, Breach warnings, whispers, deaths, levels |
@@ -72,7 +72,7 @@ also ask for this notice, word for word, and a User-Agent that says how to reach
 
    | What | Trigger | Why it isn't a screen / clipboard read |
    |---|---|---|
-   | The mouse's position (Tk `winfo_pointerxy`, `GetCursorPos`) | the Read Key press (which inventory cell / tooltip is under the mouse); the Ctrl+Alt+C copy mark; the price check / Top Up key (which cell to learn); placing a popup or menu; Esc-minimize check; Go to anything closing on an outside click | two numbers from Windows, never pixels |
+   | The mouse's position (Tk `winfo_pointerxy`, `GetCursorPos`) | the Read Key press (which inventory cell / tooltip is under the mouse); the Ctrl+Alt+C copy mark; the price check key (which cell to learn); placing a popup or menu; Esc-minimize check; Go to anything closing on an outside click | two numbers from Windows, never pixels |
    | Window rects, the window in front, window titles and class names (`GetWindowRect`, `GetForegroundWindow`, `GetWindowText`, `EnumWindows`, `GetClassName`; on Linux Hyprland's IPC or X11's window hints - `_NET_ACTIVE_WINDOW`, `_NET_CLIENT_LIST`) | timers (the overlay's 0.5 s tick: is the game open / in front, where is it; the game-window rect for placing cards); each key press (is the game in front) | window metadata from the OS - not screen content; titles only to find "Path of Exile 2" |
    | Monitor sizes (`MonitorFromWindow`, `GetMonitorInfo`, Tk screen size) | placing a window | geometry, not pixels |
    | DPI awareness / scaling | none in the main app (the helper processes that changed it are gone) | - |
@@ -83,7 +83,7 @@ also ask for this notice, word for word, and a User-Agent that says how to reach
    | Writing the clipboard (`clipread.write_text` / `clear`, Tk `clipboard_append`) | a chat command key; Copy buttons and Ctrl+C in the app; Regex keys; emptying it just before the app presses the game's copy | writing, never reading |
    | `vaallens_draw` (`GetDC(None)` + `UpdateLayeredWindow`) | drawing Vaal Lens over the game | it draws a window; it reads nothing back |
    | The read mark, toasts, cards over the game | after a read / an event | windows the app draws; left out of screen captures where Windows allows it |
-   | Favours prices / Top Up keep their cut of the press's picture in memory up to 120 s | your price check key / Top Up key on a reward or item in that time teaches its icon (saved as a small icon) | no new read - the cut of the last Read Key press, never saved whole |
+   | Favours prices keep their cut of the press's picture in memory up to 120 s | your price check key on a reward in that time teaches its icon (saved as a small icon) | no new read - the cut of the last Read Key press, never saved whole |
    | Atlas screenshots (Strat Tracker) | Ctrl+V on the Atlas step (one read) or Pick an image file… | your own picture, by your key press or your file pick |
    | Report a bug; Error reports (opt-in, Settings › Privacy & community) | your click on Send; Error reports hourly once you opt in | text only: the app's log and what you type - no screenshot, no clipboard |
    | Scan stash | Start reading (a click) only arms; each Read Key press reads one tab | the click reads nothing |

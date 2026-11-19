@@ -59,6 +59,13 @@ REMOVED = [
     ("3.0.6", "Favours prices as its own switch under the Ritual helper (one place: the Ritual helper on is Favours "
               "prices on)",
      (), ("favours_changed", "al_rfav")),
+    ("3.0.6", "Top Up's teach key: Ctrl+C (or its own key) over an item in the open inventory learned its picture and "
+              "name (owner: pick the items you keep from the Item list in Top Up Reminders; the app knows their pictures)",
+     ("Top Up: teach the item under the mouse", "teach it", "Not taught yet", "Item learned", "Item not learned",
+      "hover it in your inventory and press"),
+     ("topup_key", "topup_key_2131", "topup_wants", "topup_take", "topup_hotkey", "topup_copy_learn", "topup_key_text",
+      "topup_key_is_copy", "topup_refine", "_tu_teach_card", "_tu_plain", "_tu_hover", "TEACH_SECS", "TEACH_WARN_SECS",
+      "learn_digits", "pending_set", "tu_time", "SUGGEST")),
     ("3.0.6", "Strat Tracker's empty page: Make my first setup (it's ＋ New strat, the same page as Find's)",
      ("Make my first setup",), ()),
     ("3.0.6", "Farming Strategies' pickers to the approved mockup v3: Waystone by hand's Top numbers (now Waystone "

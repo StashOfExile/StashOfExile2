@@ -320,6 +320,13 @@ def _split_layout(S):
         retire_look(t)
 
 
+def _topup_key_gone(S):
+    """Owner decision: Top Up no longer learns an item from a key press - you pick items in Top Up Reminders. The
+    saved key goes quietly."""
+    S.pop("topup_key", None)
+    S.pop("topup_key_2131", None)
+
+
 STEPS = (
     ("modbook_import", "1.x", "app", _modbook_import, "modbook_imported"),
     ("rules_scoped", "2.6.0", "app", _rules_scoped, "rules_scoped_26"),
@@ -352,6 +359,7 @@ STEPS = (
     ("ritual_only_favours_306", "3.0.6", "settings", _ritual_only_favours_306, None),
     ("breach_reminder_follows_helper", "3.0.6", "settings", _breach_reminder_follows_helper, None),
     ("split_layout", "Split layout", "settings", _split_layout, None),
+    ("topup_key_gone", "3.0.6", "settings", _topup_key_gone, None),
 )
 
 

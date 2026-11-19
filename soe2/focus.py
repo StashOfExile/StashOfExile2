@@ -16,7 +16,7 @@ from .config import SETTINGS, save_json
 
 PHASES = (("start", "League start"), ("maps", "When I reach maps"), ("long", "Long term"))
 TRIGGERS = (("town", "in town or my hideout"), ("phase", "when I reach this phase"), ("weekly", "once a week"),
-            ("never", "never - just keep it on the plan"))
+            ("never", "never - keep it on the plan"))
 TONES = ("Gentle", "Firm", "Drill sergeant")
 DEFAULTS = {
     "on": True,                     # the whole feature (Overlay › Helpers); 2.118.0: on for a new install

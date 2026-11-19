@@ -31,7 +31,7 @@ DEFAULT_HOTKEYS = {"checks:pc_key": "Ctrl+D", "checks:pc_close_key": "Esc", "che
                    "tracker:key_pause": DEFAULT_KEYS["key_pause"],
                    "tracker:key_overlay": DEFAULT_KEYS["key_overlay"], "tracker:key_camp_prev": "",
                    "tracker:key_camp_next": "", "checks:ledger_key": "Ctrl+Alt+N", "overlay:hideout_key": "F1",
-                   "checks:topup_key": "Ctrl+C", "checks:look_key": "Ctrl+Shift+R",   # (= screenread.DEFAULT_KEY; GGG policy, owner)
+                   "checks:look_key": "Ctrl+Shift+R",   # (= screenread.DEFAULT_KEY; GGG policy, owner)
                    "checks:drawer_key": "Ctrl+Shift+Space"}   # (drawer build: the Drawer key)
 # 2.54.0: the Session timer times your play; money lives in one place, Money Makers › Strat Tracker.
 # Profit (Wealth at Stop minus at Start) is gone from here: its tiles, overlay line, options and Stop count.
@@ -273,7 +273,7 @@ class TrackerPage:
         self.list_register("tracker", hv, delete=self.tracker_remove_sessions)          # 2.4.0
         prow = tk.Frame(ph, bg=P1)
         prow.pack(fill="x")
-        tk.Label(prow, text="Double-click a session to write a note (e.g. 'T15 Breach + Delirium'). Delete removes "
+        tk.Label(prow, text="Double-click a session to write a note (for example 'T15 Breach + Delirium'). Delete removes "
                             "the selected ones (Ctrl+Z undoes).", bg=P1,
                  fg=C["muted"], font=("Segoe UI", 9), anchor="w").pack(side="left")
         ttk.Button(prow, text="Export CSV", command=self.tracker_export_sessions).pack(side="right", pady=(4, 0))
@@ -336,8 +336,8 @@ class TrackerPage:
         bv.tag_configure("live", foreground=C["green"])
         bv.pack(fill="both", expand=True, pady=(4, 0))
         self.tk_board = bv
-        tk.Label(right, text="Your fastest runs of the map you pick on the left. Time = time inside the map (hideout "
-                             "visits in between don't count); visits under 30 seconds aren't counted.",
+        tk.Label(right, text="Your fastest runs of the map you pick on the left. Time is how long you were inside the map "
+                             "(hideout visits in between don't count); visits under 30 seconds aren't counted.",
                  bg=P2, fg=C["muted"], font=("Segoe UI", 9), anchor="w", justify="left", wraplength=320).pack(fill="x", pady=(4, 0))
         # ---- 2.7.0: maps per day
         dyo, day = chrome_section(page, "Maps per day (last 14 days)", padx=8, pady=8)   # 2.69.0
@@ -530,8 +530,7 @@ class TrackerPage:
         self.ingame_clock_var = tk.BooleanVar(value=bool(cfg.get("clock", True)))     # 2.39.0 (2.52.0: was in Settings)
         nums.append(("Clock", self.ingame_clock_var, self.on_ingame_clock,
                      "The time of day (Settings › Appearance › Clock says how it reads)."))
-        no, nb = chrome_section(po, "Numbers", "The Session timer's numbers on the overlay. On = it shows; off = it's "
-                                               "gone.")
+        no, nb = chrome_section(po, "Numbers", "The Session timer's numbers on the overlay.")
         no.pack(fill="x", pady=(0, 8))
         self._ov_rows(nb, nums)
         bc = self.bar_cfg()
@@ -551,7 +550,7 @@ class TrackerPage:
         self._ov_rows(tb, (("Notes ▾", self.tk_notes_var, lambda: (self.tracker_bar_switch(), self.tracker_notes_switch()),
                             "Your own notes in a window over the game."),
                            ("Calc ▾", self.tk_calc_var, lambda: (self.tracker_bar_switch(), self.tracker_calc_switch()),
-                            "A small calculator: 12k = 12000."),
+                            "A small calculator. Type 12k for 12,000."),
                            ("Regex ▾", self.tk_bar_vars["regex"], self.tracker_bar_switch,
                             "Your Regex favorites: click one to copy it."),
                            ("Rates ▾", ov_, lambda: self.ovr_switch(bool(ov_.get())),
@@ -790,15 +789,15 @@ class TrackerPage:
         from .overlay import key_label
         cfg = self.tracker_cfg()
         if getattr(self, "tk_key_msg", None) is not None:
-            self.tk_key_msg.config(text=f"Show / hide the overlay: {key_label(cfg.get('key_overlay')) or 'none'}     "
-                                        f"Pause / resume the timer: {key_label(cfg.get('key_pause')) or 'none'} "
+            self.tk_key_msg.config(text=f"Show or hide the overlay: {key_label(cfg.get('key_overlay')) or 'none'}     "
+                                        f"Pause or resume the timer: {key_label(cfg.get('key_pause')) or 'none'} "
                                         f"(or ⏸ / ▶ on the overlay)")
 
     def tracker_keys_hint(self):
         """The keys next to Start (2.10.0), so you know they exist."""
         from .overlay import key_label
         cfg = self.tracker_cfg()
-        parts = [f"{what} {key_label(cfg[k])}" for k, what in (("key_pause", "Pause / resume"),) if cfg.get(k)]
+        parts = [f"{what} {key_label(cfg[k])}" for k, what in (("key_pause", "Pause or resume"),) if cfg.get(k)]
         if getattr(self, "tk_keys_lbl", None) is not None:
             self.tk_keys_lbl.config(text=("In game: " + "  ·  ".join(parts)) if parts else "")
 
@@ -1389,7 +1388,7 @@ class TrackerPage:
         tc = self.tracker_cfg()
         # 2.57.0 (feedback: every key in Settings › Hotkeys, nowhere else): the third field is the group the key
         # belongs to (a heading on the Hotkeys page); every key but Ctrl+Alt+C is set here and only here
-        rows = [("Show or put away the app (the Drawer)", SETTINGS.get("drawer_key", "Ctrl+Shift+Space"), "App",
+        rows = [("Show or hide the app (the Drawer)", SETTINGS.get("drawer_key", "Ctrl+Shift+Space"), "App",
                  "checks:drawer_key"),                        # drawer build: the Drawer key
                 ("Price check the item under the mouse (in game)", SETTINGS.get("pc_key", "Ctrl+D"), "Price Checks",
                  "checks:pc_key"),
@@ -1398,26 +1397,24 @@ class TrackerPage:
                 ("Add the item under the mouse to Bulk Pricing", "Ctrl+Alt+C", "Bulk Pricing", None),
                 ("Open poe2db's modifier list in your browser", SETTINGS.get("poe2db_key", ""), "Tools",
                  "checks:poe2db_key"),                        # (2.98.3: its own group - not Bulk Pricing)
-                ("Session timer: pause / resume (or ⏸ / ▶ on the overlay)", tc.get("key_pause", ""), "Overlay",
+                ("Pause or resume the session timer", tc.get("key_pause", ""), "Overlay",
                  "tracker:key_pause"),
-                ("Show / hide the overlay", tc.get("key_overlay", ""), "Overlay", "tracker:key_overlay"),
-                ("Campaign: a step back (◀)", tc.get("key_camp_prev", ""), "Overlay", "tracker:key_camp_prev"),
-                ("Campaign: a step on (▶)", tc.get("key_camp_next", ""), "Overlay", "tracker:key_camp_next"),
-                ("Read Key: each press, the helpers read the screen once (a key the game doesn't use)",
+                ("Show or hide the overlay", tc.get("key_overlay", ""), "Overlay", "tracker:key_overlay"),
+                ("Go back one campaign step", tc.get("key_camp_prev", ""), "Overlay", "tracker:key_camp_prev"),
+                ("Go on to the next campaign step", tc.get("key_camp_next", ""), "Overlay", "tracker:key_camp_next"),
+                ("Read the screen once for the helpers (pick a key the game doesn't use)",
                  self.look_key(), "Overlay", "checks:look_key"),       # GGG policy (Nov 2026)
-                ("Top Up: teach the item under the mouse (in game, inventory open)", SETTINGS.get("topup_key", ""),
-                 "Overlay", "checks:topup_key"),             # 2.131.1 (feedback: the price check key left its card up)
-                ("Strat Tracker: a run is done (setups counted by key)", SETTINGS.get("ledger_key") or "Ctrl+Alt+N",
+                ("Mark a run as done in the Strat Tracker (for setups counted by key)", SETTINGS.get("ledger_key") or "Ctrl+Alt+N",
                  "Farming Strategies", "checks:ledger_key"),
                 ("Go to hideout", oc.get("hideout_key", ""), "Chat commands", "overlay:hideout_key")]
         rx = self.rx_keys() if hasattr(self, "rx_keys") else []
         at = next((n + 1 for n, r in enumerate(rows) if r[2] == "Tools"), len(rows))
         for i, k in enumerate(rx):                     # 2.132.7: Regex keys - each copies one favorite (Regex › Favorites)
-            rows.insert(at + i, (f"Regex key {i + 1}: copy {self.rx_ref_label(k['fav'])}", k.get("key", ""), "Regex",
+            rows.insert(at + i, (f"Copy {self.rx_ref_label(k['fav'])} (Regex key {i + 1})", k.get("key", ""), "Regex",
                                  f"rxkey:{i}"))
         for i, c in enumerate(oc.get("commands", []) or []):
             if c.get("cmd"):
-                rows.append((f"Chat: {c.get('name') or c.get('cmd', '')}", c.get("key", ""), "Chat commands",
+                rows.append((f"Send the chat command {c.get('name') or c.get('cmd', '')}", c.get("key", ""), "Chat commands",
                              f"cmd:{i}"))
         return rows
 

@@ -123,9 +123,9 @@ class RegexPage:
         hq = tk.Label(fbar, text=" ? ", bg=P1, fg=C["muted"], cursor="question_arrow", highlightthickness=1,
                       highlightbackground=C["line"])
         hq.pack(side="left", padx=12)
-        Tooltip(hq, "Click a mod to select it (click again to remove it). In \"I want\", click its Value to type: 50 = at "
-                    "least 50, 50-80 = from 50 to 80, <80 = at most 80. \"I don't want\" leaves items with that mod out.\n"
-                    "★ = valuable in your Mod Book (your rules, or learned from prices). Right-click a mod to rate it.")
+        Tooltip(hq, "Click a mod to select it (click again to remove it). In \"I want\", click its Value to type a number: 50 means at "
+                    "least 50, 50-80 means from 50 to 80, <80 means at most 80. \"I don't want\" leaves items with that mod out.\n"
+                    "★ marks a mod that is valuable in your Mod Book (your rules, or learned from prices). Right-click a mod to rate it.")
         self.rx_info = tk.Label(fbar, text="", bg=P1, fg=C["muted"])
         self.rx_info.pack(side="right")
         flowify(fbar)                                       # 2.109.0: ★ first / Only ★ / Select valuable gone

@@ -43,7 +43,7 @@ def _num(text):
 
 
 # 2.56.0: Div / hour is the verdict's big number; these are the tiles next to it
-TILES = (("profit", "Profit / run", "loot − cost"), ("roi", "Loot ÷ cost", "150% = the loot is worth 1.5× the cost"),
+TILES = (("profit", "Profit / run", "loot − cost"), ("roi", "Loot ÷ cost", "150% means the loot is worth 1.5 times the cost"),
          ("avg", "Average run", ""), ("loot", "Loot / run", ""), ("cost", "Cost / run", ""), ("runs", "Runs", ""))
 LOG_COLS = (("n", "#", 40, "e"), ("when", "When", 120, "w"), ("v", "Ver.", 44, "center"), ("runs", "Runs", 50, "e"),
             ("time", "Time", 70, "e"), ("cost", "Cost", 66, "e"), ("loot", "Loot", 70, "e"), ("profit", "Profit", 74, "e"),

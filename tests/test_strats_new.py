@@ -425,7 +425,7 @@ class Page(unittest.TestCase):
         self.assertFalse(a.mm_new_capturing(), "closed: copies go where they always went")
 
     def test_copy_key_reaches_new_strat(self):
-        """The owner's case: Top Up's key is Ctrl+C, the price check key Ctrl+D, listen on - a plain Ctrl+C, a
+        """The owner's case: the price check key is Ctrl+D, listen on - a plain Ctrl+C, a
         Ctrl+Alt+C or Ctrl+D on a tablet while New strat is open lands there (through clip_read_once: one read)."""
         from soe2 import clipread
         from soe2.app import App
@@ -435,12 +435,10 @@ class Page(unittest.TestCase):
         self.pump()
         logged = []
         keys = types.SimpleNamespace(active=True, combo_recent=lambda *x: False, copy_recent=lambda *x: True,
-                                     pc_recent=lambda *x: False, tu_recent=lambda *x: False, hook_stale=lambda *x: False)
+                                     pc_recent=lambda *x: False, hook_stale=lambda *x: False)
         a.keys = keys
         a.last_clip, a.own_clip, a.records = "", "", {}
         a._clip_ignored = lambda text: False
-        a.topup_wants = lambda text: True                # (Top Up's key is Ctrl+C: it would take it - but after us)
-        a.topup_take = lambda text: False
         a.wealth_takes = lambda text: False
         a.pc_wants = lambda text: True                   # (Ctrl+D: Price Checks would take it)
         a.pc_take = lambda text: logged.append("priced")
@@ -475,7 +473,7 @@ class Page(unittest.TestCase):
             SETTINGS["listen"] = False
             on = types.SimpleNamespace(w_counting=False, fd_capturing=lambda: False, fl_capturing=lambda: False,
                                        fl_ed_open=lambda: False, mm_new_capturing=lambda: True,
-                                       topup_key_is_copy=lambda: False, mp_on=lambda: False)
+                                       mp_on=lambda: False)
             self.assertTrue(UtilitiesPage.clip_wanted(on, True), "Ctrl+Alt+C")
             self.assertTrue(UtilitiesPage.clip_wanted(on, False), "plain Ctrl+C")
         finally:

@@ -714,8 +714,8 @@ class MapProfitPage:
         self.undo_button(bar, "mapprofit", side="right", padx=(0, 8))
         self.mp_sum = tk.Label(body, text="", bg=P1, fg=C["text"], font=("Segoe UI", 10, "bold"), anchor="w", padx=12)
         self.mp_sum.pack(fill="x")
-        self.look_needed(body, P1, "Map profit counts a map only when you press your Read Key - a key just for "
-                                   "that. None is set yet.").pack(fill="x", padx=12)
+        self.look_needed(body, P1, "Map profit counts a map only when you press your Read Key, a key you use "
+                                   "only for that. None is set yet.").pack(fill="x", padx=12)
         # 2.138.0: maps hidden by Clear all › Hide from the list - still kept; one click shows them again
         self.mp_hidden_lbl = tk.Label(body, text="", bg=P1, fg=C["accent"], cursor="hand2", anchor="w", padx=12,
                                       font=("Segoe UI", 9))

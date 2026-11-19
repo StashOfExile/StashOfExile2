@@ -44,7 +44,7 @@ DETAILS = (
     ("Mod prices your price checks see", "a summary only - how many listings and their middle price, per mod, for any item "
      "you price-check (gear too)", "better "
      "prices for everyone in the Mod Book, most of all early in a league"),
-    ("Your Mod Book ratings", "the S-F tier (F = ignore) you set for a mod", "the pooled ratings that decide which mods "
+    ("Your Mod Book ratings", "the S-F tier you set for a mod (F means ignore)", "the pooled ratings that decide which mods "
      "matter"),
     ("Your map ranks", "the rank you gave a map", "the community map ranks"),
     ("Your best times", "map, boss, trial and act times with your class, level, deaths and league - under your "

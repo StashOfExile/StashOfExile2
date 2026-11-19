@@ -153,7 +153,7 @@ class InsightsPage:
                                          ("Price it again", lambda: (self.ins_show("mine"), self.ins_price_again())),
                                          ("Remove", lambda: self.ins_forget(sel), bool(sel), "Del")]
         table(0, 1, "mods", "Mods worth the most", "What the Mod Book learned: the typical asking price of listings "
-                                                    "with this mod. ★ = valuable in your Mod Book.",
+                                                    "with this mod. ★ marks a mod that is valuable in your Mod Book.",
               (("mod", "Mod", 120, "w"), ("base", "On", 76, "w"), ("med", "Typical", 76, "e"), ("n", "Seen", 52, "e")))
         table(1, 0, "seen", "Most expensive listings seen", "The priciest listings your checks came across on the "
                                                      "trade site.",

@@ -237,7 +237,7 @@ class StashScanPage:
             done = sum(len(v) for v in ss["got"].values())
             ttk.Button(row, text=f"Finish ({done})" if done else "Finish",
                        command=self.stash_scan_finish).pack(side="left", padx=(8, 0))
-        line = ("No Read Key yet: the scan reads only when you press a key just for that." if not self.look_key_set()
+        line = ("No Read Key yet: the scan reads only when you press a key you use only for that." if not self.look_key_set()
                 else f"Press {self.look_key_text()} in the game: reads this tab once. Nothing is saved until you "
                      f"check it." if armed else
                 f"Start reading gets it ready; then each press of {self.look_key_text()} reads one tab. Nothing is "

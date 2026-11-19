@@ -1,6 +1,6 @@
 """2.131.0 Top Up Reminders (plan: "tells you what's running low in your inventory - reads only while your inventory is
-open"): you teach it an item by hovering it in your inventory and pressing your price check key (its name comes from
-the game's own item text); you set how many to keep. When you open your inventory in your hideout or a town and you
+open"): you pick an item from the Item list and set how many to keep; the app knows its picture already (the Currency
+Exchange's own pictures, shipped with it). When you read your inventory in your hideout or a town and you
 have fewer, one alert card says so ("Exalted Orb 7 / 20").
 
 How it reads (pixels of your screen, like any capture tool):
@@ -9,10 +9,8 @@ How it reads (pixels of your screen, like any capture tool):
 - the 12 x 5 grid sits at a fixed place for the game's height (GRID, measured on 1440p),
 - each cell is compared by its picture (a small color thumbnail, the stack count's corner left out, the cell's own
   backing subtracted so a hover's glow doesn't matter) - the same item scores under SAME, others over 25,
-- a stack's count is read from its top-left digits (templates/topup_digit_N.png; digits the shipped set lacks are
-  learned from the game's own "Stack Size:" line when you teach an item; Windows' OCR if a digit is still unknown).
-Nothing is sent anywhere; only item pictures and names are kept (topup.json).
-GGG ToS: a screenshot and your own key press's item text - nothing is sent to the game."""
+- a stack's count is read from its top-left digits (templates/topup_digit_N.png; Windows' OCR if a digit is unknown).
+Nothing is sent anywhere. GGG ToS: one screenshot per Read Key press - nothing is sent to the game."""
 import base64
 import re
 import sys
@@ -35,19 +33,13 @@ DEFAULTS = {"on": True, "items": [], "below": 0.3}   # items: [{"name", "keep"}]
 # 2.131.2 (feedback: it asked on every map - ask only when below a 70% threshold, handled like the % variances
 # on price checks): a reminder only once you hold less than Keep minus this share
 BELOW_STEPS = (0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7)
-# 2.131.4: + Add more's suggestions (the game's names; any other can be typed)
-SUGGEST = ("Scroll of Wisdom", "Exalted Orb", "Regal Orb", "Chaos Orb", "Orb of Alchemy", "Orb of Augmentation",
-           "Orb of Transmutation", "Vaal Orb", "Divine Orb", "Omen of Amelioration", "Cryptic Key",
-           "Simulacrum Splinter", "Greater Exalted Orb", "Greater Regal Orb")
-
-
 def below_text(b):
     p = int(round(float(b) * 100))
-    return "0% (at Keep)" if p == 0 else f"{p}% below"
+    return "any amount" if p == 0 else f"{p}%"
 
 
 def remind_at(keep, below=None):
-    """Keep 40, 30% below -> remind under 28 (always at least 1 below Keep's rounding: never at 0 needed)."""
+    """Keep 40, 30% -> remind under 28 (always at least 1 below Keep's rounding: never at 0 needed)."""
     b = cfg().get("below", DEFAULTS["below"]) if below is None else below
     return max(0.0, float(keep) * (1 - float(b)))
 
@@ -258,37 +250,6 @@ def _read(cell, tpls=None):
     return int("".join(p[4] for p in run)), True, True
 
 
-def learn_digits(cell, count):
-    """The game said this stack holds `count` (its "Stack Size:" line): keep any digit not yet known from the cell."""
-    cv2, np = _cv()
-    want = str(int(count))
-    have = digit_templates()
-    if all(d in have for d in want):
-        return []
-    band, _x0, _y0 = _band(cell)
-    n, lab, st, _c = cv2.connectedComponentsWithStats((band > 0).astype(np.uint8), 8)
-    boxes = sorted((tuple(int(v) for v in st[i][:4]) for i in range(1, n)
-                    if 0.14 * cell.width <= st[i][3] <= 0.36 * cell.width and st[i][4] >= 6),
-                   key=lambda b: b[0])
-    if len(boxes) != len(want):
-        return []
-    k = 70.2 / cell.width
-    d = load_json(LEARN_FILE, {}) or {}
-    dg = d.setdefault("digits", {})
-    new = []
-    for ch, (x, y, w, h) in zip(want, boxes):
-        if ch in have:
-            continue
-        pic = band[max(0, y - 1):y + h + 1, max(0, x - 1):x + w + 1]
-        if abs(k - 1) > 0.02:
-            pic = cv2.resize(pic, None, fx=k, fy=k, interpolation=cv2.INTER_AREA)
-        dg.setdefault(ch, []).append([pic.shape[0], pic.shape[1], base64.b64encode(pic.tobytes()).decode()])
-        new.append(ch)
-    if new:
-        save_json(LEARN_FILE, d)
-    return new
-
-
 def ocr_count(cell):
     """Windows' OCR on the count's corner (a digit no template knows) -> count or None."""
     try:
@@ -338,47 +299,8 @@ def learned():
 
 
 def icon_b64(name):
-    """The item's last taught cell as a small PNG (base64) for the list, or None."""
+    """An item's small picture (base64 PNG) taught on this PC by an older version, or None."""
     return ((load_json(LEARN_FILE, {}) or {}).get("icons") or {}).get(name)
-
-
-def learn(name, cell):
-    """Your price check key on an item in your inventory: remember its picture (and a small icon for the list)."""
-    if not name or cell is None or empty(cell):
-        return False
-    import io
-    d = load_json(LEARN_FILE, {}) or {}
-    items = d.setdefault("items", {})
-    items[name] = ((items.get(name) or []) + [sig_b64(sig(cell))])[-PICS:]
-    buf = io.BytesIO()
-    cell.convert("RGB").resize((40, 40)).save(buf, "PNG")
-    d.setdefault("icons", {})[name] = base64.b64encode(buf.getvalue()).decode()
-    save_json(LEARN_FILE, d)
-    return True
-
-
-def pending():
-    """2.131.2: taught cells still to learn again without the hover glow -> {name: ((row, col), sig)}. Kept in
-    topup.json, so closing the inventory (or the app) right after teaching doesn't lose it."""
-    out = {}
-    for name, v in ((load_json(LEARN_FILE, {}) or {}).get("pending") or {}).items():
-        try:
-            out[name] = ((int(v[0]), int(v[1])), sig_from(v[2]))
-        except (TypeError, ValueError, IndexError):
-            pass
-    return out
-
-
-def pending_set(name, rc=None, s=None):
-    """Remember (rc + sig) or drop (rc None) one taught cell to learn again."""
-    d = load_json(LEARN_FILE, {}) or {}
-    p = d.setdefault("pending", {})
-    if rc is None:
-        if p.pop(name, None) is None:
-            return
-    else:
-        p[name] = [int(rc[0]), int(rc[1]), sig_b64(s)]
-    save_json(LEARN_FILE, d)
 
 
 def forget(name):
@@ -399,12 +321,13 @@ def which(s, refs):
     return best
 
 
-def totals(cells, refs):
-    """-> {name: (count, sure)} for every taught item (0 when none is in the inventory)."""
-    out = {name: [0, True] for name in refs}
+def totals(cells, name_of, wanted):
+    """-> {name: (count, sure)} for each wanted item (0 when none is in the inventory); name_of(cell) -> the item a
+    cell holds, or None."""
+    out = {name: [0, True] for name in wanted}
     for c in cells:
-        name = which(c["sig"], refs)
-        if name is None:
+        name = name_of(c)
+        if name not in out:
             continue
         if c["count"] is None:
             out[name][1] = False
@@ -419,7 +342,9 @@ def low(tot, items, below=None):
     out = []
     for it in items:
         name, keep = it.get("name"), int(it.get("keep") or 0)
-        have, sure = tot.get(name, (0, True))
+        if name not in tot:
+            continue                                  # (no picture of it, or no read: nothing to compare)
+        have, sure = tot[name]
         if keep > 0 and sure and have < remind_at(keep, below):
             out.append((name, have, keep))
     return out
@@ -429,45 +354,3 @@ def card_text(lows, most=3):
     parts = [f"{n} {h} / {k}" for n, h, k in lows[:most]]
     more = f" · +{len(lows) - most} more" if len(lows) > most else ""
     return " · ".join(parts) + more
-
-
-# ---------------------------------------------------------------- the item text (your price check key)
-STACK = re.compile(r"^Stack Size:\s*([\d,.\s]+)/", re.M)
-
-
-def full_stack(text):
-    """The "Stack Size: 7/20" line's 20, or None."""
-    m = re.search(r"^Stack Size:\s*[\d,.\s]+/\s*([\d,.]+)", str(text or ""), re.M)
-    return int(re.sub(r"[^\d]", "", m.group(1))) if m else None
-
-
-def item_name(text):
-    """The game's item text -> (name, stack count or None) for a stackable item - or (2.131.4, feedback: things
-    that do not stack, like cryptic keys) a normal one: each cell holding it counts 1. Else None (magic / rare /
-    unique gear)."""
-    lines = [ln.strip() for ln in str(text or "").splitlines()]
-    i = next((k for k, ln in enumerate(lines) if ln.startswith("Rarity:")), None)
-    if i is None or i + 1 >= len(lines):
-        return None
-    m = STACK.search(str(text))
-    n = int(re.sub(r"[^\d]", "", m.group(1))) if m else None
-    rarity = lines[i][7:].strip()
-    if rarity not in ("Currency", "Normal") and m is None:     # (a currency, a stack or a plain item - not gear)
-        return None
-    if m is None and rarity == "Normal" and not supply_class(text):
-        return None                     # (feedback: a plain Sacred Focus / Wombgift / armour got listed - gear isn't)
-    return lines[i + 1], n
-
-
-# Plain (white) items that are supplies, by the game's "Item Class:" line: keys, fragments, tablets, waystones ...
-# Anything else white (armour, rings, foci, wombgifts) is gear, never a Top Up item.
-SUPPLY_WORDS = ("currency", "omen", "key", "fragment", "splinter", "tablet", "waystone", "logbook", "socketable",
-                "essence", "catalyst", "emotion", "rune", "core", "talisman")
-
-
-def supply_class(text):
-    m = re.search(r"^Item Class:\s*(.+)$", str(text or ""), re.M)
-    cls = m.group(1).strip().lower() if m else ""
-    return any(w in cls for w in SUPPLY_WORDS)
-
-

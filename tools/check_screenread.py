@@ -421,7 +421,7 @@ def test_no_clipboard_timer():
     ok(len(fake.root.timers) == 2, "(asked twice: two one-shots - the grant decides)")
     calls = []
     fake._clip_ignored = lambda t: False
-    fake.topup_wants = fake.wealth_takes = lambda t: False
+    fake.wealth_takes = lambda t: False
     fake.pc_wants = lambda t: True
     fake.pc_take = lambda t: calls.append(t)
     fake.status_text = ""

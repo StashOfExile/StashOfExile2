@@ -372,8 +372,8 @@ class GamePlanPage:
     # ---------------- B: stockpile
     def _gp_stock(self, parent):
         P2 = C["panel2"]
-        o, box = chrome_section(parent, "Stockpile", "What to buy and sit on. Have = what you type "
-                                                                       "(Enter keeps it); Now = poe.ninja for your "
+        o, box = chrome_section(parent, "Stockpile", "What to buy and sit on. Have is what you type "
+                                                                       "(Enter keeps it); Now is poe.ninja's price for your "
                                                                        "league.", wrap=True)
         o.pack(fill="x", pady=(0, 12))
         self.gp_stock_box = tk.Frame(box, bg=P2)
