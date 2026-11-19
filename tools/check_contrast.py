@@ -26,6 +26,53 @@ def ratio(a, b):
     return (la + 0.05) / (lb + 0.05)
 
 
+EDGE = 3.0                                          # a button's outline against the page behind it (WCAG non-text)
+
+
+def _rgb(c):
+    return tuple(int(c[i:i + 2], 16) for i in (1, 3, 5))
+
+
+def _hex(c):
+    return "#%02x%02x%02x" % c
+
+
+def secondary_pairs(under):
+    """Text pairs (>= 4.5) of the Quiet / Strip buttons and the SegBar on the page color `under`: [(label, fg, bg)]."""
+    from soe2 import soft, themes as TH
+    t = TH.ST.theme
+    muted, text = _rgb(S.C["muted"]), _rgb(S.C["text"])
+    steel = _rgb(S.C["steel"])
+    lk = soft.secondary_looks(muted, _rgb(under), text, ink=steel)
+    on = soft.secondary_looks(muted, _rgb(under), text, picked=True, ink_hover=text)
+    seg = soft.secondary_looks(muted, _rgb(under), text, ink=_rgb(t.c("text")))
+    sel, sel_ink = soft.segment_picked(_rgb(t.c("selection")), _rgb(t.c("selection_text", "#ffffff")), seg["n"][0])
+    out = [("quiet button text", S.C["steel"], _hex(lk["n"][0])), ("quiet button hover text", S.C["text"], _hex(lk["h"][0])),
+           ("tab chip (shown) text", S.C["text"], _hex(on["n"][0])),
+           ("segment (unpicked) text", t.c("text"), _hex(seg["n"][0])),
+           ("segment (picked) text", _hex(sel_ink), _hex(sel))]
+    return out
+
+
+def edge_pairs():
+    """Non-text pairs that must reach 3 : 1: [(label, a, b)] - a secondary button's outline against the page, the
+    picked segment against the unpicked ones (a fill you can tell apart) and its bar's outline against the page."""
+    from soe2 import soft, themes as TH
+    t = TH.ST.theme
+    muted, text = _rgb(S.C["muted"]), _rgb(S.C["text"])
+    out = []
+    for under, uname in ((S.C["bg"], "bg"), (S.C["panel"], "panel"), (S.C["panel2"], "panel2")):
+        lk = soft.secondary_looks(muted, _rgb(under), text)
+        on = soft.secondary_looks(muted, _rgb(under), text, picked=True)
+        seg = soft.secondary_looks(muted, _rgb(under), _rgb(t.c("text")), ink=_rgb(t.c("text")))
+        sel, _ink = soft.segment_picked(_rgb(t.c("selection")), _rgb(t.c("selection_text", "#ffffff")), seg["n"][0])
+        out.append((f"picked segment vs unpicked on {uname}", _hex(sel), _hex(seg["n"][0])))
+        out.append((f"button outline on {uname}", _hex(lk["n"][1]), under))
+        out.append((f"button outline (hover) on {uname}", _hex(lk["h"][1]), under))
+        out.append((f"tab chip (shown) outline on {uname}", _hex(on["n"][1]), under))
+    return out
+
+
 def pairs():
     from soe2 import themes as TH
     C, mix = S.C, S.mix
@@ -48,6 +95,9 @@ def pairs():
                 fg = TH.text_of(t, spec, "text" if k == "fill" else "text_hover", C["text"])
             out.append((f"{name} ({k})", fg, face))
     out.append(("quiet button", C["steel"], C["panel"]))
+    for under, uname in ((C["bg"], "bg"), (C["panel"], "panel"), (C["panel2"], "panel2")):   # the soft secondary buttons
+        for name, text, ink in secondary_pairs(under):
+            out.append((f"{name} on {uname}", text, ink))
     cap, txt, _edge = TH.window_colors()
     out.append(("app window title bar (2.61.0)", txt, cap))
     for kind in ("title", "title_off", "section"):          # 2.63.0: + the section header strips
@@ -108,6 +158,22 @@ def split_pairs():
     return out
 
 
+def run_edges():
+    """Every theme: the non-text pairs (button outlines) at 3 : 1; the picked segment against the unpicked at 1.5 : 1
+    (it also has its mark and a bold word)."""
+    from soe2 import themes as TH
+    fails = []
+    for theme in S.THEMES:
+        S.apply_look(theme)
+        for name, a, b in edge_pairs():
+            need = 1.5 if "picked segment" in name else EDGE
+            r = ratio(a, b)
+            if r < need:
+                fails.append((r, theme, name, a, b))
+    S.apply_look(TH.DEFAULT)
+    return sorted(fails)
+
+
 def run_overlay():
     rows = sorted((ratio(fg, bg), n, fg, bg) for n, fg, bg in overlay_pairs())
     return rows[:8], [r for r in rows if r[0] < AA]
@@ -135,8 +201,12 @@ if __name__ == "__main__":
     for r, t, a, n, fg, bg in (fails or worst)[:40]:
         print(f"{r:5.2f}  {t:9} {a:7} {n:28} {fg} on {bg}")
     print("OK - every pair is at least 4.5 : 1" if not fails else f"{len(fails)} pairs under 4.5 : 1")
+    e_fails = run_edges()
+    for r, t, n, a, b in e_fails[:40]:
+        print(f"{r:5.2f}  {t:9} {n:40} {a} vs {b}")
+    print("OK - every button outline is at least 3 : 1" if not e_fails else f"{len(e_fails)} outlines under 3 : 1")
     o_worst, o_fails = run_overlay()
     for r, n, fg, bg in (o_fails or o_worst)[:40]:
         print(f"{r:5.2f}  overlay {n:36} {fg} on {bg}")
     print("OK - every overlay pair is at least 4.5 : 1" if not o_fails else f"{len(o_fails)} overlay pairs under 4.5 : 1")
-    sys.exit(1 if fails or o_fails else 0)
+    sys.exit(1 if fails or o_fails or e_fails else 0)

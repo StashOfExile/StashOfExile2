@@ -269,12 +269,14 @@ class RatesList(tk.Frame):
         self.status.pack(fill="x")
         self.status.bind("<Configure>", self._status_wrap, add="+")     # D3: a long line wraps, it isn't cut off
         head = tk.Canvas(self, height=28, bg=C["panel"], highlightthickness=0, bd=0)
-        head.pack(fill="x", padx=16, pady=(8, 0))
+        head.pack(fill="x", padx=(16, 24), pady=(8, 0))
         self.head = head
         TH.self_painted(head)
         self.cv = tk.Canvas(self, bg=C["panel"], highlightthickness=0, bd=0)
-        self.cv.pack(fill="both", expand=True, padx=16, pady=(0, 12))
+        self.cv.pack(fill="both", expand=True, padx=(16, 24), pady=(0, 12))
         TH.self_painted(self.cv)
+        from .style import overflow_scrollbar          # the thin round bar, only while the list is longer than the page
+        self.sb = overflow_scrollbar(self.cv, lambda *a: (self.cv.yview(*a), self.paint()))
         TH.subscribe(lambda t: self.paint(), owner=self)
         self.cv.bind("<Configure>", lambda e: self.paint())
         self.cv.bind("<Motion>", self._motion)
@@ -394,6 +396,8 @@ class RatesList(tk.Frame):
             mark = acc                                    # rows split by a line); Round 18: the picked chip in the
             for c in (self.sorts, self.head, self.cv):     # theme's accent, the names in its strong text
                 c.configure(bg=bg)
+            from . import soft
+            chip = soft.chip_colors(bg, mut, strong)          # (a soft fill and an outline you can see, on any theme)
             # sort chips
             sc = self.sorts
             sc.delete("all")
@@ -403,8 +407,8 @@ class RatesList(tk.Frame):
                 tid = sc.create_text(0, 0, text=k, font=("Segoe UI", 9, "bold" if on else "normal"))
                 w = sc.bbox(tid)[2] - sc.bbox(tid)[0] + 24
                 sc.delete(tid)
-                TH.round_rect(sc, x, 6, x + w, 30, 10, fill=t.c("surface_high") if on else bg,
-                              outline=mark if on else line)
+                TH.round_rect(sc, x, 6, x + w, 30, 10, fill=chip["on" if on else "off"][0],
+                              outline=mark if on else chip["off"][1], width=2 if on else 1)
                 sc.create_text(x + w / 2, 18, text=k, font=("Segoe UI", 9, "bold" if on else "normal"),
                                fill=strong if on else mut)
                 self._sort_hit.append((x, x + w, k))
@@ -426,8 +430,8 @@ class RatesList(tk.Frame):
                 kc.delete(tid)
                 if x + w > W0:
                     x, y = 0, y + 30
-                TH.round_rect(kc, x, y, x + w, y + 24, 10, fill=t.c("surface_high") if on else bg,
-                              outline=mark if on else line)
+                TH.round_rect(kc, x, y, x + w, y + 24, 10, fill=chip["on" if on else "off"][0],
+                              outline=mark if on else chip["off"][1], width=2 if on else 1)
                 kc.create_text(x + w / 2, y + 12, text=label, font=("Segoe UI", 9, "bold" if on else "normal"),
                                fill=strong if on else mut)
                 self._kind_hit.append((x, x + w, y, y + 24, k))

@@ -104,8 +104,11 @@ class WealthPage:
         self.w_side_mode.pack(anchor="w", padx=8, pady=(8, 0))
         if getattr(self, "shell", None) is not None:
             self.shell.register_tabs("wealth", self.w_side_mode)
+        from .style import ScrollArea
         self.w_pages = {n: tk.Frame(tab, bg=P1) for n in self.W_PAGES}
-        ov = self.w_pages["Overview"]
+        self.w_ov_area = ScrollArea(tab, bg=P1, min_height=640)    # a short window scrolls the page (the thin bar)
+        self.w_pages["Overview"] = self.w_ov_area
+        ov = self.w_ov_area.inner
 
         # ---- Overview: the setup steps (first time) or one status line
         self.w_steps = tk.Frame(ov, bg=P1)
@@ -236,7 +239,7 @@ class WealthPage:
         self.w_items.bind("<<TreeviewSelect>>", lambda e: self.wealth_pick_moved_row(), add="+")
         self.list_register("wealth", self.w_items, delete=lambda rows: self.wealth_remove_rows(rows))   # 2.4.0
         crow = tk.Frame(right, bg=P1)                    # 2.4.0: under the list - what's in it, Clear and Undo
-        crow.pack(fill="x", pady=(4, 0))
+        crow.pack(fill="x", pady=(4, 0), side="bottom", before=self.w_items_head)   # (first in line: never squeezed out)
         self.undo_button(crow, "wealth").pack(side="right")
         ttk.Button(crow, text="Clear…", command=self.wealth_clear_items, style="Danger.TButton").pack(side="right", padx=(0, 8))
         self.w_count = tk.Label(crow, text="", bg=P1, fg=C["muted"], anchor="w", font=("Segoe UI", 9),
@@ -866,7 +869,9 @@ class WealthPage:
         def chip(key, mark, col, text, sub, link, fn):
             f = tk.Frame(self.w_status, bg=C["panel2"], padx=12, pady=8, highlightthickness=1,
                          highlightbackground=C["line"], cursor="hand2")
-            f.pack(side="left", padx=(0, 8))
+            f.pack(fill="x", pady=(0, 8))               # (the full row: its edges line up with the number cards)
+            from . import soft
+            soft.round_frame(f, outside=lambda: P1)     # a soft card like Stash worth, not a square box
             parts = [tk.Label(f, text=mark, bg=C["panel2"], fg=col, font=("Segoe UI", 10, "bold")),
                      tk.Label(f, text=text, bg=C["panel2"], fg=C["text"], font=("Segoe UI", 10)),
                      tk.Label(f, text=sub, bg=C["panel2"], fg=C["muted"], font=("Segoe UI", 9))]

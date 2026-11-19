@@ -1,10 +1,12 @@
 """Price checks > "Add items from: Manual Add | Stash tab" (2.8.0). The Stash tab row; the reading is tabreader.py.
 Ctrl+Alt+C keeps working in both modes: the choice only shows or hides the tab row."""
+import re
 import tkinter as tk
 from tkinter import ttk
 
 from . import buglog
 from .config import save_json, SETTINGS
+from .names import BULK_MANUAL, BULK_STASH
 from .style import C, Tooltip, flow_show, flowify
 from .tabreader import PCTAB
 from .wealth import parse_price_text, parse_trade_link, WEALTH_CURRENCIES
@@ -17,16 +19,19 @@ KNOWN_CURRENCY_NAMES = {"mirror": "Mirror of Kalandra", "divine": "Divine Orb", 
                         "chance": "Orb of Chance", "artificers": "Artificer's Orb", "wisdom": "Scroll of Wisdom"}
 
 MODES = ["Manual Add", "Stash tab"]          # (as saved) 2.8.1: "Manual Add" was called "Ctrl+Alt+C"
-# Bulk Pricing's source switch, as it reads (owner pick, mockup A): Copy items | Read a stash tab (names.py)
-MODE_LABELS = {"Manual Add": "Copy items", "Stash tab": "Read a stash tab"}
+# Bulk Pricing's source switch, as it reads (owner pick, mockup A): Manually Add | Add from stash tab (names.py)
+MODE_LABELS = {"Manual Add": BULK_MANUAL, "Stash tab": BULK_STASH}
 READ_HINT = "Make the tab public with one price nobody would pay, then:"
+# owner: a tab you never renamed is named by its place - "Tab 1", "Tab 2" ... (close Tab 1 and Tab 2 becomes Tab 1);
+# a name of the form "Tab <n>" is kept for that, so a tab renamed to one goes back to its place's name
+TAB_AUTO = re.compile(r"Tab \d+")
 
 
 class TabReaderPage:
     """Mixed into App."""
 
     def build_tab_reader(self, parent):
-        """The Read a stash tab row (shown with that source): the tab's price in game, the account (never its name),
+        """The Add from stash tab row (shown with that source): the tab's price in game, the account (never its name),
         the hint and Read tab; Stop and ⓘ How, muted. The BETA note and the reading's messages under it. The switch
         itself is in Bulk Pricing's toolbar (pc_mode), the tabs' chips over it (pc_tabsrow)."""
         P1 = C["panel"]
@@ -89,7 +94,7 @@ class TabReaderPage:
         self.pc_msg.bind("<Configure>", lambda e: self.pc_msg.config(wraplength=max(300, e.width - 24)))
 
     def pctab_on(self):
-        """Is Read a stash tab the source (its list shows)?"""
+        """Is Add from stash tab the source (its list shows)?"""
         return (SETTINGS.get("pctab") or {}).get("mode") == "Stash tab"
 
     def pctab_read_shown(self, on):
@@ -105,8 +110,8 @@ class TabReaderPage:
             pass
 
     def pctab_primary(self):
-        """3.0.6 (owner's rule: one orange button a screen): Read a stash tab - Read tab is the orange one; Copy
-        items - the picked item's Search again. Re-price all is never orange."""
+        """3.0.6 (owner's rule: one orange button a screen): Add from stash tab - Read tab is the orange one;
+        Manually Add - the picked item's Search again. Re-price all is never orange."""
         tab = self.pctab_on()
         for name, on in (("reprice_all_btn", False), ("pc_read_btn", tab), ("bk_search_btn", not tab)):
             b = getattr(self, name, None)
@@ -171,13 +176,20 @@ class TabReaderPage:
             buglog.caught()
 
     def pctab_tabs(self):
-        """[{id, name, amount, currency, currency_name}] - your stash tabs. An older single tab becomes "Tab 1"."""
+        """[{id, name, renamed, amount, currency, currency_name}] - your stash tabs. An older single tab becomes
+        "Tab 1". A tab you never renamed is named by its place ("Tab 2"); one you renamed keeps its name. (Saved before
+        3.0.7, without "renamed": a name other than "Tab <n>" was yours.)"""
         cfg = SETTINGS.setdefault("pctab", {})
         tabs = cfg.get("tabs")
         if not isinstance(tabs, list) or not tabs:
             tabs = [{"id": "t1", "name": "Tab 1", "amount": cfg.get("amount"), "currency": cfg.get("currency") or "divine",
                      "currency_name": cfg.get("currency_name")}]
             cfg["tabs"], cfg["current"] = tabs, "t1"
+        for i, t in enumerate(tabs, 1):
+            if "renamed" not in t:
+                t["renamed"] = not TAB_AUTO.fullmatch(str(t.get("name") or "").strip())
+            if not t["renamed"]:
+                t["name"] = f"Tab {i}"
         if cfg.get("current") not in [t["id"] for t in tabs]:
             cfg["current"] = tabs[0]["id"]
         return tabs
@@ -200,19 +212,16 @@ class TabReaderPage:
         self.pc_tabs = {}
         for t in tabs:
             on = cur is not None and t["id"] == cur["id"]
-            chip = tk.Label(self.pc_tabsrow, text=("▸ " if on else "") + f"{t['name']} · {counts.get('tab:' + t['id'], 0)}",
-                            bg=C["panel2"], fg=C["text"] if on else C["muted"], font=("Segoe UI", 9), padx=12, pady=4,
-                            cursor="hand2", highlightthickness=1, highlightbackground=C["text"] if on else C["line"])
-            chip.pack(side="left", padx=(0, 8))
-            chip.bind("<Button-1>", lambda e, n=t["name"]: self.pctab_pick(n))
+            chip = ttk.Button(self.pc_tabsrow, text=("▸ " if on else "") + f"{t['name']} · {counts.get('tab:' + t['id'], 0)}",
+                              style="StripOn.TButton" if on else "Strip.TButton", cursor="hand2",
+                              command=lambda n=t["name"]: self.pctab_pick(n))   # (round, filled, outlined; the shown
+            chip.pack(side="left", padx=(0, 8))                                  # one: stronger, bold, marked ▸)
             chip.bind("<Button-3>", lambda e, tid=t["id"]: self.pctab_tab_menu(e, tid))
             Tooltip(chip, f"{t['name']}: priced {t.get('amount') or '?'} {t.get('currency_name') or t.get('currency')}"
                           " in game · right-click to rename or delete")
             self.pc_tabs[t["id"]] = chip
-        add = tk.Label(self.pc_tabsrow, text="＋ Tab", bg=C["panel"], fg=C["muted"], font=("Segoe UI", 9), padx=12,
-                       pady=4, cursor="hand2", highlightthickness=1, highlightbackground=C["line"])   # 2.47.0
+        add = ttk.Button(self.pc_tabsrow, text="＋ Tab", style="Strip.TButton", cursor="hand2", command=self.pctab_new)
         add.pack(side="left")
-        add.bind("<Button-1>", lambda e: self.pctab_new())
         Tooltip(add, "Add a tab: another stash tab, with its own price and its own list")
         if getattr(self, "bk_sum", None) is not None:
             from .bulk_page import bk_flow
@@ -253,7 +262,7 @@ class TabReaderPage:
 
     def pctab_empty_text(self):
         t = self.pctab_current()
-        return f"{t['name'] if t else 'This tab'} is empty\nRead a stash tab to list and price everything in it."
+        return f"{t['name'] if t else 'This tab'} is empty\nPress Read tab to list and price everything in it."
 
     def pctab_pick(self, label):
         tabs = self.pctab_tabs()
@@ -272,11 +281,10 @@ class TabReaderPage:
 
     def pctab_new(self):
         tabs = self.pctab_tabs()
-        n = len(tabs) + 1
-        while any(t["name"] == f"Tab {n}" for t in tabs):
-            n += 1
+        n = len(tabs) + 1                                # (named by its place: the last)
         tid = f"t{max([int(t['id'][1:]) for t in tabs if t['id'][1:].isdigit()] + [0]) + 1}"
-        tabs.append({"id": tid, "name": f"Tab {n}", "amount": None, "currency": "divine", "currency_name": "Divine Orb"})
+        tabs.append({"id": tid, "name": f"Tab {n}", "renamed": False, "amount": None, "currency": "divine",
+                     "currency_name": "Divine Orb"})
         SETTINGS["pctab"]["current"] = tid
         save_json("settings.json", SETTINGS)
         self.pc_amt.set("")
@@ -302,7 +310,8 @@ class TabReaderPage:
         name = simpledialog.askstring("Rename tab", "Name:", initialvalue=t["name"], parent=self.dlg_parent())
         name = (name or "").strip()[:24]
         if name and not any(o["name"] == name for o in self.pctab_tabs() if o is not t):
-            t["name"] = name
+            t["name"], t["renamed"] = name, not TAB_AUTO.fullmatch(name)     # ("Tab 3": its place's name again)
+            self.pctab_tabs()
             save_json("settings.json", SETTINGS)
             self.pctab_bar()
 
@@ -322,6 +331,7 @@ class TabReaderPage:
         cfg = SETTINGS["pctab"]
         if cfg.get("current") == tid:
             cfg["current"] = tabs[0]["id"]
+        self.pctab_tabs()                                # (the tabs after it move up: Tab 2 is Tab 1 now)
         self.dirty = True
         save_json("settings.json", SETTINGS)
         self.pctab_pick(tabs[0]["name"])

@@ -829,13 +829,14 @@ def _setup_style(root, TH):
           foreground=[("active", C["text"]), ("disabled", C["muted"])])
     # 2.126.0: small flat buttons for a header strip (Bulk Pricing's Items strip: Undo, Delete, Clear All) - they fit
     # inside the strip; the delete ones have red words (and a word or icon, never the color alone)
-    for name, fg in (("Strip.TButton", C["steel"]), ("StripDanger.TButton", C["red"])):
+    for name, fg in (("Strip.TButton", C["steel"]), ("StripDanger.TButton", C["red"]), ("StripOn.TButton", C["text"])):
         s.layout(name, [("Button.border", {"sticky": "nswe", "border": "1", "children": [("Button.focus", {
             "sticky": "nswe", "children": [("Button.padding", {"sticky": "nswe", "children": [
                 ("Button.label", {"sticky": "nswe"})]})]})]})])
         s.configure(name, background=C["panel"], foreground=fg, relief="solid", borderwidth=1, bordercolor=C["line"],
                     lightcolor=C["panel"], darkcolor=C["panel"], focuscolor=C["accent"], focusthickness=1,
-                    padding=(8, 1), font=("Segoe UI", 9), anchor="center", width=0)   # (as wide as its words)
+                    padding=(8, 1), font=("Segoe UI", 9, "bold" if name == "StripOn.TButton" else "normal"),
+                    anchor="center", width=0)   # (as wide as its words)
         s.map(name, background=[("pressed", C["odd"]), ("active", C["panel2"])],
               bordercolor=[("active", C["steel"])], lightcolor=[("active", C["panel2"])], darkcolor=[("active", C["panel2"])],
               foreground=[("disabled", C["muted"]), ("active", C["text"] if fg == C["steel"] else fg)])
@@ -1353,24 +1354,45 @@ class SegBar(tk.Frame):
         lab.bind("<Leave>", lambda e: self.paint())
         self.btns[opt] = (lab, line)
 
+    def looks(self):
+        """{"edge", "off", "off_hover", "off_ink", "on", "on_ink"} as hex: the segments' colors on the page color behind
+        the bar. The outline is at least 3 : 1 against the page, the unpicked ones have a visible fill, the picked one
+        is the theme's selection (a different fill, bold, and its mark - never color alone)."""
+        from . import soft, themes as _th
+        t = _th.ST.theme
+        with _th.raw():
+            try:
+                under = soft.rgb(self, soft.behind(self) or C["bg"])
+            except Exception:
+                under = soft.rgb(self, C["bg"])
+            text = soft.rgb(self, t.c("text_muted"))
+            ink = soft.rgb(self, t.c("text"))
+            lk = soft.secondary_looks(text, under, ink, ink=ink)
+            on, on_ink = soft.segment_picked(soft.rgb(self, t.c("selection")), soft.rgb(self, t.c("selection_text")),
+                                             lk["n"][0])
+            hx = soft.hexc
+            return {"edge": hx(lk["n"][1]), "off": hx(lk["n"][0]), "off_hover": hx(lk["h"][0]),
+                    "off_ink": t.c("text"), "on": hx(on), "on_ink": hx(on_ink)}
+
     def paint(self, hover=None):
         from . import themes as _th
         t = _th.ST.theme
         if t is None:
             return
+        k = self.looks()
         with _th.raw():                             # Round 18: the theme's own tokens (a light theme's picked one
-            for opt, (lab, line) in self.btns.items():     # read white on light blue), in the Drawer and the Full
-                on = opt == self.value                     # window alike: picked = its selection, bold, the accent
-                if self.plain:                             # (a plain toggle: a mark and a word, never the accent)
-                    bg = t.c("surface_high") if on or opt == hover else t.c("surface_sunken")
-                    lab.config(bg=bg, fg=t.c("text") if on or opt == hover else t.c("text_muted"),
-                               text=("\u2713 " if on else "") + opt)
+            if self.cget("bg") != k["edge"]:        # read white on light blue), in the Drawer and the Full
+                self.config(bg=k["edge"])           # window alike. The outline is the bar's own 1 px frame.
+            for opt, (lab, line) in self.btns.items():
+                on = opt == self.value
+                bg = k["on"] if on else (k["off_hover"] if opt == hover else k["off"])
+                fg = k["on_ink"] if on else k["off_ink"]
+                if self.plain:                      # (a plain toggle: a mark and a word, never the accent)
+                    lab.config(bg=bg, fg=fg, text=("\u2713 " if on else "") + opt)
                     lab.master.config(bg=bg)
-                    line.config(bg=bg)
+                    line.config(bg=t.c("text") if on else bg)
                     continue
-                bg = t.c("selection") if on else (t.c("surface_high") if opt == hover else t.c("surface_sunken"))
-                lab.config(bg=bg, fg=t.c("selection_text") if on else t.c("text") if opt == hover else
-                           t.c("text_muted"))
+                lab.config(bg=bg, fg=fg)
                 lab.master.config(bg=bg)            # (the row that also holds a badge)
                 line.config(bg=t.c("accent") if on else bg)
         self._paint_ends()
@@ -1474,6 +1496,31 @@ class SbGuard:
             self.flips = []
 
 
+def overflow_scrollbar(cv, command=None, gap=2, inside=False):
+    """The app's thin round scroll bar for a canvas list (rows drawn by hand): it sits just outside the canvas's right
+    edge (placed, so it never changes the layout; inside: over the canvas's last 12 px, when there is no room outside) and shows only while there is more than fits. command(*args): what
+    a drag does (default: the canvas scrolls); a list that draws only the rows in view repaints there. -> the bar."""
+    sb = ttk.Scrollbar(cv.master, orient="vertical")
+    sb.configure(command=command or cv.yview)
+
+    def set_(a, b):
+        full = float(a) <= 0.0 and float(b) >= 1.0
+        try:
+            if full:
+                if sb.winfo_manager():
+                    sb.place_forget()
+            elif not sb.winfo_manager():
+                sb.place(in_=cv, relx=1.0, x=-gap if inside else gap, rely=0.0, relheight=1.0,
+                         anchor="ne" if inside else "nw")
+                sb.lift()
+            sb.set(a, b)
+        except tk.TclError:
+            pass
+    cv.configure(yscrollcommand=set_)
+    sb.__dict__["_soe2_overflow"] = True
+    return sb
+
+
 WHEEL_EVENTS = ("<MouseWheel>", "<Button-4>", "<Button-5>")
 
 
@@ -1523,20 +1570,29 @@ class ScrollArea(tk.Frame):
     The wheel is caught on the area's own window, so it works over every widget inside and doesn't get in the way of
     other windows' scrolling."""
 
-    def __init__(self, parent, bg, **kw):
+    def __init__(self, parent, bg, min_height=0, **kw):
+        """min_height: the content is at least this tall and fills a taller window (its expanding lists grow with it);
+        a shorter window scrolls it. 0: the content is as tall as it asks for."""
         super().__init__(parent, bg=bg, **kw)
+        self.min_height = int(min_height)
         self.sb = ttk.Scrollbar(self, orient="vertical")
         self.canvas = tk.Canvas(self, bg=bg, highlightthickness=0, yscrollcommand=self._sb_set)
         self.canvas.pack(side="left", fill="both", expand=True)
         self.sb.config(command=self.canvas.yview)
         self.inner = tk.Frame(self.canvas, bg=bg)
         self._win = self.canvas.create_window((0, 0), window=self.inner, anchor="nw")
-        self.canvas.bind("<Configure>", lambda e: self.canvas.itemconfigure(self._win, width=e.width))
+        self.canvas.bind("<Configure>", self._canvas_cfg)
         self.inner.bind("<Configure>", lambda e: self.canvas.configure(scrollregion=(0, 0, e.width, e.height)))
         self._hooked = None
         self._guard = SbGuard()
         self.bind("<Map>", lambda e: self._hook(), add="+")
         self.after_idle(self._hook)
+
+    def _canvas_cfg(self, e):
+        opts = {"width": e.width}
+        if self.min_height:
+            opts["height"] = max(e.height, self.min_height)
+        self.canvas.itemconfigure(self._win, **opts)
 
     def _sb_set(self, a, b):
         """Show the scroll bar only when there is something to scroll (never flipping back and forth - SbGuard)."""

@@ -146,9 +146,45 @@ class FavoritesPage:
         self.favv.recard = lambda: self.fav_show(card_only=True)
         self.favv.search_btn = None
         self.favv.head_open = ob                            # P2: the card's own button replaces it while shown
-        self.pcv_fit(self.favv, wrap, mid, lo=460, share=0.42)   # 2.97.0: scale to fit; P2: a wider card
+        self.pcv_fit(self.favv, wrap, mid, lo=460, share=0.42, hi=900)   # 2.97.0: scale to fit; P2: a wider card
+        self.fav_lf, self.fav_mid, self.fav_right, self.fav_wrap = lf, mid, right, wrap
+        self._fav_right_on = True
+        wrap.bind("<Configure>", self._fav_wrap_cfg, add="+")     # the list takes ~a quarter of the page, the card
         self.fav_fill()
         self.fav_show()
+
+    # ---------------------------------------------------------------- scale to fit
+    FAV_LIST_SHARE, FAV_LIST_MIN, FAV_LIST_MAX = 0.26, 300, 460
+
+    def fav_list_width(self, page_w):
+        """The list column: about a quarter of the page, 300 to 460 px; the card and the listings take the rest."""
+        return max(self.FAV_LIST_MIN, min(self.FAV_LIST_MAX, int(page_w * self.FAV_LIST_SHARE)))
+
+    def _fav_wrap_cfg(self, e):
+        if e.widget is not self.fav_wrap:
+            return
+        w = self.fav_list_width(e.width)
+        try:
+            if abs(int(self.fav_lf.cget("width")) - w) >= 4:
+                self.fav_lf.config(width=w)
+        except tk.TclError:
+            pass
+
+    def fav_layout(self, listings):
+        """Nothing picked (or nothing to list): the card takes the whole width after the list; else the listings sit
+        beside it. Re-packed only when that changes (never on a resize)."""
+        if listings == getattr(self, "_fav_right_on", True):
+            return
+        self._fav_right_on = listings
+        try:
+            if listings:
+                self.fav_mid.pack_configure(fill="y", expand=False)
+                self.fav_right.pack(side="left", fill="both", expand=True)
+            else:
+                self.fav_right.pack_forget()
+                self.fav_mid.pack_configure(fill="both", expand=True)
+        except tk.TclError:
+            pass
 
     # ---------------------------------------------------------------- the list
     def fav_fill(self, select=None):
@@ -780,6 +816,7 @@ class FavoritesPage:
         if v is None:
             return
         f = self.favs().get(self.fav_sel) if self.fav_sel else None
+        self.fav_layout(f is not None)
         keep = card_only and f is not None and f.get("kind") == "item" and v.rid is not None
         real, old = v.left, list(v.left.winfo_children())
         top = v.lcanvas.yview()[0] if keep else 0

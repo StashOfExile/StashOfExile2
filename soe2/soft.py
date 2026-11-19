@@ -669,19 +669,96 @@ def scrollbar_style(root, s, name, color, ns="", orient="vertical", strong=None,
     return True
 
 
+def _lum(c):
+    def ch(v):
+        v /= 255
+        return v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4
+    return 0.2126 * ch(c[0]) + 0.7152 * ch(c[1]) + 0.0722 * ch(c[2])
+
+
+def contrast(a, b):
+    """WCAG contrast ratio of two (r, g, b) colors."""
+    la, lb = sorted((_lum(a), _lum(b)), reverse=True)
+    return (la + 0.05) / (lb + 0.05)
+
+
+def _mixc(a, b, t):
+    return tuple(int(round(x + (y - x) * t)) for x, y in zip(a, b))
+
+
+EDGE_MIN = 3.0                       # a secondary button's outline against the color behind it (WCAG non-text)
+
+
+def _fit_mix(under, toward, t, ink):
+    """under mixed t of the way toward `toward` - less of it while `ink` would not read on it (4.6 : 1)."""
+    c = _mixc(under, toward, t)
+    while ink is not None and t > 0 and contrast(ink, c) < 4.6:
+        t = max(0.0, t - .01)
+        c = _mixc(under, toward, t)
+    return c
+
+
+def secondary_looks(text, under, strong=None, picked=False, ink=None, ink_hover=None):
+    """The look of a secondary (Quiet / Strip) button on `under`: {state: (fill, edge)} of (r, g, b). A visible fill
+    (the text color mixed 9 % into the background; brighter on hover) and an outline of at least 3 : 1 against
+    `under` (the text color mixed in until it is), so the button never melts into the page, in every theme.
+    ink / ink_hover: the color of its words (resting / hovered): the fill is kept light enough for them to read."""
+    strong = strong or text
+    ink_hover = ink_hover or strong
+    edge, t = under, 0.0
+    while contrast(edge, under) < EDGE_MIN + .2 and t < 1.0:
+        t += .05
+        edge = _mixc(under, text, t)
+    hot = _mixc(under, strong, min(1.0, t + .3))
+    if picked:                                   # the one shown (a tab chip): a stronger fill and outline - and, in its
+        fill = _fit_mix(under, strong, .18, ink_hover)      # words, a mark and bold (the caller adds those)
+        return {"n": (fill, hot), "h": (_fit_mix(under, strong, .24, ink_hover), strong),
+                "p": (_fit_mix(under, strong, .12, ink_hover), strong),
+                "d": (_mixc(under, text, .03), _mixc(under, text, .3))}
+    return {"n": (_fit_mix(under, text, .09, ink), edge), "h": (_fit_mix(under, text, .16, ink_hover), hot),
+            "p": (_fit_mix(under, text, .04, ink_hover), hot), "d": (_mixc(under, text, .03), _mixc(under, text, .3))}
+
+
+def segment_picked(sel, sel_text, off):
+    """The picked SegBar segment's (fill, ink) from the theme's selection: tells itself apart from the unpicked fill
+    `off` (>= 1.5 : 1; lighter on a dark page, darker on a light one) and keeps its words at 4.5 : 1."""
+    fill = sel
+    light_page = _lum(off) > .4
+    pole = (0, 0, 0) if light_page else (255, 255, 255)
+    t = 0.0
+    while contrast(fill, off) < 1.5 and t < 1.0:
+        t += .05
+        fill = _mixc(sel, pole, t)
+    ink = sel_text
+    if contrast(ink, fill) < 4.5:
+        ink = max(((255, 255, 255), (0, 0, 0)), key=lambda c: contrast(c, fill))
+    return fill, ink
+
+
+def chip_colors(under, text, strong):
+    """Hex colors for a chip drawn on a canvas, on the page color `under` (all '#rrggbb'): {'off': (fill, edge),
+    'on': (fill, edge)} - the same soft fill and 3 : 1 outline as the Quiet / Strip buttons; the picked one stronger."""
+    h = lambda c: tuple(int(c[i:i + 2], 16) for i in (1, 3, 5))        # noqa: E731
+    x = lambda c: "#%02x%02x%02x" % c                                  # noqa: E731
+    u, t, g = h(under), h(text), h(strong)
+    off = secondary_looks(t, u, g, ink=t)["n"]
+    on = secondary_looks(t, u, g, picked=True, ink_hover=g)["n"]
+    return {"off": (x(off[0]), x(off[1])), "on": (x(on[0]), x(on[1]))}
+
+
 def _flat_buttons(root, s, ns, C):
-    """Quiet (no face until the mouse is on it) and Strip (a thin outline, in a header strip) buttons, round."""
+    """Quiet (a soft fill and an outline, brighter on hover) and Strip (the same, small, in a header strip) buttons,
+    round."""
     r = RADIUS
     n = 2 * (r + 3) + MID
-    g = lambda k: rgb(root, C[k])                        # noqa: E731
-    for name, h, looks in (
-            ("Quiet.TButton", 34, {"n": (g("panel"), g("panel")), "h": (g("panel2"), g("line")),
-                                   "p": (g("odd"), g("line")), "d": (g("panel"), g("panel"))}),
-            ("Strip.TButton", 24, {"n": (g("panel"), g("line")), "h": (g("panel2"), g("steel")),
-                                   "p": (g("odd"), g("steel")), "d": (g("panel"), g("line"))}),
-            ("StripDanger.TButton", 24, {"n": (g("panel"), g("line")), "h": (g("panel2"), g("steel")),
-                                         "p": (g("odd"), g("steel")), "d": (g("panel"), g("line"))})):
-        def build(under, name=name, h=h, looks=looks):
+    text, strong = rgb(root, C["muted"]), rgb(root, C["text"])
+    ink = {"Quiet.TButton": rgb(root, C["steel"]), "Strip.TButton": rgb(root, C["steel"]),
+           "StripDanger.TButton": rgb(root, C["red"]), "StripOn.TButton": strong}      # (the colors of their words)
+    for name, h in (("Quiet.TButton", 34), ("Strip.TButton", 24), ("StripDanger.TButton", 24),
+                    ("StripOn.TButton", 24)):
+        def build(under, name=name, h=h):
+            looks = secondary_looks(text, under, strong, picked=name == "StripOn.TButton", ink=ink[name],
+                                    ink_hover=strong)
             im = _box_images(root, n, h, r, looks, under)
             el = _el(root, s, "%s.soft.%s.face.%s" % (ns, name.split(".")[0], _hx(under)), im["n"],
                      ("disabled", im["d"]), ("pressed", im["p"]), ("active", im["h"]),
@@ -689,7 +766,7 @@ def _flat_buttons(root, s, ns, C):
                      width=2 * (r + 3) + 2)
             return button_layout(el)
         register(root, name, build)
-        s.layout(name, build(g("panel")))
+        s.layout(name, build(rgb(root, C["panel"])))
 
 
 def button_layout(el):
@@ -981,6 +1058,40 @@ def _auto_caps():
     F.__init__ = __init__
     F.configure = F.config = configure
     F._soe2_caps_auto = True
+    _auto_caps_labels()
+
+
+def _auto_caps_labels():
+    """A Label drawn as a button / chip - a 1 px outline (highlightbackground) and room at the sides - is round too."""
+    L = tk.Label
+    if L.__dict__.get("_soe2_caps_auto"):
+        return
+    o_init, o_conf = L.__init__, L.configure
+
+    def __init__(self, master=None, cnf={}, **kw):          # noqa: B006
+        o_init(self, master, cnf, **kw)
+        try:
+            k = dict(cnf or {}, **kw)
+            px = k.get("padx", 1)
+            px = min(px) if isinstance(px, (tuple, list)) else int(px or 0)
+            if int(k.get("highlightthickness", 0) or 0) == 1 and "highlightbackground" in k and px >= CAP_MIN_PAD \
+                    and not k.get("image") and not self.__dict__.get("_soe2_cap"):
+                self.bind("<Map>", lambda e, s=self: _maybe_caps(s, True) if e.widget is s else None, add="+")
+        except Exception:
+            buglog.caught()
+
+    def configure(self, cnf=None, **kw):
+        res = o_conf(self, cnf, **kw)
+        if self.__dict__.get("_soe2_caps") and (cnf or kw):
+            k = dict(cnf or {}, **kw) if isinstance(cnf, dict) or cnf is None else kw
+            if {"padx", "pady", "bd", "borderwidth", "highlightthickness"} & set(k):
+                _place_caps(self)
+            if {"bg", "background", "highlightbackground", "highlightthickness"} & set(k):
+                paint_caps(self)
+        return res
+    L.__init__ = __init__
+    L.configure = L.config = configure
+    L._soe2_caps_auto = True
 
 
 def _maybe_caps(f, padded=False):
@@ -991,6 +1102,10 @@ def _maybe_caps(f, padded=False):
         return
     try:
         W, H = f.winfo_width(), f.winfo_height()
+        if (W <= 1 or H <= 1) and f.__dict__.get("_soe2_capwait", 0) < 3:   # (mapped, not laid out yet: look again)
+            f.__dict__["_soe2_capwait"] = f.__dict__.get("_soe2_capwait", 0) + 1
+            f.after(60, lambda: _maybe_caps(f, padded))
+            return
         r = RADIUS + 1                                      # (the border, then the corner)
         m = f.master
         x, y = f.winfo_x(), f.winfo_y()

@@ -65,6 +65,8 @@ class PCList(tk.Frame):
         self.cv = tk.Canvas(self, bg=C["panel"], highlightthickness=0, bd=0)
         self.cv.pack(fill="both", expand=True, pady=(4, 0))
         TH.self_painted(self.cv)
+        from .style import overflow_scrollbar          # the thin round bar, only while the list is longer than the page
+        self.sb = overflow_scrollbar(self.cv, inside=True)
         TH.subscribe(lambda t: self.paint(), owner=self)
         self.cv.bind("<Configure>", lambda e: self.paint())
         self.cv.bind("<Motion>", self._motion)
@@ -94,14 +96,16 @@ class PCList(tk.Frame):
             return
         self._chip_hit = []
         x = 0
+        from . import soft
         with TH.raw():
+            chip = soft.chip_colors(t.c("surface"), t.c("text_muted"), t.c("text_strong"))
             for k in KINDS:
                 on = k == self.kind
                 tid = cv.create_text(0, 0, text=k, font=("Segoe UI", 9, "bold" if on else "normal"))
                 w = cv.bbox(tid)[2] - cv.bbox(tid)[0] + 24
                 cv.delete(tid)
-                TH.round_rect(cv, x, 6, x + w, 30, 10, fill=t.c("surface_high") if on else t.c("surface"),
-                              outline=t.c("accent") if on else t.c("border"))
+                TH.round_rect(cv, x, 6, x + w, 30, 10, fill=chip["on" if on else "off"][0],
+                              outline=t.c("accent") if on else chip["off"][1])
                 cv.create_text(x + w / 2, 18, text=k, font=("Segoe UI", 9, "bold" if on else "normal"),
                                fill=t.c("text_strong") if on else t.c("text_muted"))
                 self._chip_hit.append((x, x + w, k))
