@@ -416,7 +416,7 @@ class PricePopup:
     def pcpop_refresh(self, rec):
         """The item on Price Checks changed (searched, priced, a tick): the card follows if it shows that item.
         Another Price Checks item shown in the app while the card is open: the card shows that one too."""
-        if rec is None or getattr(self, "pp_win", None) is None:
+        if rec is None or getattr(self, "pp_win", None) is None or getattr(self, "_pp_own_change", False):
             return
         if rec["id"] != getattr(self, "pp_rid", None):
             if not (getattr(self, "pp_up", False) and getattr(self, "pp_rid", None) is not None
@@ -1089,7 +1089,11 @@ class PricePopup:
                 t["apply"](d["to"])
         finally:
             self._card_quiet = False
-        self.card_changed(rec)
+        self._pp_own_change = True                       # 3.0.6 (owner round 17: the overlay still flickered on a
+        try:                                             # tick): the app's card follows, but its pcpop_refresh would
+            self.card_changed(rec)                       # draw this card again - it's already painted
+        finally:
+            self._pp_own_change = False
         if any(t.get("redraw") for t in changed):
             return self.pcpop_fill(rec)
         # 3.0.6 (owner: the card flickered on every tick - it was drawn again): painted in place - the boxes are

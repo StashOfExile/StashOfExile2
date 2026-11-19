@@ -105,6 +105,20 @@ class Only(unittest.TestCase):
         self.assertEqual(sorted(seen), sorted((id(t), to) for t in crossed))
         p.pcpop_close()
 
+    def test_tick_does_not_redraw_through_the_app(self):
+        """Round 17: a tick on the overlay told the app, whose Price Checks redraw drew the overlay card again."""
+        p, rec, _took = self.card("rare_ring")
+        fills = []
+        real_fill = p.pcpop_fill
+        p.pcpop_fill = lambda r: (fills.append(1), real_fill(r))[-1]
+        p.card_changed = lambda r: p.pcpop_refresh(r)                # (the app's pc_show calls pcpop_refresh)
+        t = [t for t in p.pp_ticks if "mod" in t][0]
+        p._pcpop_drag_start(t)
+        p._pcpop_drag_end(rec)
+        self.root.update()
+        self.assertEqual(fills, [])
+        p.pcpop_close()
+
 
 if __name__ == "__main__":
     unittest.main()
