@@ -21,7 +21,10 @@ def own_marker_prices():
     """[(amount, currency)] of the prices you put on your own stash tabs (Price checks > Stash tab, Wealth tabs)."""
     out = []
     pc = SETTINGS.get("pctab") or {}
-    if pc.get("amount"):
+    for t in pc.get("tabs") or []:                       # each stash tab has its own price
+        if isinstance(t, dict) and t.get("amount"):
+            out.append((t["amount"], t.get("currency") or "divine"))
+    if not pc.get("tabs") and pc.get("amount"):          # (an older single tab, not moved into the list yet)
         out.append((pc["amount"], pc.get("currency") or "divine"))
     out += [tuple(x) for x in SETTINGS.get("own_markers") or [] if isinstance(x, (list, tuple)) and len(x) == 2]
     try:

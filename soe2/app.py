@@ -2059,7 +2059,8 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
         def paint():
             on = SETTINGS.get("wealth_account", "").strip()
             lbl.config(fg=C["green"] if on else C["good"])
-            tip.text = ("Your account is set. It's hidden here so it never shows on a stream. Click to change it."
+            tip.text = ("Read tab only takes your own listings, at this tab's price, from any of your stash tabs. "
+                        "Click to change. The name is hidden."
                         if on else "Your account name as the trade site shows it (Name#1234) finds your public tab. "
                                    "Click to set it. No password, no sign-in.")
         lbl._acc_paint = paint

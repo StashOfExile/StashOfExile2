@@ -13,6 +13,7 @@ from .wealth import parse_price_text, parse_trade_link, WEALTH_CURRENCIES
 
 # 2.40.0: names for trade-site currency ids that aren't in the built-in list (it is replaced by the site's own list a
 # moment after start; until then the box still shows the right name)
+CURRENCY_SHORT = {"divine": "div", "exalted": "ex", "chaos": "c"}     # (a tab's chip: "37,882 div")
 KNOWN_CURRENCY_NAMES = {"mirror": "Mirror of Kalandra", "divine": "Divine Orb", "exalted": "Exalted Orb",
                         "chaos": "Chaos Orb", "vaal": "Vaal Orb", "regal": "Regal Orb", "annul": "Orb of Annulment",
                         "alch": "Orb of Alchemy", "transmute": "Orb of Transmutation", "aug": "Orb of Augmentation",
@@ -31,31 +32,47 @@ class TabReaderPage:
     """Mixed into App."""
 
     def build_tab_reader(self, parent):
-        """The Add from stash tab row (shown with that source): the tab's price in game, the account (never its name),
-        the hint and Read tab; Stop and ⓘ How, muted. The BETA note and the reading's messages under it. The switch
-        itself is in Bulk Pricing's toolbar (pc_mode), the tabs' chips over it (pc_tabsrow)."""
+        """The Add from stash tab block (shown with that source): the tabs' strip (chips, then the account mark at its
+        right end: pc_tabsrow) with the selected tab's box joined under it (pc_tabrow): that tab's price in game,
+        the hint and Read tab; Stop and ⓘ How, muted. The BETA note and the reading's messages under it. Each tab owns
+        its price. The switch itself is in Bulk Pricing's toolbar (pc_mode)."""
         P1 = C["panel"]
+        BX = self.pc_box_bg = C["panel2"]            # (the selected tab and its box: one fill)
         cfg = SETTINGS.setdefault("pctab", {})
         if cfg.get("mode") not in MODES:
             cfg["mode"] = MODES[0]
         self.pc_mode_hint = tk.Label(parent, text="", bg=P1, fg=C["muted"], font=("Segoe UI", 9))   # (not shown)
-        if not hasattr(self, "pc_tabsrow"):
-            self.pc_tabsrow = tk.Frame(parent, bg=P1)
         self.pctab_tabs()                                # (moves an older single tab into the list)
-        box = tk.Frame(parent, bg=P1, highlightthickness=1, highlightbackground=C["line"])
-        row = self.pc_tabrow_row = tk.Frame(box, bg=P1)       # (the row wraps in a narrow window: flowify)
+        cur_tab = self.pctab_current() or {}
+        strip = self.pc_tabsrow = tk.Frame(self.pc_tabblock, bg=P1, height=24)
+        strip.pack_propagate(False)
+        strip.pack(fill="x")
+        self.pc_add_btn = ttk.Button(strip, text="＋ Tab", style="Strip.TButton", cursor="hand2", command=self.pctab_new)
+        Tooltip(self.pc_add_btn, "Add a tab: another stash tab, with its own price and its own list")
+        self.pc_acc_lbl = self.acc_mark(strip, P1)        # "✓ Account set" - one for every tab, never the name
+        self.pc_tab_widgets, self.pc_tab_wrap, self.pc_tab_tips, self._pc_bar_sig = [], {}, {}, None
+        strip.bind("<Configure>", lambda e: self.pctab_strip_layout(), add="+")
+        outer = self.pc_tabrow = tk.Frame(parent, bg=C["line"])       # (a 1 px outline round the box)
+        inner = tk.Frame(outer, bg=BX)
+        inner.pack(fill="x", padx=1, pady=1)
+        self.pc_join = tk.Frame(outer, bg=BX)             # (covers the outline under the selected chip: no gap)
+        outer.bind("<Configure>", lambda e: self.pctab_join(), add="+")
+        row = self.pc_tabrow_row = tk.Frame(inner, bg=BX)       # (the row wraps in a narrow window: flowify)
         row.pack(fill="x", padx=12, pady=8)
-        self.pc_tabrow = box
         self.pc_tabrow_after = None
-        tk.Label(row, text="Tab's price in game", bg=P1, fg=C["muted"], font=("Segoe UI", 9)).pack(side="left")
-        self.pc_amt = tk.StringVar(value=str(cfg.get("amount") or ""))
-        amt = ttk.Entry(row, textvariable=self.pc_amt, width=9)
+        tk.Label(row, text="Tab's price in game", bg=BX, fg=C["muted"], font=("Segoe UI", 9)).pack(side="left")
+        self.pc_amt = tk.StringVar(value=str(cur_tab.get("amount") or ""))
+        self._pc_busy, self._pc_save_job = False, None
+        amt = self.pc_amt_box = ttk.Entry(row, textvariable=self.pc_amt, width=9)
         amt.pack(side="left", padx=(8, 4))
-        Tooltip(amt, "The one price you gave the whole tab in game or paste the trade site's link to your tab")
+        Tooltip(amt, "The one price you gave this tab in game or paste the trade site's link to your tab")
+        self.pc_amt.trace_add("write", lambda *a: self.pctab_price_soon())
+        amt.bind("<FocusOut>", lambda e: self.pctab_price_flush(), add="+")
+        amt.bind("<Return>", lambda e: self.pctab_price_flush(), add="+")
         # 2.40.0: the box is built before the trade site's full currency list arrives, so a saved Mirror of Kalandra
         # isn't in the list yet - it showed "Divine Orb", and Read tab then searched in divines. Show the saved name.
-        cid = cfg.get("currency") or "divine"
-        self.pc_cur = tk.StringVar(value=dict(WEALTH_CURRENCIES).get(cid) or cfg.get("currency_name")
+        cid = cur_tab.get("currency") or "divine"
+        self.pc_cur = tk.StringVar(value=dict(WEALTH_CURRENCIES).get(cid) or cur_tab.get("currency_name")
                                    or KNOWN_CURRENCY_NAMES.get(cid) or "Divine Orb")
         cb = ttk.Combobox(row, textvariable=self.pc_cur, values=[n for _c, n in WEALTH_CURRENCIES], state="readonly",
                           width=18)
@@ -63,14 +80,12 @@ class TabReaderPage:
         cb.pack(side="left", padx=(0, 12))
         cb.bind("<<ComboboxSelected>>", lambda e: self.pctab_cur_picked(), add="+")
         self.pc_cur_box = cb
-        self.pc_acc_lbl = self.acc_mark(row, P1)          # "✓ Account set" - never the name (streams)
-        self.pc_acc_lbl.pack(side="left")
         # right, as it reads: the hint, Read tab (the screen's orange button), Stop, ⓘ How
-        how = self.pc_how_lbl = tk.Label(row, text="ⓘ How", bg=P1, fg=C["muted"], cursor="hand2", font=("Segoe UI", 9))
+        how = self.pc_how_lbl = tk.Label(row, text="ⓘ How", bg=BX, fg=C["muted"], cursor="hand2", font=("Segoe UI", 9))
         how.pack(side="right", padx=(12, 0))
         how.bind("<Button-1>", lambda e: self.pctab_explain())
         Tooltip(how, "How reading a stash tab works shown under this row")
-        self.pc_stop = tk.Label(row, text="■ Stop", bg=P1, fg=C["muted"], disabledforeground=C["muted"],
+        self.pc_stop = tk.Label(row, text="■ Stop", bg=BX, fg=C["muted"], disabledforeground=C["muted"],
                                 font=("Segoe UI", 9), state="disabled", cursor="hand2")      # (shown while reading)
         self.pc_stop.bind("<Button-1>", lambda e: str(self.pc_stop.cget("state")) == "normal" and self.pctab_stop())
         self.pc_stop.pack(side="right", padx=(12, 0))
@@ -78,9 +93,9 @@ class TabReaderPage:
         self.pc_read_btn = ttk.Button(row, text="Read tab", style="Primary.TButton", command=self.pctab_read)
         self.pc_read_btn.pack(side="right", padx=(8, 0))
         Tooltip(self.pc_read_btn, "Finds the tab by its price and adds every item on it to this list")
-        self.pc_read_hint = tk.Label(row, text=READ_HINT, bg=P1, fg=C["muted"], font=("Segoe UI", 9))
+        self.pc_read_hint = tk.Label(row, text=READ_HINT, bg=BX, fg=C["muted"], font=("Segoe UI", 9))
         self.pc_read_hint.pack(side="right", padx=(12, 0))
-        self.pc_to_wealth = tk.Label(row, text="＋ Count it in Wealth", bg=P1, fg=C["muted"], cursor="hand2",
+        self.pc_to_wealth = tk.Label(row, text="＋ Count it in Wealth", bg=BX, fg=C["muted"], cursor="hand2",
                                      font=("Segoe UI", 9, "underline"))          # 2.18.0: the same tab in Wealth
         self.pc_to_wealth.bind("<Button-1>", lambda e: self.pctab_to_wealth())
         flowify(row)
@@ -130,10 +145,13 @@ class TabReaderPage:
         if save:
             save_json("settings.json", SETTINGS)
         stash = getattr(self, "bk_stash", None)
+        block = getattr(self, "pc_tabblock", None)
         if mode == "Stash tab":
             self.pctab_bar()
+            if block is not None and not block.winfo_manager():
+                block.pack(fill="x", padx=12, pady=(0, 8), before=self.bk_tb)
             if stash is not None and not stash.winfo_manager():
-                stash.pack(fill="x", padx=12, pady=(0, 8), after=self.bk_tb)
+                stash.pack(fill="x")
             self.pc_tabrow.pack(fill="x")
             self.pc_beta.show(fill="x", after=self.pc_tabrow, pady=(4, 0))
             self.pc_msg.pack(fill="x", after=self.pc_tabrow if self.pc_beta.closed() else self.pc_beta)
@@ -143,12 +161,9 @@ class TabReaderPage:
                                         "pay, like 37882 Divine Orbs. Type that price here and press Read tab.",
                                    fg=C["muted"])
         else:
-            if stash is not None:
-                stash.pack_forget()
+            if block is not None:
+                block.pack_forget()
             self.pc_mode_hint.config(text="hover an item in game and press Ctrl+Alt+C")
-        sm = getattr(self, "bk_sum", None)
-        if sm is not None:
-            flow_show(sm, self.pc_tabsrow, mode == "Stash tab")
         if hasattr(self, "tree") and save:                # 2.42.0: each source has its own list
             self.list_switched()
         elif hasattr(self, "tree"):
@@ -198,57 +213,157 @@ class TabReaderPage:
         cfg = SETTINGS.get("pctab") or {}
         return next((t for t in self.pctab_tabs() if t["id"] == cfg.get("current")), None)
 
-    def pctab_bar(self):
-        """Your tabs as chips - "Tab 1 · 12" (the one shown outlined and marked ▸), then ＋ Tab. A click shows a tab's
-        list and price; right-click renames / deletes it."""
-        for w in self.pc_tabsrow.winfo_children():
-            w.destroy()
-        P1 = C["panel"]
-        tabs = self.pctab_tabs()
+    @staticmethod
+    def pctab_price_short(t):
+        """A tab's price, short, for its chip: "37,882 div" (nothing while the tab has no price)."""
+        amt = t.get("amount")
+        if not amt:
+            return ""
+        cur = t.get("currency") or "divine"
+        n = f"{amt:,}" if isinstance(amt, int) else f"{amt:,.2f}".rstrip("0").rstrip(".")
+        return f"{n} {CURRENCY_SHORT.get(cur, cur)}"
+
+    def pctab_chip_text(self, t, counts, on):
+        price = self.pctab_price_short(t)
+        return ("▸ " if on else "") + f"{t['name']} · {counts.get('tab:' + t['id'], 0)}" + (f" · {price}" if price else "")
+
+    def pctab_chip_tip(self, t):
+        cur = t.get("currency_name") or dict(WEALTH_CURRENCIES).get(t.get("currency")) or t.get("currency")
+        price = f"priced {t['amount']} {cur} in game" if t.get("amount") else "no price yet"
+        return f"{t['name']}: {price} · right-click to rename or delete"
+
+    def pctab_counts(self):
         counts = {}
         for r in getattr(self, "records", {}).values():
             counts[r.get("src", "manual")] = counts.get(r.get("src", "manual"), 0) + 1
+        return counts
+
+    def pctab_bar(self):
+        """Your tabs as chips - "Tab 1 · 12 · 37,882 div" (the one shown is the folder tab joined to its box, bold and
+        marked ▸), then ＋ Tab, and the account mark at the right end. A click shows a tab's list and price;
+        right-click renames / deletes it. Built again only when the tabs or the shown one changed; else painted in
+        place."""
+        tabs = self.pctab_tabs()
         cur = self.pctab_current()
-        self.pc_tabs = {}
+        sig = tuple((t["id"], cur is not None and t["id"] == cur["id"]) for t in tabs)
+        if sig == self._pc_bar_sig and all(w.winfo_exists() for w in self.pc_tab_widgets):
+            return self.pctab_counts_paint()
+        for w in self.pc_tab_widgets:
+            w.destroy()
+        P1 = C["panel"]
+        counts = self.pctab_counts()
+        self.pc_tabs, self.pc_tab_wrap, self.pc_tab_tips, self.pc_tab_widgets = {}, {}, {}, []
+        self.pc_sel_wrap = None
         for t in tabs:
             on = cur is not None and t["id"] == cur["id"]
-            chip = ttk.Button(self.pc_tabsrow, text=("▸ " if on else "") + f"{t['name']} · {counts.get('tab:' + t['id'], 0)}",
-                              style="StripOn.TButton" if on else "Strip.TButton", cursor="hand2",
-                              command=lambda n=t["name"]: self.pctab_pick(n))   # (round, filled, outlined; the shown
-            chip.pack(side="left", padx=(0, 8))                                  # one: stronger, bold, marked ▸)
-            chip.bind("<Button-3>", lambda e, tid=t["id"]: self.pctab_tab_menu(e, tid))
-            Tooltip(chip, f"{t['name']}: priced {t.get('amount') or '?'} {t.get('currency_name') or t.get('currency')}"
-                          " in game · right-click to rename or delete")
-            self.pc_tabs[t["id"]] = chip
-        add = ttk.Button(self.pc_tabsrow, text="＋ Tab", style="Strip.TButton", cursor="hand2", command=self.pctab_new)
-        add.pack(side="left")
-        Tooltip(add, "Add a tab: another stash tab, with its own price and its own list")
-        if getattr(self, "bk_sum", None) is not None:
-            from .bulk_page import bk_flow
-            bk_flow(self.bk_sum)
+            text = self.pctab_chip_text(t, counts, on)
+            if on:                                       # the folder tab: same fill as its box, outline open below
+                wrap = tk.Frame(self.pc_tabsrow, bg=C["line"])
+                chip = tk.Label(wrap, text=text, bg=self.pc_box_bg, fg=C["text"], font=("Segoe UI", 9, "bold"),
+                                padx=8, pady=4)
+                chip.pack(padx=1, pady=(1, 0))
+                self.pc_sel_wrap = wrap
+            else:
+                wrap = chip = ttk.Button(self.pc_tabsrow, text=text, style="Strip.TButton", cursor="hand2",
+                                         command=lambda n=t["name"]: self.pctab_pick(n))   # (round, outlined)
+            for w in (wrap, chip):
+                w.bind("<Button-3>", lambda e, tid=t["id"]: self.pctab_tab_menu(e, tid), add="+")
+            self.pc_tab_tips[t["id"]] = Tooltip(chip, self.pctab_chip_tip(t))
+            if on:
+                wrap.bind("<Enter>", self.pc_tab_tips[t["id"]]._enter, add="+")
+                wrap.bind("<Leave>", self.pc_tab_tips[t["id"]]._leave, add="+")
+            self.pc_tabs[t["id"]], self.pc_tab_wrap[t["id"]] = chip, wrap
+            self.pc_tab_widgets.append(wrap)
+        self._pc_bar_sig = sig
+        self.pctab_strip_layout()
 
     def pctab_counts_paint(self):
-        """The chips' counts follow the lists, in place (only a chip whose words changed)."""
+        """The chips' counts and prices follow the lists and the boxes, in place (only a chip whose words changed)."""
         chips = getattr(self, "pc_tabs", None)
         if not isinstance(chips, dict) or not chips:
             return
-        counts = {}
-        for r in self.records.values():
-            counts[r.get("src", "manual")] = counts.get(r.get("src", "manual"), 0) + 1
+        counts = self.pctab_counts()
         cur = self.pctab_current()
+        changed = False
         for t in self.pctab_tabs():
             chip = chips.get(t["id"])
             if chip is None:
                 continue
             on = cur is not None and t["id"] == cur["id"]
-            text = ("▸ " if on else "") + f"{t['name']} · {counts.get('tab:' + t['id'], 0)}"
+            text = self.pctab_chip_text(t, counts, on)
             try:
                 if chip.cget("text") != text:
                     chip.config(text=text)
-                    from .bulk_page import bk_flow
-                    bk_flow(self.bk_sum)
+                    changed = True
+                tip = self.pc_tab_tips.get(t["id"])
+                if tip is not None:
+                    tip.text = self.pctab_chip_tip(t)
             except (tk.TclError, AttributeError):
                 pass
+        if changed:
+            self.pctab_strip_layout()
+
+    def pctab_strip_layout(self):
+        """The tabs' strip: the chips and ＋ Tab in order, wrapping when the window is narrow; the account mark at the
+        right end of the last line. The shown tab sits on the strip's bottom edge so it joins its box."""
+        strip = getattr(self, "pc_tabsrow", None)
+        if strip is None or not self.pc_tab_widgets:
+            return
+        try:
+            kids = self.pc_tab_widgets + [self.pc_add_btn]
+            acc = self.pc_acc_lbl
+            W = strip.winfo_width()
+            if W <= 1:
+                W = 10 ** 6
+            lines, cur, x = [], [], 0
+            for w in kids:
+                need = w.winfo_reqwidth() + (8 if cur else 0)
+                if cur and x + need > W:
+                    lines.append(cur)
+                    cur, x, need = [], 0, w.winfo_reqwidth()
+                cur.append(w)
+                x += need
+            lines.append(cur)
+            top = x + 16 + acc.winfo_reqwidth() > W      # (no room beside the last chip: its own line above, so the
+            y = 0                                         # shown tab stays on the last line, right over its box)
+            if top:
+                acc.place(x=max(0, W - acc.winfo_reqwidth()), y=0)
+                y = acc.winfo_reqheight() + 4
+            for li, line in enumerate(lines):
+                last = li == len(lines) - 1
+                h = max([w.winfo_reqheight() for w in line] + ([acc.winfo_reqheight()] if last and not top else [0]))
+                x = 0
+                for w in line:
+                    wy = y + h - w.winfo_reqheight() if w is self.pc_sel_wrap else y + (h - w.winfo_reqheight()) // 2
+                    w.place(x=x, y=wy)
+                    x += w.winfo_reqwidth() + 8
+                if last and not top:
+                    acc.place(x=max(x, W - acc.winfo_reqwidth()) if W < 10 ** 6 else x + 8,
+                              y=y + (h - acc.winfo_reqheight()) // 2)
+                y += h + (4 if not last else 0)
+            if int(strip.cget("height")) != y:
+                strip.configure(height=y)
+            strip.after_idle(self.pctab_join)
+        except tk.TclError:
+            pass
+
+    def pctab_join(self):
+        """The box's outline is hidden under the shown tab (one shape, no gap) - when that tab is on the strip's last
+        line, right above the box."""
+        join, wrap, strip, box = (getattr(self, n, None) for n in ("pc_join", "pc_sel_wrap", "pc_tabsrow", "pc_tabrow"))
+        try:
+            if join is None or wrap is None or not wrap.winfo_exists() or not box.winfo_ismapped():
+                if join is not None:
+                    join.place_forget()
+                return
+            on_last = wrap.winfo_y() + wrap.winfo_height() >= strip.winfo_height()
+            x = wrap.winfo_rootx() - box.winfo_rootx() + 1
+            if on_last and wrap.winfo_ismapped():
+                join.place(x=x, y=0, width=max(1, wrap.winfo_width() - 2), height=1)
+            else:
+                join.place_forget()
+        except tk.TclError:
+            pass
 
     def pctab_stop_shown(self, on):
         """Stop shows while a tab is being read (muted, beside ⓘ How)."""
@@ -269,17 +384,17 @@ class TabReaderPage:
         t = next((t for t in tabs if label.startswith(t["name"] + " (") or label == t["name"]), None)
         if not t:
             return
+        self.pctab_price_flush()                         # (what was typed goes to the tab it was typed for)
         cfg = SETTINGS.setdefault("pctab", {})
         cfg["current"] = t["id"]
         save_json("settings.json", SETTINGS)
-        self.pc_amt.set(str(t.get("amount") or ""))
-        self.pc_cur.set(dict(WEALTH_CURRENCIES).get(t.get("currency")) or t.get("currency_name")
-                        or KNOWN_CURRENCY_NAMES.get(t.get("currency"), "Divine Orb"))
+        self.pctab_show_price(t)
         self.pc_msg.config(text="", fg=C["muted"])
         self.pctab_bar()
         self.list_switched()
 
     def pctab_new(self):
+        self.pctab_price_flush()
         tabs = self.pctab_tabs()
         n = len(tabs) + 1                                # (named by its place: the last)
         tid = f"t{max([int(t['id'][1:]) for t in tabs if t['id'][1:].isdigit()] + [0]) + 1}"
@@ -287,8 +402,7 @@ class TabReaderPage:
                      "currency_name": "Divine Orb"})
         SETTINGS["pctab"]["current"] = tid
         save_json("settings.json", SETTINGS)
-        self.pc_amt.set("")
-        self.pc_cur.set("Divine Orb")
+        self.pctab_show_price(tabs[-1])
         self.pctab_bar()
         self.list_switched()
         self.pc_msg.config(text=f"Tab {n}: give that stash tab its own price in game, type it here and press Read tab.",
@@ -321,6 +435,7 @@ class TabReaderPage:
         t = next((t for t in tabs if t["id"] == tid), None)
         if not t or len(tabs) < 2:
             return
+        self.pctab_price_flush()
         n = sum(1 for r in self.records.values() if r.get("src") == f"tab:{tid}")
         if n and not messagebox.askyesno("Delete tab", f"Delete {t['name']} and its {n} item(s) from the list?",
                                          parent=self.dlg_parent()):
@@ -344,10 +459,10 @@ class TabReaderPage:
         self.pc_to_wealth.pack_forget()
 
     def pctab_to_wealth(self):
-        cfg = SETTINGS.get("pctab") or {}
+        t = self.pctab_current() or {}                   # (this tab's price)
         if not hasattr(self, "_wealth_add"):
             return
-        if cfg.get("amount") and self._wealth_add(cfg["amount"], cfg.get("currency") or "divine", "Price Checks tab"):
+        if t.get("amount") and self._wealth_add(t["amount"], t.get("currency") or "divine", "Price Checks tab"):
             self.pc_msg.config(text="Added to Wealth. Sync there to count it. It's read the same way.", fg=C["green"])
         self.pctab_wealth_link()
 
@@ -361,14 +476,58 @@ class TabReaderPage:
             "sell instantly. Press Read tab: every item on it is added here and priced. Items already in the list are "
             "skipped. A new tab listing can take a minute to show on the trade site. The same tab works for Wealth."))
 
+    def pctab_show_price(self, t):
+        """Show a tab's own price in the box (a new tab: empty), without saving it back."""
+        self._pc_busy = True
+        try:
+            self.pc_amt.set(str(t.get("amount") or ""))
+            self.pc_cur.set(dict(WEALTH_CURRENCIES).get(t.get("currency")) or t.get("currency_name")
+                            or KNOWN_CURRENCY_NAMES.get(t.get("currency"), "Divine Orb"))
+        finally:
+            self._pc_busy = False
+
+    def pctab_price_soon(self):
+        """The amount was typed: saved to the shown tab a moment after the last key."""
+        if self._pc_busy:
+            return
+        if self._pc_save_job is not None:
+            self.root.after_cancel(self._pc_save_job)
+        self._pc_save_job = self.root.after(400, self.pctab_price_flush)
+
+    def pctab_price_flush(self):
+        """Save the typed amount to the shown tab now (on a pause, leaving the box, Enter, or before another tab shows)."""
+        if self._pc_save_job is not None:
+            try:
+                self.root.after_cancel(self._pc_save_job)
+            except tk.TclError:
+                pass
+            self._pc_save_job = None
+        t = self.pctab_current()
+        txt = self.pc_amt.get().strip()
+        if t is None or "trade2/search" in txt:           # (a pasted link is read by Read tab)
+            return
+        amount, cur = parse_price_text(txt)
+        if cur:                                           # ("10 chaos": the box follows)
+            self._pc_busy = True
+            try:
+                self.pc_cur.set(dict(WEALTH_CURRENCIES).get(cur) or KNOWN_CURRENCY_NAMES.get(cur) or self.pc_cur.get())
+            finally:
+                self._pc_busy = False
+        cur = cur or self.pctab_cur_id() or t.get("currency") or "divine"
+        if (t.get("amount"), t.get("currency")) != (amount, cur) or t.get("currency_name") != self.pc_cur.get():
+            t.update(amount=amount, currency=cur, currency_name=self.pc_cur.get())
+            save_json("settings.json", SETTINGS)
+            self.pctab_counts_paint()
+
     def pctab_cur_picked(self):
         """2.38.0: keep the tab's currency as soon as it's picked (not only on Read tab), and give the keyboard back
-        so nothing else can change it."""
+        so nothing else can change it. Each tab keeps its own."""
         cur = self.pctab_cur_id()
-        if cur:
-            cfg = SETTINGS.setdefault("pctab", {})
-            cfg.update(currency=cur, currency_name=self.pc_cur.get())     # 2.40.0: the name too (see the box)
+        t = self.pctab_current()
+        if cur and t is not None:
+            t.update(currency=cur, currency_name=self.pc_cur.get())     # 2.40.0: the name too (see the box)
             save_json("settings.json", SETTINGS)
+            self.pctab_counts_paint()
         cb = getattr(self, "pc_cur_box", None)
 
         def done():                                    # 2.40.0: no lingering highlight; the keyboard leaves the box
@@ -380,21 +539,23 @@ class TabReaderPage:
         self.root.after(20, done)
 
     def ev_currencies_loaded(self):
-        """2.40.0: the trade site's full currency list arrived - show the saved currency by its name."""
-        cfg = SETTINGS.get("pctab") or {}
-        name = dict(WEALTH_CURRENCIES).get(cfg.get("currency"))
+        """2.40.0: the trade site's full currency list arrived - show the shown tab's currency by its name."""
+        t = self.pctab_current() or {}
+        name = dict(WEALTH_CURRENCIES).get(t.get("currency"))
         if name and getattr(self, "pc_cur", None) is not None and self.pc_cur.get() != name:
+            self._pc_busy = True
             self.pc_cur.set(name)
-            cfg["currency_name"] = name
+            self._pc_busy = False
+            t["currency_name"] = name
 
     def pctab_cur_id(self):
         """The currency id for what the box shows - from the trade site's list, or the saved one when the box shows
         the saved name (the list may not be loaded yet)."""
         name = self.pc_cur.get()
         cur = next((c for c, n in WEALTH_CURRENCIES if n == name), None)
-        cfg = SETTINGS.get("pctab") or {}
-        if cur is None and name and name == cfg.get("currency_name"):
-            cur = cfg.get("currency")
+        t = self.pctab_current() or {}
+        if cur is None and name and name == t.get("currency_name"):
+            cur = t.get("currency")
         if cur is None:
             cur = next((c for c, n in KNOWN_CURRENCY_NAMES.items() if n == name), None)
         return cur
@@ -409,20 +570,19 @@ class TabReaderPage:
             acc = info["account"] or acc
             self.pc_acc.set(acc)
             amount, cur = info["amount"], info["currency"]
+            self._pc_busy = True
             self.pc_amt.set(str(amount))
             self.pc_cur.set(dict(WEALTH_CURRENCIES).get(cur, cur))
-            SETTINGS.setdefault("pctab", {})["currency_name"] = self.pc_cur.get()
+            self._pc_busy = False
         else:
             amount, cur = parse_price_text(txt)
             cur = cur or self.pctab_cur_id() or "divine"
-        cfg = SETTINGS.setdefault("pctab", {})
-        cfg.update(amount=amount, currency=cur)
-        t = self.pctab_current()                       # 2.42.0: this tab's price
+        t = self.pctab_current()                       # 2.42.0: this tab's price (the only one)
         if t is not None:
-            t.update(amount=amount, currency=cur, currency_name=self.pc_cur.get())
+            name = dict(WEALTH_CURRENCIES).get(cur) or self.pc_cur.get()
+            t.update(amount=amount, currency=cur, currency_name=name)
             PCTAB["src"] = f"tab:{t['id']}"
-        if dict(WEALTH_CURRENCIES).get(cur):
-            cfg["currency_name"] = dict(WEALTH_CURRENCIES)[cur]
+            self.pctab_counts_paint()
         from .market import remember_marker
         remember_marker(amount, cur)                   # 2.18.0: never counted as someone's price
         if acc:

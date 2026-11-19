@@ -1,6 +1,7 @@
-"""Bulk Pricing (owner pick: mockup A in a wide window, C in the Drawer). Top to bottom: your stash tabs (when you read
-one) with what the list is worth and how many items it has; the toolbar - a search box first, Filters · n ▾,
-Columns ▾, then Manually Add | Add from stash tab, Re-price all and Pause; the stash tab's own row; the list; the key bar.
+"""Bulk Pricing (owner pick: mockup A in a wide window, C in the Drawer). Top to bottom: what the list is worth and how many items it has; your stash tabs (with
+Add from stash tab: the chips, the account mark at their right end, and the shown tab's box - its price in game, Read
+tab - joined to its chip); the toolbar - a search box first, Filters · n ▾, Columns ▾, then Manually Add | Add from
+stash tab, Re-price all and Pause; the list; the key bar.
 The picked item is shown as Price Checks shows one - the price card, the item card (Base and Properties, Mods,
 Augments, Item Flags), the cheapest listings, then Search again | Trade Site | Add to favorites - beside the list in a
 wide window, under it in a narrow one, about 10% smaller than Price Checks' card in the Drawer (cardscale.BULK; text
@@ -72,9 +73,10 @@ class BulkPage:
         kbf = tk.Frame(body, bg=P1)
         kbf.pack(fill="x", side="bottom")
         self.build_keybar(kbf)
-        self._bk_summary(body)                          # your tabs (Add from stash tab) | worth · items
+        self._bk_summary(body)                          # worth · items (the tabs are under it: pc_tabblock)
         self._bk_toolbar(body)                          # search, Filters · n ▾, Columns ▾ | the source, Re-price all
-        self.bk_stash = tk.Frame(body, bg=P1)           # (shown with Add from stash tab: pctab_mode)
+        self.pc_tabblock = tk.Frame(body, bg=P1)        # (shown with Add from stash tab: pctab_mode) the tabs'
+        self.bk_stash = tk.Frame(self.pc_tabblock, bg=P1)   # strip, and under it the shown tab's box (pctab_mode)
         self.view_var = tk.StringVar(value=SETTINGS["view"])
         self.build_tab_reader(self.bk_stash)
         self.banner = tk.Label(body, text="", anchor="w", padx=12, pady=2, font=("Segoe UI", 9), justify="left")
@@ -118,8 +120,6 @@ class BulkPage:
         P1 = C["panel"]
         row = self.bk_sum = tk.Frame(body, bg=P1)
         row.pack(fill="x", padx=12, pady=(8, 8))
-        self.pc_tabsrow = tk.Frame(row, bg=P1)          # (the chips: pctab_bar)
-        self.pc_tabsrow.pack(side="left")
         stats = tk.Frame(row, bg=P1)
         stats.pack(side="right")
         worth = tk.Frame(stats, bg=P1)

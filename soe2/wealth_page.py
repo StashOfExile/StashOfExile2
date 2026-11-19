@@ -901,8 +901,8 @@ class WealthPage:
 
     def wealth_pc_tab(self):
         """(amount, currency) of the tab read in Price checks > Stash tab, if it isn't a Wealth tab yet."""
-        pc = SETTINGS.get("pctab") or {}
-        a, c = pc.get("amount"), pc.get("currency") or "divine"
+        t = self.pctab_current() if hasattr(self, "pctab_current") else None     # (the shown tab's price)
+        a, c = (t or {}).get("amount"), (t or {}).get("currency") or "divine"
         if not a or any(t["amount"] == a and t["currency"] == c for t in WEALTH.tabs):
             return None
         return a, c

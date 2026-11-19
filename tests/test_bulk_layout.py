@@ -200,7 +200,7 @@ class Layout(unittest.TestCase):
         self.assertTrue(any("Account set" in t for t in seen))
         name = ACCOUNT.split("#")[0]
         self.assertFalse([t for t in seen if name in t], "the account name is on the page")
-        self.assertIn("stream", self.app.pc_acc_lbl._tip.text)
+        self.assertIn("hidden", self.app.pc_acc_lbl._tip.text)
 
     # ---- the layout
     def test_item_beside_the_list_when_wide_and_under_it_when_narrow(self):
