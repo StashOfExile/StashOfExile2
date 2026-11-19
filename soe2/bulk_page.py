@@ -3,8 +3,8 @@ one) with what the list is worth and how many items it has; the toolbar - a sear
 Columns ▾, then Manually Add | Add from stash tab, Re-price all and Pause; the stash tab's own row; the list; the key bar.
 The picked item is shown as Price Checks shows one - the price card, the item card (Base and Properties, Mods,
 Augments, Item Flags), the cheapest listings, then Search again | Trade Site | Add to favorites - beside the list in a
-wide window, under it in a narrow one, about 20% smaller than on Price Checks (cardscale.BULK; it fits its column
-like Price Checks' card). It is always there: the first row is picked by itself; with no row picked it says what it
+wide window, under it in a narrow one, about 10% smaller than Price Checks' card in the Drawer (cardscale.BULK; text
+never below the app's normal small size; a long card scrolls). It is always there: the first row is picked by itself; with no row picked it says what it
 is, with one button. Your account name is never on the page (it could show on a stream). UI rule 22: a new price
 paints the price card and the listings only."""
 import tkinter as tk
@@ -18,8 +18,8 @@ from .names import BULK_MANUAL, BULK_STASH
 from .pricecheck_page import CONF_CHIP, WIDE_PX, search_tip
 from .style import C, Splitter, Tooltip, flowify, flow_show, trade_icon
 
-ITEM_W = 400            # the picked item's side in a wide window, at first (drag the grip; remembered: panel_w) -
-                        # owner: about 20% narrower than Price Checks' card side
+ITEM_W = 480            # the picked item's side in a wide window, at first (drag the grip; remembered: panel_w) -
+                        # owner: about 10% narrower than Price Checks' card side
 STACK_ROWS = 7          # a narrow window: the list's rows over the picked item
 
 
@@ -82,10 +82,10 @@ class BulkPage:
         main = tk.Frame(body, bg=P1)
         main.pack(fill="both", expand=True, padx=12, pady=(0, 8))
         self.checks_area = self.bk_main = main          # (banners go just above it)
-        if not SETTINGS.get("bk_side_k"):               # (once: a remembered side is made 20% narrower too)
-            SETTINGS["bk_side_k"] = True
-            if SETTINGS.get("panel_w"):
-                SETTINGS["panel_w"] = int(int(SETTINGS["panel_w"]) * BULK)
+        if not SETTINGS.get("bk_side_k2"):              # (once, owner round 2: the card is 0.9 now, not 0.8 - a side
+            pw = int(SETTINGS.get("panel_w") or ITEM_W)  # made 0.8 narrower gets that back, and is ITEM_W at least)
+            SETTINGS["panel_w"] = max(ITEM_W, int(pw * (BULK / 0.8) if SETTINGS.get("bk_side_k") else pw))
+            SETTINGS["bk_side_k"] = SETTINGS["bk_side_k2"] = True
         pw = int(SETTINGS.get("panel_w") or ITEM_W)
         split = self.bk_split = Splitter(main, width=max(320, min(pw, 900)), lo=320, keep=420,
                                          on_set=self._bk_side_saved, bg=P1, fixed="right")
@@ -405,7 +405,6 @@ class BulkPage:
     def _bk_item_col(self, col):
         P1, P2 = C["panel"], C["panel2"]
         self.bk_price = self.price_card_build(col, BULK)    # the price, how sure, how it was worked out
-        self.bk_price.frame.pack(fill="x", pady=(0, 8))
         # Search again | Trade Site | Add to favorites - at the bottom, always in view
         foot = self.bk_foot = tk.Frame(col, bg=P2, highlightthickness=1, highlightbackground=C["line"])
         foot.pack(side="bottom", fill="x", pady=(8, 0))
@@ -439,6 +438,8 @@ class BulkPage:
         self.dcanvas = tk.Canvas(box, bg=P1, highlightthickness=0, yscrollcommand=dsb.set)
         self.dcanvas.pack(side="left", fill="both", expand=True)
         dsb.config(command=self.dcanvas.yview)
+        self._bk_price_padx = (0, dsb.winfo_reqwidth())  # owner: the price box ends where the card ends (not over
+        self.bk_price.frame.pack(fill="x", pady=(0, 8), padx=self._bk_price_padx, before=box)    # the scroll bar)
         self.detail = tk.Frame(self.dcanvas, bg=P1)
         self._dwin = self.dcanvas.create_window((0, 0), window=self.detail, anchor="nw")
         self.dcanvas.bind("<Configure>", self._canvas_resized)
@@ -542,7 +543,7 @@ class BulkPage:
             elif e.winfo_manager():
                 e.pack_forget()
                 self.bk_scroll.pack(fill="both", expand=True)
-                self.bk_price.frame.pack(fill="x", pady=(0, 8), before=self.bk_scroll)
+                self.bk_price.frame.pack(fill="x", pady=(0, 8), padx=self._bk_price_padx, before=self.bk_scroll)
                 self.bk_search_btn.config(state="normal")
         except tk.TclError:
             pass
@@ -660,7 +661,7 @@ class BulkPage:
         top = self.dcanvas.yview()[0] if prev is rec else 0
         holder = tk.Frame(self.bk_cardbox, bg=C["panel2"])
         self._card_no_price = True                      # (the price card says the price: Price Checks' look)
-        try:                                            # (20% smaller than Price Checks'; it fits its column)
+        try:                                            # (10% smaller than Price Checks'; never smaller)
             self.card_fit_draw(v, holder, rec, wrap, BULK, self.bk_card_room())
         finally:
             self._card_no_price = False

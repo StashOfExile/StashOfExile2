@@ -773,7 +773,7 @@ class PriceCheckPage:
         from .cardscale import font_size
         from .style import Tooltip
         P2 = C["panel2"]
-        px, py = (12, 8) if k >= 1 else (8, 4)          # (the spacing tokens: 20% smaller is a token down)
+        px, py = (12 if k >= 1 else 8), 4               # (owner, round 2: little room around the price)
         f = tk.Frame(parent, bg=P2, padx=px, pady=py, highlightthickness=1, highlightbackground=C["line"])
         top = tk.Frame(f, bg=P2)
         top.pack(fill="x")
@@ -859,10 +859,11 @@ class PriceCheckPage:
             return
         cv = getattr(self, "pc_lcanvas", None)
         box = cv.master if cv is not None else None       # (the item card's scroller, in the same column)
-        if foot is not None and not foot.winfo_manager():
+        gap = int(getattr(cv, "_gap_w", 0) or 0)       # owner: the price box ends where the card ends (not over
+        if foot is not None and not foot.winfo_manager():     # the scroll bar's strip); the buttons keep the column
             foot.pack(side="bottom", fill="x", pady=(8, 0), **({"before": box} if box is not None else {}))
         if not f.winfo_manager():
-            f.pack(side="top", fill="x", pady=(0, 12), **({"before": box} if box is not None else {}))
+            f.pack(side="top", fill="x", pady=(0, 12), padx=(0, gap), **({"before": box} if box is not None else {}))
         fewer = self.price_card_paint(self._pc_vns, rec)
         try:                                             # the footer's buttons follow the check
             self.pc_search_paint(self.pc_search_btn, rec)
@@ -1176,6 +1177,7 @@ class PriceCheckPage:
         cv.bind("<Configure>", lambda e: (cv.itemconfigure(win, width=e.width), fit()))
         inner.bind("<Configure>", fit)
         cv._sb = sb
+        cv._gap_w = sb.winfo_reqwidth()                  # (the strip kept for the bar: what sits above it lines up)
 
         def wheel(e):
             d = -1 if (getattr(e, "delta", 0) > 0 or getattr(e, "num", 0) == 4) else 1
@@ -1437,10 +1439,25 @@ class PriceCheckPage:
         top = v.lcanvas.yview()[0] if same else 0
         v.shown_rid, v.card_wrap = rec["id"], wrap               # 3.0.6: the width it was drawn for (pcv_fit)
         pcv = v is getattr(self, "pcv", None)
-        self._card_no_price = pcv                                # 2.123.0 (p4): the price card says the price
+        fav = v is getattr(self, "favv", None)
+        self._card_no_price = pcv or fav                         # 2.123.0 (p4): the price card says the price
         try:
             if pcv:                                              # owner: the card fits the page (its scale)
-                self.card_fit_draw(v, v.left, rec, wrap, 1.0, self.pc_card_room() if self.pc_layout_wide() else 0)
+                from .cardscale import WIDE                      # (the full window a bit bigger; the Drawer 1)
+                wide = self.pc_layout_wide()
+                self.card_fit_draw(v, v.left, rec, wrap, WIDE if wide else 1.0, self.pc_card_room() if wide else 0)
+            elif fav:                                            # owner (round 2): Favorites shows the item as Price
+                v.price_ns = self.price_card_build(v.left)       # Checks does - the price card, then the same card
+                v.price_ns.frame.pack(fill="x", pady=(0, 12))    # in its box
+                box = tk.Frame(v.left, bg=P2, padx=16, pady=12, highlightthickness=1, highlightbackground=C["line"])
+                box.pack(fill="x")
+                try:                                             # (the room inside its box: the scroller's 12 px
+                    cw = v.lcanvas.winfo_width()                 # each side, the box's 16 and its line)
+                except tk.TclError:
+                    cw = 0
+                self._detail_card(box, rec, rec["item"], max(228, cw - 24 - 2 * 16 - 2 - 12) if cw > 50 else
+                                  max(228, wrap - 2 * 16 - 2))
+                self.price_card_paint(v.price_ns, rec)
             else:
                 self._detail_card(v.left, rec, rec["item"], wrap)
         finally:
@@ -1647,133 +1664,10 @@ class PriceCheckPage:
             tk.Label(v.lst, text="The listings aren't loaded any more - press Search to load them again.",
                      bg=C["panel"], fg=C["muted"], anchor="w").pack(fill="x", pady=8)
             return
-        width = v.list_w                                            # 2.97.0: the width it has (inner padx 12 + 12)
-        for e in entries:
-            v.cards.append(self._pc_card(v.lst, listing_facts(e), width))
+        if entries:                                      # owner (round 2): Favorites - the same listing cards (no
+            from . import listingcard                    # seller names)
+            listingcard.draw(self, v, entries, rec)
         v.rcanvas.yview_moveto(0)
-
-    def _pc_card(self, parent, f, w, seller=True):
-        """One listing, laid out as the trade site does (2.93.1, feedback: cleaner, like the site): the picture on the
-        left; in the middle the name band, then centered groups split by thin lines - properties (raised values in
-        blue), item level and requirements, the socketed / implicit lines, the mods with their tiers at the block's
-        left edge (P red, S blue), the site's own totals, Corrupted, the seller's note; on the right the asking
-        price, the seller and how long ago."""
-        from . import themes as _th
-        t = _th.ST.theme
-        bg, panel = C["odd"], C["panel"]
-        rk = RARITY_COL.get(f["rarity"])
-        col = t.c("unique", "#af6025") if rk == "unique" else (C[rk] if rk else C["text"])
-        cv = tk.Canvas(parent, width=w, height=200, bg=panel, highlightthickness=0, bd=0)
-        cv.pack(fill="x", pady=(0, 8))
-        blue, red = "#8888ff", "#d26e5e"
-        with _th.raw():
-            art_w, side = 100, 190                         # the picture column, the price column
-            mx0, mx1 = art_w, max(art_w + 300, w - side - 12)
-            cx = (mx0 + mx1) // 2
-            box = cv.create_rectangle(mx0, 0, mx1, 199, fill=bg, outline=t.c(t.part("card", "border",
-                                                                                     default="border_light")))
-            two = bool(f["name"]) and f["name"] != f["base"]
-            hh = 46 if two else 30
-            name_c = _th.card_header(cv, mx0 + 2, 2, mx1 - 2, hh, col, bg)
-            if two:
-                cv.create_text(cx, 14, text=f["name"], fill=name_c, font=(_th.head_font(), 11, "bold"))
-                cv.create_text(cx, 33, text=f["base"], fill=name_c, font=(_th.head_font(), 10, "bold"))
-            else:
-                cv.create_text(cx, hh // 2 + 1, text=f["base"] or f["name"], fill=name_c, font=(_th.head_font(), 11, "bold"))
-            font = ("Segoe UI", 9)
-            tw = mx1 - mx0 - 70
-            y = hh + 12
-
-            def sep():
-                nonlocal y
-                y += 1
-                cv.create_line(cx - 110, y, cx + 110, y, fill=C["line"])
-                y += 9
-
-            def line(text, fill, bold=False):
-                nonlocal y
-                tid = cv.create_text(cx, y, text=text, fill=fill, font=("Segoe UI", 9, "bold") if bold else font,
-                                     width=tw, justify="center", anchor="n")
-                bb = cv.bbox(tid)
-                y = (bb[3] if bb else y + 14) + 1
-                return tid
-
-            def pair(label, value, aug):
-                """"Energy Shield: 211" - the label gray, the value white (blue when raised)."""
-                nonlocal y
-                if not value:
-                    return line(label, C["muted"])
-                fm = tkfont.Font(root=cv, family="Segoe UI", size=9)
-                a, b = label + ": ", value
-                x0 = cx - (fm.measure(a) + fm.measure(b)) // 2
-                cv.create_text(x0, y, text=a, fill=C["muted"], font=font, anchor="nw")
-                cv.create_text(x0 + fm.measure(a), y, text=b, fill=blue if aug else C["text"], font=font, anchor="nw")
-                y += 15
-            for label, value, aug in f.get("parts") or [(x, "", False) for x in f["props"]]:
-                pair(label, value, aug)
-            if f["ilvl"] or f["req"]:
-                sep()
-                if f["ilvl"]:
-                    pair("Item Level", str(f["ilvl"]), False)
-                if f["req"]:
-                    line(f["req"], C["muted"])
-            from .style import MOD_COL                     # 2.97.2: the same colors as the item card
-            kc = {"implicit": MOD_COL["implicit"], "rune": MOD_COL["rune"], "enchant": MOD_COL["enchant"],
-                  "fractured": MOD_COL["fractured"], "desecrated": MOD_COL["desecrated"], "crafted": MOD_COL["enchant"]}
-            first = [m for m in f["mods"] if m[2] in ("enchant", "implicit", "rune")]
-            rest = [m for m in f["mods"] if m not in first]
-            for group in (first, rest):
-                if not group:
-                    continue
-                sep()
-                for tier, text, kind in group:
-                    if tier:
-                        cv.create_text(mx0 + 10, y, text=tier, anchor="nw", font=("Segoe UI", 8, "bold"),
-                                       fill=red if tier[:1] == "P" else blue if tier[:1] == "S" else C["muted"])
-                    line(text, kc.get(kind, MOD_COL["explicit"]))
-            if f.get("pseudo"):
-                y += 2
-                for p in f["pseudo"]:
-                    line(p, MOD_COL["pseudo"])
-            if f.get("flags"):                             # Corrupted, Mirrored, Fractured ... as a mark + word
-                sep()
-                line(flag_text(f["flags"]), C["red"] if "corrupted" in f["flags"] else C["text"], bold=True)
-            if f.get("note"):
-                sep()
-                line(f["note"], C["muted"])
-            h_mid = y + 10
-            # ---- right: asking price, seller, when
-            px = w - side // 2 - 4
-            py = 18
-            cv.create_rectangle(w - side + 4, py - 8, w - 8, py + 46, fill=C["odd"], outline="")
-            cv.create_text(px, py, text="Asking price:", fill=C["muted"], font=("Segoe UI", 9), anchor="n")
-            if f["price"]:
-                amt, cur = f["price"]
-                amt = int(amt) if float(amt).is_integer() else amt
-                cv.create_text(px, py + 18, text=f"{amt}× {cur_label(cur)}", fill=C["text"],
-                               font=(_th.head_font(), 11, "bold"), anchor="n", width=side - 20, tags=("pcprice",))
-            else:
-                cv.create_text(px, py + 18, text="no price", fill=C["muted"], font=font, anchor="n")
-            if seller:                                     # (Price Checks' table: no seller names - privacy)
-                cv.create_text(px, py + 60, text=f["seller"] + (f"\nlisted {f['times']} times" if f.get("times", 1) > 1
-                                                               else ""),
-                               fill=C["text"], font=("Segoe UI", 9, "bold"), width=side - 16, anchor="n",
-                               justify="center")
-            if f["ts"]:
-                cv.create_text(px, py + 78, text="listed " + ago(f["ts"]), fill=C["muted"], font=("Segoe UI", 8),
-                               anchor="n")
-            # ---- left: the picture
-            img = self.pc_art(f["icon"]) if SETTINGS.get("pc_art", True) else None
-            if img is not None:
-                cv.create_image(art_w // 2, max(hh + 8, h_mid // 2 - ART_PX // 2), image=img, anchor="n")
-                cv._art = img
-            elif f["icon"] and SETTINGS.get("pc_art", True):
-                cv._art_url = f["icon"]
-            h = max(h_mid, py + 100, ART_PX + hh + 16)
-            cv.configure(height=h)
-            cv.coords(box, mx0, 0, mx1, h_mid - 1)
-        cv._facts = f
-        return cv
 
     def pc_open_trade(self):
         self.open_rec_trade(self.records.get(self.pc_rid))     # 2.105.1: changes are searched first

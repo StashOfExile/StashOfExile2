@@ -577,7 +577,7 @@ def flowify(row, vgap=6):
                     lines.append(cur)
                     cur, x = [], 0
                 cur.append(k)
-                x += kw
+                x += kw - (k["l"] if lines and len(cur) == 1 else 0)    # (a wrapped line starts at the edge)
             if cur:
                 lines.append(cur)
             y = 0
@@ -589,10 +589,11 @@ def flowify(row, vgap=6):
                 grow = [k for k in ls if k["grow"]]
                 extra = max(0, W - used) // len(grow) if grow else 0
                 x = 0
-                for k in ls:
+                for i, k in enumerate(ls):
                     ww = k["w"].winfo_reqwidth() + (extra if k in grow else 0)
-                    k["w"].place(x=px + x + k["l"], y=py + y + (h - k["w"].winfo_reqheight()) // 2, width=ww)
-                    x += k["l"] + ww + k["r"]
+                    lp = 0 if li and not i else k["l"]  # 3.0.7 (owner): a wrapped line lines up with the first
+                    k["w"].place(x=px + x + lp, y=py + y + (h - k["w"].winfo_reqheight()) // 2, width=ww)
+                    x += lp + ww + k["r"]
                 rx = max(x, W - sum(width(k) for k in rs))      # right-aligned, in their on-screen order
                 for k in rs:
                     ww = k["w"].winfo_reqwidth()

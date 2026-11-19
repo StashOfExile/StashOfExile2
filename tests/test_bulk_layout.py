@@ -230,8 +230,11 @@ class Layout(unittest.TestCase):
         col = self.app.bk_split.right
         for w in (self.app.bk_price.frame, self.app.bk_foot):
             self.assertIs(w.master, col)
-            self.assertEqual(w.winfo_width(), col.winfo_width())
+        self.assertEqual(self.app.bk_foot.winfo_width(), col.winfo_width())
         p, card, foot = self.app.bk_price.frame, self.app.bk_cardbox, self.app.bk_foot
+        # owner (round 2): the price box has the card's box's left and right edges (not over the scroll bar)
+        self.assertEqual(p.winfo_rootx(), card.winfo_rootx())
+        self.assertEqual(p.winfo_rootx() + p.winfo_width(), card.winfo_rootx() + card.winfo_width())
         self.assertLessEqual(p.winfo_rooty() + p.winfo_height(), card.winfo_rooty(), "the price on top")
         self.assertEqual(foot.winfo_rooty() + foot.winfo_height(), col.winfo_rooty() + col.winfo_height())
 
@@ -270,10 +273,40 @@ class Layout(unittest.TestCase):
         self.fill()
         self.pick()
         cv = self.app.detail_card
-        self.assertLessEqual(cv._k, cardscale.BULK)
-        self.assertGreaterEqual(cv._k, cardscale.KMIN)
+        self.assertEqual(cardscale.BULK, 0.9, "owner (round 2): 0.8 was too small to read")
+        self.assertEqual(cv._k, cardscale.BULK, "never smaller: a long card scrolls")
         self.assertEqual(self.app.bk_price.k, cardscale.BULK)
-        self.assertLessEqual(self.app.bk_split.right.winfo_width(), 0.8 * 520 + 40, "about 20% narrower")
+        self.assertLessEqual(self.app.bk_split.right.winfo_width(), 0.9 * 520 + 40, "about 10% narrower")
+        self.assertGreaterEqual(self.app.bk_split.right.winfo_width(), 0.9 * 520 - 40)
+        import tkinter.font as tkf
+        sizes = {abs(int(tkf.Font(font=cv.itemcget(i, "font")).actual("size"))) for i in cv.find_all()
+                 if cv.type(i) == "text" and cv.itemcget(i, "font")}
+        self.assertGreaterEqual(min(sizes), 8, sizes)         # (the 8 pt tier tags stay as they are)
+        texts = [i for i in cv.find_all() if cv.type(i) == "text" and cv.itemcget(i, "text").startswith("Item level")]
+        for i in texts:                                    # (a 10 pt row: 9 at 0.9 - the normal small size, not less)
+            self.assertGreaterEqual(abs(int(tkf.Font(font=cv.itemcget(i, "font")).actual("size"))), cardscale.MIN_PT)
+        foot = self.app.bk_foot_row                        # Search again | Trade Site | Add to favorites: one row
+        ys = {b.winfo_y() for b in (self.app.bk_search_btn, self.app.bk_trade_btn, self.app.bk_fav_btn)}
+        self.assertEqual(len(ys), 1, "the footer's buttons on one row")
+        self.assertTrue(foot.winfo_ismapped())
+
+    def test_side_width_migration(self):
+        """Once: a side made 0.8 narrower (round 1) gets 0.9 back, and is ITEM_W at least."""
+        from soe2 import bulk_page as BP
+        self.addCleanup(SETTINGS.update, panel_w=BP.ITEM_W, bk_side_k=True, bk_side_k2=True)
+        for had, k1, want in ((344, True, BP.ITEM_W), (600, True, int(600 * 0.9 / 0.8)), (430, False, BP.ITEM_W),
+                              (700, False, 700)):
+            SETTINGS.update(panel_w=had, bk_side_k=k1, bk_side_k2=False)
+            for w in self.root.winfo_children():
+                w.destroy()
+            app = make_app(self.root)
+            body = tk.Frame(self.root)
+            body.pack(fill="both", expand=True)
+            app.build_checks(body)
+            self.assertEqual(SETTINGS["panel_w"], want, (had, k1))
+            self.assertTrue(SETTINGS["bk_side_k2"])
+            make_app(self.root).build_checks(tk.Frame(self.root))     # (only once)
+            self.assertEqual(SETTINGS["panel_w"], want)
 
     def test_tabs_named_by_place(self):
         tabs = SETTINGS["pctab"]["tabs"]

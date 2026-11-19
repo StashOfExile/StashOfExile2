@@ -375,9 +375,12 @@ class Layout(unittest.TestCase):
         col, page = self.app.pc_pane.left, self.app.pc_pane
         for w in (self.app.pc_verdict, self.app.pc_foot):
             self.assertIs(w.master, col)
-            self.assertEqual(w.winfo_width(), col.winfo_width())
             self.assertLess(w.winfo_width(), page.winfo_width() - 300, "not the whole page")
         v, card, foot = self.app.pc_verdict, self.app.pc_left, self.app.pc_foot
+        self.assertEqual(foot.winfo_width(), col.winfo_width())
+        # owner (round 2): the price box has exactly the card's left and right edges (not over the scroll bar's strip)
+        self.assertEqual(v.winfo_rootx(), card.winfo_rootx())
+        self.assertEqual(v.winfo_rootx() + v.winfo_width(), card.winfo_rootx() + card.winfo_width())
         self.assertLessEqual(v.winfo_rooty() + v.winfo_height(), card.winfo_rooty(), "the price on top")
         self.assertEqual(foot.winfo_rooty() + foot.winfo_height(), col.winfo_rooty() + col.winfo_height(),
                          "the buttons at the column's bottom")
@@ -393,11 +396,11 @@ class Layout(unittest.TestCase):
     def test_card_fits_a_full_window(self):
         SETTINGS["pc_fold"] = {}
         self.addCleanup(SETTINGS.update, pc_fold={})
-        self.size(1688, 840)                              # (the page in a 1920x1040 full window)
+        self.size(1688, 1000)
         self.show("rare_gloves_corrupted_enchant")
         cv = self.card()
         from soe2 import cardscale
-        self.assertLess(cv._k, 1.0, "smaller to fit")
+        self.assertLess(cv._k, cardscale.WIDE, "smaller to fit")
         self.assertGreaterEqual(cv._k, cardscale.KMIN)
         need, sb = self.scroller_needed()
         self.assertFalse(need, "it fits")
@@ -405,11 +408,31 @@ class Layout(unittest.TestCase):
         heads = self.heads(cv)
         self.assert_order(heads)
 
+    def test_never_below_kmin_it_scrolls(self):
+        """Owner (round 2): 0.75 was unreadable - never below 0.9, text never below 9 pt; everything open in a
+        1920x1040 full window scrolls."""
+        from soe2 import cardscale
+        self.assertGreaterEqual(cardscale.KMIN, 0.9)
+        self.assertGreaterEqual(cardscale.MIN_PT, 9)
+        for size in (9, 10, 11, 13, 22):
+            for k in (cardscale.KMIN, cardscale.BULK):
+                self.assertGreaterEqual(cardscale.font_size(size, k), 9, (size, k))
+        self.assertEqual(cardscale.font_size(8, cardscale.KMIN), 8, "a size already small stays")
+        SETTINGS["pc_fold"] = {}
+        self.addCleanup(SETTINGS.update, pc_fold={})
+        self.size(1688, 840)                              # (the page in a 1920x1040 full window)
+        self.show("rare_gloves_corrupted_enchant")
+        self.assertEqual(self.card()._k, cardscale.KMIN)
+        self.assertTrue(self.scroller_needed()[0], "a scroll bar, not smaller text")
+
     def test_card_full_size_with_room(self):
+        from soe2 import cardscale
         self.size(1600, 1400)
         self.show("rare_gloves_quality_sockets")
-        self.assertEqual(self.card()._k, 1.0)
+        self.assertEqual(self.card()._k, cardscale.WIDE, "the full window: a bit bigger than the Drawer")
         self.assertFalse(self.scroller_needed()[1])
+        lc = next(w for w in self.app.pcv.lst.winfo_children() if hasattr(w, "_lc_ids"))
+        self.assertEqual(lc._lc_k, cardscale.WIDE, "the listing cards too")
 
     def test_taller_window_scales_up_once_after_the_resize(self):
         SETTINGS["pc_fold"] = {}
@@ -431,6 +454,12 @@ class Layout(unittest.TestCase):
         self.assertLessEqual(len(calls), 3)
         self.assertGreater(self.card()._k, k0)
         self.assertEqual(list(self.app.pcv.lst.winfo_children()), lst, "the listings stay as they are")
+        self.assertFalse(self.scroller_needed()[0], "it fits")
+        for _ in range(30):                               # (the bar was there at the small size: it goes once the
+            if not self.scroller_needed()[1]:            # bar's own hold is over - SbGuard)
+                break
+            self.pump()
+            time.sleep(0.1)
         self.assertFalse(self.scroller_needed()[1])
 
     def test_small_window_scrolls(self):
@@ -447,6 +476,29 @@ class Layout(unittest.TestCase):
         self.show("rare_gloves_quality_sockets")
         self.assertFalse(self.app.pc_layout_wide())
         self.assertEqual(self.card()._k, 1.0, "the Drawer: the listings follow the card - it scrolls")
+        lc = next(w for w in self.app.pcv.lst.winfo_children() if hasattr(w, "_lc_ids"))
+        self.assertEqual(lc._lc_k, 1.0, "the Drawer's text as it was")
+        v, card = self.app.pc_verdict, self.app.pc_left
+        self.assertEqual(v.winfo_rootx() + v.winfo_width(), card.winfo_rootx() + card.winfo_width(),
+                         "the price box: the card's edges in the Drawer too")
+
+    def test_footer_one_row_when_it_fits_wrapped_lines_line_up(self):
+        """Owner (round 2): Search again | Trade Site | Add to favorites | Clear on one row where the width allows;
+        narrower, a wrapped line starts at the same edge as the first."""
+        self.show("rare_gloves_quality_sockets")
+        a = self.app
+        btns = (a.pc_search_btn, a.pc_open_btn, a.pc_fav_btn)
+        self.assertEqual(len({b.winfo_y() for b in btns}), 1, "one row")
+        cy = a.pc_clear_lbl.winfo_y() + a.pc_clear_lbl.winfo_height() / 2
+        sb = a.pc_search_btn
+        self.assertTrue(sb.winfo_y() <= cy <= sb.winfo_y() + sb.winfo_height(), "Clear on that row too")
+        self.size(460, 1000)
+        rows = sorted({b.winfo_y() for b in btns})
+        self.assertGreater(len(rows), 1, "narrow: it wraps")
+        first = {b for b in btns if b.winfo_y() == rows[0]}
+        starts = [min((b for b in btns if b.winfo_y() == y), key=lambda b: b.winfo_x()) for y in rows]
+        self.assertTrue(first)
+        self.assertEqual({b.winfo_x() for b in starts}, {a.pc_search_btn.winfo_x()}, "each line starts at the edge")
 
     def test_scaled_card_ticks_in_place(self):
         SETTINGS["pc_fold"] = {}

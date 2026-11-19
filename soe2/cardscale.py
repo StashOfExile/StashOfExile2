@@ -1,14 +1,16 @@
 """Owner (Price Checks' item card fits the window): one scale for the whole item card - its fonts, rows, boxes and
-gaps - worked out from the room the card has (the page's height). Price Checks: 1 when it fits, smaller (down to
-KMIN) until it does; only a smaller window than that gets a scroll bar. Bulk Pricing's picked item: the same, from
-BULK (about 20% smaller than Price Checks' card).
+gaps - worked out from the room the card has (the page's height). Price Checks' full window: WIDE when it fits (a
+bit bigger than the Drawer's 1), smaller (down to KMIN) until it does; a smaller window than that gets a scroll bar.
+The Drawer: 1, it scrolls. Bulk Pricing's picked item: BULK (about 10% smaller than the Drawer's card), never
+smaller. Owner (round 2): text never below MIN_PT - the app's normal small size.
 
 The card is drawn for its scale (app._detail_card_draw reads cv._k); nothing here touches a widget."""
 
-KMIN = 0.75          # the smallest scale (9 pt text -> 7 pt); below that the scroll bar shows
+KMIN = 0.9           # the smallest scale; below that the scroll bar shows (owner: 0.75 was unreadable)
 STEP = 0.05          # scales go in steps (fewer redraws while a window is resized)
-BULK = 0.8           # Bulk Pricing's picked item, against Price Checks' card
-MIN_PT = 7           # no text smaller than this
+WIDE = 1.1           # Price Checks' full window: its card and listings a bit bigger than the Drawer's
+BULK = 0.9           # Bulk Pricing's picked item, against the Drawer's card
+MIN_PT = 9           # no text smaller than this (the app's normal small size)
 
 
 def font_size(size, k):

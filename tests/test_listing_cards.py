@@ -1,5 +1,7 @@
-"""The cheapest listings as small item cards (soe2/listingcard.py), on Price Checks and on Bulk Pricing: price, item
-level, the mods one per line, flag chips, no seller names, one toggle per card (only that card changes), and a
+"""The cheapest listings as small item cards (soe2/listingcard.py), on Price Checks, Bulk Pricing and Favorites: the
+item's name as the title (the base type muted beside it), the price on the right as "2000 ×" and the currency's
+picture, item level, the mods one per line (tier tags in one column), flag chips, no seller names, one toggle per card
+(only that card changes), Whole item headed and indented like the item card (labels muted, values bright), and a
 picture that arrives goes into its placeholder without building the card again (UI rule 22).
 
     python3.12 -m unittest tests.test_listing_cards          (or tests/runall.sh)"""
@@ -113,12 +115,28 @@ class OnPriceChecks(Base):
         self.settle()
         self.cards_ = self.cards(self.app.pcv.lst)
 
+    def label(self, card, text):
+        return next(x for x in self.walk(card) if isinstance(x, tk.Label) and str(x.cget("text")) == text)
+
     def test_card_shows_price_level_mods_flags(self):
         self.assertEqual(len(self.cards_), 6)
         c = self.cards_[0]
         txt = self.texts(c)
-        self.assertTrue(any(t.startswith("3 ") for t in txt), txt)
-        self.assertTrue(any(t.startswith("item level 82") for t in txt), txt)
+        name, base, amt = self.label(c, "Thing"), self.label(c, "Vaal Wraps"), self.label(c, "3")
+        from soe2.style import C
+        self.assertEqual(base.cget("fg"), C["muted"], "the base type muted")
+        self.assertEqual(base.winfo_rooty() // 4, base.winfo_rooty() // 4)
+        self.assertGreater(base.winfo_rootx(), name.winfo_rootx(), "beside the name")
+        self.assertGreater(amt.winfo_rootx(), base.winfo_rootx() + base.winfo_width(), "the price on the right")
+        self.assertEqual(amt._tip.text, "3 Divine Orb", "the price in words on hover")
+        self.assertIn("×", txt)
+        pics = [x for x in self.walk(amt.master) if isinstance(x, tk.Label) and str(x.cget("image"))]
+        self.assertEqual(len(pics), 1, "the currency's picture (the app's own)")
+        self.assertEqual(pics[0]._tip.text, "3 Divine Orb", "a picture alone says it on hover too")
+        self.assertFalse(any(t.startswith("3 ") for t in txt), "not in the title spot")
+        meta = next(t for t in txt if t.startswith("item level 82"))
+        self.assertIn("listed", meta)
+        self.assertGreater(self.label(c, meta).winfo_rooty(), name.winfo_rooty(), "under the name")
         self.assertTrue(any("listed" in t for t in txt), txt)
         ys = []
         for want in ("+120 to maximum Mana", "+59 to maximum Energy Shield", "97% increased Energy Shield",
@@ -159,7 +177,8 @@ class OnPriceChecks(Base):
         self.assertGreater(self.cards_[2].winfo_height(), h0)
         self.assertIn("Implicit · +10% to Fire Resistance", self.texts(self.cards_[2]))
         self.assertIn("Note: ~price 5 divine", self.texts(self.cards_[2]))
-        self.assertIn("Energy Shield: 211", self.texts(self.cards_[2]))
+        es, val = self.label(self.cards_[2], "Energy Shield"), self.label(self.cards_[2], "211")
+        self.assertEqual(es.winfo_rooty(), val.winfo_rooty(), "label and value on one row")
         for i, c in enumerate(self.cards_):
             self.assertEqual(self.toggle_of(c).cget("text"), "▾ Less" if i == 2 else "▸ Whole item")
         for i, c in enumerate(self.cards_):                 # (the same widgets: nothing rebuilt)
@@ -211,10 +230,35 @@ class OnPriceChecks(Base):
         self.assertEqual(heads, ["BASE AND PROPERTIES", "REQUIREMENTS", "AUGMENTS", "ITEM FLAGS", "MODS",
                                  "PSEUDO FILTERS"], words)
         self.assertEqual(heads, sorted(heads, key=order.index), "the card's order")
-        for row in ("Quality: +21%", "Energy Shield: 297", "Level 80  ·  Int 101", "Rune · Bonded: +20 to maximum Life",
-                    "Implicit · +10% to Fire Resistance", "+120 total maximum Mana", "◆ Fractured", "✎ Crafted",
+        from soe2.style import C
+        by = {str(x.cget("text")): x for x in shown}
+        for lab, val in (("Quality", "+21%"), ("Energy Shield", "297"), ("Level", "80"), ("Int", "101"),
+                         ("Rune", "Bonded: +20 to maximum Life"), ("Base type", "Vaal Wraps")):
+            a, b = by[lab], next(x for x in shown if x.cget("text") == val and x.winfo_rooty() == by[lab].winfo_rooty())
+            self.assertEqual(a.cget("fg"), C["muted"], f"{lab}: the label muted")
+            self.assertNotEqual(b.cget("fg"), C["muted"], f"{val}: the value bright")
+            self.assertGreater(b.winfo_rootx(), a.winfo_rootx())
+        props = [by[x] for x in ("Base type", "Item level", "Quality", "Energy Shield")]
+        vals = [next(x for x in shown if x.winfo_rooty() == p.winfo_rooty() and x is not p) for p in props]
+        self.assertEqual(len({v.winfo_rootx() for v in vals}), 1, "the values in one column")
+        for row in ("Implicit · +10% to Fire Resistance", "+120 total maximum Mana", "◆ Fractured", "✎ Crafted",
                     "P1", "S2"):
             self.assertIn(row, words)
+        # headed as the item card heads its sections; the rows indented under them
+        for h in heads:
+            lab = by[h]
+            self.assertEqual(lab.cget("fg"), C["text"])
+            self.assertIn("bold", str(lab.cget("font")))
+        self.assertGreater(by["Quality"].winfo_rootx(), by["BASE AND PROPERTIES"].winfo_rootx(), "indented")
+        self.assertLessEqual(by["Rune"].winfo_rootx() - by["AUGMENTS"].winfo_rootx(), 16, "Augments: not deep in")
+        gap = by["REQUIREMENTS"].winfo_rooty() - (by["Energy Shield"].winfo_rooty() + by["Energy Shield"].winfo_height())
+        self.assertGreaterEqual(gap, 12, "a token gap between sections")
+        mods = [x for x in shown if x.cget("text") in ("Implicit · +10% to Fire Resistance",
+                                                        "+59 to maximum Energy Shield", "97% increased Energy Shield",
+                                                        "Fractured · +120 to maximum Mana")]
+        self.assertEqual(len({m.winfo_rootx() for m in mods}), 1, "the mods' text in one column, tags or not")
+        tags = [by["P1"], by["S2"]]
+        self.assertEqual(len({t.winfo_rootx() for t in tags}), 1, "the tier tags in one column")
         self.assertNotIn("Gloves", words, "the bare class name: Base type says it")
         self.assertFalse([w for w in words if w.startswith("Requires:")], "no raw item text")
         self.assertEqual(words[-1], "Note: ~price 5 divine", "the note: the last row")
@@ -271,6 +315,52 @@ class OnPriceChecks(Base):
             self.assertLessEqual(c.winfo_width(), w + 2)
 
 
+class OnFavorites(Base):
+    def test_favorites_uses_the_same_card_and_listing_cards(self):
+        """Owner (round 2): a picked favorite shows its item as Price Checks does (the price card, the same card in
+        its look and order) and the same listing cards - nothing drawn over them, no seller names."""
+        import queue
+        for w in self.root.winfo_children():
+            w.destroy()
+        app = BKL.make_app(self.root)
+        app.favs = lambda: app.__class__.favs(app)
+        app.ui_q = queue.Queue()
+        body = tk.Frame(self.root)
+        body.pack(fill="both", expand=True)
+        app.build_favorites(body)
+        self.root.geometry("1900x1000+0+0")
+        self.settle()
+        src = PCL.rec_of("rare_gloves_quality_sockets", 1)
+        dress(src)
+        f = app.favs().add_item(src)
+        app.fav_fill()
+        self.pump()
+        app.fav_tv.selection_set(f["id"])
+        self.pump()
+        r = app.fav_rec(f)
+        for k in ("state", "est", "conf", "total", "prices", "qid", "stages", "priced_at", "resolved", "opts"):
+            r[k] = src[k]
+        app.fav_show()
+        self.settle()
+        cv = next(x for x in self.walk(app.favv.left) if isinstance(x, tk.Canvas) and hasattr(x, "_look"))
+        self.assertEqual(cv._look, "drawer", "Price Checks' card")
+        names = [cv.itemcget(i, "text").lstrip("▾▸ ").split(" · ")[0] for i in
+                 sorted(cv.find_withtag("cardsec"), key=lambda i: cv.coords(i)[1])]
+        self.assertEqual([n for n in names if n in PCL.Layout.ORDER], sorted([n for n in names if n in PCL.Layout.ORDER],
+                                                                             key=PCL.Layout.ORDER.index))
+        self.assertIn("BASE AND PROPERTIES", names)
+        ns = app.favv.price_ns
+        self.assertTrue(ns.frame.winfo_viewable(), "the price card")
+        self.assertTrue(str(ns.big.cget("text")).startswith("≈"))
+        cs = self.cards(app.favv.lst)
+        self.assertEqual(len(cs), 6, "the same listing cards")
+        for x in self.texts(app.favv.lst):
+            self.assertNotIn("acct", x.lower())
+            self.assertNotIn("seller", x.lower())
+        self.assertFalse([x for x in self.walk(app.favv.lst) if isinstance(x, tk.Canvas)
+                          and x.find_withtag("pcprice")], "no asking-price box drawn over a card")
+
+
 class OnBulkPricing(Base):
     def test_bulk_pricing_uses_the_cards(self):
         for w in self.root.winfo_children():
@@ -299,6 +389,13 @@ class OnBulkPricing(Base):
         self.click(self.toggle_of(cs[0]))
         self.assertEqual(self.toggle_of(cs[0]).cget("text"), "▾ Less")
         self.assertEqual(self.toggle_of(cs[1]).cget("text"), "▸ Whole item")
+        from soe2 import cardscale
+        import tkinter.font as tkf
+        holder = next(w for w in app.bulkv.lst.winfo_children() if hasattr(w, "_lc_ids"))
+        self.assertEqual(holder._lc_k, cardscale.BULK)
+        sizes = {abs(int(tkf.Font(font=x.cget("font")).actual("size"))) for x in self.walk(holder)
+                 if isinstance(x, tk.Label) and x.cget("text")}
+        self.assertGreaterEqual(min(sizes), cardscale.MIN_PT, "never below the app's normal small size")
 
 
 if __name__ == "__main__":

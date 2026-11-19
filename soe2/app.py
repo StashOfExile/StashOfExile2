@@ -5242,7 +5242,7 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
         cv.create_rectangle(x, y, x + cell, y + h, fill=bg, outline="", tags=(tag, "cardtri_hit"))   # (the row clicks)
         cv.create_line(x, y + h, x + cell, y + h, fill=_th.mix(bg, C["text"], .06), tags=(tag, "cardtri_line"))
         lab = cv.create_text(x + 4, y + h // 2, text=label, anchor="w", font=_f(cv, 9), tags=(tag,),
-                             width=max(40, cell - _s(cv, 72)))
+                             width=max(40, cell - _s(cv, 60)))     # (the value's room: "Any ▾" and its pill)
         val = cv.create_text(x + cell - _s(cv, 12), y + h // 2, text="", anchor="e", font=_f(cv, 9, "bold"),
                              tags=(tag,))
         pill_tag = f"{tag}_pill"
