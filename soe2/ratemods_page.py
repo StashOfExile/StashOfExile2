@@ -19,16 +19,30 @@ def grade_label(g):
     return "F (ignore)" if g == "ignore" else g
 
 
-def on_top(w):
-    """2.97.0 (feedback: it opened behind the app): in front, with focus, once - then a normal window again."""
+def on_top(w, keep=None):
+    """2.97.0 (feedback: it opened behind the app): in front, with focus, once - then as on top as the window it
+    belongs to. 3.0.6 (the scan check window showed, went behind, showed and went behind again): it was put back to
+    "not on top" while the app stayed on top, so the app covered it. keep: -> whether it stays on top (the app's own answer,
+    when it has one)."""
     try:
         w.deiconify()
         w.lift()
         w.attributes("-topmost", True)
-        w.after(400, lambda: w.winfo_exists() and w.attributes("-topmost", False))
+        w.after(400, lambda: w.winfo_exists() and w.attributes(
+            "-topmost", owner_on_top(w) if keep is None else bool(keep())))
         w.focus_force()
     except tk.TclError:
         pass
+
+
+def owner_on_top(w):
+    """-> True when the window w belongs to (its transient owner, else its parent's window) is always on top."""
+    try:
+        own = w.transient() or w.master
+        own = w.nametowidget(str(own)).winfo_toplevel() if own else None
+        return bool(own is not None and own is not w and int(own.attributes("-topmost")))
+    except (tk.TclError, KeyError, ValueError, TypeError):
+        return False
 
 
 class RateModsPage:

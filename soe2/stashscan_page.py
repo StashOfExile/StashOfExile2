@@ -67,6 +67,23 @@ class StashScanPage:
             return self.stash_scan_finish()
         self.stash_scan_card()
 
+    def stash_scan_by_pic(self):
+        """3.0.6 (owner's scan: 5 wildcard slots held Vaal currencies no tab has a slot for): a wildcard slot's
+        picture -> the exchange item it is (Map Profit's naming: the exchange icons, then poe.ninja's art from the
+        art cache - nothing downloaded), or None. None when there are no prices yet."""
+        try:
+            from PIL import Image
+            from . import mapprofit as MP
+            from .wealth import WPRICES
+            parts = getattr(WPRICES, "parts", None)
+            if not parts:
+                return None
+            refs = MP.build_refs(parts)
+        except Exception:
+            buglog.caught()
+            return None
+        return lambda bgr: MP.fv_match(Image.fromarray(bgr[:, :, ::-1].copy()), refs)
+
     def stash_scan_finish(self):
         ss = self.ss
         self.stash_scan_cancel()
@@ -74,8 +91,9 @@ class StashScanPage:
             left = []
             icons = {**SR.learned_icons(), **(ss.get("icons") or {})}
             wpics = {}
+            by_pic = self.stash_scan_by_pic() if ss.get("wild") else None
             for tab, wild in (ss.get("wild") or {}).items():
-                got, unk = SR.match_wild(wild, icons, keep=True, pics=wpics)
+                got, unk = SR.match_wild(wild, icons, keep=True, pics=wpics, by_pic=by_pic)
                 ss["got"].setdefault(tab, []).extend(got)
                 left += [(tab, n, ic) for n, ic in unk]
             ss["wild_left"] = left                  # (named in the check window - then remembered)
@@ -382,9 +400,10 @@ class StashScanPage:
             from .style import center_over               # (over the app, on its monitor - feedback: it came up on
             center_over(dlg, self.dlg_parent())          # the other screen)
             from .ratemods_page import on_top
-            on_top(dlg)                                      # (in front, focused, once)
-            dlg.after(900, lambda: dlg.winfo_exists() and on_top(dlg))   # (3.0.6: and again, after the app's own
-            #                                                                raise when it slides in)
+            keep = getattr(self, "drawer_topmost_wanted", None) or (lambda: False)
+            on_top(dlg, keep)                                # (in front, focused - and as on top as the app, so the
+            dlg.after(900, lambda: dlg.winfo_exists() and on_top(dlg, keep))   # app can't cover it; again after the
+            #                                                                    app's own raise when it slides in)
         except Exception:
             buglog.caught()
 

@@ -577,6 +577,8 @@ def build_refs(items, exchange=False):
 
 ART_MIN, ART_BY = 0.80, 0.10       # 3.0.6: poe.ninja's art, Map Profit's last fallback (official art scored up to
 #                                    0.64 for the wrong item on Favours cells): this sure and this far ahead, or nothing
+ART_SOFT, ART_LEAD = 0.70, 0.20   # 3.0.6 (owner's scan: Vaal Catalysing Infuser 0.77, Orb of Extraction 0.71 - each
+#                                   0.24+ ahead of the next): a clear lead counts under ART_MIN too
 ART_BACKING = (41, 5, 5)           # an inventory cell's dark blue (BGR): the art is laid on it, as the game draws it
 CDN = "https://web.poecdn.com"     # (poe.ninja's picture paths are on the game's image server)
 _LEVEL = r"^(.*) \(Level (\d+)\)$"

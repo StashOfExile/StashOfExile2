@@ -240,18 +240,27 @@ def _read_run(bgr, rect, k, sure=0.0):
                 cands.append((i, d, float(col[i]), gw, int(ys[i]) + gh))
     cands.sort()
     first = round(14 * k) + (x - x0)
-    run = {}
+    run, step = {}, {}
     for i, (cx, d, s, gw, base) in enumerate(cands):
         here = (s - DIGIT_BASE, d) if cx <= first and _could_be(d) else None
+        here_step = None
         for j in range(i):
             px, _pd, _ps, pw, pb = cands[j]
             near = pw - round(4 * k) <= cx - px <= pw + round(2 * k)
             if j in run and near and abs(pb - base) <= max(1, round(1.5 * k)) and _could_be(run[j][1] + d):
-                v = run[j][0] + s - DIGIT_BASE
+                add = s - DIGIT_BASE
+                # 3.0.6 (owner's scan: 131 Orbs of Annulment read as 13): a digit drawn over white art loses its
+                # outline and matches faintly. One that sits exactly where the next digit goes - the run's own
+                # spacing, on its baseline - doesn't count against the run (it can't make it win alone).
+                if add < 0 and j in step and abs((cx - px) - step[j]) <= max(1, round(k)) and abs(pb - base) <= 1:
+                    add = 0.0
+                v = run[j][0] + add
                 if here is None or v > here[0]:
-                    here = (v, run[j][1] + d)
+                    here, here_step = (v, run[j][1] + d), cx - px
         if here:
             run[i] = here
+            if here_step is not None:
+                step[i] = here_step
     return best_valid(run, sure)
 
 
@@ -341,14 +350,21 @@ def read_tab(bgr, game_h, want):
             "icons": icons, "wild": wild, "pics": pics}
 
 
-def match_wild(wild, icons, keep=False, pics=None):
+def match_wild(wild, icons, keep=False, pics=None, by_pic=None):
     """Wildcard slots their own tab didn't match -> ([(name, count)], how many still unknown - or with keep, the
     unknown [(count, picture)] themselves, to be named), matched with every tab read in the scan. pics: filled with
-    {name: the slot's whole picture} for each one matched (3.0.6: so Map Profit knows it in your inventory too)."""
+    {name: the slot's whole picture} for each one matched (3.0.6: so Map Profit knows it in your inventory too).
+    by_pic: slot picture (BGR) -> name or None - 3.0.6 (owner: any exchange item, nothing taught): Map Profit's
+    picture naming (exchange icons, poe.ninja's art), for what no tab's slot looks like."""
     got, unknown = [], []
     for w in wild:
         n, ic = w[0], w[1]
         name, _sc = _same_item(ic, icons)
+        if name is None and n and by_pic is not None and len(w) > 2 and w[2] is not None:
+            try:
+                name = by_pic(w[2])
+            except Exception:
+                name = None
         if n and name is not None:
             got.append((name, n))
             if pics is not None and len(w) > 2 and w[2] is not None:
@@ -395,6 +411,8 @@ def learn_icon(name, icon):
 
 
 WILD_MATCH = 0.75       # 2.114.3: a wildcard's picture must look this much like a fixed slot's (and clearly most)
+WILD_TINT = 20          # 3.0.6: ... and be colored alike (the largest gap of the B, G, R averages; the owner's
+#                         Vaal Blacksmith's Infuser vs Blacksmith's Whetstone: 31)
 
 
 def _icon(bgr, rect):
@@ -414,9 +432,13 @@ def _same_item(icon, icons):
     if icon is None:
         return None, 0.0
     scores = []
+    tint = icon.reshape(-1, 3).mean(0)
     for name, ic in icons.items():
         if ic is None:
             continue
+        if float(np.abs(ic.reshape(-1, 3).mean(0) - tint).max()) > WILD_TINT:
+            continue                         # 3.0.6: same shape, other colors - a Vaal Blacksmith's Infuser isn't a
+        #                                      Blacksmith's Whetstone (owner's scan: it was counted as one)
         v = float(cv2.matchTemplate(icon, ic[3:-3, 4:-4], cv2.TM_CCOEFF_NORMED).max())
         scores.append((v, name))
     if not scores:

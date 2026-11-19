@@ -195,7 +195,7 @@ def art_disagrees(f, refs, name):
 def art_match(bgr, f, refs, only=None):
     """3.0.6 (owner: every item poe.ninja's exchange lists, nothing taught): the last fallback - poe.ninja's art
     from the art cache (refs.art), compared like the exchange icons (cropped to the art). Only when it's sure
-    (ART_MIN), far ahead of the next picture (ART_BY), its colors aren't beaten (hue_veto) and no learned or
+    (ART_MIN, or ART_SOFT with an ART_LEAD lead), far ahead of the next picture (ART_BY), its colors aren't beaten (hue_veto) and no learned or
     shipped picture of another item is close. only: the names it may give (the gems, for a cell with no stack
     number). -> name or None."""
     from . import favours as FV
@@ -208,10 +208,12 @@ def art_match(bgr, f, refs, only=None):
     else:
         view = art
     got = view.ranked(f, 2)
-    if not got or got[0][0] < FV.ART_MIN:
+    if not got:
         return None
     top, key = got[0][0], got[0][1]
     nxt = got[1][0] if len(got) > 1 else -1.0
+    if top < FV.ART_MIN and not (top >= FV.ART_SOFT and top - nxt >= FV.ART_LEAD):
+        return None
     if top - nxt < FV.ART_BY or view.hue_veto(f, top):
         return None
     names = art.groups.get(key, [key])

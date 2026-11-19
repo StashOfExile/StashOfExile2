@@ -41,7 +41,9 @@ CURRENCY += _row(128, (749,), ("Artificer's Orb",))
 CURRENCY += _row(245, (569, 659, 749), ("Arcanist's Etcher", "Armourer's Scrap", "Blacksmith's Whetstone"))
 CURRENCY += _row(335, (659, 749), ("Glassblower's Bauble", "Gemcutter's Prism"))
 CURRENCY += _row(452, (749,), ("Scroll of Wisdom",))
-# not read: the 4 shards (y 569; worth little) and the crafting hole (370, 321)
+# 3.0.6 (owner's scan: the shard row was missed - all four are on the Currency Exchange). Not read: the crafting
+# hole (370, 321)
+CURRENCY += _row(571, (255, 345, 435, 525), ("Transmutation Shard", "Regal Shard", "Chance Shard", "Artificer's Shard"))
 # 2.114.3: the 2 x 7 wildcard slots - anything can go there; stashread tells what by its picture
 CURRENCY_WILD = [(x, y, S, S) for y in (668, 749) for x in (146, 227, 308, 389, 470, 551, 632)]
 
@@ -247,7 +249,7 @@ SOCK_OTHERS += _row(580, _X4, ("Emergent Vigour", "Emergent Possibility", "Emerg
 SOCK_OTHERS += _row(733, _X4, ("Carved Cunning", "Carved Majesty", "Carved Mischief", "Carved Tenacity"))
 
 # the five page buttons along the top (the same on every page): drawn with the slots when the panel is matched, so a
-# page with few slots (Others: 17) isn't taken for the Essence tab's dense grid. Not read.
+# page with few slots (Ancient Augments: 17) isn't taken for the Essence tab's dense grid. Not read.
 SOCK_BUTTONS = [(227 + 83 * _i, 11, 66, 69) for _i in range(5)]
 SOCKETABLES = ("socketables_runes", "socketables_more", "socketables_cores", "socketables_idols", "socketables_others")
 
