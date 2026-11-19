@@ -17,7 +17,8 @@ def mega():
 
 def fake(**over):
     f = types.SimpleNamespace(records={}, dup_pending=[], dup_win=None, own_clip=None, status_text="", status_until=0,
-                              added=[], notices=[], ADVANCED=A.App.ADVANCED)
+                              added=[], notices=[], ADVANCED=A.App.ADVANCED,
+                              UNIQUE_RE=A.App.UNIQUE_RE)
     f.fd_capturing = lambda: False
     f.fl_capturing = lambda: False
     f.fl_ed_open = lambda: False
@@ -51,10 +52,16 @@ class BulkClipWhere(unittest.TestCase):
         f = fake(fl_capturing=lambda: True, fl_take_clip=lambda t: None)
         self.assertEqual(A.App.accept_clip(f, mega()), "the Strat Tracker's loot box")
 
-    def test_plain_copy_is_named(self):
-        plain = re.sub(r"\{[^}]*\}\n", "", mega())
+    def test_plain_copy_of_a_rare_is_named(self):
+        plain = re.sub(r"\{[^}]*\}\n", "", mega()).replace("Rarity: Unique", "Rarity: Rare")
         f = fake()
         self.assertIn("plain Ctrl+C", A.App.accept_clip(f, plain))
+
+    def test_plain_copy_of_a_unique_is_added(self):
+        plain = re.sub(r"\{[^}]*\}\n", "", mega())       # (some game windows give only the plain copy)
+        f = fake()
+        self.assertEqual(A.App.accept_clip(f, plain), "Bulk Pricing")
+        self.assertEqual(len(f.added), 1)
 
 
 if __name__ == "__main__":
