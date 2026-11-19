@@ -47,6 +47,7 @@ def socket_words(it):
     return f" ({', '.join(parts)})" if parts else ""
 
 
+KIND_WORD = {"Implicit": "Implicit", "Enchant": "Enchant", "Rune": "Rune"}   # (as the item card in the app says it)
 KIND_COL = {"Implicit": "implicit", "Rune": "rune", "Enchant": "enchant", "Prefix": "explicit", "Suffix": "explicit",
             "Total": "pseudo"}
 W0, H0 = 430, 600                 # the first size (then yours)
@@ -546,7 +547,13 @@ class PricePopup:
             ticked = {id(m) for m in self.pc_ticked(rec)}
             if not ticked:
                 ticked = {id(m) for m in mods if m.get("sid") and mod_impact(rec, m) != "ignore"}
-            for m in mods:
+            first_kinds = ("Implicit", "Enchant")
+            for i, m in enumerate(mods):
+                prev = mods[i - 1].get("kind") if i else None
+                if i and prev in first_kinds and m.get("kind") not in first_kinds:
+                    # 3.0.6 (owner: implicits need a clear indicator): a line between the item's implicits and
+                    # its other mods, as in game - and each one says what it is ("Implicit · ...")
+                    tk.Frame(inner, bg=P.get("line") or P["muted"], height=1).pack(fill="x", padx=16, pady=4)
                 row = tk.Frame(inner, bg=P["bg"])
                 row.pack(fill="x", padx=16)
                 on = id(m) in ticked
@@ -561,7 +568,10 @@ class PricePopup:
                     col = MOD_COL["fractured"]
                 elif "desecrated" in flags:
                     col = MOD_COL["desecrated"]
-                tl = tk.Label(row, text=m.get("shown") or m["text"], bg=P["bg"], fg=ink(col, P["bg"]) if on or not can else P["muted"],
+                word = KIND_WORD.get(m.get("kind") or "")
+                shown = m.get("shown") or m["text"]
+                tl = tk.Label(row, text=f"{word} · {shown}" if word else shown, bg=P["bg"],
+                              fg=ink(col, P["bg"]) if on or not can else P["muted"],
                               font=(body, 10), anchor="w", justify="left", cursor="hand2" if can else "")
                 vb = None
                 if can and self._card_has_vals(rec, m):

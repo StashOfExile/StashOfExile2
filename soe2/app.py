@@ -5379,13 +5379,13 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
         s_ = lambda n: _s(cv, n)                                  # noqa: E731
         box, bx, tx = s_(14), s_(10), s_(32)
         dl = _cl(cv)
-        if dl:                                               # the Drawer: its kind in a word too
-            word = KIND_WORD.get(m.get("kind") or "")
+        word = KIND_WORD.get(m.get("kind") or "")           # 3.0.6 (owner): an implicit always says so, any width
+        if dl:                                               # the Drawer: fractured / desecrated in a word too
             fl_ = m.get("flags") or ()
             word = word or next((x.title() for x in ("fractured", "desecrated") if x in fl_ or
                                  str(m.get("sid") or "").startswith(x + ".")), None)
-            if word and not text.startswith(word):
-                text = f"{word} \u00b7 {text}"
+        if word and not text.startswith(word):
+            text = f"{word} \u00b7 {text}"
         hit = cv.create_rectangle(4, y - s_(2), w - 4, y + s_(18), outline="", fill=_card_bg(cv), tags=(tag,))   # the row's click area
         tier = f"{(m.get('kind') or ' ')[0]}{m['tier']}" if m.get("tier") else ""
         if tier:
