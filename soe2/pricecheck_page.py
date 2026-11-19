@@ -460,8 +460,6 @@ class PriceCheckPage:
         body.pack(fill="both", expand=True)
         self._pc_where_row(body)                     # 2.122.0: what your price check key does - first, full width
         self._pc_recent_row(body)                    # a search box, then your recent checks as chips
-        self._pc_verdict_row(body)                   # the price, how sure, how it was worked out (packed with an item)
-        self._pc_foot_build(body)                    # Search again | Trade Site | Add to favorites, at the bottom
         # 2.123.3: the item and the listings share a divider you drag; its place is remembered (pc_card_w)
         cw = max(360, int(SETTINGS.get("pc_card_w", 520) or 520))
         wrap = Splitter(body, width=cw, lo=360, keep=380, on_set=self._pc_pane_saved, bg=C["panel"])
@@ -471,6 +469,10 @@ class PriceCheckPage:
         left, right = wrap.left, wrap.right
         left.config(bg=C["panel"])
         right.config(bg=C["panel"])
+        # owner: the price card on top of the item card's column and Search again | Trade Site | Add to favorites at
+        # its bottom - as wide as that column (the listings sit beside it in a wide window). Packed with an item.
+        self._pc_verdict_row(left)                   # the price, how sure, how it was worked out
+        self._pc_foot_build(left)
         self.pc_hist_var = tk.StringVar()                    # (the old dropdown: kept for its callers, never shown)
         self.pc_hist_cb = ttk.Combobox(left, textvariable=self.pc_hist_var, state="readonly")
         self.pc_hist_cb.bind("<<ComboboxSelected>>", lambda e: self.pc_pick_hist())
@@ -639,10 +641,11 @@ class PriceCheckPage:
 
     PC_CHIPS = 8
 
-    def _pc_why_resized(self, e):
+    def _pc_why_resized(self, e, lab=None):
+        lab = lab if lab is not None else self.pc_v_why
         w = max(200, e.width - 8)
-        if abs(int(self.pc_v_why.cget("wraplength") or 0) - w) >= 8:
-            self.pc_v_why.config(wraplength=w)
+        if abs(int(lab.cget("wraplength") or 0) - w) >= 8:
+            lab.config(wraplength=w)
 
     def _pc_recent_resized(self, e):
         """2.128.0 (feedback: the app froze after a theme change): repaint the chips only when the row's width really
@@ -746,33 +749,40 @@ class PriceCheckPage:
     def _pc_verdict_row(self, body):
         """The price, big; how sure as a chip (a mark and a word); ⓘ how it was worked out (one hover); one line
         under it (while searching: the last price and when). As tall in every state - nothing below it jumps."""
+        ns = self._pc_vns = self.price_card_build(body)
+        self.pc_verdict, self.pc_v_big, self.pc_v_how = ns.frame, ns.big, ns.how
+        self.pc_v_info, self.pc_v_info_tip, self.pc_v_why = ns.info, ns.info_tip, ns.why
+
+    def price_card_build(self, parent):
+        """The price card (Price Checks, and Bulk Pricing's picked item): the price, big; how sure as a chip; ⓘ how it
+        was worked out; one line under it. One height in every state. -> its parts (price_card_paint fills them)."""
         import tkinter.font as tkf
+        import types
         from .style import Tooltip
         P2 = C["panel2"]
-        f = self.pc_verdict = tk.Frame(body, bg=P2, padx=16, pady=12, highlightthickness=1,
-                                       highlightbackground=C["line"])
+        f = tk.Frame(parent, bg=P2, padx=16, pady=12, highlightthickness=1, highlightbackground=C["line"])
         top = tk.Frame(f, bg=P2)
         top.pack(fill="x")
-        self.pc_v_big = tk.Label(top, text="", bg=P2, fg=C["text"], font=("Segoe UI", 22, "bold"), anchor="w", bd=0)
-        self.pc_v_big.pack(side="left")
-        self.pc_v_how = tk.Label(top, text="", bg=P2, fg=C["text"], font=("Segoe UI", 9), padx=8, pady=1,
-                                 highlightthickness=1, highlightbackground=C["line"])     # (the how-sure chip)
+        big = tk.Label(top, text="", bg=P2, fg=C["text"], font=("Segoe UI", 22, "bold"), anchor="w", bd=0)
+        big.pack(side="left")
+        how = tk.Label(top, text="", bg=P2, fg=C["text"], font=("Segoe UI", 9), padx=8, pady=1,
+                       highlightthickness=1, highlightbackground=C["line"])     # (the how-sure chip)
         low = tk.Frame(f, bg=P2)
         low.pack(fill="x", pady=(4, 0))
-        self.pc_v_info = tk.Label(low, text="", bg=P2, fg=C["muted"], font=("Segoe UI", 9), anchor="nw",
-                                  cursor="question_arrow", bd=0)
-        self.pc_v_info_tip = Tooltip(self.pc_v_info, "")
-        self.pc_v_why = tk.Label(low, text="", bg=P2, fg=C["muted"], font=("Segoe UI", 9), anchor="nw",
-                                 justify="left", bd=0)
-        self.pc_v_why.pack(side="left", fill="x", expand=True)
-        self.pc_v_why.bind("<Configure>", self._pc_why_resized)     # (2.128.0: only a real change re-wraps)
+        info = tk.Label(low, text="", bg=P2, fg=C["muted"], font=("Segoe UI", 9), anchor="nw",
+                        cursor="question_arrow", bd=0)
+        info_tip = Tooltip(info, "")
+        why = tk.Label(low, text="", bg=P2, fg=C["muted"], font=("Segoe UI", 9), anchor="nw", justify="left", bd=0)
+        why.pack(side="left", fill="x", expand=True)
+        why.bind("<Configure>", lambda e, lab=why: self._pc_why_resized(e, lab))   # (2.128.0: only a real change)
         try:                                             # one height for every state: the big line and two small ones
-            big = tkf.Font(font=self.pc_v_big.cget("font")).metrics("linespace")
-            small = tkf.Font(font=self.pc_v_why.cget("font")).metrics("linespace")
-            f.config(height=big + 4 + 2 * small + 2 * 12 + 2)
+            bl = tkf.Font(font=big.cget("font")).metrics("linespace")
+            sl = tkf.Font(font=why.cget("font")).metrics("linespace")
+            f.config(height=bl + 4 + 2 * sl + 2 * 12 + 2)
             f.pack_propagate(False)
         except tk.TclError:
             pass
+        return types.SimpleNamespace(frame=f, big=big, how=how, info=info, info_tip=info_tip, why=why)
 
     def _pc_foot_build(self, body):
         """Search again (the page's one orange button) | Trade Site | Add to favorites, then Broaden Search (too many
@@ -831,11 +841,23 @@ class PriceCheckPage:
             if foot is not None:
                 foot.pack_forget()
             return
-        pane = getattr(self, "pc_pane", None)
-        if not f.winfo_manager():
-            f.pack(fill="x", padx=12, pady=(0, 12), **({"before": pane} if pane is not None else {}))
+        cv = getattr(self, "pc_lcanvas", None)
+        box = cv.master if cv is not None else None       # (the item card's scroller, in the same column)
         if foot is not None and not foot.winfo_manager():
-            foot.pack(side="bottom", fill="x", **({"before": pane} if pane is not None else {}))
+            foot.pack(side="bottom", fill="x", pady=(8, 0), **({"before": box} if box is not None else {}))
+        if not f.winfo_manager():
+            f.pack(side="top", fill="x", pady=(0, 12), **({"before": box} if box is not None else {}))
+        fewer = self.price_card_paint(self._pc_vns, rec)
+        try:                                             # the footer's buttons follow the check
+            self.pc_search_paint(self.pc_search_btn, rec)
+            self._pc_foot_show(self.pc_fewer_btn, fewer)
+            self.pc_open_btn.config(state="normal" if rec.get("qid") else "disabled")
+        except tk.TclError:
+            pass
+
+    def price_card_paint(self, ns, rec):
+        """The price card's words for this item (a mark and a word, never color alone). In place: only its words
+        change. -> True when Broaden Search should be offered (too many filters for one search)."""
         from .pricefmt import fmt_div
         st, fewer = rec.get("state"), False
         on = len(self.pc_ticked(rec))
@@ -847,8 +869,8 @@ class PriceCheckPage:
             big = ("≥ " if rec.get("partial") else "≈ ") + fmt_div(rec["est"])
             _e, total, n = self.pc_entries(rec)
             total = rec.get("total") if rec.get("total") is not None else total
-            info = "ⓘ " + (f"from the {min(n, 5)} cheapest of {total:,} listing{'s' if total != 1 else ''}" if n else
-                           f"from {total:,} listing{'s' if total != 1 else ''}")
+            info = (f"from the {min(n, 5)} cheapest of {total:,} listing{'s' if total != 1 else ''}" if n else
+                    f"from {total:,} listing{'s' if total != 1 else ''}")     # (owner: no ⓘ - the line says how)
             try:
                 tip = self.pc_price_how(rec)[1]
             except Exception:
@@ -858,9 +880,9 @@ class PriceCheckPage:
             else:
                 note = self._detail_note(rec)
                 why = note[0] if note else (rec.get("memory") or "").replace("Memory: ", "Last time: ", 1)
-            self.pc_v_big.config(text=big, fg=C["good"])
+            ns.big.config(text=big, fg=C["good"])
         elif st == "done":
-            self.pc_v_big.config(text="✕ No match" if not rec.get("manual") else "! Check by hand", fg=C["red"])
+            ns.big.config(text="✕ No match" if not rec.get("manual") else "! Check by hand", fg=C["red"])
             why = ("No listings matched these filters. " if not rec.get("manual") else "") + \
                 (f"{on} mod filter{'s are' if on != 1 else ' is'} on. " if on else "") + \
                 "Untick the rarest mod or lower a Min, then search again."
@@ -871,37 +893,32 @@ class PriceCheckPage:
             low = reason.lower()
             hint = ("Too many filters for one search: untick a few mods." if "complex" in low else
                     "Pick a league in Settings." if "league" in low else "Wait a moment and try again.")
-            self.pc_v_big.config(text="✕ Couldn't search", fg=C["red"])
+            ns.big.config(text="✕ Couldn't search", fg=C["red"])
             why = f"{reason}. {hint}" if not reason.endswith(".") else f"{reason} {hint}"
             fewer = "complex" in low and on > 1
         else:
-            self.pc_v_big.config(text="… Searching the trade site" if st == "pricing" else "… Waiting in line",
-                                 fg=C["muted"])
+            ns.big.config(text="… Searching the trade site" if st == "pricing" else "… Waiting in line",
+                          fg=C["muted"])
             if rec.get("est") is not None and rec.get("priced_at") and not rec.get("nomatch"):
                 why = f"Last price: ≈ {fmt_div(rec['est'])}, {ago(rec['priced_at'])}"
         try:
             if chip:
-                self.pc_v_how.config(text=chip[0], fg=chip[1], highlightbackground=chip[1])
-                if not self.pc_v_how.winfo_manager():
-                    self.pc_v_how.pack(side="left", padx=(12, 0))
+                ns.how.config(text=chip[0], fg=chip[1], highlightbackground=chip[1])
+                if not ns.how.winfo_manager():
+                    ns.how.pack(side="left", padx=(12, 0))
             else:
-                self.pc_v_how.pack_forget()
+                ns.how.pack_forget()
             if info:
-                self.pc_v_info.config(text=info)
-                self.pc_v_info_tip.text = tip or info
-                if not self.pc_v_info.winfo_manager():
-                    self.pc_v_info.pack(side="left", before=self.pc_v_why)
+                ns.info.config(text=info)
+                ns.info_tip.text = tip or info
+                if not ns.info.winfo_manager():
+                    ns.info.pack(side="left", before=ns.why)
             else:
-                self.pc_v_info.pack_forget()
-            self.pc_v_why.config(text=(" · " + why) if info and why else why)
+                ns.info.pack_forget()
+            ns.why.config(text=(" · " + why) if info and why else why)
         except tk.TclError:
             pass
-        try:                                             # the footer's buttons follow the check
-            self.pc_search_paint(self.pc_search_btn, rec)
-            self._pc_foot_show(self.pc_fewer_btn, fewer)
-            self.pc_open_btn.config(state="normal" if rec.get("qid") else "disabled")
-        except tk.TclError:
-            pass
+        return fewer
 
     @staticmethod
     def _short(x):
@@ -1036,8 +1053,8 @@ class PriceCheckPage:
             for w_ in cells:
                 w_.bind("<Button-1>", toggle)
             r += 2
-        if v.rcanvas is not getattr(self, "pc_lcanvas", None):       # (a narrow window: the card's scroll stays)
-            v.rcanvas.yview_moveto(0)
+        if v.rcanvas is not getattr(self, "pc_lcanvas", None) and not getattr(v, "keep_scroll", False):
+            v.rcanvas.yview_moveto(0)                    # (a narrow window, or Bulk Pricing: the card's scroll stays)
 
     def pcv_fit(self, v, page, side, lo=380, share=0.32, hi=620, layout=None):
         """2.97.0 (feedback: scale to fit, nothing cut off): the card's side takes about a third of the page (wider
@@ -1385,6 +1402,11 @@ class PriceCheckPage:
 
     def _pc_card_sig(self, rec):
         """What the item card on Price Checks shows, in short: the same -> the card need not be built again."""
+        return self.card_sig(rec, self.pcv_wrap(self.pcv))
+
+    def card_sig(self, rec, wrap):
+        """What an item card shows (Price Checks, Bulk Pricing), in short, at this width: the same -> the card need not
+        be built again (a new price, a search starting)."""
         from .trade import mod_impact
         from . import themes as TH
         it = rec.get("item") or {}
@@ -1397,7 +1419,7 @@ class PriceCheckPage:
             return None
         return (rec["id"], id(it), mods, repr(sorted((rec.get("opts") or {}).items())),
                 repr(sorted((rec.get("only") or {}).items())), bool(rec.get("resolved")),
-                repr(sorted((SETTINGS.get("pc_fold") or {}).items())), self.pcv_wrap(self.pcv),
+                repr(sorted((SETTINGS.get("pc_fold") or {}).items())), wrap,
                 id(ask) if ask is not None else None, id(TH.ST.theme))
 
     def _pc_card_same(self, rec):
@@ -1509,7 +1531,8 @@ class PriceCheckPage:
         st = rec["state"]
         if st != "done":
             self.pcv_entries(v, None, 0, 0, ("CHEAPEST LISTINGS" if st in ("pricing", "queued") else "")
-                             if v is getattr(self, "pcv", None) else   # (the price card says the rest)
+                             if v is getattr(self, "pcv", None) or getattr(v, "table", False) else   # (the price
+                             # card says the rest)
                              "Searching the trade site…" if st == "pricing" else
                              ("Couldn't search" if st == "error" else "Waiting in line…"))
             if st == "error" and v is getattr(self, "favv", None):     # (Price Checks: the verdict strip says it)
@@ -1579,7 +1602,7 @@ class PriceCheckPage:
         if entries is None:
             v.count.config(text=head or "")
             return
-        if v is getattr(self, "pcv", None):
+        if v is getattr(self, "pcv", None) or getattr(v, "table", False):     # (Bulk Pricing: the same table)
             return self._pc_table(v, entries, total, n, rec)
         v.count.config(text=f"Showing {len(entries)} of {total:,} items" if total else "No listings found")
         if n and not entries:

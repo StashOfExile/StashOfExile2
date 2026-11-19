@@ -135,29 +135,74 @@ class Layout(unittest.TestCase):
             yield from self.walk(c)
 
     # ---- the order of the card's sections
-    def test_base_and_properties_before_mods(self):
-        self.show("rare_gloves_quality_sockets")
-        heads = self.heads(self.card())
-        names = [h.split(" · ")[0].split("  ")[0] for h in heads]
-        self.assertEqual(names[0], "BASE AND PROPERTIES", heads)
-        self.assertLess(names.index("BASE AND PROPERTIES"), names.index("MODS"))
-        self.assertLess(names.index("MODS"), names.index("ITEM FLAGS"))
-        self.assertTrue(any(h.startswith("MODS · ") and h.endswith(" searched") for h in heads), heads)
-        if "REQUIREMENTS" in names:
-            self.assertLess(names.index("ITEM FLAGS"), names.index("REQUIREMENTS"))
-        self.assertNotIn("MISCELLANEOUS", names)
-        self.assertNotIn("STAT FILTERS", names)
+    # the owner's one order on every item card (Price Checks, Bulk Pricing, Favorites)
+    ORDER = ("BASE AND PROPERTIES", "REQUIREMENTS", "AUGMENTS", "ITEM FLAGS", "MODS", "PSEUDO FILTERS", "TRADE FILTERS")
+    OLD_NAMES = {"PROPERTIES": "BASE AND PROPERTIES", "MISCELLANEOUS": "ITEM FLAGS", "STAT FILTERS": "MODS"}
 
-    def test_bulk_and_favorites_card_unchanged(self):
-        """The same card elsewhere (no Price Checks look) keeps its own order and names."""
+    def assert_order(self, heads):
+        names = [self.OLD_NAMES.get(n, n) for n in (h.split(" · ")[0].split("  ")[0] for h in heads)]
+        known = [n for n in names if n in self.ORDER]
+        self.assertEqual(known, sorted(known, key=self.ORDER.index), heads)
+        self.assertEqual(names[0], "BASE AND PROPERTIES", heads)
+        for must in ("ITEM FLAGS", "MODS", "TRADE FILTERS"):
+            self.assertIn(must, names, heads)
+        return names
+
+    def test_section_order(self):
+        for i, name in enumerate(("rare_gloves_quality_sockets", "rare_amulet_fractured"), 1):
+            self.show(name, i)
+            heads = self.heads(self.card())
+            names = self.assert_order(heads)
+            self.assertTrue(any(h.startswith("MODS · ") and h.endswith(" searched") for h in heads), heads)
+            self.assertNotIn("MISCELLANEOUS", names)
+
+    def test_favorites_card_unchanged(self):
+        """The same card on Favorites (no Price Checks look) keeps its own names, in the one order. Bulk Pricing's
+        picked item has the Price Checks look: tests/test_bulk_layout.py."""
         rec = rec_of("rare_gloves_quality_sockets", 7)
-        rec["src"] = "bulk"
+        rec["src"] = "fav"
         top = tk.Toplevel(self.root)
         self.addCleanup(top.destroy)
         cv = self.app._detail_card(top, rec, rec["item"], 400)
-        names = [h.split("  ")[0] for h in self.heads(cv)]
-        self.assertEqual(names[:3], ["PROPERTIES", "MISCELLANEOUS", "STAT FILTERS"], names)
+        heads = self.heads(cv)
+        names = [h.split("  ")[0] for h in heads]
+        self.assertIn("MISCELLANEOUS", names)              # (its own names)
+        self.assertIn("STAT FILTERS", names)
+        self.assert_order(heads)                           # (the one order)
         self.assertEqual(getattr(cv, "_look", ""), "")
+
+    # ---- Item Flags (owner pick, mockup B): plain rows, a pill for a set value, no box per flag
+    def flags_check(self, cv, rec):
+        tags = sorted({t for i in cv.find_all() for t in cv.gettags(i) if t.startswith("cardtri_")
+                       and t not in ("cardtri_hit", "cardtri_line") and not t.endswith("_pill")})
+        self.assertTrue(tags, "the card has Item Flags")
+        for t in tags:
+            for i in cv.find_withtag(t):
+                if cv.type(i) in ("rectangle", "polygon", "oval"):
+                    self.assertEqual(cv.itemcget(i, "outline"), "", f"{t}: drawn with a border")
+        texts = {t: [cv.itemcget(i, "text") for i in cv.find_withtag(t) if cv.type(i) == "text"] for t in tags}
+        lit = [t for t, ws in texts.items() if any(w.startswith(("Yes", "No")) for w in ws)]
+        for t in lit:                                 # (a set one: a pill, and the word says it)
+            self.assertTrue(cv.find_withtag(t + "_pill"), t)
+        anys = [t for t, ws in texts.items() if any(w.startswith("Any") for w in ws)]
+        for t in anys:
+            self.assertFalse(cv.find_withtag(t + "_pill"), t)
+        t = anys[0]                                   # a click steps it in place: Any -> Yes, a pill shows
+        items = set(cv.find_all())
+        with mock.patch.object(self.app, "_detail_card", side_effect=AssertionError("built again")):
+            x0, y0, x1, y1 = cv.bbox(t)
+            fn = [i for i in cv.find_withtag(t) if cv.type(i) == "text"]
+            cv.event_generate("<Motion>", x=(x0 + x1) // 2, y=(y0 + y1) // 2, when="now")
+            cv.event_generate("<Button-1>", x=(x0 + x1) // 2, y=(y0 + y1) // 2, when="now")
+            self.pump()
+        self.assertIs(self.card(), cv)
+        self.assertTrue(cv.find_withtag(t + "_pill"), "lit in place")
+        self.assertTrue(any(cv.itemcget(i, "text").startswith("Yes") for i in fn))
+        self.assertTrue(set(cv.find_all()) - items <= set(cv.find_withtag(t + "_pill")))
+
+    def test_item_flags_are_plain_rows(self):
+        rec = self.show("rare_amulet_fractured")
+        self.flags_check(self.card(), rec)
 
     # ---- one orange button
     def test_one_orange_button(self):
@@ -319,7 +364,25 @@ class Layout(unittest.TestCase):
         self.show("rare_gloves_quality_sockets")
         tip = self.app.pc_v_info_tip.text
         self.assertIn("Middle", tip)
-        self.assertTrue(self.app.pc_v_info.cget("text").startswith("ⓘ"))
+        txt = self.app.pc_v_info.cget("text")
+        self.assertTrue(txt.startswith("from the "), txt)      # (owner: the line says how - no ⓘ beside the price)
+        self.assertNotIn("ⓘ", txt)
+
+    # ---- the price card and the footer belong to the item card's column
+    def test_price_and_buttons_as_wide_as_the_card_column(self):
+        self.show("rare_gloves_quality_sockets")
+        self.assertTrue(self.app.pc_layout_wide())
+        col, page = self.app.pc_pane.left, self.app.pc_pane
+        for w in (self.app.pc_verdict, self.app.pc_foot):
+            self.assertIs(w.master, col)
+            self.assertEqual(w.winfo_width(), col.winfo_width())
+            self.assertLess(w.winfo_width(), page.winfo_width() - 300, "not the whole page")
+        v, card, foot = self.app.pc_verdict, self.app.pc_left, self.app.pc_foot
+        self.assertLessEqual(v.winfo_rooty() + v.winfo_height(), card.winfo_rooty(), "the price on top")
+        self.assertEqual(foot.winfo_rooty() + foot.winfo_height(), col.winfo_rooty() + col.winfo_height(),
+                         "the buttons at the column's bottom")
+        tb = self.table()
+        self.assertGreaterEqual(tb.winfo_rootx(), col.winfo_rootx() + col.winfo_width(), "the listings beside")
 
 
 if __name__ == "__main__":

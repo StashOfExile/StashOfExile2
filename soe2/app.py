@@ -55,6 +55,7 @@ from .listkeys import ListKeys
 from .alerts_page import AlertsPage
 from .about_page import AboutPage
 from .tabreader_page import TabReaderPage
+from .bulk_page import BulkPage, conf_words
 from .searchopts_page import SearchOptsPage
 from .valuelog import VALUE_LOG
 from .exchange_page import ExchangePage
@@ -275,11 +276,11 @@ def _box_line(cv, enabled):
 KIND_WORD = {"Implicit": "Implicit", "Enchant": "Enchant", "Rune": "Rune"}
 
 
-class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage, BoardModPage, LeaderboardPage, WellSoulsPage, RumoursPage, ListKeys, AlertsPage, AboutPage, TabReaderPage, SearchOptsPage, ExchangePage, WealthPage, LibraryPage, RegexPage, UtilitiesPage, TrackerPage, SearchPage, CalcOverlay, InsightsPage, MoneyMakersPage, MapLibraryPage, RemnantPage, FavoursPage, LedgerPage, FeedbackPage, FeedPage, MergedOverlay, LightOverlay, SplitOverlay, GamePlanPage, FocusPokes, OverlayHelp, OverlayParts, CampaignUI, OverlayRates, CommunityPage, RateModsPage, StashScanPage, OverlayQuick, FeaturesPage, TopUpPage, MapProfitPage, TemplePage, SekhemasPage, HoverPage, SharePage, MusicPage, OverlayA8, LookPage, ReadMarkPage, DrawerHost):
-    COLS = [("added", "#", 46, "e"), ("name", "Item", 220, "w"), ("type", "Type", 110, "w"), ("mark", "Status", 90, "center"),
-            ("est", "Price", 110, "e"), ("conf", "Confidence", 95, "center"), ("listings", "Listings", 70, "e"), ("priced", "Priced at", 130, "w"),
-            ("match", "How it was priced", 300, "w"), ("vmods", "★", 60, "center"),
-            ("ilvl", "iLvl", 50, "e")]              # 2.73.2: item level (last in the data, shown after Type)
+class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage, BoardModPage, LeaderboardPage, WellSoulsPage, RumoursPage, ListKeys, AlertsPage, AboutPage, TabReaderPage, SearchOptsPage, ExchangePage, WealthPage, LibraryPage, RegexPage, UtilitiesPage, TrackerPage, SearchPage, CalcOverlay, InsightsPage, MoneyMakersPage, MapLibraryPage, RemnantPage, FavoursPage, LedgerPage, FeedbackPage, FeedPage, MergedOverlay, LightOverlay, SplitOverlay, GamePlanPage, FocusPokes, OverlayHelp, OverlayParts, CampaignUI, OverlayRates, CommunityPage, RateModsPage, StashScanPage, OverlayQuick, FeaturesPage, TopUpPage, MapProfitPage, TemplePage, SekhemasPage, HoverPage, SharePage, MusicPage, OverlayA8, LookPage, ReadMarkPage, DrawerHost):
+    COLS = [("added", "#", 36, "e"), ("name", "Item", 170, "w"), ("type", "Type", 110, "w"), ("mark", "Status", 104, "w"),
+            ("est", "Price", 104, "e"), ("conf", "Confidence", 120, "w"), ("listings", "Listings", 70, "e"), ("priced", "Priced at", 130, "w"),
+            ("match", "How it was priced", 300, "w"), ("vmods", "★", 36, "center"),
+            ("ilvl", "Item level", 80, "e")]              # 2.73.2: item level (last in the data, shown after Type)
     # 2.24.0: "★ Valuable" (how many of the item's mods your Mod book rates High) is the last column in the data, so
     # older code reading values by position keeps working, but it's shown right after the item's name
     SHOW_COLS = ("added", "name", "vmods", "type", "ilvl", "mark", "est", "conf", "listings", "priced", "match")
@@ -976,214 +977,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         sh = getattr(self, "shell", None)
         return sh is None or sh.is_open(self.page_key.get(title, title))
 
-    # ---------------- the Price checks window
-    def build_checks(self, body):
-        self.checks_body = body
-        # ---- the summary line: total value of the list + priced / needs review
-        summ = tk.Frame(body, bg=C["panel2"], padx=12, pady=4)      # 2.74.5: lighter padding all over the page
-        summ.pack(fill="x")
-        self.tot_lbl = tk.Label(summ, text="", bg=C["panel2"], fg="#9fb6dd", font=("Segoe UI", 9, "bold"))
-        self.tot_val = tk.Label(summ, text="", bg=C["panel2"], fg=C["good"], font=("Segoe UI", 16, "bold"))
-        self.chip_priced = tk.Label(summ, text="", bg=C["panel2"], fg=C["green"], font=("Segoe UI", 9, "bold"), padx=8, pady=4,
-                                    highlightthickness=1, highlightbackground=C["green"])
-        self.chip_review = tk.Label(summ, text="", bg=C["warn_bg"], fg=C["good"], font=("Segoe UI", 9, "bold"), padx=8, pady=4,
-                                    highlightthickness=1, highlightbackground=C["accent"])
-        # 2.26.0: "pricing 12 items - about 1:30 left", next to the other two (was only in the status line)
-        self.chip_eta = tk.Label(summ, text="", bg="#10203a", fg="#8fc4ff", font=("Segoe UI", 9, "bold"), padx=8,
-                                 pady=4, highlightthickness=1, highlightbackground="#3f5f8f")
-        self.tot_lbl.pack(side="left")
-        self.tot_val.pack(side="left", padx=(8, 0))
-        self.chip_review.pack(side="right")
-        self.chip_priced.pack(side="right", padx=(0, 8))
-        # 2.74.5: the Valuable mods legend chip is gone (clutter) - the column's ★ explains itself on hover
-        # 2.31.0: how much the community Mod book knows (shown once there is something)
-        self.cm_chip = tk.Label(summ, text="", bg="#10203a", fg="#8fc4ff", font=("Segoe UI", 9), padx=8, pady=4,
-                                highlightthickness=1, highlightbackground="#3f5f8f")
-        self.root.after(3000, self.cm_paint)
-
-        # ---- the toolbar (2.123.0, p11: one row - search first, the filters, Columns; Re-price all, Pause and ⋯ on
-        # the right. Manual Add | Stash tab is in the Items strip, Delete / Undo too)
-        tb = tk.Frame(body, bg=C["panel"], highlightthickness=1, highlightbackground=C["line"])
-        tb.pack(fill="x", padx=8, pady=4)
-        self.price_tb = tb
-        bar = tk.Frame(tb, bg=C["panel"], height=1)          # (the first row's place: build_tab_reader's row goes before it)
-        bar.pack(fill="x")
-        lab = dict(bg=C["panel2"], fg=C["muted"])
-        # 2.59.0: the settings live in Settings › Price checking - 2.123.0 (p8): the rules in plain words, Change…
-        self.pc_vars()
-        self.pc_rules_lbl = tk.Label(summ, text="", **lab)
-        self.pc_rules_lbl.pack(side="left", padx=(16, 0))
-        self.pc_set_link = tk.Label(summ, text="Change…", bg=C["panel2"], fg=C["accent"], cursor="hand2",
-                                    font=("Segoe UI", 9, "underline"))
-        self.pc_set_link.pack(side="left", padx=(8, 0))
-        self.pc_set_link.bind("<Button-1>", lambda e: self.settings_open("Price checking", "pc_bulk"))
-        Tooltip(self.pc_set_link, "Bulk Pricing settings")
-        self.pc_rules_text()
-        self.view_var = tk.StringVar(value=SETTINGS["view"])
-        self.build_tab_reader(tb)                                # 2.8.0: the Stash tab rows (and the mode switch)
-        frow = self.pc_mrow
-        flab = dict(bg=C["panel"], fg=C["muted"])
-        self.search_var = tk.StringVar()                    # 2.63.0: find by name, base, type or mod text
-        tk.Label(frow, text="🔍", **flab).pack(side="left", padx=(0, 4))
-        self.search_box = ttk.Entry(frow, textvariable=self.search_var, width=18)
-        self.search_box.pack(side="left")
-        Tooltip(self.search_box, "Search by name, base, type or mod")
-        self.search_var.trace_add("write", lambda *a: self.on_filter_text(soon=True))
-        self.search_box.bind("<Escape>", lambda e: (self.search_var.set(""), "break")[1])
-        # 2.105.0: no "Show: Not yet listed / Listed / Sold / Removed" (listing marks are gone) - every item shows
-        self.cat_var, self.rar_var, self.type_var = tk.StringVar(value=self.ALL_CATS), tk.StringVar(value="All"), tk.StringVar(value="All")
-        self.cat_box = ttk.Combobox(frow, textvariable=self.cat_var, state="readonly", width=13)
-        self.rar_box = ttk.Combobox(frow, textvariable=self.rar_var, state="readonly", width=8)
-        self.type_box = ttk.Combobox(frow, textvariable=self.type_var, state="readonly", width=11)
-        for label, box, pad in (("Category", self.cat_box, 12), ("Rarity", self.rar_box, 8), ("Type", self.type_box, 8)):
-            tk.Label(frow, text=label, **flab).pack(side="left", padx=(pad, 4))
-            box.pack(side="left")
-        self.cat_box.bind("<<ComboboxSelected>>", lambda e: self.on_cat(changed="cat"))
-        self.rar_box.bind("<<ComboboxSelected>>", lambda e: self.on_cat(changed="rar"))
-        self.type_box.bind("<<ComboboxSelected>>", lambda e: self.on_cat(changed="type"))
-        for cb in (self.cat_box, self.rar_box, self.type_box):
-            cb.bind("<<ComboboxSelected>>", lambda e: self.root.after(20, self.root.focus_set), add="+")
-        self.star_var = tk.BooleanVar(value=False)          # 2.74.5: the "Only ★" switch is gone (kept off)
-        # 2.26.4: was "Show all" - it clears Category / Rarity / Type / search / ★, and only lights up when one is set
-        self.clear_btn = ttk.Button(frow, text="✕ Clear filters", command=self.cat_reset, state="disabled",
-                                    style="Quiet.TButton")
-        self.clear_btn.pack(side="left", padx=(8, 0))
-        self.cols_btn = ttk.Button(frow, text="Columns ▾", style="Quiet.TButton", command=self.cols_menu)
-        self.cols_btn.pack(side="left", padx=(8, 0))         # 2.123.0 (p9): the extra columns
-        more = ttk.Button(frow, text="⋯", width=3, style="Quiet.TButton", command=lambda: self.bulk_more_menu(more))
-        more.pack(side="right")
-        Tooltip(more, "More: Export CSV, Order added")
-        self.pause_btn = ttk.Button(frow, text="Pause", command=self.toggle_pause, width=7)
-        self.pause_btn.pack(side="right", padx=8)
-        self.reprice_all_btn = ttk.Button(frow, text="⟳ Re-price all", style="Primary.TButton", command=self.reprice_all)
-        self.reprice_all_btn.pack(side="right")
-        self.pctab_primary()                                # (3.0.6: one orange button - Read tab on a stash tab)
-        from .style import flowify                          # 2.98.0: the row wraps in a narrow window
-        flowify(frow)
-
-        # ---- the key bar, at the bottom of this window (claims its space first)
-        kbf = tk.Frame(body, bg=C["panel"])
-        kbf.pack(fill="x", side="bottom")
-        self.build_keybar(kbf)
-        self.banner = tk.Label(body, text="", anchor="w", padx=12, pady=2, font=("Segoe UI", 9), justify="left")
-
-        # ---- the list (left) and the item (right), each under its own header strip
-        items_tab = tk.Frame(body, bg=C["panel"])
-        items_tab.pack(fill="both", expand=True, padx=8, pady=(0, 4))
-        self.checks_area = items_tab                       # cards and banners go just above it
-        self.pane = ttk.PanedWindow(items_tab, orient="horizontal")        # drag the divider to resize
-        self.pane.pack(fill="both", expand=True)
-        lcol = tk.Frame(self.pane, bg=C["panel"])
-        self.pane.add(lcol, weight=1)
-        self.list_head = SectionBar(lcol, "Items")
-        self.list_head.pack(fill="x")
-        self.list_head.add_left(self.pc_mode)               # 2.123.0 (p7): Manual Add | Stash tab, in the strip
-        self.cat_count = tk.Label(lcol, text="")             # (not shown - its text is the strip's note)
-        # 2.126.0 (feedback): Undo, Delete and Clear All sit in the Items strip as small strip buttons, together
-        acts = tk.Frame(lcol, bg=C["panel"], pady=4)        # (not shown: holds the retired mark buttons)
-        self.delete_btn = ttk.Button(body, text="🗑 Delete", command=self.remove_selected, style="StripDanger.TButton",
-                                     state="disabled")      # 2.0 beta 19
-        self.clear_all_btn = ttk.Button(body, text="Clear All…", command=self.clear, style="StripDanger.TButton",
-                                        state="disabled")
-        self.remove_btn = ttk.Button(acts, text="✖ Mark removed", command=lambda: self.mark_selected("removed"), state="disabled")
-        self.mark_btn = ttk.Button(acts, text="✔ Mark listed", command=lambda: self.mark_selected("listed"), state="disabled")
-        # 2.105.0 (feedback: nobody marks items listed / sold / removed): those buttons aren't shown any more
-        self.undo_btn = ttk.Button(body, text="↺ Undo", command=self.undo_mark, state="disabled", style="Strip.TButton")
-        Tooltip(self.undo_btn, "Bring back what you last deleted (Ctrl+Z)")
-        Tooltip(self.delete_btn, "Delete the picked items from the list (Del)")
-        Tooltip(self.clear_all_btn, "Remove every item from this list (asks first)")
-        for b in (self.undo_btn, self.delete_btn, self.clear_all_btn):
-            self.list_head.add_right(b)
-        self.undo = []                                   # [(record id, previous mark, previous listed-at)] of the last mark
-        vp = Viewport(lcol)
-        vp.pack(fill="both", expand=True)
-        left = vp.body
-        self.tree = ttk.Treeview(left, columns=[c[0] for c in self.COLS], show="headings", selectmode="extended")
-        self.tree.menu_actions = self.checks_menu_actions          # 2.36.0: right-click / Menu key
-        for cid, title, w, anchor in self.COLS:
-            self.tree.heading(cid, text=title, command=lambda c=cid: self.sort_by(c))
-            # 2.125.3: Item stretches to fill and starts at its own width (a remembered 1891 px Item hid every column
-            # after it); the others keep their width, at most COL_MAX_W
-            keep = w if cid == "name" else min(self.COL_MAX_W, int(SETTINGS.get("col_widths", {}).get(cid, w)))
-            self.tree.column(cid, width=max(keep, 95 if cid == "conf" else 0), minwidth=50,
-                             anchor=anchor, stretch=(cid == "name"))
-        self.cols_apply()
-        sb = ttk.Scrollbar(left, orient="vertical", command=self.tree.yview)
-        self.tree.configure(yscrollcommand=sb.set)
-        sb.pack(side="right", fill="y")
-        # 2.125.3: columns wider than the list scroll sideways instead of going out of sight
-        hsb = ttk.Scrollbar(left, orient="horizontal", command=self.tree.xview)
-        self.tree.configure(xscrollcommand=lambda a, b: (hsb.pack_forget() if float(a) <= 0 and float(b) >= 1
-                                                         else hsb.pack(side="bottom", fill="x", before=self.tree),
-                                                         hsb.set(a, b)))
-        self.tree_hsb = hsb
-        self.tree.pack(side="left", fill="both", expand=True)
-        self.tree.tag_configure("good", foreground=C["good"])
-        self.tree.tag_configure("pending", foreground=C["muted"])
-        self.tree.tag_configure("error", foreground=C["red"])
-        self.tree.tag_configure("nomatch", foreground=C["red"], font=("Segoe UI", 10, "bold"))
-        self.tree.tag_configure("even", background=C["panel"])
-        self.tree.tag_configure("odd", background=C["odd"])
-        self.tree.tag_configure("listed", foreground=C["green"])
-        self.tree.tag_configure("removed", foreground=C["muted"])
-        self.tree.tag_configure("sold", foreground="#7fe0c0")              # 2.21.0
-        self.tree.bind("<<TreeviewSelect>>", self._on_select_soon)
-        self.tree.bind("<<TreeviewSelect>>", lambda e: self.update_mark_buttons(), add="+")   # 2.103.1: lit at once
-        self.tree.bind("<Double-1>", lambda e: self.open_trade())
-        # 2.63.0: the item shows in the panel on the right - no more pop-up box over the list
-        from .chrome import EmptyState                    # 2.120.0: one empty look everywhere
-        self.empty_lbl = EmptyState(left, "⚖", self.empty_text)
-        self.empty_lbl.place(relx=0.5, rely=0.45, anchor="center")
-        left.bind("<Configure>", lambda e: self.empty_lbl.config(wraplength=max(200, min(420, e.width - 80))),
-                  add="+")   # 2.98.0
-
-        pw = int(SETTINGS.get("panel_w", 430) or 430)
-        if pw < 250:                   # 2.0 beta 22: bring back an item panel that was saved squeezed to nothing
-            pw = SETTINGS["panel_w"] = 430
-        outer = tk.Frame(self.pane, bg=C["panel2"], width=min(pw, 900))
-        outer.pack_propagate(False)
-        self.pane.add(outer, weight=0)
-
-        def keep_panel(_e=None):                       # 2.0 beta 22: the item panel can't be dragged out of sight
-            try:
-                w = self.pane.winfo_width()
-                if w > 500 and w - self.pane.sashpos(0) < 260:
-                    self.pane.sashpos(0, w - 300)
-            except tk.TclError:
-                pass
-        self.pane.bind("<ButtonRelease-1>", keep_panel, add="+")
-        self.outer = outer
-        self.item_head = SectionBar(outer, "Item")
-        self.item_head.pack(fill="x", padx=(8, 0))      # 2.127.0 (feedback): always on screen - no ✕
-        # 2.63.0: the picked item's own buttons, at the foot of its panel
-        ifoot = tk.Frame(outer, bg=C["panel2"], pady=8)       # 2.79.0: not shown - the card has these (no duplicates)
-        self.item_trade_btn = trade_icon(ttk.Button(ifoot, text="Trade Site", command=self.open_trade, state="disabled"))
-        self.item_trade_btn.pack(side="left", padx=(8, 0))
-        self.item_mark_btn = ttk.Button(ifoot, text="✔ Mark listed", command=lambda: self.mark_selected("listed"),
-                                        state="disabled")
-        self.item_mark_btn.pack(side="right", padx=(0, 8))
-        ivp = Viewport(outer, bg_key="panel2")
-        ivp.pack(fill="both", expand=True, padx=(8, 0))
-        dsb = ttk.Scrollbar(ivp.body, orient="vertical")
-        dsb.pack(side="right", fill="y")
-        self.dcanvas = tk.Canvas(ivp.body, bg=C["panel2"], highlightthickness=0, yscrollcommand=dsb.set)
-        self.dcanvas.pack(side="left", fill="both", expand=True)
-        dsb.config(command=self.dcanvas.yview)
-        self.detail = tk.Frame(self.dcanvas, bg=C["panel2"], padx=16, pady=12)
-        win = self.dcanvas.create_window((0, 0), window=self.detail, anchor="nw")
-        self._dwin = win
-        self.dcanvas.bind("<Configure>", self._canvas_resized)
-        self.detail.bind("<Configure>", lambda e: self.dcanvas.configure(scrollregion=self.dcanvas.bbox("all")))
-
-        def wheel(e):
-            d = -1 if (getattr(e, "delta", 0) > 0 or e.num == 4) else 1
-            if self.detail.winfo_reqheight() > self.dcanvas.winfo_height():
-                self.dcanvas.yview_scroll(d * 2, "units")
-        outer.bind("<Enter>", lambda e: (outer.bind_all("<MouseWheel>", wheel), outer.bind_all("<Button-4>", wheel),
-                                         outer.bind_all("<Button-5>", wheel)))
-        outer.bind("<Leave>", lambda e: (outer.unbind_all("<MouseWheel>"), outer.unbind_all("<Button-4>"),
-                                         outer.unbind_all("<Button-5>")))
-        self.show_detail(None)
+    # ---------------- the Bulk Pricing page: bulk_page.py (BulkPage.build_checks)
 
     # ---------------- the Mod book window: what the app learned + your mod rules
     def build_modbook(self, book_tab):
@@ -1401,48 +1195,52 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
     def refresh_total_header(self):
         self.update_total()
 
-    HOTKEYS = [("Ctrl+Alt+C", "Add item to the list", "add"), ("C", "Copy item name", "copy"), ("O", "Open trade", "trade"),
-               ("F2", "Pause searches", "pause"), ("Esc", "Put away", "min")]
+    HOTKEYS = [("Ctrl+Alt+C", "add the item under the mouse", "add"), ("C", "copy its name", "copy"),
+               ("O", "open on the trade site", "trade"), ("F2", "pause", "pause"), ("Esc", "put away", "min")]
 
     def build_keybar(self, parent):
-        """The bottom plate with the shortcuts drawn as little keys (click one to do the same thing)."""
-        kb = Plate(parent, 36, top="#2b4670", mid="#213c66", low="#162b4d", bottom="#0f1d36", edge="#5b80b8")
+        """The bottom bar with the shortcuts drawn as little keys (click one to do the same thing). Owner pick
+        (mockup A): muted - the page's own colors, "● Auto-pricing on" (a mark and a word)."""
+        P1 = C["panel"]
+        kb = Plate(parent, 36, top=P1, mid=P1, low=P1, bottom=P1, edge=C["line"])
         kb.pack(fill="x")
-        tk.Frame(parent, height=14, bg=C["bg"]).pack(fill="x", side="bottom")       # breathing room under the key bar
+        tk.Frame(parent, height=12, bg=C["bg"]).pack(fill="x", side="bottom")       # breathing room under the key bar
         self.keybar, self.key_texts = kb, {}
-        x = 14
-        self.key_dot = kb.create_text(x, 18, text="●", anchor="w", fill=C["green"], font=("Segoe UI", 11))
-        x = kb.bbox(self.key_dot)[2] + 6
-        self.key_state = kb.create_text(x, 18, text="Auto-pricing", anchor="w", fill="#cfe0ff", font=("Segoe UI", 9, "bold"))
-        x = kb.bbox(self.key_state)[2] + 22
+        x = 24
+        self.key_dot = kb.create_text(x, 18, text="●", anchor="w", fill=C["green"], font=("Segoe UI", 9))
+        x = kb.bbox(self.key_dot)[2] + 4
+        self.key_state = kb.create_text(x, 18, text="Auto-pricing on", anchor="w", fill=C["text"],
+                                        font=("Segoe UI", 9))
+        x = kb.bbox(self.key_state)[2] + 24
         keys_on_bar = []
         for cap, text, name in self.HOTKEYS:
-            lb = tk.Label(kb, text=cap, bg=C["key"], fg="#eaf2ff", font=(MONO, 9, "bold"), padx=8, pady=1, bd=2,
-                          relief="raised", cursor="hand2" if name != "add" else "arrow")
+            lb = tk.Label(kb, text=cap, bg=C["panel2"], fg=C["text"], font=(MONO, 9), padx=4, pady=0, bd=0,
+                          highlightthickness=1, highlightbackground=C["line"],
+                          cursor="hand2" if name != "add" else "arrow")
             wid = kb.create_window(x, 18, window=lb, anchor="w")
             kb.update_idletasks()
-            x = kb.bbox(wid)[2] + 7
-            t = kb.create_text(x, 18, text=text, anchor="w", fill="#b9ccee", font=("Segoe UI", 9))
+            x = kb.bbox(wid)[2] + 8
+            t = kb.create_text(x, 18, text=text, anchor="w", fill=C["muted"], font=("Segoe UI", 9))
             self.key_texts[name] = t
             keys_on_bar.append((wid, t, kb.bbox(t)[2]))
-            x = kb.bbox(t)[2] + 26
+            x = kb.bbox(t)[2] + 24
             if name != "add":
                 act = {"copy": self.hk_copy, "trade": self.hk_trade, "pause": self.toggle_pause, "min": self.hk_min}[name]
                 lb.bind("<Button-1>", lambda e, f=act: f())
                 kb.tag_bind(t, "<Button-1>", lambda e, f=act: f())
         self.upd_btn = ttk.Button(kb, text="Check for updates", command=self.check_updates)   # (Settings > General now)
-        # 2.0 beta 21: what Price checks is for, where the update button used to be
+        # 2.0 beta 21: what Bulk Pricing prices, where the update button used to be (muted, ⓘ: more on a click)
         self.key_upd = kb.create_text(1000, 18, text="Tablets, jewels, waystones & gear  ⓘ", anchor="e",
-                                      fill=C["good"], font=("Segoe UI", 9, "bold"))
+                                      fill=C["muted"], font=("Segoe UI", 9))
         kb.tag_bind(self.key_upd, "<Button-1>", lambda e: self.explain_scope())
         kb.tag_bind(self.key_upd, "<Enter>", lambda e: kb.config(cursor="hand2"))
         kb.tag_bind(self.key_upd, "<Leave>", lambda e: kb.config(cursor=""))
         self.key_end = x
 
         def place_scope(e):                                  # only where it fits next to the keys
-            kb.coords(self.key_upd, e.width - 14, 18)
+            kb.coords(self.key_upd, e.width - 24, 18)
             box = kb.bbox(self.key_upd)
-            fits = box is not None and e.width - 14 - (box[2] - box[0]) > self.key_end
+            fits = box is not None and e.width - 24 - (box[2] - box[0]) > self.key_end
             kb.itemconfigure(self.key_upd, state="normal" if fits else "hidden")
             for wid_, t_, right in keys_on_bar:               # D3: a key that doesn't fit is left off, not cut in half
                 kb.itemconfigure(wid_, state="normal" if right <= e.width - 8 else "hidden")
@@ -2173,6 +1971,30 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         self.acc_links.append(lbl)
         return lbl
 
+    def acc_mark_text(self):
+        """Bulk Pricing's account line: set or not, with a mark and a word - never the name (it could be on a stream)."""
+        return "✓ Account set" if SETTINGS.get("wealth_account", "").strip() else "! Account not set"
+
+    def acc_mark(self, parent, bg):
+        """"✓ Account set" (a click changes it, as before); its hover says it's hidden so it never shows on a stream."""
+        from .style import Tooltip
+        self.pc_vars()
+        lbl = tk.Label(parent, text=self.acc_mark_text(), bg=bg, cursor="hand2", font=("Segoe UI", 9))
+        lbl._acc_fn = self.acc_mark_text
+        lbl.bind("<Button-1>", lambda e: self.acc_ask())
+        tip = Tooltip(lbl, "")
+
+        def paint():
+            on = SETTINGS.get("wealth_account", "").strip()
+            lbl.config(fg=C["green"] if on else C["good"])
+            tip.text = ("Your account is set. It's hidden here so it never shows on a stream. Click to change it."
+                        if on else "Your account name as the trade site shows it (Name#1234) finds your public tab. "
+                                   "Click to set it. No password, no sign-in.")
+        lbl._acc_paint = paint
+        paint()
+        self.acc_links.append(lbl)
+        return lbl
+
     def acc_ask(self):
         """The account name, asked where it's used (Bulk Pricing › Stash tab): one box, with what it's for."""
         from tkinter import simpledialog
@@ -2188,11 +2010,15 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
 
     def toggle_pause(self):
         self.engine.paused = not self.engine.paused
-        self.pause_btn.config(text="Resume" if self.engine.paused else "Pause")
+        self.pause_btn.config(text="▶ Resume" if self.engine.paused else "⏸ Pause")
+        if getattr(self, "bk_tb", None) is not None:
+            from .bulk_page import bk_flow
+            bk_flow(self.bk_tb)
         kb = self.keybar
-        kb.itemconfigure(self.key_texts["pause"], text="Resume searches" if self.engine.paused else "Pause searches")
-        kb.itemconfigure(self.key_state, text="Paused" if self.engine.paused else "Auto-pricing")
-        kb.itemconfigure(self.key_dot, fill=C["good"] if self.engine.paused else C["green"])
+        kb.itemconfigure(self.key_texts["pause"], text="resume" if self.engine.paused else "pause")
+        kb.itemconfigure(self.key_state, text="Paused" if self.engine.paused else "Auto-pricing on")
+        kb.itemconfigure(self.key_dot, text="⏸" if self.engine.paused else "●",
+                         fill=C["good"] if self.engine.paused else C["green"])
 
     # ---------------- rate limit display
     def limit_banner(self, parent, before):
@@ -3087,7 +2913,8 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
             return None
         src = src or "manual"                  # 2.42.0: which list it belongs to ("manual" or "tab:<id>")
         if src == "manual" and self.list_src() != "manual" and hasattr(self, "pc_mode"):
-            self.pc_mode.pick("Manual Add")     # a Ctrl+Alt+C while a stash tab's list shows: show yours
+            from .tabreader_page import MODE_LABELS
+            self.pc_mode.pick(MODE_LABELS["Manual Add"])     # a Ctrl+Alt+C while a stash tab's list shows: yours
             self.pctab_mode()
         rid = self.next_id
         self.next_id += 1
@@ -3116,13 +2943,14 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
                 self.type_var.set("All")
             self.rebuild_tree()
         else:
-            self.empty_lbl.place_forget()
             at_bottom = self.tree.yview()[1] >= 0.98          # only follow the new row if you were already at the bottom
             self.tree.insert("", "end", iid=str(rid), values=("",) * len(self.COLS))
             self.update_row(rid)
+            self.bk_empty_paint()
             if at_bottom:
                 self.tree.see(str(rid))
             self.cat_refresh()                                # counts in the Category box
+            self.update_total_soon()                          # (Items: n · m still pricing)
         self.engine.add(1, "resolve", rid)
         return rid
 
@@ -3400,6 +3228,8 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
             on = ((self.cat_var.get(), self.rar_var.get(), self.type_var.get()) != (self.ALL_CATS, "All", "All")
                   or bool(self.search_var.get().strip()) or self.star_var.get())
             btn.config(state="normal" if on else "disabled")
+        if hasattr(self, "bk_filters_paint"):
+            self.bk_filters_paint()                             # (Filters · n ▾)
 
     def cat_reset(self):
         self.cat_var.set(self.ALL_CATS)
@@ -3431,13 +3261,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
             self.tree.selection_set(keep)
         else:
             self.show_detail(None)
-        if shown:
-            self.empty_lbl.place_forget()
-        else:
-            self.empty_lbl.config(text=("Nothing in this view." + (" Press Clear filters to see every item." if self.cat_var.get() != self.ALL_CATS else ""))
-                                  if any(self.in_list(r) for r in self.records.values())
-                                  else self.pctab_empty_text() if self.list_src() != "manual" else self.empty_text)
-            self.empty_lbl.place(relx=0.5, rely=0.45, anchor="center")
+        self.bk_empty_paint()
         self.update_total()
 
     def _rebuild_tree_in_place(self, sel):
@@ -3458,13 +3282,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         self._apply_sort()
         if sel and not [i for i in want if i in sel]:
             self.show_detail(None)
-        if want:
-            self.empty_lbl.place_forget()
-        else:
-            self.empty_lbl.config(text=("Nothing in this view." + (" Press Clear filters to see every item." if self.cat_var.get() != self.ALL_CATS else ""))
-                                  if any(self.in_list(r) for r in self.records.values())
-                                  else self.pctab_empty_text() if self.list_src() != "manual" else self.empty_text)
-            self.empty_lbl.place(relx=0.5, rely=0.45, anchor="center")
+        self.bk_empty_paint()
         self.update_total()
 
     def _on_checks(self):
@@ -4268,32 +4086,36 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
             tags.append("pending")
         elif st == "error":
             tags.append("error")
-        elif rec.get("nomatch") or rec.get("manual"):
-            tags.append("nomatch")
-        elif keys:
-            tags.append("good")
+        else:                                                  # owner pick (mockup A): the Item in its rarity color
+            r = str(it.get("rarity") or "").lower()
+            tags.append("rar_" + (r if r in ("rare", "magic", "unique") else "normal"))
         tags.append("even" if rid % 2 == 0 else "odd")
-        conf = rec.get("conf", "") if st == "done" else ""
-        conf = "" if conf == "-" else conf
-        # (2.72.0: gear shows its own confidence - it used to say "Guess" for every non-unique piece)
+        # Price Checks' words for how sure (a mark and a word); gear shows its own (2.72.0)
+        conf = conf_words(rec.get("conf")) if st == "done" and not rec.get("nomatch") else ""
         stars = "★" * keys if keys else ""                     # 2.24.0: its own column (2.19.0 put it before the name)
         ilvl = it.get("ilvl") or ""                            # 2.73.2
         status = self.MARK_TEXT[mark] or self.price_status(rec)     # P1 (2.103.0): the Status column says where it is
-        self.tree.item(str(rid), values=(self.stash_spot(rec), it["name"], it["base"], status, est, conf, listings,
-                                         stamp, match, stars, ilvl), tags=tags)
+        name = ("▸ " if str(rid) in getattr(self, "_bk_sel_ids", ()) else "") + it["name"]    # (the picked row)
+        vals = (self.stash_spot(rec), name, it["base"], status, est, conf, listings, stamp, match, stars, ilvl)
+        iid = str(rid)
+        if tuple(str(x) for x in self.tree.item(iid, "values")) != tuple(str(x) for x in vals) or \
+                tuple(self.tree.item(iid, "tags")) != tuple(tags):  # UI rule 22: only a row that changed
+            self.tree.item(iid, values=vals, tags=tags)
 
     def price_status(self, rec):
         """P1 (2.103.0): an item not marked listed / sold / removed - where its pricing is, in words."""
         st = rec["state"]
         if st == "done":
-            if rec.get("nomatch") or rec.get("manual") or self.price_manually(rec):
+            if rec.get("nomatch"):
+                return "– No listings"
+            if rec.get("manual") or self.price_manually(rec):
                 return "! Review"
             return "– Skipped" if rec.get("skip") else "✓ Priced"
         if st == "error":
-            return "✖ Error"
+            return "✗ Error"
         if rec.get("held"):
             return "⏸ Paused"
-        return "⧗ Pricing" if st == "pricing" else "⧗ Waiting"
+        return "⏳ Pricing" if st == "pricing" else "⏳ Waiting"
 
     def on_price_unit(self):
         from .pricefmt import PRICE_UNITS
@@ -4350,34 +4172,6 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         self._total_job = None
         self.update_total()
 
-    def update_total(self):
-        self.cat_refresh()                                                    # category counts follow every change
-        if getattr(self, "clear_all_btn", None) is not None:                 # 2.126.0: lit while this list has items
-            self.clear_all_btn.config(state="normal" if any(self.in_list(r) for r in self.records.values()) else "disabled")
-        shown = [r for r in self.records.values() if self.visible(r)]       # totals follow the Show filter
-        done = [r for r in shown if r["state"] == "done"]
-        tot = sum(r["est"] for r in done if r["est"] is not None and not self.price_manually(r))
-        review = sum(1 for r in done if (r.get("manual") or r.get("nomatch") or r.get("conf") == "Low" or r["est"] is None)
-                     and not r.get("skip"))
-        if shown:
-            txt = fmt_div(tot) if tot else "0 div"               # P1 (2.103.0): not "0.000 div"
-            c = RATES.value("chaos")
-            if c and tot >= 1:
-                txt += f"  (~{tot / c:,.0f}c)"
-            self.tot_val.config(text=txt)
-            self.tot_lbl.config(text="TOTAL VALUATION  ≈")
-            self.chip_priced.config(text=f"✓ {len(done)} / {len(shown)} Priced")
-            self.chip_review.config(text=f"⚠ {review} Require Review")
-            for w in (self.chip_priced, self.chip_review):
-                if not w.winfo_ismapped():
-                    w.pack(side="right", padx=(0, 8) if w is self.chip_priced else 0)
-        else:
-            self.tot_val.config(text="")
-            self.tot_lbl.config(text="Nothing in the list yet")
-            self.chip_priced.config(text="")
-            self.chip_priced.pack_forget()
-            self.chip_review.pack_forget()
-
     def batch_done(self):
         recs = [self.records[r] for r in self.batch_ids if r in self.records]
         self.batch_ids = set()
@@ -4429,9 +4223,8 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
             self.batch_done()
         if not n_items:
             self.done_times.clear()
-        chip = getattr(self, "chip_eta", None)
+        eta = ""
         if n_items:
-            eta = ""
             per = None
             if len(self.done_times) >= 3:
                 per = (self.done_times[-1] - self.done_times[0]) / (len(self.done_times) - 1)
@@ -4442,15 +4235,16 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
             if per:
                 eta = f" - about {mmss(n_items * per + LIMITER.state()['blocked'])} left"
             parts.append(f"pricing {n_items} item{'s' if n_items != 1 else ''}{eta}")
-            if chip is not None:                             # 2.26.0: up top, next to Priced / Require Review
-                chip.config(text=f"⏳ Pricing {n_items}" + (f" · {eta.replace(' - about ', '~')}" if eta else ""))
-                if not chip.winfo_manager():
-                    if self.chip_priced.winfo_manager():
-                        chip.pack(side="right", padx=(0, 8), after=self.chip_priced)
-                    else:
-                        chip.pack(side="right", padx=(0, 8))
-        elif chip is not None and chip.winfo_manager():
-            chip.pack_forget()
+        # 2.26.0: how long is left - on Bulk Pricing's Items count (its hover), not a chip of its own
+        tip = f" (about {eta.split('about ', 1)[1]} at the trade site's pace)" if eta else ""
+        if tip != getattr(self, "_bk_eta", ""):
+            self._bk_eta = tip
+            if hasattr(self, "bk_items_tip"):                       # (only the hover's words)
+                self.bk_items_tip.text = getattr(self, "_bk_items_base", "") + tip
+        if n_items != getattr(self, "_bk_busy", 0):                 # (Items: n · m still pricing)
+            self._bk_busy = n_items
+            if hasattr(self, "bk_items_val"):
+                self.update_total_soon()
         book = f"Mod Book: {MARKET.mods_known()} mods learned"
         parts.append(book)
         from . import buglog
@@ -4662,8 +4456,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
             self.tree.see(nxt)
         else:
             self.show_detail(None)
-            if not self.records:
-                self.empty_lbl.place(relx=0.5, rely=0.45, anchor="center")
+            self.bk_empty_paint()
         n = len(gone)
         self._say(f"Deleted {n} item{'s' if n != 1 else ''} from the list. Ctrl+Z or Undo brings "
                   f"{'them' if n != 1 else 'it'} back.", 12)
@@ -4672,7 +4465,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         """Clear the list you're looking at (2.42.0: Manual Add, or one stash tab's list - the others stay)."""
         mine = [rid for rid, r in self.records.items() if self.in_list(r)]
         src = self.list_src()
-        what = "this tab's list" if src != "manual" else "the Manual Add list"
+        what = "this tab's list" if src != "manual" else "your list (Copy items)"
         if mine and not messagebox.askyesno("Clear All", f"Remove all items from {what}?\n(The mod book is kept.)"):
             return
         for rid in mine:
@@ -4682,6 +4475,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
             self.tree.delete(*self.tree.get_children())
             self.update_total()
             self.show_detail(None)
+            self.bk_empty_paint()
             if hasattr(self, "pctab_bar"):
                 self.pctab_bar()
             return
@@ -4702,7 +4496,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         self.tree.delete(*self.tree.get_children())
         self.update_total()
         self.show_detail(None)
-        self.empty_lbl.place(relx=0.5, rely=0.45, anchor="center")
+        self.bk_empty_paint()
 
     def export(self):
         path = filedialog.asksaveasfilename(defaultextension=".csv", initialfile="stash_prices.csv",
@@ -4753,133 +4547,46 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
 
     def _redraw_detail(self):
         self._dafter = None
+        try:                                             # (the Drawer is dragged: drawn once, when it's let go)
+            held = self._drawer_mouse_down()
+        except Exception:
+            held = False
+        if held:
+            self._dafter = self.root.after(150, self._redraw_detail)
+            return
         if self.shown_rec is not None and self.shown_rec["id"] in self.records:
             self.show_detail(self.shown_rec)
 
-    # ---------------- 2.123.0 (UX pass 3): columns, ⋯, the item pane only when an item is picked
+    # ---------------- 2.123.0 (UX pass 3): columns (Columns ▾ is bulk_page.cols_menu)
+    NARROW_COLS = ("name", "mark", "est", "conf")      # a narrow window (the Drawer): the columns that fit
+
     def cols_apply(self):
-        off = set(SETTINGS.get("bulk_cols_off") or [])
-        self.tree["displaycolumns"] = tuple(c for c in self.SHOW_COLS if c in self.BASE_COLS or c not in off)
+        off = set(self.bulk_cols_off())
+        cols = tuple(c for c in self.SHOW_COLS if c in self.BASE_COLS or c not in off)
+        if getattr(self, "_bk_narrow", False):           # (the others come back in a wide window)
+            cols = tuple(c for c in cols if c in self.NARROW_COLS) or cols
+        if tuple(self.tree["displaycolumns"]) != cols:
+            self.tree["displaycolumns"] = cols
 
     def cols_set(self, cid, on):
-        cur = [c for c in SETTINGS.get("bulk_cols_off") or [] if c != cid] + ([] if on else [cid])
+        cur = [c for c in self.bulk_cols_off() if c != cid] + ([] if on else [cid])
         SETTINGS["bulk_cols_off"] = cur
         save_json("settings.json", SETTINGS)
         self.cols_apply()
 
-    def cols_menu(self):
-        m = tk.Menu(self.root, tearoff=0, bg=C["panel2"], fg=C["text"], activebackground=C["accent"])
-        off = set(SETTINGS.get("bulk_cols_off") or [])
-        self._cols_vars = {}
-        for cid, label in self.EXTRA_COLS:
-            v = tk.BooleanVar(value=cid not in off)
-            self._cols_vars[cid] = v
-            m.add_checkbutton(label=label, variable=v, command=lambda c=cid, vv=v: self.cols_set(c, bool(vv.get())))
-        b = self.cols_btn
-        m.tk_popup(b.winfo_rootx(), b.winfo_rooty() + b.winfo_height())
+    COLS_OFF = ("priced", "match")          # owner pick (mockup A): shown when turned on in Columns ▾
 
-    def bulk_more_menu(self, btn):
-        m = tk.Menu(self.root, tearoff=0, bg=C["panel2"], fg=C["text"], activebackground=C["accent"])
-        m.add_command(label="Export CSV…", command=self.export)
-        m.add_command(label="Order added", command=self.sort_added)
-        m.tk_popup(btn.winfo_rootx(), btn.winfo_rooty() + btn.winfo_height())
-
-    def bulk_pane(self, on):
-        """p10: the Item pane shows while one item is picked; the list has the whole width otherwise. 2.127.0
-        (feedback: it helps the visual layout): it's always on screen - show_detail always asks for it."""
-        pane, outer = getattr(self, "pane", None), getattr(self, "outer", None)
-        if pane is None or outer is None:
-            return
-        try:
-            shown = str(outer) in [str(p) for p in pane.panes()]
-            if on and not shown:
-                pane.add(outer, weight=0)
-                pw = int(SETTINGS.get("panel_w", 430) or 430)
-
-                def place():                         # 2.128.0: once laid out (no forced layout pass here)
-                    try:
-                        w = pane.winfo_width()
-                        if w > 600:
-                            pane.sashpos(0, max(300, w - max(300, min(pw, w - 300))))
-                    except tk.TclError:
-                        pass
-                self.root.after_idle(place)
-            elif not on and shown:
-                pane.forget(outer)
-        except tk.TclError:
-            pass
-
-    def show_detail(self, rec):
-        """2.79.0 (feedback: a clean view): the item card holds every filter - properties,
-        requirements, miscellaneous, each mod, pseudo totals, trade filters - then Search again / Open on trade site,
-        and one ▸ Advanced section at the bottom (listing status, if you list it, how it's priced, rolls, raw text)."""
-        if rec is not None and rec.get("src") == "pc":          # 2.80.0: the card on Price Checks
-            return self.pc_show(rec)
-        if rec is not None and rec.get("src") == "fav":         # 2.84.0: the card on Favorites
-            return self.fav_rec_changed(rec)
-        self.bulk_pane(True)                                # 2.127.0: always on screen (2.123.0 p10: only with a pick)
-        # UI rule 22: the new card is built beside the old one and swapped in at once; the same item again (a price
-        # arrived, Advanced opened) keeps its scroll position
-        old = list(self.detail.winfo_children())
-        same = rec is not None and getattr(self, "shown_rec", None) is rec
-        top = self.dcanvas.yview()[0] if same else 0
-        holder = tk.Frame(self.detail, bg=C["panel2"])
-        holder.pack(fill="x")
-        self.shown_rec = rec
-        wrap = max(200, self.dcanvas.winfo_width() - 44)
-        try:
-            self._show_detail_into(holder, rec, wrap)
-        finally:
-            for w in old:
-                w.destroy()
-            self.dcanvas.update_idletasks()
-            self.dcanvas.yview_moveto(top)
-
-    def _show_detail_into(self, d, rec, wrap):
-        self.price_var = None
-        self.detail_vars = []
-        P2, P1 = C["panel2"], C["panel"]
-        if rec is None:                                     # 2.127.0: the empty pane in the one empty look
-            from .chrome import EmptyState
-            n = len(self.tree.selection()) if hasattr(self, "tree") else 0
-            EmptyState(d, "⚖", f"{n} items picked\nPick one to see its mods and search filters." if n > 1 else
-                       "No item picked\nPick an item in the list to see its mods and search filters.",
-                       bg_key="panel2", wrap=max(200, wrap - 60)).pack(fill="x", pady=(24, 0))
-            return
-        it = rec["item"]
-        self._detail_card(d, rec, it, wrap)
-        self.bulkv = types.SimpleNamespace(card_rows=self.card_rows, card_paint=self.card_paint,  # 2.103.4: ticks
-                                           card_vals=self.card_vals, rid=rec["id"], search_btn=None)  # in place
-        btns = tk.Frame(d, bg=P2)
-        btns.pack(fill="x", pady=(8, 0))
-        self.detail_search_btn = ttk.Button(btns, text=self._bulk_search_text(rec), style="Primary.TButton",
-                                            command=lambda: self.pc_search_go(rec))   # (↔ Broaden Search: a step)
-        from .pricecheck_page import search_tip
-        self.detail_search_btn._search_tip = Tooltip(self.detail_search_btn, search_tip(rec))
-        self.detail_search_btn.pack(side="left", fill="x", expand=True)
-        self.bulkv.search_btn = self.detail_search_btn
-        self.detail_open_btn = trade_icon(ttk.Button(btns, text="Trade Site  [O]", command=self.open_trade))
-        self.detail_open_btn.pack(side="left", fill="x", expand=True, padx=(8, 0))
-        if not rec.get("qid"):
-            self.detail_open_btn.state(["disabled"])
-        note = self._detail_note(rec)
-        if note:
-            tk.Label(d, text=note[0], bg=P2, fg=note[1], font=("Segoe UI", 9), anchor="w", justify="left",
-                     wraplength=wrap).pack(fill="x", pady=(8, 0))
-        adv = bool(SETTINGS.get("detail_adv"))
-        head = tk.Label(d, text=("▾ " if adv else "▸ ") + "ADVANCED  ·  listing status, how it's priced, raw text",
-                        bg=P1, fg=C["accent"], font=("Segoe UI", 9, "bold"), anchor="w", cursor="hand2", padx=8,
-                        pady=8, highlightthickness=1, highlightbackground=C["accent"] if adv else C["line"])
-        head.pack(fill="x", pady=(8, 0))
-        head.bind("<Button-1>", lambda e: (SETTINGS.__setitem__("detail_adv", not adv), self.show_detail(rec)))
-        self.detail_adv_head = head
-        if adv:
-            self._detail_advanced(d, rec, it, wrap)
+    def bulk_cols_off(self):
+        """The columns turned off (Columns ▾). Priced at and How it was priced start off (owner pick, mockup A)."""
+        if not SETTINGS.get("bulk_cols_v2"):            # (once: the new look starts without them; Columns ▾ adds)
+            SETTINGS["bulk_cols_v2"] = True
+            SETTINGS["bulk_cols_off"] = sorted(set(SETTINGS.get("bulk_cols_off") or []) | set(self.COLS_OFF))
+        return list(SETTINGS.get("bulk_cols_off") or [])
 
     @staticmethod
     def _bulk_search_text(rec):
         from .pricecheck_page import search_word
-        return "Search again  •  filters changed" if rec.get("changed") else search_word(rec, "Search again  [Enter]")
+        return "Search again  •  filters changed" if rec.get("changed") else search_word(rec, "Search again")
 
     def _detail_note(self, rec):
         """One short line under the buttons when the price needs a word: no match, by hand, an error, a used tablet."""
@@ -4904,9 +4611,10 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
     # ---------------- the card
     def _detail_card(self, d, rec, it, wrap):
         """The item as a card: name band, price, then every filter - each with its check box and
-        Min / Max where it has a number. A click / Enter prices it again. Price Checks (owner pick, mockup C) has its
-        own look and order: the name, what it is, its flags as chips; Base and Properties, Mods · n of m searched,
-        Augments, Item Flags, Requirements (folded), Trade filters. Favorites and Bulk Pricing keep theirs."""
+        Min / Max where it has a number. A click / Enter prices it again. One order on every card (owner): Base and
+        Properties, Requirements (folded), Augments, Item Flags, Mods, Pseudo filters, Trade filters. Price Checks and
+        Bulk Pricing (owner pick, mockup C) have its look: the name, what it is, its flags as chips, Mods · n of m
+        searched, Item Flags · n set; Favorites keeps its names."""
         self._card_order = {}
         try:
             return self._detail_card_draw(d, rec, it, wrap)
@@ -5097,20 +4805,15 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
                 import tkinter.font as _tkf
                 f9 = _tkf.Font(family="Segoe UI", size=9)
                 lw = max(f9.measure(label) for _k, label in grid) + 10
-                if dl:                                        # two columns of label + value ▾ (one when narrow)
-                    cols = 2 if w >= 2 * (lw + 64) else 1
-                    col_w = (w + 8) // cols
-                    for i, (key, label) in enumerate(grid):
-                        self._card_tri(cv, rec, key, label, (i % cols) * col_w, y + (i // cols) * 30, facts, lw,
-                                       cell=col_w - 8)
-                    y += 30 * ((len(grid) + cols - 1) // cols)
-                    return
-                cols = 2 if 2 * (lw + 52) <= w - 24 else 1
-                col_w = (w - 24) // cols
+                # owner pick (Flags mockup B, every card): plain rows in two columns (one when narrow) - the label on
+                # the left, the value as a small pill on the right, a faint line under each row; no box per flag
+                x0, room, gap = (0, w, 20) if dl else (16, w - 32, 20)
+                cols = 2 if room >= 2 * (lw + 56) + gap else 1
+                col_w = (room - gap * (cols - 1)) // cols
                 for i, (key, label) in enumerate(grid):
-                    x0 = 16 + (i % cols) * col_w
-                    self._card_tri(cv, rec, key, label, x0, y + (i // cols) * 20, facts, lw)
-                y += 20 * ((len(grid) + cols - 1) // cols) + 2
+                    self._card_tri(cv, rec, key, label, x0 + (i % cols) * (col_w + gap), y + (i // cols) * 30,
+                                   facts, lw, cell=col_w)
+                y += 30 * ((len(grid) + cols - 1) // cols) + 4
 
             def ticked(ms):
                 return sum(1 for m in ms if mod_impact(rec, m) != "ignore")
@@ -5189,33 +4892,21 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
                            + ("at most yours (Max)" if key == "reload" else "yours or more (Min)")
                            + ", as the trade site counts it. Unticked: any.")
             # Round 18: a waystone's own numbers (Item Rarity, Pack Size ...) first, as the card over the game has them
+            # owner (every item card - Price Checks, Bulk Pricing, Favorites): Base and Properties, Requirements,
+            # Augments, Item Flags, Mods, Pseudo filters, Trade filters. (Round 18 drew a waystone's / tablet's pseudo
+            # numbers first - the owner's one order replaces it.)
             top_pseudo = bool(it.get("waystone") or it.get("class") == "Tablet")
-            if dl:
-                # (the rows keep the numbers - the order of the ticked mods - they had before this look: the search's
-                # own picks, e.g. Broaden Search's "the last on the card on a tie", don't depend on where they're drawn)
-                old_seq = totals + aug + (pseudo + stats_seq if top_pseudo else stats_seq + pseudo)
-                self._card_order = {id(m): i for i, m in enumerate(old_seq)}
-                props_section()
-                if top_pseudo:
-                    pseudo_section()
-                stats_section()
-                aug_section()
-                if not top_pseudo:
-                    pseudo_section()
-                misc_section()
-                req_section()
-                trade_section()
-            else:
-                props_section()
-                req_section()
-                misc_section()
-                aug_section()
-                if top_pseudo:
-                    pseudo_section()
-                stats_section()
-                if not top_pseudo:
-                    pseudo_section()
-                trade_section()
+            # (the rows keep the numbers - the order of the ticked mods - they had before: the search's own picks,
+            # e.g. Broaden Search's "the last on the card on a tie", don't depend on where they're drawn)
+            old_seq = totals + aug + (pseudo + stats_seq if top_pseudo else stats_seq + pseudo)
+            self._card_order = {id(m): i for i, m in enumerate(old_seq)}
+            props_section()
+            req_section()
+            aug_section()
+            misc_section()
+            stats_section()
+            pseudo_section()
+            trade_section()
             h2 = y + 8
             cv.configure(height=h2)
             cv.coords("cardframe", 0, 0, w - 1, h2 - 1)
@@ -5457,28 +5148,37 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         return n
 
     def _card_tri(self, cv, rec, key, label, x, y, facts, lw=92, cell=None):
-        """Corrupted: Any / Yes / No - a click steps through them (this item's search only). lw: the labels' width.
-        cell: Price Checks' look - a box that wide, the label on its left and the value ▾ on its right."""
+        """Corrupted: Any / Yes / No - a click anywhere on its row steps through them (this item's search only).
+        Owner pick (Flags mockup B, every item card): a plain row cell px wide - the label on the left (the text's
+        color when set, muted at Any), the value as a small pill on the right: a set one (Yes / No) lit - an
+        accent-tinted pill, accent words; Any muted, no pill. The word always says it. A faint line under the row."""
+        from . import themes as _th
         from .searchopts_page import default_opts
         cur = {**default_opts(rec["item"]), **(rec.get("opts") or {})}.get(key) or "any"
-        has = facts.get("flags", set())
         tag = f"cardtri_{key}"
-        if cell:
-            from . import themes as _th
-            _th.round_rect(cv, x, y, x + cell, y + 24, 4, fill=C["panel"], outline=C["line"], tags=(tag,))
-            cv.create_text(x + 8, y + 12, text=label, anchor="w", font=("Segoe UI", 9),
-                           fill=C["text"] if key in has else C["muted"], tags=(tag,), width=max(40, cell - 64))
-            lit = C["text"]                                   # (the word says it - Yes / No / Any - never orange)
-            val = cv.create_text(x + cell - 8, y + 12, text=f"{cur.title()} ▾", anchor="e",
-                                 font=("Segoe UI", 9, "bold"), fill=lit if cur != "any" else C["muted"], tags=(tag,))
-            off = C["muted"]
-        else:
-            cv.create_text(x, y, text=label, anchor="nw", font=("Segoe UI", 9),
-                           fill=C["text"] if key in has else C["muted"], tags=(tag,))
-            lit = C["accent"]                                 # (the word says it too - Yes / No / Any)
-            val = cv.create_text(x + lw, y, text=f"{cur.title()} ▾", anchor="nw", font=("Segoe UI", 9, "bold"),
-                                 fill=lit if cur != "any" else C["text"], tags=(tag,))
-            off = C["text"]
+        cell = cell or (lw + 80)
+        bg = _card_bg(cv)
+        h = 26
+        cv.create_rectangle(x, y, x + cell, y + h, fill=bg, outline="", tags=(tag, "cardtri_hit"))   # (the row clicks)
+        cv.create_line(x, y + h, x + cell, y + h, fill=_th.mix(bg, C["text"], .06), tags=(tag, "cardtri_line"))
+        lab = cv.create_text(x + 4, y + h // 2, text=label, anchor="w", font=("Segoe UI", 9), tags=(tag,),
+                             width=max(40, cell - 72))
+        val = cv.create_text(x + cell - 12, y + h // 2, text="", anchor="e", font=("Segoe UI", 9, "bold"),
+                             tags=(tag,))
+        pill_tag = f"{tag}_pill"
+
+        def paint(v):
+            """In place: the words, their colors and the pill (only this row's items)."""
+            on = v != "any"
+            cv.itemconfigure(lab, fill=C["text"] if on else C["muted"])
+            cv.itemconfigure(val, text=f"{v.title()} ▾", fill=C["accent"] if on else C["muted"])
+            cv.delete(pill_tag)
+            bb = cv.bbox(val)
+            if on and bb:
+                pill = _th.round_rect(cv, bb[0] - 8, y + 4, bb[2] + 8, y + h - 4, 9,
+                                      fill=_th.mix(bg, C["accent"], .18), outline="", tags=(tag, pill_tag))
+                cv.tag_lower(pill, val)
+        paint(cur)
         st = {"cur": cur}
 
         def click():
@@ -5487,7 +5187,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
             self.card_tris[key] = nxt
             if self._card_mark(rec):                  # 2.104.1: painted in place
                 try:
-                    cv.itemconfigure(val, text=f"{nxt.title()} ▾", fill=lit if nxt != "any" else off)
+                    paint(nxt)
                     self._card_misc_count(cv, rec)
                 except tk.TclError:
                     pass

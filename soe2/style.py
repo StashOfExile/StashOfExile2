@@ -1077,22 +1077,25 @@ class Splitter(tk.Frame):
 
     GRIP = 9
 
-    def __init__(self, parent, width=420, lo=330, keep=300, on_set=None, bg=None, **kw):
+    def __init__(self, parent, width=420, lo=330, keep=300, on_set=None, bg=None, fixed="left", **kw):
         super().__init__(parent, bg=bg or C["bg"], **kw)
         self.lo, self.keep, self.on_set, self._want = lo, keep, on_set, int(width)
-        self.left = tk.Frame(self, bg=C["panel2"], width=self._want)
-        self.left.pack_propagate(False)
-        self.left.pack(side="left", fill="y")
+        self.fixed_right = fixed == "right"         # Bulk Pricing: the right side (the item) has the width, the
+        self.left = tk.Frame(self, bg=C["panel2"], width=self._want)          # left (the list) takes the rest
         self.grip = tk.Frame(self, bg=C["panel"], width=self.GRIP, cursor="sb_h_double_arrow")
         self.grip.pack_propagate(False)
-        self.grip.pack(side="left", fill="y")
         self._bar = tk.Frame(self.grip, bg=C["gold_dim"], width=1)
         self._bar.place(relx=0.5, rely=0, relheight=1, anchor="n")
         self._dots = tk.Label(self.grip, text="⋮\n⋮", bg=C["panel"], fg=C["muted"], font=("Segoe UI", 9),
                               cursor="sb_h_double_arrow", bd=0, padx=0, pady=0)
         self._dots.place(relx=0.5, rely=0.5, anchor="center")
         self.right = tk.Frame(self, bg=C["panel"])
-        self.right.pack(side="left", fill="both", expand=True)
+        if self.fixed_right:
+            self.left.config(width=1)
+            self.right.config(width=self._want)
+        self.fixed = self.right if self.fixed_right else self.left
+        self.fixed.pack_propagate(False)
+        self._pack_sides()
         self._guide = tk.Frame(self, bg=C["orange"], width=2)
         self._x0 = None
         for w in (self.grip, self._dots, self._bar):
@@ -1118,27 +1121,46 @@ class Splitter(tk.Frame):
         hi = pw - self.keep - self.GRIP if pw > lo + self.keep + self.GRIP else max(lo, x)
         return int(max(lo, min(x, hi)))
 
+    def _pack_sides(self):
+        """Side by side: the fixed side at its width, the grip, the other side taking the rest."""
+        if self.fixed_right:
+            self.right.pack(side="right", fill="y")
+            self.grip.pack(side="right", fill="y")
+            self.left.pack(side="left", fill="both", expand=True)
+        else:
+            self.left.pack(side="left", fill="y")
+            self.grip.pack(side="left", fill="y")
+            self.right.pack(side="left", fill="both", expand=True)
+
     def _clamp_now(self):
         x = self.clamp(self._want)
-        if x != int(self.left.cget("width")):
-            self.left.config(width=x)
+        if x != int(self.fixed.cget("width")):
+            self.fixed.config(width=x)
+
+    def _at(self, x_root):
+        """The fixed side's width for a mouse at x_root."""
+        if self.fixed_right:
+            return self.clamp(self._x0 + self.winfo_width() - x_root)
+        return self.clamp(x_root - self._x0)
+
+    def _guide_x(self, want):
+        return (self.winfo_width() - want - self.GRIP + self.GRIP // 2) if self.fixed_right else want + self.GRIP // 2
 
     def _press(self, e):
         self._x0 = self.winfo_rootx()
         self._lit(True)
-        self._guide.place(x=self._want + self.GRIP // 2, y=0, relheight=1)
+        self._guide.place(x=self._guide_x(self._want), y=0, relheight=1)
         self._guide.lift()
 
     def _drag(self, e):
         if self._x0 is None:
             return
-        x = self.clamp(e.x_root - self._x0)
-        self._guide.place_configure(x=x + self.GRIP // 2)
+        self._guide.place_configure(x=self._guide_x(self._at(e.x_root)))
 
     def _release(self, e):
         if self._x0 is None:
             return
-        x = self.clamp(e.x_root - self._x0)
+        x = self._at(e.x_root)
         self._x0 = None
         self._guide.place_forget()
         self._lit(False)
@@ -1148,9 +1170,9 @@ class Splitter(tk.Frame):
 
     def sashpos(self, _i=0, x=None):
         if x is None:
-            return int(self.left.cget("width"))
+            return int(self.fixed.cget("width"))
         self._want = self.clamp(int(x))
-        self.left.config(width=self._want)
+        self.fixed.config(width=self._want)
         return self._want
 
     def set_solo(self, on):
@@ -1165,10 +1187,28 @@ class Splitter(tk.Frame):
         if on:
             self.left.pack(side="left", fill="both", expand=True)
         else:
-            self.left.pack(side="left", fill="y")
-            self.grip.pack(side="left", fill="y")
-            self.right.pack(side="left", fill="both", expand=True)
-            self.left.config(width=self.clamp(self._want))
+            self._pack_sides()
+            self.fixed.config(width=self.clamp(self._want))
+
+    def set_layout(self, how):
+        """Bulk Pricing: "side" (side by side, the grip between), "solo" (.left alone, the whole width) or "stack"
+        (.left on top at the height it asks for, .right under it taking the rest - a narrow window). Only packing
+        changes: nothing inside is drawn again. -> True when it changed."""
+        if how == getattr(self, "_how", "side"):
+            return False
+        self._how = how
+        self._solo = how == "solo"
+        for w in (self.left, self.grip, self.right):
+            w.pack_forget()
+        if how == "solo":
+            self.left.pack(side="top", fill="both", expand=True)
+        elif how == "stack":
+            self.left.pack(side="top", fill="x")
+            self.right.pack(side="top", fill="both", expand=True)
+        else:
+            self._pack_sides()
+            self.fixed.config(width=self.clamp(self._want))
+        return True
 
 
 class VSplitter(tk.Frame):

@@ -392,9 +392,10 @@ class FavoritesPage:
         return acts
 
     # ---------------------------------------------------------------- adding
-    def pc_add_fav(self):
-        """☆ Add to favorites on Price Checks: this item with your filters."""
-        rec = self.records.get(getattr(self, "pc_rid", None))
+    def pc_add_fav(self, rec=None, btn=None):
+        """☆ Add to favorites on Price Checks (and Bulk Pricing's picked item: rec, its button): this item with your
+        filters."""
+        rec = rec or self.records.get(getattr(self, "pc_rid", None))
         if not rec:
             return
         st = self.favs()
@@ -405,7 +406,7 @@ class FavoritesPage:
         rec["fav"] = f["id"]
         self.fav_store_last(f, rec)
         self.fav_changed([f["id"]])
-        self.pc_fav_state(rec)
+        self.pc_fav_state(rec, btn)
         try:
             self.app_toast(f"\"{f['name']}\" is in Trade › Favorites.", title="Added to favorites",
                            kind="success", actions=(("Open", lambda: (self.shell.open(KEY), self.fav_pick(f["id"]))),
@@ -414,8 +415,8 @@ class FavoritesPage:
         except Exception:
             buglog.caught()
 
-    def pc_fav_state(self, rec):
-        b = getattr(self, "pc_fav_btn", None)
+    def pc_fav_state(self, rec, btn=None):
+        b = btn if btn is not None else getattr(self, "pc_fav_btn", None)
         if b is None:
             return
         on = bool(rec and rec.get("fav") and self.favs().get(rec["fav"]))

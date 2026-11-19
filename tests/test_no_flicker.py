@@ -248,6 +248,7 @@ class Lists(Tk):
         s.list_src = lambda: "manual"
         s.pctab_empty_text = lambda: "tab"
         s.update_total = lambda: None
+        s.bk_empty_paint = lambda: None                      # (Bulk Pricing's empty state: bulk_page)
         s.show_detail = lambda rec: s.detail.append(rec)
         s.go = types.MethodType(App._rebuild_tree_in_place, s)
         s.go(set())

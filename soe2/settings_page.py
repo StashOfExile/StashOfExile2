@@ -1163,7 +1163,8 @@ class SettingsPage:
             save_json("settings.json", SETTINGS)
         for lbl in list(getattr(self, "acc_links", [])):
             try:
-                lbl.config(text=self.acc_text())
+                lbl.config(text=getattr(lbl, "_acc_fn", self.acc_text)())     # (Bulk Pricing: never the name)
+                getattr(lbl, "_acc_paint", lambda: None)()
             except tk.TclError:
                 self.acc_links.remove(lbl)
 

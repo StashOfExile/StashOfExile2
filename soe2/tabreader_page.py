@@ -5,7 +5,7 @@ from tkinter import ttk
 
 from . import buglog
 from .config import save_json, SETTINGS
-from .style import C, SegBar, Tooltip
+from .style import C, Tooltip, flow_show, flowify
 from .tabreader import PCTAB
 from .wealth import parse_price_text, parse_trade_link, WEALTH_CURRENCIES
 
@@ -16,74 +16,99 @@ KNOWN_CURRENCY_NAMES = {"mirror": "Mirror of Kalandra", "divine": "Divine Orb", 
                         "alch": "Orb of Alchemy", "transmute": "Orb of Transmutation", "aug": "Orb of Augmentation",
                         "chance": "Orb of Chance", "artificers": "Artificer's Orb", "wisdom": "Scroll of Wisdom"}
 
-MODES = ["Manual Add", "Stash tab"]          # 2.8.1: "Manual Add" was called "Ctrl+Alt+C"
+MODES = ["Manual Add", "Stash tab"]          # (as saved) 2.8.1: "Manual Add" was called "Ctrl+Alt+C"
+# Bulk Pricing's source switch, as it reads (owner pick, mockup A): Copy items | Read a stash tab (names.py)
+MODE_LABELS = {"Manual Add": "Copy items", "Stash tab": "Read a stash tab"}
+READ_HINT = "Make the tab public with one price nobody would pay, then:"
 
 
 class TabReaderPage:
     """Mixed into App."""
 
-    def build_tab_reader(self, tb):
-        """The mode picker (in the toolbar box, first row) and the Stash tab row under it."""
+    def build_tab_reader(self, parent):
+        """The Read a stash tab row (shown with that source): the tab's price in game, the account (never its name),
+        the hint and Read tab; Stop and ⓘ How, muted. The BETA note and the reading's messages under it. The switch
+        itself is in Bulk Pricing's toolbar (pc_mode), the tabs' chips over it (pc_tabsrow)."""
         P1 = C["panel"]
         cfg = SETTINGS.setdefault("pctab", {})
         if cfg.get("mode") not in MODES:
             cfg["mode"] = MODES[0]
-        mrow = tk.Frame(tb, bg=P1, padx=8, pady=4)            # 2.74.5: lighter
-        mrow.pack(fill="x", before=tb.winfo_children()[0])
-        self.pc_mrow = mrow                              # 2.123.0 (p11): the one toolbar row - search, filters, actions
-        # 2.31.0: Stash tab is BETA - a good idea that doesn't work well in practice yet (2.38.0: the tag sits inside
-        # its button). 2.123.0 (p7): in the Items strip (build_checks places it), not a row of its own; the hint is
-        # the empty list's text
-        self.pc_mode = SegBar(tb.master, MODES, value=cfg["mode"], command=lambda v: self.pctab_mode(),
-                              size=9, pad=(8, 2), badges={"Stash tab": "BETA"})
-        self.pc_mode_hint = tk.Label(mrow, text="", bg=P1, fg=C["muted"], font=("Segoe UI", 9))   # (not shown)
-        # ---- 2.42.0: your stash tabs, one list each (shown in Stash tab mode)
-        self.pc_tabsrow = tk.Frame(tb, bg=P1, padx=8, pady=0)
+        self.pc_mode_hint = tk.Label(parent, text="", bg=P1, fg=C["muted"], font=("Segoe UI", 9))   # (not shown)
+        if not hasattr(self, "pc_tabsrow"):
+            self.pc_tabsrow = tk.Frame(parent, bg=P1)
         self.pctab_tabs()                                # (moves an older single tab into the list)
-        # ---- the Stash tab row (shown in that mode)
-        row = tk.Frame(tb, bg=P1, padx=8, pady=4)
-        self.pc_tabrow = row
-        self.pc_tabrow_after = mrow
-        self.acc_link(row, P1).pack(side="left", padx=(0, 12))   # 2.59.0: set in Settings › Price checking
-        tk.Label(row, text="Tab's price", bg=P1, fg=C["muted"]).pack(side="left")
+        box = tk.Frame(parent, bg=P1, highlightthickness=1, highlightbackground=C["line"])
+        row = self.pc_tabrow_row = tk.Frame(box, bg=P1)       # (the row wraps in a narrow window: flowify)
+        row.pack(fill="x", padx=12, pady=8)
+        self.pc_tabrow = box
+        self.pc_tabrow_after = None
+        tk.Label(row, text="Tab's price in game", bg=P1, fg=C["muted"], font=("Segoe UI", 9)).pack(side="left")
         self.pc_amt = tk.StringVar(value=str(cfg.get("amount") or ""))
-        ttk.Entry(row, textvariable=self.pc_amt, width=9).pack(side="left", padx=(8, 4))
+        amt = ttk.Entry(row, textvariable=self.pc_amt, width=9)
+        amt.pack(side="left", padx=(8, 4))
+        Tooltip(amt, "The one price the whole tab has in game (or paste the trade site's link to your tab)")
         # 2.40.0: the box is built before the trade site's full currency list arrives, so a saved Mirror of Kalandra
         # isn't in the list yet - it showed "Divine Orb", and Read tab then searched in divines. Show the saved name.
         cid = cfg.get("currency") or "divine"
         self.pc_cur = tk.StringVar(value=dict(WEALTH_CURRENCIES).get(cid) or cfg.get("currency_name")
                                    or KNOWN_CURRENCY_NAMES.get(cid) or "Divine Orb")
         cb = ttk.Combobox(row, textvariable=self.pc_cur, values=[n for _c, n in WEALTH_CURRENCIES], state="readonly",
-                          width=24)
+                          width=18)
         cb.config(postcommand=lambda c=cb: c.config(values=[n for _c, n in WEALTH_CURRENCIES]))   # 2.16.0: full list
-        cb.pack(side="left")
+        cb.pack(side="left", padx=(0, 12))
         cb.bind("<<ComboboxSelected>>", lambda e: self.pctab_cur_picked(), add="+")
         self.pc_cur_box = cb
-        self.pc_stop = ttk.Button(row, text="Stop", command=self.pctab_stop, state="disabled")
-        self.pc_stop.pack(side="right")
+        self.pc_acc_lbl = self.acc_mark(row, P1)          # "✓ Account set" - never the name (streams)
+        self.pc_acc_lbl.pack(side="left")
+        # right, as it reads: the hint, Read tab (the screen's orange button), Stop, ⓘ How
+        how = self.pc_how_lbl = tk.Label(row, text="ⓘ How", bg=P1, fg=C["muted"], cursor="hand2", font=("Segoe UI", 9))
+        how.pack(side="right", padx=(12, 0))
+        how.bind("<Button-1>", lambda e: self.pctab_explain())
+        Tooltip(how, "How reading a stash tab works (shown under this row)")
+        self.pc_stop = tk.Label(row, text="■ Stop", bg=P1, fg=C["muted"], disabledforeground=C["muted"],
+                                font=("Segoe UI", 9), state="disabled", cursor="hand2")      # (shown while reading)
+        self.pc_stop.bind("<Button-1>", lambda e: str(self.pc_stop.cget("state")) == "normal" and self.pctab_stop())
+        self.pc_stop.pack(side="right", padx=(12, 0))
+        Tooltip(self.pc_stop, "Stops reading the tab (what was added stays)")
         self.pc_read_btn = ttk.Button(row, text="Read tab", style="Primary.TButton", command=self.pctab_read)
-        self.pc_read_btn.pack(side="right", padx=(0, 8))
-
-        self.pc_to_wealth = tk.Label(row, text="＋ Count it in Wealth", bg=P1, fg="#6ea8ff", cursor="hand2",
+        self.pc_read_btn.pack(side="right", padx=(8, 0))
+        Tooltip(self.pc_read_btn, "Finds the tab by its price and adds every item on it to this list")
+        self.pc_read_hint = tk.Label(row, text=READ_HINT, bg=P1, fg=C["muted"], font=("Segoe UI", 9))
+        self.pc_read_hint.pack(side="right", padx=(12, 0))
+        self.pc_to_wealth = tk.Label(row, text="＋ Count it in Wealth", bg=P1, fg=C["muted"], cursor="hand2",
                                      font=("Segoe UI", 9, "underline"))          # 2.18.0: the same tab in Wealth
         self.pc_to_wealth.bind("<Button-1>", lambda e: self.pctab_to_wealth())
-        how = tk.Label(row, text="ⓘ How", bg=P1, fg="#6ea8ff", cursor="hand2", font=("Segoe UI", 9, "underline"))
-        how.pack(side="right", padx=(0, 8))
-        how.bind("<Button-1>", lambda e: self.pctab_explain())
+        flowify(row)
+        flow_show(row, self.pc_stop, False)
         from .chrome import Notice                       # 2.74.5: closable (× at the right), stays closed
-        self.pc_beta = Notice(tb, "pctab_beta", "⚠ BETA: reading a stash tab may not work as intended and is of "
-                                                "limited use - many tabs read only partly. Ctrl+Alt+C on each item is "
-                                                "the reliable way.")
-        self.pc_msg = tk.Label(tb, text="", bg=P1, fg=C["muted"], anchor="w", justify="left", padx=12,
+        self.pc_beta = Notice(parent, "pctab_beta", "⚠ BETA: reading a stash tab may not work as intended and is of "
+                                                    "limited use - many tabs read only partly. Ctrl+Alt+C on each "
+                                                    "item is the reliable way.")
+        self.pc_msg = tk.Label(parent, text="", bg=P1, fg=C["muted"], anchor="w", justify="left", padx=12,
                                font=("Segoe UI", 9))
         self.pc_msg.bind("<Configure>", lambda e: self.pc_msg.config(wraplength=max(300, e.width - 24)))
-        self.pctab_mode(save=False)
+
+    def pctab_on(self):
+        """Is Read a stash tab the source (its list shows)?"""
+        return (SETTINGS.get("pctab") or {}).get("mode") == "Stash tab"
+
+    def pctab_read_shown(self, on):
+        """The stash row's Read tab and its hint - hidden while the empty list shows its own Read tab (one orange
+        button)."""
+        row = getattr(self, "pc_tabrow_row", None)
+        if row is None:
+            return
+        try:
+            flow_show(row, self.pc_read_btn, on)
+            self.pc_read_hint.config(text=READ_HINT if on else READ_HINT.replace(", then:", "."))
+        except tk.TclError:
+            pass
 
     def pctab_primary(self):
-        """3.0.6 (owner's rule: one orange button a screen): Stash tab - Read tab is the orange one; Manual Add -
-        Re-price all."""
-        tab = getattr(self, "pc_mode", None) is not None and self.pc_mode.get() == "Stash tab"
-        for name, on in (("reprice_all_btn", not tab), ("pc_read_btn", tab)):
+        """3.0.6 (owner's rule: one orange button a screen): Read a stash tab - Read tab is the orange one; Copy
+        items - the picked item's Search again. Re-price all is never orange."""
+        tab = self.pctab_on()
+        for name, on in (("reprice_all_btn", False), ("pc_read_btn", tab), ("bk_search_btn", not tab)):
             b = getattr(self, name, None)
             if b is not None:
                 try:
@@ -92,19 +117,20 @@ class TabReaderPage:
                     pass
 
     def pctab_mode(self, save=True):
-        mode = self.pc_mode.get()
-        self.pctab_primary()
+        label = self.pc_mode.get()
+        mode = next((m for m, lab in MODE_LABELS.items() if lab == label), label if label in MODES else MODES[0])
         cfg = SETTINGS.setdefault("pctab", {})
         cfg["mode"] = mode
+        self.pctab_primary()
         if save:
             save_json("settings.json", SETTINGS)
-        if hasattr(self, "empty_lbl") and not any(r.get("src", "manual") == self.list_src() for r in self.records.values()):
-            self.empty_lbl.config(text=self.empty_text if self.list_src() == "manual" else self.pctab_empty_text())
+        stash = getattr(self, "bk_stash", None)
         if mode == "Stash tab":
-            self.pc_tabsrow.pack(fill="x", pady=(8, 0), after=self.pc_tabrow_after)   # (3.0.6: room above it)
             self.pctab_bar()
-            self.pc_tabrow.pack(fill="x", after=self.pc_tabsrow)
-            self.pc_beta.show(fill="x", after=self.pc_tabrow, padx=8, pady=(2, 0))
+            if stash is not None and not stash.winfo_manager():
+                stash.pack(fill="x", padx=12, pady=(0, 8), after=self.bk_tb)
+            self.pc_tabrow.pack(fill="x")
+            self.pc_beta.show(fill="x", after=self.pc_tabrow, pady=(4, 0))
             self.pc_msg.pack(fill="x", after=self.pc_tabrow if self.pc_beta.closed() else self.pc_beta)
             self.pc_mode_hint.config(text="reads a public stash tab and adds what it can (Ctrl+Alt+C still works)")
             if not self.pc_msg.cget("text"):
@@ -112,14 +138,17 @@ class TabReaderPage:
                                         "pay (like 37882 Divine Orbs). Type that price here and press Read tab.",
                                    fg=C["muted"])
         else:
-            self.pc_tabsrow.pack_forget()
-            self.pc_tabrow.pack_forget()
-            self.pc_beta.pack_forget()
-            self.pc_msg.pack_forget()
+            if stash is not None:
+                stash.pack_forget()
             self.pc_mode_hint.config(text="hover an item in game and press Ctrl+Alt+C")
-
-        if hasattr(self, "tree") and save:                # 2.42.0: each mode has its own list
+        sm = getattr(self, "bk_sum", None)
+        if sm is not None:
+            flow_show(sm, self.pc_tabsrow, mode == "Stash tab")
+        if hasattr(self, "tree") and save:                # 2.42.0: each source has its own list
             self.list_switched()
+        elif hasattr(self, "tree"):
+            self.bk_empty_paint()
+            self.update_total()
 
     # ---------------- 2.42.0: separate lists - Manual Add, and one per stash tab
     def list_src(self):
@@ -158,43 +187,73 @@ class TabReaderPage:
         return next((t for t in self.pctab_tabs() if t["id"] == cfg.get("current")), None)
 
     def pctab_bar(self):
-        """The row of your tabs: pick one to see its list and its price; ＋ adds one; right-click renames / deletes."""
+        """Your tabs as chips - "Tab 1 · 12" (the one shown outlined and marked ▸), then ＋ Tab. A click shows a tab's
+        list and price; right-click renames / deletes it."""
         for w in self.pc_tabsrow.winfo_children():
             w.destroy()
         P1 = C["panel"]
         tabs = self.pctab_tabs()
-        tk.Label(self.pc_tabsrow, text="Your tabs", bg=P1, fg=C["muted"]).pack(side="left", padx=(0, 8))
-        names = [t["name"] for t in tabs]
         counts = {}
         for r in getattr(self, "records", {}).values():
             counts[r.get("src", "manual")] = counts.get(r.get("src", "manual"), 0) + 1
-        label = {t["name"]: f"{t['name']} ({counts.get('tab:' + t['id'], 0)})" for t in tabs}
         cur = self.pctab_current()
-        self.pc_tabs = SegBar(self.pc_tabsrow, [label[n] for n in names], value=label[cur["name"]],
-                              command=lambda v: self.pctab_pick(v), size=9, pad=(12, 4))
-        self.pc_tabs.pack(side="left")
-        for t, (lab, _line) in zip(tabs, [self.pc_tabs.btns[label[n]] for n in names]):
-            lab.bind("<Button-3>", lambda e, tid=t["id"]: self.pctab_tab_menu(e, tid))
-            Tooltip(lab, f"{t['name']}: priced {t.get('amount') or '?'} {t.get('currency_name') or t.get('currency')}"
-                         " in game · right-click to rename or delete")
-        add = ttk.Button(self.pc_tabsrow, text="＋ Tab", command=self.pctab_new, style="Quiet.TButton")   # 2.47.0
-        add.pack(side="left", padx=(12, 0))
-        Tooltip(add, "Another stash tab, with its own price and its own list")
-        # 2.87.0: the list follows the tab - down each column (left to right) or across each row (top to bottom)
-        ORDERS = (("columns", "Down columns"), ("rows", "Across rows"))
-        self.pc_order = tk.StringVar(value=dict(ORDERS).get(SETTINGS.get("stash_order", "columns")))
-        ob = ttk.Combobox(self.pc_tabsrow, textvariable=self.pc_order, values=[n for _k, n in ORDERS],
-                          state="readonly", width=13)
-        ob.pack(side="right")
-        ob.bind("<<ComboboxSelected>>",
-                lambda e: self.stash_order_set(next(k for k, n in ORDERS if n == self.pc_order.get())))
-        tk.Label(self.pc_tabsrow, text="List order", bg=P1, fg=C["muted"]).pack(side="right", padx=(0, 4))
-        Tooltip(ob, "Items read from the tab are listed in the order they sit in it (the # column shows where)")
+        self.pc_tabs = {}
+        for t in tabs:
+            on = cur is not None and t["id"] == cur["id"]
+            chip = tk.Label(self.pc_tabsrow, text=("▸ " if on else "") + f"{t['name']} · {counts.get('tab:' + t['id'], 0)}",
+                            bg=C["panel2"], fg=C["text"] if on else C["muted"], font=("Segoe UI", 9), padx=12, pady=4,
+                            cursor="hand2", highlightthickness=1, highlightbackground=C["text"] if on else C["line"])
+            chip.pack(side="left", padx=(0, 8))
+            chip.bind("<Button-1>", lambda e, n=t["name"]: self.pctab_pick(n))
+            chip.bind("<Button-3>", lambda e, tid=t["id"]: self.pctab_tab_menu(e, tid))
+            Tooltip(chip, f"{t['name']}: priced {t.get('amount') or '?'} {t.get('currency_name') or t.get('currency')}"
+                          " in game · right-click to rename or delete")
+            self.pc_tabs[t["id"]] = chip
+        add = tk.Label(self.pc_tabsrow, text="＋ Tab", bg=C["panel"], fg=C["muted"], font=("Segoe UI", 9), padx=12,
+                       pady=4, cursor="hand2", highlightthickness=1, highlightbackground=C["line"])   # 2.47.0
+        add.pack(side="left")
+        add.bind("<Button-1>", lambda e: self.pctab_new())
+        Tooltip(add, "Add a tab: another stash tab, with its own price and its own list")
+        if getattr(self, "bk_sum", None) is not None:
+            from .bulk_page import bk_flow
+            bk_flow(self.bk_sum)
+
+    def pctab_counts_paint(self):
+        """The chips' counts follow the lists, in place (only a chip whose words changed)."""
+        chips = getattr(self, "pc_tabs", None)
+        if not isinstance(chips, dict) or not chips:
+            return
+        counts = {}
+        for r in self.records.values():
+            counts[r.get("src", "manual")] = counts.get(r.get("src", "manual"), 0) + 1
+        cur = self.pctab_current()
+        for t in self.pctab_tabs():
+            chip = chips.get(t["id"])
+            if chip is None:
+                continue
+            on = cur is not None and t["id"] == cur["id"]
+            text = ("▸ " if on else "") + f"{t['name']} · {counts.get('tab:' + t['id'], 0)}"
+            try:
+                if chip.cget("text") != text:
+                    chip.config(text=text)
+                    from .bulk_page import bk_flow
+                    bk_flow(self.bk_sum)
+            except (tk.TclError, AttributeError):
+                pass
+
+    def pctab_stop_shown(self, on):
+        """Stop shows while a tab is being read (muted, beside ⓘ How)."""
+        row = getattr(self, "pc_tabrow_row", None)
+        try:
+            self.pc_stop.config(state="normal" if on else "disabled")
+            if row is not None:
+                flow_show(row, self.pc_stop, on)
+        except (tk.TclError, AttributeError):
+            pass
 
     def pctab_empty_text(self):
         t = self.pctab_current()
-        return (f"{t['name'] if t else 'This tab'} has nothing in its list yet.\n"
-                "Type the price the tab has in game, then press Read tab.")
+        return f"{t['name'] if t else 'This tab'} is empty\nRead a stash tab to list and price everything in it."
 
     def pctab_pick(self, label):
         tabs = self.pctab_tabs()
@@ -208,6 +267,7 @@ class TabReaderPage:
         self.pc_cur.set(dict(WEALTH_CURRENCIES).get(t.get("currency")) or t.get("currency_name")
                         or KNOWN_CURRENCY_NAMES.get(t.get("currency"), "Divine Orb"))
         self.pc_msg.config(text="", fg=C["muted"])
+        self.pctab_bar()
         self.list_switched()
 
     def pctab_new(self):
@@ -363,7 +423,7 @@ class TabReaderPage:
             return self.pc_msg.config(text=err, fg=C["red"])
         self._pctab = {"added": 0, "already": 0, "unreadable": 0, "failed": 0}
         self.pc_read_btn.config(state="disabled")
-        self.pc_stop.config(state="normal")
+        self.pctab_stop_shown(True)
         self.pc_msg.config(text="Searching your tab…", fg=C["muted"])
 
     def pctab_stop(self):
@@ -425,7 +485,7 @@ class TabReaderPage:
     def _pctab_finished(self, stopped=False):
         st = getattr(self, "_pctab", {"added": 0, "already": 0, "unreadable": 0})
         self.pc_read_btn.config(state="normal")
-        self.pc_stop.config(state="disabled")
+        self.pctab_stop_shown(False)
         from .tabreader import write_log
         PCTAB["log"].append(f"result: added {st.get('added', 0)}, already {st.get('already', 0)}, can't read "
                             f"{st.get('unreadable', 0)}, errors {st.get('failed', 0)}"

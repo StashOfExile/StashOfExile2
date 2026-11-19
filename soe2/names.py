@@ -89,7 +89,9 @@ FEATURES = (
     "Scan stash",
     "Search Options",           # Settings › Price checking
     "Session timer",
-    "Stash tab",                # Price Checks › Add items from
+    "Copy items",               # Bulk Pricing's source switch: Ctrl+Alt+C on each item in game (saved as "Manual Add")
+    "Read a stash tab",         # Bulk Pricing's source switch, BETA: every item on a public stash tab, through the
+                                # trade site (saved as "Stash tab"); its row: Tab's price in game, Read tab
     "Trade Whisper Watcher",
     "History",                  # UI overhaul: Price Checks ↳ History - every item you priced (was the Recent menu)
     # drawer build (drawer/PLAN.md 1.1): never "compact", "side panel", "game mode" or "portable" for these

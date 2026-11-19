@@ -195,8 +195,37 @@ class PageBar(GradientBar):
             mod = self.win.shell.modules.get(self.win.key)
             blurb = getattr(mod, "blurb", "") if mod is not None else ""
             if blurb:
-                self.create_text(24, y_blurb, text=blurb, anchor="w", font=("Segoe UI", 9), fill=mut, tags="pg")
+                bid = self.create_text(24, y_blurb, text=blurb, anchor="w", font=("Segoe UI", 9), fill=mut, tags="pg")
+                if getattr(mod, "blurb_tip", None) is not None:     # Bulk Pricing: ⓘ after the line - more on hover,
+                    bb = self.bbox(bid) or (0, 0, 24, 0)            # a click opens where it's set
+                    self.create_text(bb[2] + 8, y_blurb, text="ⓘ", anchor="w", font=("Segoe UI", 9), fill=mut,
+                                     tags=("pg", "pgtip"))
+                    self._blurb_tip_bind(mod)
         self.tag_lower("grad")
+
+    def _blurb_tip_bind(self, mod):
+        """The ⓘ's hover (its words asked for each time: they follow the settings) and its click - bound once."""
+        if getattr(self, "_blurb_tip", None) is not None:
+            return
+        from .style import TagTip
+
+        class _Tip(TagTip):
+            @property
+            def text(self):
+                try:
+                    return mod.blurb_tip()
+                except Exception:
+                    return ""
+
+            @text.setter
+            def text(self, _v):
+                pass
+        self._blurb_tip = _Tip(self, "pgtip", "")
+        self.tag_bind("pgtip", "<Enter>", lambda e: self.configure(cursor="question_arrow"), add="+")
+        self.tag_bind("pgtip", "<Leave>", lambda e: self.configure(cursor=""), add="+")
+        click = getattr(mod, "blurb_click", None)
+        if click is not None:
+            self.tag_bind("pgtip", "<Button-1>", lambda e: click(), add="+")
 
 
 def win_rect(widget, outer=False):
