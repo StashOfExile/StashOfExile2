@@ -2703,8 +2703,8 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
         except Exception:
             self.log_error("showing the copy marker")
 
-    ADVANCED = re.compile(r"\{\s*(?:Prefix|Suffix|Implicit|Unique|Desecrated|Enchant)[^}]*\}", re.I)
-    UNIQUE_RE = re.compile(r"^Rarity:\s*Unique\s*$", re.M)
+    ADVANCED = re.compile(r"\{\s*(?:Prefix|Suffix|Implicit|Unique|Desecrated|Enchant|(?:Corruption\s+)?Enhancement)[^}]*\}",
+                          re.I)    # 3.0.6: a Megalomaniac's passives come as "{ Enhancement }"
 
     def accept_clip(self, text):
         """Only a real Ctrl+Alt+C copy of an item we haven't already got becomes a new row. -> where it went, in the
@@ -2738,10 +2738,10 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
         from . import features as FEAT
         if not FEAT.on("bulk") and text != self.own_clip:        # 2.131.0: Bulk Pricing is off (Features)
             return "nothing - Bulk Pricing is off"
-        if not self.ADVANCED.search(text) and not self.UNIQUE_RE.search(text):   # plain Ctrl+C: no mod tiers or
-            self.status_text = "Ignored a normal copy - use Ctrl+Alt+C so the mod details are included"   # ranges
-            self.status_until = time.time() + 10                 # (3.0.6: a unique's mods are fixed - its plain copy,
-            return "nothing - a plain Ctrl+C copy"               # all some game windows give, prices fine)
+        if not self.ADVANCED.search(text):                       # plain Ctrl+C: no mod tiers/ranges, can't be priced well
+            self.status_text = "Ignored a normal copy - use Ctrl+Alt+C so the mod details are included"
+            self.status_until = time.time() + 10
+            return "nothing - a plain Ctrl+C copy"
         item = self.read_any(text)
         if not item:
             self.not_priceable_yet(text)

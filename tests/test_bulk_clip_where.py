@@ -17,8 +17,7 @@ def mega():
 
 def fake(**over):
     f = types.SimpleNamespace(records={}, dup_pending=[], dup_win=None, own_clip=None, status_text="", status_until=0,
-                              added=[], notices=[], ADVANCED=A.App.ADVANCED,
-                              UNIQUE_RE=A.App.UNIQUE_RE)
+                              added=[], notices=[], ADVANCED=A.App.ADVANCED)
     f.fd_capturing = lambda: False
     f.fl_capturing = lambda: False
     f.fl_ed_open = lambda: False
@@ -57,11 +56,17 @@ class BulkClipWhere(unittest.TestCase):
         f = fake()
         self.assertIn("plain Ctrl+C", A.App.accept_clip(f, plain))
 
-    def test_plain_copy_of_a_unique_is_added(self):
-        plain = re.sub(r"\{[^}]*\}\n", "", mega())       # (some game windows give only the plain copy)
+    def test_megalomaniac_enhancement_copy_is_advanced(self):
+        """The game copies a Megalomaniac's passives as '{ Enhancement }' lines - it was turned away as a plain copy."""
+        text = ("Item Class: Jewels\nRarity: Unique\nMegalomaniac\nDiamond\n--------\nItem Level: 84\n--------\n"
+                "{ Enhancement }\nAllocates Paragon() — Unscalable Value\n{ Enhancement }\n"
+                "Allocates Empowering Remnants() — Unscalable Value\n--------\nThe weak imagine; the strong decide.\n"
+                "--------\nCorrupted\n")
+        self.assertTrue(A.App.ADVANCED.search(text))
         f = fake()
-        self.assertEqual(A.App.accept_clip(f, plain), "Bulk Pricing")
-        self.assertEqual(len(f.added), 1)
+        self.assertEqual(A.App.accept_clip(f, text), "Bulk Pricing")
+        it = A.App.read_any(text)
+        self.assertTrue(it and any("Paragon" in m["text"] for m in it["mods"]))
 
 
 if __name__ == "__main__":
