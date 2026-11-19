@@ -57,7 +57,7 @@ def pop_on():
 
 
 def ink(c, bg):
-    """A game color (rarity, mod kind) made readable on this card: on a light style (Gilded's marble) the light
+    """A game color (rarity, mod kind) made readable on this card: on a light card the light
     blues / greens / yellows are darkened, same hue, until they reach 4.5 : 1 against it. Dark styles: as is."""
     from .style import contrast, mix
     try:

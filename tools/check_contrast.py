@@ -60,6 +60,37 @@ def pairs():
     return out
 
 
+def overlay_pairs():
+    """2.x legibility: the pairs the overlay draws in every ornate skin and every light style x color set (bar,
+    Quick settings, windows over the game): [(label, fg, bg)]."""
+    from soe2 import ovlight as OL, ovskins as OS
+    out = []
+    for name, s in OS.SKINS.items():
+        t = f"{name}"
+        out += [(f"{t} text on bg", s["text"], s["bg"]), (f"{t} muted on bg", s["muted"], s["bg"]),
+                (f"{t} muted on field", s["muted"], s["field"]), (f"{t} text on field", s["text"], s["field"]),
+                (f"{t} accent on bg", s["accent"], s["bg"]), (f"{t} head on band", s["head"], s["band"]),
+                (f"{t} on chip", s["on_fg"], s["on_bg"]), (f"{t} off chip", s["off_fg"], s["off_bg"]),
+                (f"{t} big on bg", s["big"], s["bg"])]
+        for i, g in enumerate(s["band_grad"] or ()):
+            out.append((f"{t} head on band stop {i}", s["head"], g))
+    for style in ("hairline", "slate", "flanks", "micro"):
+        for cid in OL.COLORS:
+            if cid == "theme":
+                continue
+            P = OL.palette(style, cid, boxed=True)
+            t = f"{style}/{cid}"
+            out += [(f"{t} text on bg", P["text"], P["bg"]), (f"{t} muted on bg", P["muted"], P["bg"]),
+                    (f"{t} accent on bg", P["accent"], P["bg"]), (f"{t} big on bg", P["big"], P["bg"]),
+                    (f"{t} head on band", P["head"], P["band"])]
+    return out
+
+
+def run_overlay():
+    rows = sorted((ratio(fg, bg), n, fg, bg) for n, fg, bg in overlay_pairs())
+    return rows[:8], [r for r in rows if r[0] < AA]
+
+
 def run():
     from soe2 import themes as TH
     worst, fails = [], []
@@ -82,4 +113,8 @@ if __name__ == "__main__":
     for r, t, a, n, fg, bg in (fails or worst)[:40]:
         print(f"{r:5.2f}  {t:9} {a:7} {n:28} {fg} on {bg}")
     print("OK - every pair is at least 4.5 : 1" if not fails else f"{len(fails)} pairs under 4.5 : 1")
-    sys.exit(1 if fails else 0)
+    o_worst, o_fails = run_overlay()
+    for r, n, fg, bg in (o_fails or o_worst)[:40]:
+        print(f"{r:5.2f}  overlay {n:36} {fg} on {bg}")
+    print("OK - every overlay pair is at least 4.5 : 1" if not o_fails else f"{len(o_fails)} overlay pairs under 4.5 : 1")
+    sys.exit(1 if fails or o_fails else 0)

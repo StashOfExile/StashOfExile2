@@ -24,7 +24,7 @@ from .ovskins import NAMES as _ORN_NAMES, ORNATE, palette as _ornate_palette
 
 STYLES = {"classic": "Classic (stone and bronze)", "hairline": "Hairline", "slate": "Slate", "flanks": "Split",
           "micro": "Micro"}
-STYLES.update(_ORN_NAMES)                                    # 2.110.0: Herald, Gilded, Warbanner, Verdant, Gloom
+STYLES.update(_ORN_NAMES)                                    # 2.110.0: Herald, Warbanner, Verdant, Gloom
 _FM_CACHE = {}                   # 2.112.3: measuring fonts, kept (see _lt_fm)
 LIGHT = ("hairline", "slate", "flanks", "micro") + ORNATE
 BOXLESS = ("hairline", "flanks")
@@ -59,6 +59,15 @@ def _keep_colors():
 
 
 _keep_colors()
+
+
+RETIRED_LOOKS = {"gilded": "herald"}       # a style taken out: a saved setting falls back to this one
+
+
+def look_valid(v):
+    """The saved overlay style, or the one that replaces a retired style, or Classic when unknown."""
+    v = RETIRED_LOOKS.get(v, v)
+    return v if v in STYLES else "classic"
 
 
 def can_see_through():
@@ -226,7 +235,7 @@ class LightOverlay:
     # ---------------------------------------------------------------- settings
     def ov_look(self):
         v = self.tracker_cfg().get("look", "classic")
-        return v if v in STYLES else "classic"
+        return look_valid(v)
 
     def ov_look_colors(self):
         """2.111.0: no Colors picker any more - every light style uses its default set (Exile Gold)."""
@@ -263,10 +272,16 @@ class LightOverlay:
     def _u(self, n):
         return max(1, int(round(n * getattr(self, "_hud_k", 1.0))))
 
+    @staticmethod
+    def _lt_family(P, size):
+        """Legibility pass: small text (9 pt and under) is drawn in a skin's body font - its display font (Cinzel,
+        Marcellus SC...) is all-caps / small-caps and blurs at that size (Hellfire's "Regex" read "Reqex")."""
+        return (P.get("body") or P["font"]) if size <= 9 else P["font"]
+
     def _lt_fm(self, cv, P, size, bold=False, family=None):
         """A font to measure with - one per family / size / weight for the whole run (2.112.3: every chip and
         label made a new one each time the overlay was built, and Windows makes fonts slowly)."""
-        key = (family or P["font"], self._hf(size), bool(bold))
+        key = (family or self._lt_family(P, size), self._hf(size), bool(bold))
         cache = _FM_CACHE.get(key)
         if cache is None:
             cache = _FM_CACHE[key] = tkfont.Font(root=cv.winfo_toplevel().nametowidget("."), family=key[0],
@@ -274,7 +289,8 @@ class LightOverlay:
         return cache
 
     def _lt_text(self, cv, P, x, y, text, size, fill, anchor="w", bold=False, key=None, cls=CanvasText, tags=()):
-        f = (P["font"], self._hf(size), "bold") if bold else (P["font"], self._hf(size))
+        fam = self._lt_family(P, size)
+        f = (fam, self._hf(size), "bold") if bold else (fam, self._hf(size))
         it = cv.create_text(x, y, text=text, anchor=anchor, fill=fill, font=f, tags=("mg",) + tuple(tags))
         t = cls(cv, it, P["bg"], halo=P.get("halo"))
         if key:
@@ -511,7 +527,7 @@ class LightOverlay:
         return self._lt_row(w, cv, P, want, spot[2], "slate")
 
     def _lt_ornate_bar(self, w, cv, P, want, spot, piece):
-        """2.110.0: Herald, Gilded, Warbanner, Verdant, Gloom - the Slate row in the skin's colors, fonts and tabs
+        """2.110.0: Herald, Warbanner, Verdant, Gloom - the Slate row in the skin's colors, fonts and tabs
         (the frame, its inner line and the corner marks come from the window: overlaywin)."""
         return self._lt_row(w, cv, P, want, spot[2], P["skin"])
 

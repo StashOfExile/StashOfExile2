@@ -491,7 +491,7 @@ class OverlayWindow(tk.Toplevel):
                 paint_texture(self.bar, seed=3)
             self._title_items = []
             self.bar_note_item = self.bar.create_text(0, BAR_H // 2, text="", anchor="e", fill=P["muted"],
-                                                      font=(P["font"], 9))
+                                                      font=(P.get("body") or P["font"], 9))
             for i, (txt, cmd, _bg) in enumerate(buttons):     # drawn on the canvas: no flat box on the texture
                 tag = f"btn{i}"
                 if txt == gearicon.GEAR:                      # (UI overhaul: drawn - the ⚙ glyph looked like a flower)
@@ -737,7 +737,7 @@ class OverlayWindow(tk.Toplevel):
             w = max(self.bar.winfo_width(), int(self.bar.cget("width")))
             title_end = 10 + tkfont.Font(root=self.bar, family=self.P["font"], size=self.P["title_size"],
                                          weight="bold").measure(self._title)
-            need = tkfont.Font(root=self.bar, family=self.P["font"], size=9).measure(text)
+            need = tkfont.Font(root=self.bar, family=self.P.get("body") or self.P["font"], size=9).measure(text)
             right = w - 10 - len(self._btns) * 22
         except tk.TclError:
             return False

@@ -12,7 +12,7 @@ GGG ToS: it only draws in the app's own window."""
 from .pickers import ListPreview
 
 GROUPS = (("Classic", ("classic",)), ("Light", ("hairline", "slate", "flanks", "micro")),
-          ("Ornate", ("herald", "gilded", "warbanner", "verdant", "gloom", "totem", "hellfire", "psionic", "guildhall")))
+          ("Ornate", ("herald", "warbanner", "verdant", "gloom", "totem", "hellfire", "psionic", "guildhall")))
 ABOUT = {
     "classic": "Carved stone and bronze, like the game's own bar. Takes your app theme's colors.",
     "hairline": "No box - one thin line under plain text. The lightest on the game and on the PC.",
@@ -20,7 +20,6 @@ ABOUT = {
     "flanks": "No box: the numbers sit by the life orb, the menus by the mana orb - the middle stays clear.",
     "micro": "The smallest: the times, the rank and the menus, only as wide as they are.",
     "herald": "Crimson plates with gilt bevels.",
-    "gilded": "White marble and gold leaf, umber text.",
     "warbanner": "A gold frame and royal-blue bands.",
     "verdant": "Forest green and aged bronze.",
     "gloom": "Smoky slate and pewter, pale text.",

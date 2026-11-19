@@ -45,6 +45,13 @@ QUICK_TIPS = {"Style": "How the overlay looks over the game",
               "app": "App ▸ on the overlay: opens the Drawer"}
 
 
+def chip_colors(Q, on):
+    """A chip's colors (legibility pass): the text is always the style's text color - on or off - so it reads in
+    every skin; the state is the mark (✓), the accent edge and the field background, not dim text."""
+    return {"bg": Q["field"] if on else Q["bg"], "fg": Q["text"],
+            "highlightbackground": Q["accent"] if on else Q["line"]}
+
+
 class OverlayQuick:
     """Mixed into App."""
 
@@ -143,12 +150,13 @@ class OverlayQuick:
                 "muted": P["muted"], "line": P["line"],
                 "accent": P["head"] if P.get("poe") else (P.get("accent") or P["head"]),     # (Classic: its gold)
                 "field": P.get("cell_bg") or P.get("field") or P["bg"], "font": P.get("font") or "Segoe UI",
-                "hfont": P.get("hfont") or P.get("font") or "Segoe UI"}
+                "hfont": P.get("hfont") or P.get("font") or "Segoe UI",
+                "body": P.get("body") or P.get("font") or "Segoe UI"}
 
     def ov_quick_show(self, e=None):
         self.ov_quick_close()
         Q = self.ovq_P = self.ov_quick_style()
-        P1, P2, F = Q["bg"], Q["band"], Q["font"]
+        P1, P2, F = Q["bg"], Q["band"], Q["body"]      # (F: the body font; the display font only titles the box)
         w = tk.Toplevel(self.root, bg=Q["line"])
         w.withdraw()
         w.overrideredirect(True)
@@ -200,7 +208,7 @@ class OverlayQuick:
         tk.Label(lrow, text="Layout", bg=P1, fg=Q["text"], font=(F, 10)).pack(side="left")
         self.ovq_layout_chips = {}
         for key in ("xpbar", "panel"):
-            ch = tk.Label(lrow, font=(F, 9), padx=8, pady=4, cursor="hand2", highlightthickness=1)
+            ch = tk.Label(lrow, font=(F, 10), padx=8, pady=4, cursor="hand2", highlightthickness=1)
             ch.pack(side="right", padx=(4, 0))
             ch.bind("<Button-1>", lambda _e, k=key: self._ovq_layout(LAYOUTS[k]))
             self.ovq_layout_chips[key] = ch
@@ -228,16 +236,16 @@ class OverlayQuick:
         sections = [("HELPERS", None)] + [(g, items) for g, items in quick_groups()] + [("ON THE BAR", QUICK_BAR)]
         for title, items in sections:
             if items is None or title == "ON THE BAR":             # (the two headings)
-                tk.Label(body, text=title, bg=P1, fg=Q["muted"], font=(F, 9, "bold"), anchor="w").pack(
+                tk.Label(body, text=title, bg=P1, fg=Q["text"], font=(F, 10, "bold"), anchor="w").pack(
                     fill="x", pady=(8, 4))
             if items is None:
                 continue
             if title != "ON THE BAR":                              # (a helper group, as on Overlay › Helpers)
-                tk.Label(body, text=title, bg=P1, fg=Q["muted"], font=(F, 9), anchor="w").pack(fill="x", pady=(2, 2))
+                tk.Label(body, text=title, bg=P1, fg=Q["text"], font=(F, 10), anchor="w").pack(fill="x", pady=(2, 2))
             grid = tk.Frame(body, bg=P1)
             grid.pack(fill="x")
             for i, (label, key) in enumerate(items):
-                b = tk.Label(grid, text=label, font=(F, 9), padx=8, pady=4, cursor="hand2",
+                b = tk.Label(grid, text=label, font=(F, 10), padx=8, pady=4, cursor="hand2",
                              highlightthickness=1)
                 b.grid(row=i // 4, column=i % 4, sticky="ew", padx=(0, 4), pady=(0, 4))
                 b.bind("<Button-1>", lambda _e, k=key: self._ovq_chip(k))
@@ -304,12 +312,11 @@ class OverlayQuick:
         self._ovq_chip_look(b, on, getattr(b, "label", b.cget("text").lstrip("✓ ")))
 
     def _ovq_chip_look(self, b, on, label):
-        """A chip in the overlay's style; on: ✓, the accent edge and the strong text (2.124.0: a mark and a word, not
-        color alone)."""
+        """A chip in the overlay's style; on: ✓, the accent edge and the field background; off: the same text color
+        and a dim edge (2.124.0: a mark and a word, not color alone)."""
         Q = getattr(self, "ovq_P", None) or self.ov_quick_style()
         try:
-            b.config(text=("✓ " if on else "") + label, bg=Q["field"] if on else Q["bg"],
-                     fg=Q["text"] if on else Q["muted"], highlightbackground=Q["accent"] if on else Q["line"])
+            b.config(text=("✓ " if on else "") + label, **chip_colors(Q, on))
         except tk.TclError:
             pass
 
