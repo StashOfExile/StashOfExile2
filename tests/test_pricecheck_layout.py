@@ -279,7 +279,7 @@ class Layout(unittest.TestCase):
     def test_listings_have_no_seller(self):
         self.show("rare_gloves_quality_sockets")
         texts = [str(w.cget("text")) for w in self.walk(self.table()) if isinstance(w, tk.Label)]
-        self.assertIn("Mods that matter", texts)
+        self.assertIn("item level 80", " ".join(texts))
         self.assertFalse([t for t in texts if "seller" in t.lower()], texts)
 
     # ---- UI rule 22

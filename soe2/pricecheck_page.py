@@ -986,10 +986,8 @@ class PriceCheckPage:
         return " · ".join(out + ([fl] if fl else []))
 
     def _pc_table(self, v, entries, total, n, rec=None):
-        """The cheapest listings as a table: Price, Item level, Mods that matter, Listed (no seller names). A click on
-        a row opens the whole listing under it (▸)."""
-        from .style import Tooltip
-        P2 = C["panel2"]
+        """The cheapest listings as small item cards (soe2/listingcard.py; no seller names). A click on a card opens
+        the whole item under its mods (▸)."""
         v.count.config(text=f"CHEAPEST LISTINGS · {len(entries)} of {total:,}" if total else
                        "CHEAPEST LISTINGS · none found")
         if n and not entries:
@@ -998,61 +996,8 @@ class PriceCheckPage:
             return
         if not entries:
             return
-        card = tk.Frame(v.lst, bg=P2, padx=8, pady=4, highlightthickness=1, highlightbackground=C["line"])
-        card.pack(fill="x", pady=(0, 12))
-        card.columnconfigure(2, weight=1)
-        mut, txt = C["muted"], C["text"]
-        for c, (head, anchor) in enumerate((("Price", "w"), ("Item level", "w"), ("Mods that matter", "w"),
-                                            ("Listed", "e"), ("", "e"))):
-            tk.Label(card, text=head, bg=P2, fg=mut, font=("Segoe UI", 9, "bold"), anchor=anchor).grid(
-                row=0, column=c, sticky="ew", padx=8, pady=(4, 4))
-        width = self._pc_list_w(v)
-        r = 1
-        from .pricefmt import UNIT_NAMES
-        for e in entries:
-            f = listing_facts(e)
-            tk.Frame(card, bg=C["line"], height=1).grid(row=r, column=0, columnspan=5, sticky="ew")
-            r += 1
-            if f["price"]:
-                amt, cur = f["price"]
-                amt = int(amt) if float(amt).is_integer() else amt
-                ptxt = f"{amt} {UNIT_NAMES.get(cur) or cur_label(cur)}"
-            else:
-                ptxt = "no price"
-            cells = [
-                tk.Label(card, text=ptxt, bg=P2, fg=txt if f["price"] else mut, font=("Segoe UI", 10, "bold"),
-                         anchor="w"),
-                tk.Label(card, text=str(f["ilvl"] or "-"), bg=P2, fg=txt, font=("Segoe UI", 10), anchor="w"),
-                tk.Label(card, text=self._pc_matter(f, rec) or "-", bg=P2, fg=mut, font=("Segoe UI", 9), anchor="w",
-                         justify="left", wraplength=max(160, width - 360)),
-                tk.Label(card, text=ago(f["ts"]) if f["ts"] else "", bg=P2, fg=mut, font=("Segoe UI", 9),
-                         anchor="e"),
-                tk.Label(card, text="▸", bg=P2, fg=mut, font=("Segoe UI", 10)),
-            ]
-            for c, w_ in enumerate(cells):
-                w_.grid(row=r, column=c, sticky="nw" if c < 3 else "ne", padx=8, pady=8)
-                w_.config(cursor="hand2")
-            more = cells[-1]
-            tip = Tooltip(more, "Show the whole listing")
-            slot = tk.Frame(card, bg=P2)
-            slot.grid(row=r + 1, column=0, columnspan=5, sticky="ew")
-            slot.grid_remove()
-
-            def toggle(_e=None, slot=slot, more=more, f=f, tip=tip):
-                if slot.winfo_manager():
-                    slot.grid_remove()
-                    more.config(text="▸")
-                    tip.text = "Show the whole listing"
-                    return
-                if not slot.winfo_children():
-                    cv = self._pc_card(slot, f, max(420, width - 18), seller=False)
-                    v.cards.append(cv)
-                slot.grid()
-                more.config(text="▾")
-                tip.text = "Hide the whole listing"
-            for w_ in cells:
-                w_.bind("<Button-1>", toggle)
-            r += 2
+        from . import listingcard
+        listingcard.draw(self, v, entries, rec)       # 3.0.7: each listing as a small item card
         if v.rcanvas is not getattr(self, "pc_lcanvas", None) and not getattr(v, "keep_scroll", False):
             v.rcanvas.yview_moveto(0)                    # (a narrow window, or Bulk Pricing: the card's scroll stays)
 
