@@ -14,7 +14,7 @@ from tkinter import simpledialog, ttk
 from . import buglog
 from . import stashread as SR
 from .config import SETTINGS, save_json
-from .stashlayouts import ORDER, TABS
+from .stashlayouts import ORDER, TABS, tab_title
 from .style import C
 
 
@@ -58,7 +58,7 @@ class StashScanPage:
     def stash_scan_skip(self):
         if not self.ss or self.ss["busy"]:
             return
-        self.ss["note"], self.ss["kind"] = f"Skipped {TABS[ORDER[self.ss['i']]]['label']}.", ""
+        self.ss["note"], self.ss["kind"] = f"Skipped {tab_title(ORDER[self.ss['i']])}.", ""
         self._ss_next()
 
     def _ss_next(self):
@@ -158,7 +158,7 @@ class StashScanPage:
         ss.setdefault("wild", {})[tab] = list(res.get("wild") or [])
         n = len(res["items"])
         miss = f" · {len(res['unread'])} couldn't be read" if res["unread"] else ""
-        ss["note"], ss["kind"] = f"{TABS[tab]['label']}: read {n} stack{'s' if n != 1 else ''}{miss}.", "ok"
+        ss["note"], ss["kind"] = f"{tab_title(tab)}: read {n} stack{'s' if n != 1 else ''}{miss}.", "ok"
         self._ss_next()
 
     # ---------------------------------------------------------------- the card over the game
@@ -192,6 +192,8 @@ class StashScanPage:
         tk.Label(box, text=f"Tab {ss['i'] + 1} of {len(ORDER)}", bg=BG, fg=MUT, font=("Segoe UI", 9),
                  anchor="w").pack(fill="x", pady=(8, 0))
         page = f" ({t['page']} page)" if t.get("page") else ""
+        if t.get("button"):                 # 3.0.6 Socketables: its page buttons show pictures only - say which one
+            page = f" ({t['page']} page, button {t['button'][0]} of {t['button'][1]})"
         tk.Label(box, text=f"Open your {t['label']} tab{page}", bg=BG, fg=TXT, font=("Segoe UI", 12, "bold"),
                  anchor="w").pack(fill="x")
         if ss["note"]:
@@ -311,13 +313,13 @@ class StashScanPage:
         tv.pack(side="left", fill="both", expand=True)
         sb.pack(side="left", fill="y")
         for tab, n, q in rows:
-            tv.insert("", "end", values=(n, f"{q:,}", TABS[tab]["label"]))
+            tv.insert("", "end", values=(n, f"{q:,}", tab_title(tab)))
         for tab, n in unread:
-            tv.insert("", "end", values=(n, "?", TABS[tab]["label"]), tags=("unread",))
+            tv.insert("", "end", values=(n, "?", tab_title(tab)), tags=("unread",))
         tv.tag_configure("unread", foreground=C.get("red", "#e06c6c"))
         wild_rows = {}
         for tab, n, ic in ss.get("wild_left") or []:     # 2.114.3: "? (wildcard)" - double-click to name it
-            iid = tv.insert("", "end", values=(WILD_NAME, f"{n:,}" if n else "?", TABS[tab]["label"]), tags=("unread",))
+            iid = tv.insert("", "end", values=(WILD_NAME, f"{n:,}" if n else "?", tab_title(tab)), tags=("unread",))
             wild_rows[iid] = ic
         if wild_rows:
             u = len(wild_rows)

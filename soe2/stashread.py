@@ -7,8 +7,8 @@ hand), tab by tab.
   * Only looks: no keys, no clicks, nothing sent to the game (like the Expedition and Ritual watchers).
   * The picture stays in memory for the read and is dropped. Nothing is saved, logged or sent - counts stay on this PC
     like every Wealth number.
-  * Layouts: stashlayouts.py (Currency, Abyss, Delirium, Breach › Catalysts, Expedition, Ritual, Essence, Fragments › Fragments). Wildcard slots, shards and the
-    crafting hole are skipped.
+  * Layouts: stashlayouts.py (Currency, Abyss, Delirium, Breach › Catalysts, Expedition, Ritual, Essence, Fragments › Fragments,
+    3.0.6: Socketables' five pages). Wildcard slots, shards and the crafting hole are skipped.
 How it reads:
   1. The panel: the slot frames of each known tab, drawn as boxes, are matched against the picture's edges (left 60%
      of the game, at ~720 px high so every size costs the same). The best tab + spot + size wins.
@@ -19,7 +19,7 @@ Needs OpenCV + numpy (the app ships both for the Expedition watcher)."""
 import base64
 import pathlib
 
-from .stashlayouts import ORDER, PANEL, TABS
+from .stashlayouts import ORDER, PANEL, TABS, tab_title
 
 WORK_H = 720            # match the panel at this height (any game size costs the same)
 SIZES = (0.94, 0.97, 1.0, 1.03, 1.06)      # UI scale wiggle around game height / 1440
@@ -115,7 +115,8 @@ def _outline(tab, k, w):
     cv2, np = _np()
     n = max(8, round(PANEL * k * w))
     t = np.zeros((n, n), np.float32)
-    for _name, (x, y, sw, sh) in TABS[tab]["slots"]:
+    boxes = [r for _name, r in TABS[tab]["slots"]] + list(TABS[tab].get("marks") or ())   # 3.0.6: + page buttons
+    for x, y, sw, sh in boxes:
         cv2.rectangle(t, (round(x * k * w), round(y * k * w)), (round((x + sw) * k * w), round((y + sh) * k * w)),
                       1.0, 1)
     return t
@@ -295,7 +296,7 @@ def read_tab(bgr, game_h, want):
     mine = spot["scores"].get(want, 0.0)
     if spot["tab"] != want and spot["weighed"] - mine > OTHER_TAB_BY:
         return {"ok": False, "tab": want, "seen": spot["tab"], "items": [], "unread": [],
-                "why": f"That looks like the {TABS[spot['tab']]['label']} tab. Open the {TABS[want]['label']} tab."}
+                "why": f"That looks like the {tab_title(spot['tab'])} tab. Open the {tab_title(want)} tab."}
     if spot["tab"] != want:                       # close call: redo the spot for the tab you named
         spot = locate(bgr, game_h, tabs=(want,))
     k, ox, oy = spot["k"], spot["x"], spot["y"]

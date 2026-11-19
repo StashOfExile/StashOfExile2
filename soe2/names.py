@@ -131,6 +131,10 @@ FEATURES = (
                                 # screen picture, clipboard, key sending, OCR, Client.txt, each with its fix
 )
 
+# 3.0.6 Scan stash: the Socketables tab's five pages, named for the buttons along its top, left to right (the game's
+# buttons show pictures only). The scan's card says which button: "Open your Socketables tab (Idols page, button 4 of 5)".
+SOCKETABLES_PAGES = ("Runes", "More Runes", "Soul Cores", "Idols", "Others")
+
 # Game Search's categories that come from gamedb.json (tools/build_gamedb.py), in the order they follow "Endgame Items".
 # Title Case. gamedb.json, Game Search and the build tool all use exactly these.
 GAME_SEARCH_GROUPS = ("Tablets", "Waystones", "Atlas Masters", "Vaal Temple", "Pinnacles & Areas",

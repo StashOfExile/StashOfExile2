@@ -88,8 +88,8 @@ class WealthPage:
         self.w_scan_btn = ttk.Button(abar, text="Scan stash…", command=self.stash_scan_start,    # 2.102.0
                                      style="Primary.TButton")                                    # (2.135.0: the main one)
         self.w_scan_btn.pack(side="right", padx=(0, 8))
-        Tooltip(self.w_scan_btn, "Reads your Currency, Abyss, Delirium, Breach, Expedition, Ritual, Essence and "
-                                  "Fragments tabs from the screen. You check the numbers before they're saved. Only "
+        Tooltip(self.w_scan_btn, "Reads your Currency, Abyss, Delirium, Breach, Expedition, Ritual, Essence, "
+                                  "Fragments and Socketables tabs from the screen. You check the numbers before they're saved. Only "
                                   "looks: no keys, no clicks; the picture is never saved.")
         self.w_sync_btn = ttk.Button(abar, text="⟳ Sync stash tabs", command=self.wealth_sync)   # (never shown)
         self.w_msg = tk.Label(tab, text="", anchor="w", justify="left", bg=P1, fg=C["muted"], padx=12,
@@ -379,8 +379,8 @@ class WealthPage:
 
     WEALTH_GUIDE = [
         ("What Wealth is", "Tracks and logs your overall net worth, converts all currency items to Divine values."),
-        ("Scan stash", "Reads your Currency, Abyss, Delirium, Breach, Expedition, Ritual, Essence and Fragments tabs from "
-                       "the screen. You check the numbers before they're saved. Only looks: no keys, no clicks; the "
+        ("Scan stash", "Reads your Currency, Abyss, Delirium, Breach, Expedition, Ritual, Essence, Fragments and "
+                       "Socketables tabs from the screen. You check the numbers before they're saved. Only looks: no keys, no clicks; the "
                        "picture is never kept."),
         ("Count by hand", "For a currency Scan stash can't read (More ▾): press it, then hover each stack in game "
                          "and press Ctrl+C - stacks of the same currency add up. Double-click a quantity to change "
