@@ -932,24 +932,26 @@ class MapProfitPage:
         from .pricefmt import fmt_div
         view = self.mp_view.get() if getattr(self, "mp_view", None) is not None else "All Time"
         runs = self.mp_runs(self.mp_q.get() if getattr(self, "mp_q", None) else "")
-        tv.delete(*tv.get_children())
         self.mp_rows = {}
+        out = []                                            # (UI rule 22: a typed search changes rows, never the table)
         if view == "All Time":
             cols = (("Map", 260, "w"), ("Time", 70, "e"), ("Profit", 110, "e"), ("When", 160, "w"), ("", 10, "w"))
         else:
             cols = (("Day" if view == "Daily" else "Hour", 160, "w"), ("Maps", 60, "e"), ("Profit", 110, "e"),
                     ("Per map", 100, "e"), ("Per hour", 100, "e"))
-        for c, (title, wd, anc) in zip(("a", "b", "c", "d", "e"), cols):
-            tv.heading(c, text=title)
-            tv.column(c, width=wd, anchor=anc, stretch=c == "a")
+        if getattr(self, "_mp_cols", None) != (view == "All Time", cols):
+            self._mp_cols = (view == "All Time", cols)
+            for c, (title, wd, anc) in zip(("a", "b", "c", "d", "e"), cols):
+                tv.heading(c, text=title)
+                tv.column(c, width=wd, anchor=anc, stretch=c == "a")
         if view == "All Time":
             for i, r in enumerate(runs):
                 iid = f"r{i}"
                 self.mp_rows[iid] = r
                 m, s = divmod(int(r["secs"]), 60)
-                tv.insert("", "end", iid=iid, values=(r["map"] or "a map", f"{m}:{s:02d}" if r["secs"] else "–",
-                                                      MP.signed(r["div"], fmt_div),
-                                                      time.strftime("%a %d %b, %H:%M", time.localtime(r["t"])), ""))
+                out.append((iid, dict(values=(r["map"] or "a map", f"{m}:{s:02d}" if r["secs"] else "–",
+                                              MP.signed(r["div"], fmt_div),
+                                              time.strftime("%a %d %b, %H:%M", time.localtime(r["t"])), ""))))
             self.mp_buckets = MP.buckets(runs, "day")
         else:
             kind = "day" if view == "Daily" else "hour"
@@ -958,8 +960,10 @@ class MapProfitPage:
                 iid = f"b{i}"
                 end = start + (86400 if kind == "day" else 3600)
                 self.mp_rows[iid] = {"runs": [r for r in runs if start <= r["t"] < end], "label": label, "div": div}
-                tv.insert("", "end", iid=iid, values=(label, n, MP.signed(div, fmt_div), MP.signed(div / n, fmt_div),
-                                                      MP.signed(div * 3600 / secs, fmt_div) if secs >= 60 else "–"))
+                out.append((iid, dict(values=(label, n, MP.signed(div, fmt_div), MP.signed(div / n, fmt_div),
+                                              MP.signed(div * 3600 / secs, fmt_div) if secs >= 60 else "–"))))
+        from .inplace import tv_sync
+        tv_sync(tv, out)
         total = sum(r["div"] for r in runs)
         secs = sum(r["secs"] for r in runs)
         t = self.mp_totals()
@@ -985,12 +989,18 @@ class MapProfitPage:
         elif self.mp_hint.winfo_manager():
             self.mp_hint.pack_forget()
         self.mp_chart_draw()
-        for ch in self.mp_empty.winfo_children():
-            ch.destroy()
         self.mp_greys()
         if runs:
             self.mp_empty.place_forget()
             return
+        qtxt = self.mp_q.get() if getattr(self, "mp_q", None) else ""
+        ekey = (bool(nh), bool(nh and not qtxt), self.mp_on(), self.look_key_text())
+        if ekey == getattr(self, "_mp_empty_key", None) and self.mp_empty.winfo_children():
+            self.mp_empty.place(relx=0.5, rely=0.35, anchor="center")           # (UI rule 22: the same words stay)
+            return
+        self._mp_empty_key = ekey
+        for ch in self.mp_empty.winfo_children():
+            ch.destroy()
         P1 = C["panel"]                                     # (UX: empty - what it is + one button)
         self.mp_empty.place(relx=0.5, rely=0.35, anchor="center")
         if nh and not (self.mp_q.get() if getattr(self, "mp_q", None) else ""):

@@ -529,6 +529,7 @@ class Overlay:
             lab.bind("<Button-3>", lambda e, i=i: self.tab_menu(i, e.x_root, e.y_root))   # 2.72.2: a menu, not close
             self.notes_tab_labels = getattr(self, "notes_tab_labels", {})
             self.notes_tab_labels[i] = lab
+        self._tabs_built = (bar, len(self.note_tabs()))
         add = tk.Label(bar, text="+", bg=bg, fg=fg, padx=8, cursor="hand2", font=(F, 9, "bold"))
         add.pack(side="left", pady=(0, 2))
         add.bind("<Button-1>", lambda e: self.add_tab())
@@ -537,6 +538,30 @@ class Overlay:
             Tooltip(add, "New note tab")
         except Exception:
             buglog.caught()
+
+    def _tabs_select_in_place(self):
+        """UI rule 22: another tab was picked - the tab labels stay and only the picked one's look changes (the bar
+        is built again only when tabs come or go, or while one is being renamed). -> True when done."""
+        bar, tabs = getattr(self, "notes_tabbar", None), self.note_tabs()
+        try:
+            if bar is None or not bar.winfo_exists() or getattr(self, "_tabs_built", None) != (bar, len(tabs)):
+                return False
+            ent = getattr(self, "notes_rename_entry", None)
+            if ent is not None and ent.winfo_exists():
+                return False
+            labs = [(getattr(self, "notes_tab_labels", {}) or {}).get(i) for i in range(len(tabs))]
+            if any(lab is None or not lab.winfo_exists() or lab.master is not bar or not lab.winfo_manager()
+                   for lab in labs):
+                return False
+            bg, fg = self.note_colours()
+            F, cur = self.note_body_font(), self.note_index()
+            for i, lab in enumerate(labs):
+                on = i == cur
+                lab.config(text=tabs[i]["name"][:18], bg=fg if on else bg, fg=bg if on else fg,
+                           font=(F, 9, "bold" if on else "normal"), highlightbackground=fg)
+            return True
+        except tk.TclError:
+            return False
 
     def note_font_step(self, d):
         """2.119.0: A− / A+ on the note (and Ctrl + mouse wheel in it) - its text size, 8 to 24, kept."""
@@ -688,7 +713,8 @@ class Overlay:
         self.notes_text.edit_modified(False)
         self.cfg["notes_text"] = self.note_tabs()[i]["text"]
         self.save_settings()
-        self._paint_tabs()
+        if not self._tabs_select_in_place():
+            self._paint_tabs()
 
     def add_tab(self, name=None):
         tabs = self.note_tabs()

@@ -459,22 +459,36 @@ class SearchPage:
         """UI overhaul: the categories down the left, each with how many results it has; the one picked has a bar,
         bold text and a filled row (never color alone)."""
         f = self.gs_chips
-        for w in f.winfo_children():
-            w.destroy()
-        for g, label in [(None, "All")] + [(g, g) for g in order]:
+        cats = [(None, "All")] + [(g, g) for g in order]
+        # UI rule 22: picking a category or typing a search re-counts and re-marks the rows that are there - they are
+        # built again only when the list of categories changes
+        have = getattr(self, "_gs_chip_rows", None)
+        if have is None or [h[0] for h in have] != [g for g, _l in cats] or \
+                not all(h[1].winfo_exists() for h in have) or have[0][1].master is not f:
+            for w in f.winfo_children():
+                w.destroy()
+            have = self._gs_chip_rows = []
+            for g, label in cats:
+                row = tk.Frame(f, bg=C["panel"], cursor="hand2")
+                row.pack(fill="x", pady=1)
+                bar = tk.Frame(row, width=3)
+                bar.pack(side="left", fill="y")
+                name = tk.Label(row, text=label, anchor="w", padx=8, pady=4)
+                cnt = tk.Label(row, padx=8, font=("Segoe UI", 9))
+                cnt.pack(side="right")                      # (D3: the count claims its room first, then the name)
+                name.pack(side="left", fill="x", expand=True)
+                for w in (row, name, cnt):
+                    w.bind("<Button-1>", lambda e, gg=g: self.gs_pick(gg))
+                have.append((g, row, bar, name, cnt))
+        from .inplace import set_cfg
+        for g, row, bar, name, cnt in have:
             n = total if g is None else counts.get(g, 0)
             on = self.gs_active == g
             bg = C["panel2"] if on else C["panel"]
-            row = tk.Frame(f, bg=bg, cursor="hand2")
-            row.pack(fill="x", pady=1)
-            tk.Frame(row, bg=C["accent"] if on else bg, width=3).pack(side="left", fill="y")
-            name = tk.Label(row, text=label, bg=bg, fg=C["text"] if (n or on) else C["muted"], anchor="w", padx=8,
-                            pady=4, font=("Segoe UI", 10, "bold" if on else "normal"))
-            cnt = tk.Label(row, text=f"{n:,}", bg=bg, fg=C["muted"], padx=8, font=("Segoe UI", 9))
-            cnt.pack(side="right")                          # (D3: the count claims its room first, then the name)
-            name.pack(side="left", fill="x", expand=True)
-            for w in (row, name, cnt):
-                w.bind("<Button-1>", lambda e, gg=g: self.gs_pick(gg))
+            set_cfg(row, bg=bg)
+            set_cfg(bar, bg=C["accent"] if on else bg)
+            set_cfg(name, bg=bg, fg=C["text"] if (n or on) else C["muted"], font=("Segoe UI", 10, "bold" if on else "normal"))
+            set_cfg(cnt, text=f"{n:,}", bg=bg, fg=C["muted"])
 
     def _gs_flow(self):
         """(2.0 beta 21's wrapping chips: the categories are a column now)"""

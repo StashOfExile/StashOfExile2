@@ -20,6 +20,7 @@ from tkinter import ttk
 
 from . import buglog
 from .config import APP_UA, P, SETTINGS
+from .inplace import set_cfg, tv_sync
 from .style import C, Splitter, flowify, trade_icon
 from .trade import ago, RAW_LISTINGS, strip_markup
 
@@ -609,33 +610,46 @@ class PriceCheckPage:
         box = getattr(self, "pc_recent", None)
         if box is None:
             return
-        for w in box.winfo_children():
-            w.destroy()
         recs = self.pc_recs()
-        self.pc_chips = {}
-        if not recs:
-            tk.Label(box, text=f"Your last {PC_MAX} checks show here.", bg=C["panel"], fg=C["muted"],
-                     font=("Segoe UI", 9)).pack(side="left")
         room = max(200, box.winfo_width() or 900)
-        used = 0
+        dl = getattr(self, "_pc_dl", False)
+        # UI rule 22: a tick or a new price on the same checks only re-colors the chips - they are built again
+        # only when the list, a chip's words or the room changed
+        want = []
         for r in recs[:self.PC_CHIPS]:
             it = r.get("item") or {}
             price = fmt_div(r["est"]) if r.get("est") is not None and not r.get("skip") else \
                 ("…" if r.get("state") in ("queued", "pricing") else "no price")
             on = r["id"] == self.pc_rid
             t = f"{(it.get('name') or it.get('base') or 'item')[:22]} · {price}"
-            dl = getattr(self, "_pc_dl", False)
-            b = tk.Label(box, text=("\u25b8 " if on and dl else "") + t, bg=C["panel2"],
-                         fg=C["text"] if on else C["muted"], font=("Segoe UI", 9),
-                         padx=8, pady=2, cursor="hand2", highlightthickness=1,
-                         highlightbackground=(C["text"] if dl else C["accent"]) if on else C["line"])
-            used += b.winfo_reqwidth() + 6
-            if used > room and self.pc_chips:
-                b.destroy()
-                break
-            b.pack(side="left", padx=(0, 8))
-            b.bind("<Button-1>", lambda e, rid=r["id"]: self.records.get(rid) and self.pc_show(self.records[rid]))
-            self.pc_chips[r["id"]] = b
+            want.append((r["id"], ("\u25b8 " if on and dl else "") + t, C["text"] if on else C["muted"],
+                         (C["text"] if dl else C["accent"]) if on else C["line"]))
+        have = getattr(self, "pc_chips", None) or {}
+        shown = want[:len(have)]                          # (a chip that did not fit stays out while nothing changed)
+        if shown and list(have) == [w[0] for w in shown] and all(b.winfo_exists() for b in have.values()) and \
+                getattr(self, "_pc_chip_room", None) == room and \
+                [b.cget("text").replace("\u25b8 ", "") for b in have.values()] == [w[1].replace("\u25b8 ", "") for w in shown]:
+            for rid, text, fg, hb in shown:
+                set_cfg(have[rid], text=text, fg=fg, highlightbackground=hb)
+        else:
+            self._pc_chip_room = room
+            for w in box.winfo_children():
+                w.destroy()
+            self.pc_chips = {}
+            if not recs:
+                tk.Label(box, text=f"Your last {PC_MAX} checks show here.", bg=C["panel"], fg=C["muted"],
+                         font=("Segoe UI", 9)).pack(side="left")
+            used = 0
+            for rid, text, fg, hb in want:
+                b = tk.Label(box, text=text, bg=C["panel2"], fg=fg, font=("Segoe UI", 9),
+                             padx=8, pady=2, cursor="hand2", highlightthickness=1, highlightbackground=hb)
+                used += b.winfo_reqwidth() + 6
+                if used > room and self.pc_chips:
+                    b.destroy()
+                    break
+                b.pack(side="left", padx=(0, 8))
+                b.bind("<Button-1>", lambda e, rid=rid: self.records.get(rid) and self.pc_show(self.records[rid]))
+                self.pc_chips[rid] = b
         m = self.pc_recent_menu
         m.delete(0, "end")
         for r in recs:
@@ -1339,16 +1353,20 @@ class PriceCheckPage:
             from .pricefmt import fmt_div
             self._pc_hist_quiet = True
             try:
-                tv.delete(*tv.get_children())
+                rows = []
                 for r in recs:
                     it = r.get("item") or {}
                     price = fmt_div(r["est"]) if r.get("est") is not None and not r.get("skip") else \
                         ("…" if r.get("state") in ("queued", "pricing") else "-")
-                    tv.insert("", "end", iid=str(r["id"]), values=(it.get("name") or it.get("base") or "item", price,
-                                                                   time.strftime("%H:%M", time.localtime(r.get("time", 0)))))
+                    rows.append((str(r["id"]), dict(values=(it.get("name") or it.get("base") or "item", price,
+                                                            time.strftime("%H:%M", time.localtime(r.get("time", 0)))))))
+                tv_sync(tv, rows)                       # (UI rule 22: same checks - only the changed cells are set)
                 if cur is not None and tv.exists(str(cur["id"])):
-                    tv.selection_set(str(cur["id"]))
+                    if tv.selection() != (str(cur["id"]),):
+                        tv.selection_set(str(cur["id"]))
                     tv.see(str(cur["id"]))
+                elif tv.selection():
+                    tv.selection_set(())
             finally:
                 self._pc_hist_quiet = False
             if recs:

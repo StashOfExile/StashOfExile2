@@ -29,6 +29,7 @@ from .config import (
 )
 from . import clipread
 from .util import _amt, _num, mmss
+from .inplace import set_cfg, tv_sync
 from .net import _STATUS_HOOK, fmt_stamp, LIMITER, per_text
 from .updates import clean_env, cleanup_update, download_asset, FROZEN, latest_release, pick_asset, REPO, is_newer, vtuple
 from .rates import RATES
@@ -2409,6 +2410,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         tv.tag_configure("odd", background=C["odd"])
         tv.tag_configure("thin", foreground=C["muted"])
         self.rates_tv = tv
+        self._rates_sig = None                                # (a new table: draw it once)
         self.list_register("rates", tv)
         self.build_flip(self.rates_pages["Exchange Helper"])   # 2.92.0: at the bottom of Exchange Helper
         self.draw_rates()
@@ -2437,17 +2439,24 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
             self.conv_out.config(text="type a number of divines")
         self.draw_exchange()
         tv = self.rates_tv
-        tv.delete(*tv.get_children())
         rows = sorted(((c, v) for c, v in RATES.table.items() if v), key=lambda cv: -(RATES.vol.get(cv[0], 0)))
         names = ((WPRICES.parts.get("Currency") or {}).get("names") or {}) if WPRICES.parts else {}
         from .ovrates import cur_name, fmt_worth                # 2.114.0: names, plain numbers
+        out = []
         for i, (cur, v) in enumerate(rows[:120]):
             vol = RATES.vol.get(cur, 0)
-            tv.insert("", "end", values=(cur_name(cur, names), fmt_worth(v), (f"{1 / v:,.0f}" if 1 / v >= 10 else f"{1 / v:.2g}"), f"{vol:,.0f}"),
-                      tags=("thin",) if vol < 5 else (("odd",) if i % 2 else ()))
-        rl = getattr(self, "rates_list", None)
-        if rl is not None:
-            rl.paint()
+            out.append((f"r{i}", dict(values=(cur_name(cur, names), fmt_worth(v),
+                                              (f"{1 / v:,.0f}" if 1 / v >= 10 else f"{1 / v:.2g}"), f"{vol:,.0f}"),
+                                      tags=("thin",) if vol < 5 else (("odd",) if i % 2 else ()))))
+        # UI rule 22: a typed number only re-words the converter above - the table and the list are drawn again
+        # only when the rates themselves changed
+        sig = tuple((i, tuple(kw["values"]), tuple(kw["tags"])) for i, kw in out)
+        if sig != getattr(self, "_rates_sig", None):
+            self._rates_sig = sig
+            tv_sync(tv, out)
+            rl = getattr(self, "rates_list", None)
+            if rl is not None:
+                rl.paint()
 
     def ex_currencies(self):
         """[(display name, currency id)] most traded first, Divine Orb on top."""
@@ -2487,15 +2496,15 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
             img = self.ex_icons.get(url_for(cid, paths)) if cid else None
             pic.config(image=img or self.ex_blank)
             pic.image = img
-        for w in self.ex_cards.winfo_children():
-            w.destroy()
         self.ex_market.config(text="")
         self.ex_back.config(text="")
         if have is None or want is None or have == want:
+            self._ex_cards_clear()
             self.ex_out.config(text="Pick two different currencies." if RATES.table else "No rates yet - press Refresh now.")
             return
         res = exchange_offers(have, want, RATES)
         if not res:
+            self._ex_cards_clear()
             self.ex_out.config(text="No rate for one of these currencies yet.")
             return
         self.ex_out.config(text="")
@@ -2511,23 +2520,46 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         self.ex_market.config(text=f"1 {hn}  ≈  {num(r)} {wn}")
         self.ex_back.config(text=f"Market rate (poe.ninja).  1 {wn} ≈ {num(1 / r)} {hn}.")
         P1 = C["panel"]
-        for col, (label, a, b, note) in enumerate(offers):
+        # UI rule 22: the three offer cards are made once; a typed amount or a new pair changes their words in place
+        # (built again only when the number of offers changes).
+        parts = []
+        for label, a, b, note in offers:
             fair = label == "Fair"
-            card = tk.Frame(self.ex_cards, bg=P1, padx=16, pady=12, highlightthickness=1,
-                            highlightbackground=C["good"] if fair else C["line"])
-            self.ex_cards_place(card, col)
-            tk.Label(card, text=("✓ " if fair else "") + label, bg=P1, fg=C["text"], font=("Segoe UI", 10, "bold"),
-                     anchor="w").pack(fill="x")
-            tk.Label(card, text=note[0].upper() + note[1:] + ".", bg=P1, fg=C["muted"], font=("Segoe UI", 9),
-                     anchor="w", justify="left", wraplength=200).pack(fill="x")
-            tk.Label(card, text=f"Post  {a} : {b}", bg=P1, fg=C["text"], font=(FONT_TITLE, 16), anchor="w"
-                     ).pack(fill="x", pady=(8, 0))
-            tk.Label(card, text=f"{a} {hn} for {b} {wn}", bg=P1, fg=C["muted"], font=("Segoe UI", 9), anchor="w",
-                     wraplength=200, justify="left").pack(fill="x")
-            if amt:
-                tk.Label(card, text=f"{_amt(amt)} {hn} gets ≈ {num(amt * b / a)} {wn}", bg=P1, fg=C["good"],
-                         font=("Segoe UI", 9, "bold"), anchor="w", wraplength=200, justify="left").pack(fill="x",
-                                                                                                      pady=(8, 0))
+            parts.append((fair, ("✓ " if fair else "") + label, note[0].upper() + note[1:] + ".", f"Post  {a} : {b}",
+                          f"{a} {hn} for {b} {wn}", f"{_amt(amt)} {hn} gets ≈ {num(amt * b / a)} {wn}" if amt else ""))
+        rows = getattr(self, "_ex_card_rows", None)
+        if rows is None or len(rows) != len(parts) or len(self.ex_cards.winfo_children()) != len(parts):
+            self._ex_cards_clear()
+            rows = self._ex_card_rows = []
+            for col in range(len(parts)):
+                card = tk.Frame(self.ex_cards, bg=P1, padx=16, pady=12, highlightthickness=1)
+                self.ex_cards_place(card, col)
+                labs = [tk.Label(card, bg=P1, fg=C["text"], font=("Segoe UI", 10, "bold"), anchor="w"),
+                        tk.Label(card, bg=P1, fg=C["muted"], font=("Segoe UI", 9), anchor="w", justify="left",
+                                 wraplength=200),
+                        tk.Label(card, bg=P1, fg=C["text"], font=(FONT_TITLE, 16), anchor="w"),
+                        tk.Label(card, bg=P1, fg=C["muted"], font=("Segoe UI", 9), anchor="w", wraplength=200,
+                                 justify="left"),
+                        tk.Label(card, bg=P1, fg=C["good"], font=("Segoe UI", 9, "bold"), anchor="w", wraplength=200,
+                                 justify="left")]
+                for i, lab in enumerate(labs[:4]):
+                    lab.pack(fill="x", pady=(8, 0) if i == 2 else 0)
+                rows.append((card, labs))
+        for (card, labs), (fair, *texts) in zip(rows, parts):
+            set_cfg(card, highlightbackground=C["good"] if fair else C["line"])
+            for lab, t in zip(labs, texts):
+                set_cfg(lab, text=t)
+            if texts[4]:
+                if not labs[4].winfo_manager():
+                    labs[4].pack(fill="x", pady=(8, 0))
+            elif labs[4].winfo_manager():
+                labs[4].pack_forget()
+
+    def _ex_cards_clear(self):
+        """The offer cards go (nothing to offer for this pair) - the only time they are destroyed."""
+        for w in self.ex_cards.winfo_children():
+            w.destroy()
+        self._ex_card_rows = None
 
     def ex_cards_place(self, card, col):
         """D3: the three offers sit side by side; under 900 px (the Drawer) they stack in one column."""
@@ -3271,7 +3303,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
             self._flt_job = self.root.after(200, self.on_filter_text)
             return
         self._flt_job = None
-        self.rebuild_tree()
+        self.rebuild_tree(in_place=True)
         self.cat_refresh()
         self.clear_btn_state()
 
@@ -3359,7 +3391,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         elif changed == "rar":
             self.type_var.set("All")
         self.cat_refresh()
-        self.rebuild_tree()
+        self.rebuild_tree(in_place=True)
         self.clear_btn_state()
 
     def clear_btn_state(self):
@@ -3379,8 +3411,13 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
                 self._flt_job = None
         self.on_cat()
 
-    def rebuild_tree(self):
+    def rebuild_tree(self, in_place=False):
+        """The list again. in_place (a filter, a typed search or a view changed - the items themselves did not): UI
+        rule 22 - only the rows that come or go are added or removed; the others stay (so does the scroll position
+        and the selection), and the item panel stays unless its row is gone."""
         sel = set(self.tree.selection())
+        if in_place and getattr(self, "tree", None) is not None:
+            return self._rebuild_tree_in_place(sel)
         self.tree.delete(*self.tree.get_children())
         shown = 0
         for rid in sorted(self.records, key=lambda r: self.stash_key(self.records[r])):   # 2.87.0: a tab in its order
@@ -3395,6 +3432,33 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         else:
             self.show_detail(None)
         if shown:
+            self.empty_lbl.place_forget()
+        else:
+            self.empty_lbl.config(text=("Nothing in this view." + (" Press Clear filters to see every item." if self.cat_var.get() != self.ALL_CATS else ""))
+                                  if any(self.in_list(r) for r in self.records.values())
+                                  else self.pctab_empty_text() if self.list_src() != "manual" else self.empty_text)
+            self.empty_lbl.place(relx=0.5, rely=0.45, anchor="center")
+        self.update_total()
+
+    def _rebuild_tree_in_place(self, sel):
+        want = [str(rid) for rid in sorted(self.records, key=lambda r: self.stash_key(self.records[r]))
+                if self.visible(self.records[rid])]
+        have = list(self.tree.get_children())
+        gone = [i for i in have if i not in set(want)]
+        if gone:
+            self.tree.delete(*gone)
+        known = set(have) - set(gone)
+        for iid in want:
+            if iid not in known:
+                self.tree.insert("", "end", iid=iid, values=("",) * len(self.COLS))
+            self.update_row(int(iid))
+        if list(self.tree.get_children()) != want:
+            for i, iid in enumerate(want):
+                self.tree.move(iid, "", i)
+        self._apply_sort()
+        if sel and not [i for i in want if i in sel]:
+            self.show_detail(None)
+        if want:
             self.empty_lbl.place_forget()
         else:
             self.empty_lbl.config(text=("Nothing in this view." + (" Press Clear filters to see every item." if self.cat_var.get() != self.ALL_CATS else ""))
@@ -3418,7 +3482,7 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
     def on_view(self, _e=None):
         SETTINGS["view"] = self.view_var.get()
         save_json("settings.json", SETTINGS)
-        self.rebuild_tree()
+        self.rebuild_tree(in_place=True)
 
     def copy_name(self, rec, announce=False):
         """Put the item's name on the clipboard (and remember it, so it isn't mistaken for a new item)."""
@@ -4754,12 +4818,24 @@ class App(SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage,
         if rec is not None and rec.get("src") == "fav":         # 2.84.0: the card on Favorites
             return self.fav_rec_changed(rec)
         self.bulk_pane(True)                                # 2.127.0: always on screen (2.123.0 p10: only with a pick)
-        for w in self.detail.winfo_children():
-            w.destroy()
+        # UI rule 22: the new card is built beside the old one and swapped in at once; the same item again (a price
+        # arrived, Advanced opened) keeps its scroll position
+        old = list(self.detail.winfo_children())
+        same = rec is not None and getattr(self, "shown_rec", None) is rec
+        top = self.dcanvas.yview()[0] if same else 0
+        holder = tk.Frame(self.detail, bg=C["panel2"])
+        holder.pack(fill="x")
         self.shown_rec = rec
         wrap = max(200, self.dcanvas.winfo_width() - 44)
-        self.dcanvas.yview_moveto(0)
-        d = self.detail
+        try:
+            self._show_detail_into(holder, rec, wrap)
+        finally:
+            for w in old:
+                w.destroy()
+            self.dcanvas.update_idletasks()
+            self.dcanvas.yview_moveto(top)
+
+    def _show_detail_into(self, d, rec, wrap):
         self.price_var = None
         self.detail_vars = []
         P2, P1 = C["panel2"], C["panel"]

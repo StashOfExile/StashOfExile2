@@ -18,6 +18,7 @@ from .net import fmt_stamp
 from .rates import RATES
 from .trade import ago
 from .pricefmt import fmt_div
+from .inplace import set_cfg, tv_sync
 from .wealth import (
     parse_price_text, parse_trade_link, WEALTH, WEALTH_CURRENCIES, wealth_display_name,
     wealth_rows, WEALTH_SYNC, wealth_trade_url, WPRICES, WEALTH_RARES, rare_sig, parse_stack,
@@ -649,21 +650,17 @@ class WealthPage:
     def wealth_side(self):
         """The Snapshots page (P3, 2.105.1: what happened, the change since the one before)."""
         lg = SETTINGS.get("league", "")
-        sel = self.w_snaps.selection()
-        self.w_snaps.delete(*self.w_snaps.get_children())
         mine = [(i, sn) for i, sn in enumerate(WEALTH.snapshots) if sn.get("league") == lg]
+        rows = []
         for k in range(len(mine) - 1, -1, -1):
             i, sn = mine[k]
             prev = mine[k - 1][1] if k else None
             d = sn["total"] - prev["total"] if prev else None
-            self.w_snaps.insert("", "end", iid=str(i),
-                                values=(datetime.fromtimestamp(sn["ts"]).strftime("%b %d %H:%M"),
-                                        self.SNAP_WHY.get(sn.get("why", ""), (sn.get("why") or "").capitalize()),
-                                        fmt_div(sn["total"]),
-                                        "" if d is None else f"{'▲ +' if d >= 0 else '▼ -'}{fmt_div(abs(d))}"))
-        keep = [i for i in sel if self.w_snaps.exists(i)]
-        if keep:
-            self.w_snaps.selection_set(keep)
+            rows.append((str(i), dict(values=(datetime.fromtimestamp(sn["ts"]).strftime("%b %d %H:%M"),
+                                              self.SNAP_WHY.get(sn.get("why", ""), (sn.get("why") or "").capitalize()),
+                                              fmt_div(sn["total"]),
+                                              "" if d is None else f"{'▲ +' if d >= 0 else '▼ -'}{fmt_div(abs(d))}"))))
+        tv_sync(self.w_snaps, rows)                        # (UI rule 22: the picked row and the scroll stay)
 
     def wealth_pick_tab(self, tid):
         self.w_tabfilter = tid
@@ -680,8 +677,6 @@ class WealthPage:
         """P3 (2.105.1): the picked snapshot beside the list - its total and each kind, against the one before (or
         against a second one, Ctrl+click)."""
         sel = self.w_snaps.selection()
-        for w in self.w_snap_cats.winfo_children():
-            w.destroy()
         lg = SETTINGS.get("league", "")
         if len(sel) == 2:
             a, b = sorted((WEALTH.snapshots[int(i)] for i in sel), key=lambda s: s["ts"])
@@ -692,6 +687,7 @@ class WealthPage:
         self.w_snap_sel = int(sel[0]) if sel else None
         if self.w_snap_sel is None:
             self.w_snap_info.config(text="Pick a snapshot to see what it held.", fg=C["muted"])
+            self._snap_cats(None, clear=True)
         else:
             sn = WEALTH.snapshots[self.w_snap_sel]
             before = [x for x in WEALTH.snapshots[:self.w_snap_sel] if x.get("league") == lg]
@@ -702,22 +698,40 @@ class WealthPage:
                 + ("   vs the one before" if prev else "")))
             self._snap_cats(sn, prev)
 
-    def _snap_cats(self, sn, prev):
+    def _snap_cats(self, sn, prev=None, clear=False):
+        """The kinds of one snapshot, one row each. UI rule 22: the three labels of a row are made once and re-worded
+        for the next snapshot picked (more rows are added; fewer rows are hidden)."""
         P2 = C["panel2"]
-        cats = sorted((sn.get("by_cat") or {}).items(), key=lambda kv: -kv[1])
-        for r, (c, v) in enumerate(cats):
-            if not v:
+        cats = [] if clear else [x for x in sorted((sn.get("by_cat") or {}).items(), key=lambda kv: -kv[1]) if x[1]]
+        box = self.w_snap_cats
+        rows = box.__dict__.setdefault("_snap_rows", [])
+        if any(not l1.winfo_exists() for l1, _l2, _l3 in rows):
+            rows.clear()
+        while len(rows) < len(cats):
+            r = len(rows)
+            rows.append((tk.Label(box, bg=P2, fg=C["muted"], anchor="w"),
+                         tk.Label(box, bg=P2, fg=C["text"], anchor="e"), tk.Label(box, bg=P2, anchor="e")))
+            rows[r][0].grid(row=r, column=0, sticky="w")
+            rows[r][1].grid(row=r, column=1, sticky="e", padx=(12, 0))
+            rows[r][2].grid(row=r, column=2, sticky="e", padx=(12, 0))
+        for r, (l1, l2, l3) in enumerate(rows):
+            if r >= len(cats):
+                for lab in (l1, l2, l3):
+                    lab.grid_remove()
                 continue
+            c, v = cats[r]
             d = v - (prev.get("by_cat") or {}).get(c, 0) if prev else None
-            tk.Label(self.w_snap_cats, text=self.CAT_INFO.get(c, ("", c.title()))[1], bg=P2, fg=C["muted"],
-                     anchor="w").grid(row=r, column=0, sticky="w")
-            tk.Label(self.w_snap_cats, text=fmt_div(v), bg=P2, fg=C["text"], anchor="e").grid(row=r, column=1, sticky="e",
-                                                                                            padx=(12, 0))
-            if d is not None:
-                tk.Label(self.w_snap_cats, text=f"{'+' if d >= 0 else '-'}{fmt_div(abs(d))}", bg=P2,
-                         fg=C["green"] if d > 0 else C["red"] if d < 0 else C["muted"], anchor="e").grid(
-                    row=r, column=2, sticky="e", padx=(12, 0))
-        self.w_snap_cats.columnconfigure(0, weight=1)
+            set_cfg(l1, text=self.CAT_INFO.get(c, ("", c.title()))[1])
+            set_cfg(l2, text=fmt_div(v))
+            l1.grid()
+            l2.grid()
+            if d is None:
+                l3.grid_remove()
+            else:
+                set_cfg(l3, text=f"{'+' if d >= 0 else '-'}{fmt_div(abs(d))}",
+                        fg=C["green"] if d > 0 else C["red"] if d < 0 else C["muted"])
+                l3.grid()
+        box.columnconfigure(0, weight=1)
 
     def wealth_compare(self, a, b):
         """A line saying what changed between two snapshots, biggest changes first."""
@@ -1000,7 +1014,10 @@ class WealthPage:
         with WEALTH.lock:
             t["enabled"] = not t.get("enabled", True)
         WEALTH.save()
-        self.refresh_wealth(force=True)
+        # UI rule 22: only this tab's row changes (a tab left out of syncs does not change the stash's numbers)
+        kw = self._w_tab_row(t, self._w_by_tab())
+        self.w_tabs.item(t["id"], **kw)
+        self.wealth_show_tab_result()
 
     def wealth_remove_tab(self):
         t = self._wealth_sel_tab()
@@ -1160,6 +1177,31 @@ class WealthPage:
         self.w_sync_btn.config(state="disabled" if running or rares else "normal")
         self.w_stop_btn.config(state="normal" if running or rares else "disabled")
 
+    def _w_tab_row(self, t, by_tab):
+        """One tab's row in the tab list: its cells and tag (kept apart so a switch can repaint just that row)."""
+        curname = dict(WEALTH_CURRENCIES)
+        res = WEALTH.results.get(t["id"]) or {}
+        n, val = by_tab.get(t["id"], (0, 0.0))
+        if res.get("error"):
+            last, tag = "failed - select for details", "bad"
+        elif res.get("ts"):
+            last, tag = fmt_stamp(res["ts"]) + (" - see note" if res.get("warnings") else ""), ("warn" if res.get("warnings") else "")
+        else:
+            last, tag = "not synced yet", ""
+        if not t.get("enabled", True):
+            tag, last = "off", "left out of syncs"
+        return dict(tags=(tag,) if tag else (),
+                    values=(t["label"], f"{t['amount']:,} {curname.get(t['currency'], t['currency'])}",
+                            n, fmt_div(val) if val else "", last))
+
+    def _w_by_tab(self):
+        by_tab = {}
+        for it, _e, tot, _s in getattr(self, "w_rows", []):
+            by_tab.setdefault(it["tab"], [0, 0.0])
+            by_tab[it["tab"]][0] += 1
+            by_tab[it["tab"]][1] += tot or 0
+        return by_tab
+
     # ---------------- drawing
     def refresh_wealth(self, force=False):
         if not force and not self.page_open("Wealth"):
@@ -1173,25 +1215,7 @@ class WealthPage:
             by_tab.setdefault(it["tab"], [0, 0.0])
             by_tab[it["tab"]][0] += 1
             by_tab[it["tab"]][1] += tot or 0
-        sel = self.w_tabs.selection()
-        self.w_tabs.delete(*self.w_tabs.get_children())
-        curname = dict(WEALTH_CURRENCIES)
-        for t in WEALTH.tabs:
-            res = WEALTH.results.get(t["id"]) or {}
-            n, val = by_tab.get(t["id"], (0, 0.0))
-            if res.get("error"):
-                last, tag = "failed - select for details", "bad"
-            elif res.get("ts"):
-                last, tag = fmt_stamp(res["ts"]) + (" - see note" if res.get("warnings") else ""), ("warn" if res.get("warnings") else "")
-            else:
-                last, tag = "not synced yet", ""
-            if not t.get("enabled", True):
-                tag, last = "off", "left out of syncs"
-            self.w_tabs.insert("", "end", iid=t["id"], tags=(tag,) if tag else (),
-                               values=(t["label"], f"{t['amount']:,} {curname.get(t['currency'], t['currency'])}",
-                                       n, fmt_div(val) if val else "", last))
-        if sel and self.w_tabs.exists(sel[0]):
-            self.w_tabs.selection_set(sel[0])
+        tv_sync(self.w_tabs, [(t["id"], self._w_tab_row(t, by_tab)) for t in WEALTH.tabs])    # (UI rule 22: in place)
         self.wealth_show_tab_result()
 
         lg = SETTINGS.get("league", "")
@@ -1336,11 +1360,11 @@ class WealthPage:
                 "wchg": lambda r: trend[id(r)][1] if trend[id(r)] and trend[id(r)][1] is not None else -1e9,
                 "src": lambda r: r[5] or ""}[col]
         shown.sort(key=keyf, reverse=self.w_sort_rev)
-        self.w_items.delete(*self.w_items.get_children())
         self.w_rowmap, self.w_rowitems = {}, {}
         rarity_tag = {1: "magic", 2: "rare", 3: "unique", 4: "gem"}
         from .rates_view import picture_paths, url_for
         paths = picture_paths()
+        out = []
         for n, (it, name, qty, each, tot, src, stacks, parts) in enumerate(shown):
             tags = (["held"] if it.get("held") else [rarity_tag.get(it["frame"], "")]) if each is not None else ["none"]
             tr = trend.get(id(shown[n]))
@@ -1350,14 +1374,17 @@ class WealthPage:
             base_name = name.split("   ")[0]
             pic = ((self.w_icons.get(url_for(base_name, paths)) or self.w_local.get(base_name))
                    if hasattr(self, "w_icons") else None)
-            iid = self.w_items.insert("", "end", tags=[t for t in tags if t], image=pic or "",
-                                      values=(label, it["stash"], f"{qty:,}", fmt_div(each) if each is not None else "—",
-                                              fmt_div(tot) if tot is not None else "",
-                                              self._w_pct(tr[0]) if tr else "",
-                                              self._w_signed(tr[1]) if tr and tr[1] is not None else "",
-                                              src or "No price found: " + self._w_why_unpriced(it)))
+            k = it["lid"] if it["frame"] in (1, 2) else (it["stash"], name, it["corrupted"], each)
+            iid = "w" + str(abs(hash(k)))                    # (UI rule 22: a row keeps its id, so a typed filter or a
+            out.append((iid, dict(tags=[t for t in tags if t], image=pic or "",          # new price changes cells)
+                                  values=(label, it["stash"], f"{qty:,}", fmt_div(each) if each is not None else "—",
+                                          fmt_div(tot) if tot is not None else "",
+                                          self._w_pct(tr[0]) if tr else "",
+                                          self._w_signed(tr[1]) if tr and tr[1] is not None else "",
+                                          src or "No price found: " + self._w_why_unpriced(it)))))
             self.w_rowmap[iid] = it
             self.w_rowitems[iid] = parts
+        tv_sync(self.w_items, out)
         filt = []
         if self.w_tabfilter is not None:
             filt.append(self.w_tabfilter)

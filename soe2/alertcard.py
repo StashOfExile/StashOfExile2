@@ -212,9 +212,14 @@ class Card:
             return self.close_all()
         try:
             bw = self.bar.winfo_width()
-            self.bar.delete("all")
-            self.bar.create_rectangle(0, 0, int(bw * self.left / max(1, self.total)), 2,
-                                      fill=self.rows[0].color, outline="")
+            x1, col = int(bw * self.left / max(1, self.total)), self.rows[0].color
+            if getattr(self, "_bar_item", None) is not None and self._bar_item[0] is self.bar:
+                item = self._bar_item[1]                    # UI rule 22: the countdown bar moves, it is not redrawn
+                self.bar.coords(item, 0, 0, x1, 2)
+                self.bar.itemconfigure(item, fill=col)
+            else:
+                self.bar.delete("all")
+                self._bar_item = (self.bar, self.bar.create_rectangle(0, 0, x1, 2, fill=col, outline=""))
         except tk.TclError:
             return
         self.left -= 100

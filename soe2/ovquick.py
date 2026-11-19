@@ -382,9 +382,11 @@ class OverlayQuick:
         key = next((k for k, t in LAYOUTS.items() if t == name), None)
         if not key or key == self.merged_layout():
             return
-        self.merged_set(layout=key)
+        rows_change = "split" in (key, self.merged_layout())     # (UI rule 22: the box is built again only when it gets
+        self.merged_set(layout=key)                               # or loses a row - Swap sides - else its chips repaint)
         self._ovq_layout_paint()
-        self._ovq_rebuild()                                 # (⇄ Swap sides shows only while the Layout is Split)
+        if rows_change:
+            self._ovq_rebuild()                             # (⇄ Swap sides shows only while the Layout is Split)
         box = getattr(self, "ovq_place_box", None)          # (2.130.0: Place's choices follow the layout)
         try:
             if box is not None and box.winfo_exists():

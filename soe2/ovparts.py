@@ -387,11 +387,38 @@ class OverlayParts:
         ft.fnt, ft.px = fm, max(40, rgt - nx - pw - 12)     # 2.123.7: fitted by width, not a count of letters
         ft.config(text=ftext)
         self._focus_click(cv, ft)
-        if fprog is not None:
-            cv.create_rectangle(rgt - pw, mid - 2, rgt, mid + 2, fill=P["cell_bg"], outline=P["line"], tags=("mg",))
-            cv.create_rectangle(rgt - pw, mid - 2, rgt - pw + int(pw * min(1.0, fprog)), mid + 2, fill=P["on"],
-                                outline="", tags=("mg",))
+        self._gb_focus = dict(cv=cv, mid=mid, rgt=rgt, pw=pw, P=P)          # (focus_redraw: the progress bar, in place)
+        self._focus_prog(cv, mid, rgt, pw, P, fprog)
         return self._goalbar_show(main, cv, H, geo)
+
+    @staticmethod
+    def _focus_prog(cv, mid, rgt, pw, P, fprog):
+        if fprog is not None:
+            cv.create_rectangle(rgt - pw, mid - 2, rgt, mid + 2, fill=P["cell_bg"], outline=P["line"],
+                                tags=("mg", "focusprog"))
+            cv.create_rectangle(rgt - pw, mid - 2, rgt - pw + int(pw * min(1.0, fprog)), mid + 2, fill=P["on"],
+                                outline="", tags=("mg", "focusprog"))
+
+    def focus_redraw(self):
+        """UI rule 22: the goal changed (a goal ticked, a new one on top) - the NOW line's words and progress bar
+        change where they are; the overlay is not built again. -> False when the lines themselves change (the line
+        appears or goes, or its progress bar does) and the overlay must be built again."""
+        d, cv = getattr(self, "_gb_focus", None), getattr(self, "gb_cv", None)
+        ft = (getattr(self, "tk_ov_lbls", None) or {}).get("focus")
+        if not d or cv is None or d["cv"] is not cv or ft is None or getattr(self, "mg_win", None) is None:
+            return False
+        try:
+            if "focus" not in (getattr(self, "goal_rows", None) or []) or self.goalbar_rows() != self.goal_rows:
+                return False
+            ftext, fprog = self.focus_line()
+            if (fprog is None) != (d["pw"] == 0):
+                return False
+            ft.config(text=ftext)
+            cv.delete("focusprog")
+            self._focus_prog(cv, d["mid"], d["rgt"], d["pw"], d["P"], fprog)
+        except tk.TclError:
+            return False
+        return True
 
     def _gb_window_setup(self, main, lw):
         """The lines' window takes the bar's click-through and capture setting (overlay_click_through)."""

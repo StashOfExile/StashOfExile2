@@ -1519,10 +1519,16 @@ class LedgerPage:
             return
         P = pal()
         box = self.fl_box_rows
-        for c in box.winfo_children():
-            c.destroy()
         rows = self.fl_box_items
-        for i, r in enumerate(rows[:12]):
+        # UI rule 22: typing the number of runs changes the totals only - the item rows are built again only when
+        # the items (or their prices) changed
+        rsig = (box, tuple((r["qty"], r["name"], r["total"]) for r in rows[:12]), len(rows))
+        same_rows = rsig == getattr(self, "_fl_rows_sig", None) and bool(box.winfo_children() or not rows)
+        if not same_rows:
+            self._fl_rows_sig = rsig
+            for c in box.winfo_children():
+                c.destroy()
+        for i, r in enumerate(rows[:12] if not same_rows else []):
             tk.Label(box, text=f"{r['qty']}×", bg=P["bg"], fg=P["muted"], font=(P["font"], 10), anchor="e",
                      width=4).grid(row=i, column=0, sticky="e")
             tk.Label(box, text=r["name"], bg=P["bg"], fg=P["text"], font=(P["font"], 10), anchor="w").grid(
@@ -1530,7 +1536,7 @@ class LedgerPage:
             tk.Label(box, text="no price" if r["total"] is None else fmt_short(r["total"]), bg=P["bg"],
                      fg=P["muted"] if r["total"] is None else P["text"], font=(P["font"], 10, "bold"),
                      anchor="e").grid(row=i, column=2, sticky="e")
-        if len(rows) > 12:
+        if len(rows) > 12 and not same_rows:
             tk.Label(box, text=f"… and {len(rows) - 12} more", bg=P["bg"], fg=P["muted"], font=(P["font"], 9)).grid(
                 row=13, column=1, sticky="w")
         box.columnconfigure(1, weight=1)

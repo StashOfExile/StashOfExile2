@@ -918,7 +918,7 @@ class RegexPage:
         if tv is None:
             return
         from .share_page import view_rows
-        tv.delete(*tv.get_children())
+        from .inplace import tv_sync
         view = self.rx_fav_view.get() if hasattr(self, "rx_fav_view") else "Mine"
         q = self.rx_fav_q.get().strip().lower() if hasattr(self, "rx_fav_q") else ""
 
@@ -931,6 +931,7 @@ class RegexPage:
                          key=lambda d: (d.get("for") or d.get("kind"), (d.get("search") or search_of(d)).strip()))
         self.rx_rows = {}
         n = 0
+        out = []
         for r in rows:
             f = r["data"] if r["origin"] == "mine" else self._rx_shared(r["data"])
             s = search_of(f)
@@ -940,12 +941,13 @@ class RegexPage:
             iid = f"m:{r['_i']}" if r["origin"] == "mine" else (f"b:{post['id']}" if post else f"o:{n}")
             self.rx_rows[iid] = dict(f, _origin=r["origin"], _post=post or None, _i=r.get("_i"))
             by = "Me" if r["origin"] == "mine" else (post.get("author", {}) or {}).get("name") or f.get("author", "")
-            tv.insert("", "end", iid=iid, values=("📋 Copy", f["name"], KIND_NAMES[f["kind"]][:-1], s or "(empty)", len(s),
-                                                  ", ".join(f.get("tags") or []),
-                                                  self.rx_key_of(f) if r["origin"] == "mine" else "",
-                                                  post.get("score", "") if post else "", by),
-                      tags=(("odd",) if n % 2 else ()) + (("mine",) if r["origin"] == "mine" else ()))
+            out.append((iid, dict(values=("📋 Copy", f["name"], KIND_NAMES[f["kind"]][:-1], s or "(empty)", len(s),
+                                          ", ".join(f.get("tags") or []),
+                                          self.rx_key_of(f) if r["origin"] == "mine" else "",
+                                          post.get("score", "") if post else "", by),
+                                  tags=(("odd",) if n % 2 else ()) + (("mine",) if r["origin"] == "mine" else ()))))
             n += 1
+        tv_sync(tv, out)                                  # (UI rule 22: a typed search keeps the scroll and the pick)
         if self.rx_rows:
             self.rx_fav_empty.place_forget()
         else:

@@ -159,26 +159,48 @@ class OverlayRates:
         body, P = getattr(self, "ovr_body", None), getattr(self, "ovr_P", None)
         if body is None:
             return
+        rows = rate_rows(RATES.table or {})
+        age = RATES.age()
+        # UI rule 22: the hourly refresh (and a new rate) re-words the numbers in place - the window's labels are
+        # built again only when the list of currencies changes
+        key = (body, tuple(n for n, _t in rows), age is not None)
+        cells = getattr(self, "_ovr_cells", None)
+        try:
+            same = cells is not None and getattr(self, "_ovr_built", None) == key and rows and \
+                all(b.winfo_exists() for _a, b in cells[0])
+        except tk.TclError:
+            same = False
+        if same:
+            from .inplace import set_cfg
+            self.ovr_rows = rows
+            for (_a, b), (_name, txt) in zip(cells[0], rows):
+                set_cfg(b, text=txt)
+            if cells[1] is not None:
+                set_cfg(cells[1], text=f"poe.ninja · {int(age // 60)} min ago")
+            self._ovr_job = self.root.after(REFRESH_MS, self.ovr_fill)
+            return
         try:
             for c in body.winfo_children():
                 c.destroy()
         except tk.TclError:
             return
-        rows = rate_rows(RATES.table or {})
         self.ovr_rows = rows
+        pairs, age_lab = [], None
         if not rows:
             tk.Label(body, text="No rates yet - they load once the league is set.", bg=P["bg"], fg=P["muted"],
                      font=(P.get("body") or P["font"], self.ov_font(9))).grid(row=0, column=0, sticky="w")
         for i, (name, txt) in enumerate(rows):
-            tk.Label(body, text=name, bg=P["bg"], fg=P["text"], font=(P.get("body") or P["font"], self.ov_font(10)), anchor="w").grid(
-                row=i, column=0, sticky="w", padx=(0, 12))
-            tk.Label(body, text=txt, bg=P["bg"], fg=P.get("head", P["text"]), font=(P.get("body") or P["font"], self.ov_font(10), "bold"),
-                     anchor="e").grid(row=i, column=1, sticky="e")
-        age = RATES.age()
+            a = tk.Label(body, text=name, bg=P["bg"], fg=P["text"], font=(P.get("body") or P["font"], self.ov_font(10)), anchor="w")
+            a.grid(row=i, column=0, sticky="w", padx=(0, 12))
+            b = tk.Label(body, text=txt, bg=P["bg"], fg=P.get("head", P["text"]), font=(P.get("body") or P["font"], self.ov_font(10), "bold"),
+                     anchor="e")
+            b.grid(row=i, column=1, sticky="e")
+            pairs.append((a, b))
         if age is not None:
-            tk.Label(body, text=f"poe.ninja · {int(age // 60)} min ago", bg=P["bg"], fg=P["muted"],
-                     font=(P.get("body") or P["font"], self.ov_font(8))).grid(row=len(rows) + 1, column=0, columnspan=2, sticky="w",
-                                                             pady=(4, 0))
+            age_lab = tk.Label(body, text=f"poe.ninja · {int(age // 60)} min ago", bg=P["bg"], fg=P["muted"],
+                               font=(P.get("body") or P["font"], self.ov_font(8)))
+            age_lab.grid(row=len(rows) + 1, column=0, columnspan=2, sticky="w", pady=(4, 0))
+        self._ovr_cells, self._ovr_built = (pairs, age_lab), key
         w = getattr(self, "ovr_win", None)                       # 2.96.1 (feedback: it couldn't be moved): unlocked,
         if w is not None and not w.locked:                         # any spot on it drags it, not just its title bar
             for c in [body] + list(body.winfo_children()):

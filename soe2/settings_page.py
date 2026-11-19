@@ -13,6 +13,7 @@ from .config import (
     AGE_OPTIONS, APP_VERSION, pretty_version, DATA_DIR, P,
     save_json, SETTINGS, STATUS_OPTIONS, DEFAULTS,
 )
+from .inplace import set_cfg
 from .style import C, MONO, SegBook, KeyCapture, Tooltip
 from .chrome import section as chrome_section
 
@@ -944,17 +945,39 @@ class SettingsPage:
     def fill_hotkeys(self):
         from .overlay import key_label, parse_key
         f, P2 = self.hk_frame, C["panel2"]
-        for w in f.winfo_children():
-            w.destroy()
-        self.hk_vars = {}
         clash_keys = set()
         seen = {}
-        for what, key, where, kid in self.all_hotkeys():
+        entries = list(self.all_hotkeys())
+        for what, key, where, kid in entries:
             k = parse_key(key) if key and key != "Ctrl+Alt+C" else None
             if k:
                 if k in seen:
                     clash_keys |= {seen[k], what}
                 seen.setdefault(k, what)
+        # UI rule 22: the same rows (a key was set, a clash came or went) - the boxes keep their place and the
+        # keyboard; only the words, the colors and the keys change. A row added or taken away: built again.
+        sig = tuple((what, where, kid, "" if kid and kid != "checks:look_key" else key,
+                     what in clash_keys if not kid else None) for what, key, where, kid in entries)
+        old = getattr(self, "_hk_sig", None)
+        if sig == old and all(kc.winfo_exists() for _l, kc in getattr(self, "hk_rows", {}).values()) and self.hk_vars:
+            for what, key, where, kid in entries:
+                row = self.hk_rows.get(kid) if kid else None
+                if row is None:
+                    continue
+                lab, kc = row
+                col = C["red"] if what in clash_keys else C["text"]
+                set_cfg(lab, fg=col)
+                v = self.hk_vars.get(kid)
+                if v is not None and v.get() != key and not kc.waiting:
+                    v.set(key)
+                kc.show()
+                if what in clash_keys:
+                    kc.config(fg=col)
+            return
+        self._hk_sig = sig
+        for w in f.winfo_children():
+            w.destroy()
+        self.hk_vars = {}
         i, group = 0, None
         self.hk_rows = {}
         chat_said = False

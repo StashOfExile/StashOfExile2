@@ -238,8 +238,10 @@ class GamePlanPage:
                 ttk.Button(nr, text="I'm here now", style="Quiet.TButton",
                            command=lambda n=name: self.gp_phase_pick(n)).pack(side="left", padx=(8, 0))
         gs = F.goals_of(key)
+        self._gp_done_lbl, self._gp_now_btns, self._gp_key = None, {}, key
         if gs:
-            self._gp_head(box, f"{sum(1 for g in gs if g['done'])} / {len(gs)} done", top=0)
+            self._gp_done_lbl = self._gp_head(box, f"{sum(1 for g in gs if g['done'])} / {len(gs)} done",
+                                              top=0).winfo_children()[0]
         if not gs:
             self._gp_empty(box, "No goals for this phase yet - add one below.")
         for g in gs:
@@ -248,8 +250,7 @@ class GamePlanPage:
             v = tk.BooleanVar(value=bool(g["done"]))
             self.gp_goal_vars[g["id"]] = v
             ttk.Checkbutton(r, text=g["text"], variable=v, style="Card.TCheckbutton",
-                            command=lambda gid=g["id"], v=v: (F.set_done(gid, v.get()), self.gp_fill(),
-                                                              self.gp_overlay())).pack(side="left")
+                            command=lambda gid=g["id"], v=v: self.gp_goal_tick(gid, v)).pack(side="left")
             x = tk.Label(r, text="✕", bg=P2, fg=C["muted"], cursor="hand2")
             x.pack(side="right")
             x.bind("<Button-1>", lambda e, gid=g["id"]: (F.remove_goal(gid), self.gp_fill(), self.gp_overlay()))
@@ -259,6 +260,7 @@ class GamePlanPage:
                          cursor="hand2", font=("Segoe UI", 9, "bold" if now else "normal"))
             b.pack(side="right", padx=8)
             b.bind("<Button-1>", lambda e, gid=g["id"]: self.gp_set_now(gid))
+            self._gp_now_btns[g["id"]] = b
             Tooltip(b, "Show this one on the overlay's goal line")
             meta = tk.Frame(box, bg=P2)                # the quieter second line: target, then when it pokes
             meta.pack(fill="x", padx=(24, 0), pady=(0, 4))
@@ -285,10 +287,39 @@ class GamePlanPage:
             tk.Label(meta, text="poke: " + trig.get(g["trigger"], g["trigger"]), bg=P2, fg=C["muted"],
                      font=("Segoe UI", 9)).pack(side="right")
 
+    def gp_goal_tick(self, gid, v):
+        """A goal ticked. UI rule 22: only the "x / y done" line, the ▸ marks and the summary change - the goal rows
+        are not built again (nor the stockpile and farm rows)."""
+        F.set_done(gid, v.get())
+        if not self._gp_goal_paint():
+            self.gp_fill()
+        elif hasattr(self, "gp_summary"):
+            self.gp_summary.config(text=self.gp_summary_text())
+        self.gp_overlay()
+
+    def _gp_goal_paint(self):
+        lbl, btns, key = getattr(self, "_gp_done_lbl", None), getattr(self, "_gp_now_btns", None), \
+            getattr(self, "_gp_key", None)
+        gs = F.goals_of(key) if key else []
+        try:
+            if lbl is None or not lbl.winfo_exists() or sorted(btns) != sorted(g["id"] for g in gs) or \
+                    not all(b.winfo_exists() for b in btns.values()):
+                return False
+            lbl.config(text=f"{sum(1 for g in gs if g['done'])} / {len(gs)} done")
+            cur = F.current()
+            for g in gs:
+                now = cur is not None and cur["id"] == g["id"]
+                btns[g["id"]].config(text="▸ on the overlay" if now else "▸", fg=C["accent"] if now else C["muted"],
+                                     font=("Segoe UI", 9, "bold" if now else "normal"))
+        except tk.TclError:
+            return False
+        return True
+
     def gp_set_now(self, gid):
         F.cfg()["now"] = gid
         F.save()
-        self.gp_fill()
+        if not self._gp_goal_paint():                       # (UI rule 22: only the ▸ marks change)
+            self.gp_fill()
         self.gp_overlay()
 
     def gp_phase_pick(self, name):
@@ -316,8 +347,11 @@ class GamePlanPage:
             self.gp_summary.config(text=self.gp_summary_text())
 
     def gp_overlay(self):
-        """Redraw the overlay (its focus line and Focus switch follow the plan)."""
+        """Redraw the overlay (its focus line and Focus switch follow the plan). UI rule 22: when only the goal's
+        words or progress changed, the NOW line changes where it is."""
         try:
+            if self.focus_redraw():
+                return
             self.merged_build()
         except Exception:
             buglog.caught()
