@@ -986,6 +986,9 @@ class Engine(TabReaderJobs, WealthJobs, StratCostJobs, threading.Thread):
         rich = collapse_sellers(rich)                 # 2.113.0 (core): one row per seller, their cheapest
         if len(rich) < MIN_SELLERS and total > len(ids) and more_ids(qid):
             rich = collapse_sellers(rich + fetch_rich(qid, more_ids(qid), hours))   # too few sellers: the next 10
+        lab = getattr(MARKET, "lab", None)            # 3.0.6: the owner's Mod Lab copy (off unless modlab_record)
+        if lab is not None:
+            lab(rich)
         kept, info = verify_listings(rich, mods)
         if not info["unverifiable"]:
             verify_tot["bad"] += info["bad"]

@@ -61,6 +61,7 @@ class Market:
     learn which mods matter (LEARNED), and to keep score of how good its own guesses are (table preds)."""
 
     KEEP_DAYS = 45
+    LAB_DAYS = 120              # 3.0.6: Mod Lab's copy of price-check listings
 
     def __init__(self):
         self.lock = threading.RLock()
@@ -85,7 +86,13 @@ class Market:
                     # only for the Community pool's summary (Community data sharing), same 45 days
                     "CREATE TABLE IF NOT EXISTS pool(id TEXT PRIMARY KEY, base TEXT, seen REAL, price_div REAL,"
                     " sids TEXT, league TEXT);"
-                    "CREATE INDEX IF NOT EXISTS pool_ls ON pool(league, seen);")
+                    "CREATE INDEX IF NOT EXISTS pool_ls ON pool(league, seen);"
+                    # 3.0.6 (owner: Mod Lab): the listings your own price checks already read, whole - base, item
+                    # level, every mod with its kind and tier, the price. No seller, no note; the listing id is hashed.
+                    # Only with SETTINGS["modlab_record"] on (the owner's Mod Lab reads it); never sent anywhere.
+                    "CREATE TABLE IF NOT EXISTS lab(id TEXT PRIMARY KEY, seen REAL, league TEXT, base TEXT, name TEXT,"
+                    " rarity TEXT, ilvl INT, flags TEXT, mods TEXT, price_div REAL, price_txt TEXT);"
+                    "CREATE INDEX IF NOT EXISTS lab_base ON lab(base, seen);")
                 for table, col, kind in (("obs", "league", "TEXT"), ("listings", "league", "TEXT"), ("listings", "vals", "TEXT"),
                                          ("listings", "name", "TEXT"), ("listings", "lines", "TEXT"),       # 2.4.0
                                          ("listings", "price_txt", "TEXT"), ("listings", "qid", "TEXT")):
@@ -102,6 +109,7 @@ class Market:
                 self.db.execute("DELETE FROM obs WHERE ts<?", (cut,))
                 self.db.execute("DELETE FROM listings WHERE seen<?", (cut,))
                 self.db.execute("DELETE FROM pool WHERE seen<?", (cut,))
+                self.db.execute("DELETE FROM lab WHERE seen<?", (time.time() - self.LAB_DAYS * 86400,))
                 self.db.execute("CREATE INDEX IF NOT EXISTS listings_bl ON listings(base, league)")
                 self.db.commit()
         except Exception as e:
@@ -257,6 +265,50 @@ class Market:
                 self.refresh_learned()
         except Exception as e:
             self.last_error = f"{type(e).__name__}: {e}"
+
+    @staticmethod
+    def lab_on():
+        """Mod Lab recording: SETTINGS["modlab_record"], or a file named modlab.on in the data folder (the owner's
+        switch - no setting on screen; players never need it)."""
+        import os
+        return bool(SETTINGS.get("modlab_record")) or os.path.exists(P("modlab.on"))
+
+    def lab(self, rows):
+        """3.0.6 (owner: Mod Lab): price-check listings kept whole for the owner's Mod Lab - read from what the fetch
+        already returned (trade.RAW_LISTINGS), so no request is made. Off unless SETTINGS["modlab_record"].
+        -> rows written."""
+        if not self.db or not rows or not self.lab_on():
+            return 0
+        import hashlib
+        from .trade import RAW_LISTINGS
+        from .pricecheck_page import mod_rows
+        try:
+            league, now, n = self.cur(), time.time(), 0
+            with self.lock:
+                for r in rows:
+                    e = RAW_LISTINGS.get(r.get("id")) or {}
+                    it = e.get("item") or {}
+                    p = (e.get("listing") or {}).get("price") or {}
+                    if not it or not p:
+                        continue
+                    d = RATES.to_div(p.get("amount"), p.get("currency"), league)
+                    flags = sorted(k for k in ("corrupted", "fractured", "sanctified", "mirrored", "duplicated",
+                                               "unidentified", "desecrated") if it.get(k))
+                    if it.get("fracturedMods") and "fractured" not in flags:
+                        flags.append("fractured")
+                    mods = [[kind, tier, text] for tier, text, kind in mod_rows(it)]
+                    rid = hashlib.sha1(str(r["id"]).encode()).hexdigest()[:20]
+                    n += self.db.execute(
+                        "INSERT OR IGNORE INTO lab(id, seen, league, base, name, rarity, ilvl, flags, mods, price_div,"
+                        " price_txt) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                        (rid, now, league, str(it.get("baseType") or it.get("typeLine") or "")[:80],
+                         str(it.get("name") or "")[:80], str(it.get("rarity") or ""), int(it.get("ilvl") or 0),
+                         json.dumps(flags), json.dumps(mods), d, f"{_num_txt(p.get('amount'))} {p.get('currency')}")).rowcount
+                self.db.commit()
+            return n
+        except Exception as ex:
+            self.last_error = f"{type(ex).__name__}: {ex}"
+            return 0
 
     def pool(self, base, rows):
         """2.133.0: listings for the Community pool only (base or unique name, divine price, stat ids). The Mod book,
