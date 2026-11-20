@@ -3,8 +3,8 @@ can't be automated, which defeats the purpose - GGG policy).
 
   * Overlay › Helpers: the Ritual row is Favours prices (one line, the Read Key in it) and Filter in the Ritual
     window - no counter, no reminder, no identifier, no On screen chip, no second Favours prices switch, no Test button
-  * Filter in the Ritual window: one orange button in every state - Turn it on while it's off, Close once it's on;
-    the steps only while it's off
+  * Filter in the Ritual window: plain instructions, Open folder, Copy line, Close as the one orange button;
+    the game's settings file is never opened
   * old settings: the dead keys are cleared; Favours prices off turns the helper off
   * the hover read round the mouse (Vaal Lens) still finds a tooltip and reads it
 
@@ -218,46 +218,46 @@ class Panel(unittest.TestCase):
         return [str(w.cget("text")) for w in walk(dlg)
                 if isinstance(w, ttk.Button) and str(w.cget("style")) == "Primary.TButton" and w.winfo_manager()]
 
-    def dialog(self, state):
-        with mock.patch("soe2.ritual_filter.state", lambda path=None: (state, os.path.join(HOME, "x.ini"))):
-            dlg = self.app.ritual_filter_open()
-            self.root.update()
+    def dialog(self):
+        dlg = self.app.ritual_filter_open()
+        self.root.update()
         self.addCleanup(lambda: dlg.winfo_exists() and dlg.destroy())
         return dlg
 
-    def test_filter_dialog_on(self):
-        dlg = self.dialog("on")
-        self.assertEqual(self.primaries(dlg), ["Close"], "on: nothing to do - Close is the one orange button")
+    def test_filter_dialog_is_plain_instructions(self):
+        from soe2 import ritual_filter as RF
+        dlg = self.dialog()
         said = " ".join(texts(dlg, shown=True))
-        self.assertIn("✓ On", said)
-        self.assertNotIn("Turn it on", said)
-        self.assertFalse(dlg.rf_steps.winfo_manager(), "the steps only while it's off")
-        self.assertNotIn("Copy line", said)
-        self.assertNotIn("Open folder", said)
-
-    def test_filter_dialog_off(self):
-        dlg = self.dialog("off")
-        self.assertEqual(self.primaries(dlg), ["Turn it on"], "off: Turn it on is the one orange button")
-        said = " ".join(texts(dlg, shown=True))
-        self.assertIn("✗ Off", said)
-        self.assertTrue(dlg.rf_steps.winfo_manager())
-        for b in ("Open folder", "Copy line", "Check again", "Close"):
+        self.assertIn("To use your item filter in the Ritual window: close the game, open Documents", said)
+        self.assertIn("apply_item_filter_to_ritual=false and change it to apply_item_filter_to_ritual=true", said)
+        for b in ("Open folder", "Copy line", "Close"):
             self.assertIn(b, said)
+        for gone in ("Turn it on", "Check again", "✓ On", "✗ Off"):
+            self.assertNotIn(gone, said)
+        self.assertEqual(self.primaries(dlg), ["Close"], "one orange button")
+        dlg.rf_copy()
+        self.assertEqual(self.root.clipboard_get(), "apply_item_filter_to_ritual=true")
+        self.assertEqual(RF.LINE_ON, "apply_item_filter_to_ritual=true")
 
-    def test_filter_dialog_no_file(self):
-        for st in ("nofile", "missing"):
-            dlg = self.dialog(st)
-            self.assertEqual(self.primaries(dlg), ["Close"], st)
-            self.assertNotIn("Turn it on", " ".join(texts(dlg, shown=True)), st)
+    def test_filter_never_touches_the_game_file(self):
+        """The app never opens, reads or writes the game's settings file (GGG policy)."""
+        import builtins
+        from soe2 import ritual_filter as RF
+        for gone in ("turn_on", "state", "read_value", "config_path"):
+            self.assertFalse(hasattr(RF, gone), gone)
+        real, seen = builtins.open, []
 
-    def test_filter_dialog_follows_the_file(self):
-        dlg = self.dialog("off")
-        with mock.patch("soe2.ritual_filter.state", lambda path=None: ("on", os.path.join(HOME, "x.ini"))):
-            dlg.rf_check()
+        def spy(file, *a, **k):
+            seen.append(str(file))
+            return real(file, *a, **k)
+        with mock.patch.object(builtins, "open", spy):
+            dlg = self.dialog()
+            dlg.rf_copy()
+            dlg.rf_open()
+            self.app.alerts_refresh()
             self.root.update()
-        self.assertEqual(self.primaries(dlg), ["Close"], "after it's turned on: Close takes the orange")
-        self.assertFalse(dlg.rf_steps.winfo_manager())
-
+        self.assertFalse([f for f in seen if "poe2_production_Config" in f], seen)
+        self.assertFalse(hasattr(self.app, "ritual_filter_state"), "no status read from the file")
 
 if __name__ == "__main__":
     unittest.main()

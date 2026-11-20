@@ -392,10 +392,7 @@ class AlertsPage:
                 fl = ttk.Button(frow, text="Filter in the Ritual window…", command=self.ritual_filter_open)
                 fl.pack(side="left")
                 Tooltip(fl, "The game's hidden setting that applies your loot filter in the Ritual Favours window.")
-                fst = tk.Label(frow, text="", bg=P2, fg=C["muted"], font=sm, anchor="w")
-                fst.pack(side="left", padx=(8, 0))
-                self.al_rfilter_link, self.al_rfilter_state = fl, fst
-                self.ritual_filter_state()
+                self.al_rfilter_link = fl
                 out.append("Filter in the Ritual window")
             elif key == "breaks":                                   # 2.131.0: break reminders, every N minutes
                 tk.Label(oc, text="every", bg=P2, fg=C["text"], font=sm).pack(side="left", padx=(0, 4))
@@ -782,26 +779,9 @@ class AlertsPage:
         cfg["sound"] = bool(r["sound"].get())
         save_json("settings.json", SETTINGS)
 
-    def ritual_filter_state(self):
-        """The state beside the button: ✓ On / ✗ Off / ? Not found (read from the game's file - that line only)."""
-        from . import ritual_filter as RF
-        lbl = getattr(self, "al_rfilter_state", None)
-        if lbl is None:
-            return None
-        st, _path = RF.state()
-        text, col = {"on": ("✓ On", C.get("good", C["text"])), "off": ("✗ Off", C.get("warn", C["text"])),
-                     "missing": ("? Not set", C["muted"]), "nofile": ("? Not found", C["muted"])}[st]
-        try:
-            lbl.config(text=text, fg=col)
-        except tk.TclError:
-            pass
-        return st
-
     def ritual_filter_open(self):
-        """2.130.0 Filter in the Ritual window: where the game's setting is, whether it's on, and how to turn it on
-        (one line to change). 2.130.4: Turn it on changes it for you while the game is closed.
-        3.0.6 (UX rules): one orange button in every state - Turn it on while it's off, Close once it's on (nothing
-        left to do); the steps, Open folder and Copy line only while it's off."""
+        """Filter in the Ritual window: plain instructions only. The app never opens, reads or writes the game's
+        settings file (GGG policy): Open folder opens the folder in Explorer, Copy line copies the line to set."""
         from . import ritual_filter as RF
         old = getattr(self, "rf_dlg", None)
         if old is not None:
@@ -823,138 +803,52 @@ class AlertsPage:
                  fg=C["text"], font=("Segoe UI", 10), anchor="w").pack(side="left")
         tip = tk.Label(top, text="ⓘ", bg=P2, fg=C["muted"], font=("Segoe UI", 10), cursor="question_arrow")
         tip.pack(side="left", padx=(8, 0))
-        Tooltip(tip, f"A game setting with no switch in its menus. Turn it on here while the game is closed, or "
-                     f"change the line yourself. {RF.CREDIT}.")
-        status = tk.Label(dlg, text="", bg=P2, fg=C["muted"], font=("Segoe UI", 10, "bold"), anchor="w",
-                          justify="left", wraplength=460)
-        status.pack(fill="x", pady=(8, 2))
-        where = tk.Label(dlg, text="", bg=P2, fg=C["muted"], font=("Segoe UI", 9), anchor="w", justify="left",
-                         wraplength=460)
-        where.pack(fill="x")
-        steps = ("1.  Close the game. It rewrites this file when it closes.",
-                 f"2.  Open folder, then open {RF.FILE} in Notepad.",
-                 "3.  Use Edit › Find in Notepad and paste (Copy line puts it on your clipboard).",
-                 "4.  Change false to true, then save.",
-                 "5.  Start the game and open a Ritual altar's Favours window.")
-        box = tk.Frame(dlg, bg=P2)                    # (only while it's off)
-        for s_ in steps:
-            tk.Label(box, text=s_, bg=P2, fg=C["text"], font=("Segoe UI", 10), anchor="w").pack(fill="x", pady=1)
+        Tooltip(tip, f"A game setting with no switch in its menus. You change it yourself: the app never opens or "
+                     f"changes the game's files. {RF.CREDIT}.")
+        how = tk.Label(dlg, text=RF.HOW, bg=P2, fg=C["text"], font=("Segoe UI", 10), anchor="w", justify="left",
+                       wraplength=460)
+        how.pack(fill="x", pady=(8, 2))
         said = tk.Label(dlg, text="", bg=P2, fg=C["muted"], font=("Segoe UI", 9), anchor="w")
         said.pack(fill="x", pady=(4, 0))
         btns = tk.Frame(dlg, bg=P2)
         btns.pack(fill="x", pady=(12, 0))
-        wait = {"job": None, "gone": None, "mt": None}
-        # the buttons: Turn it on is the orange one while it's off, Close is once it's on - never both
-        on_btn = ttk.Button(btns, text="Turn it on", style="Primary.TButton")
+        close_btn = ttk.Button(btns, text="Close", command=dlg.destroy, style="Primary.TButton")
         open_btn = ttk.Button(btns, text="Open folder")
         copy_btn = ttk.Button(btns, text="Copy line")
-        again_btn = ttk.Button(btns, text="Check again")
-        close_btn = ttk.Button(btns, text="Close", command=dlg.destroy)
-        Tooltip(on_btn, "Game must be closed to edit config file.")
-
-        def layout(st):
-            for w in (on_btn, open_btn, copy_btn, again_btn, close_btn):
-                w.pack_forget()
-            box.pack_forget()
-            if st == "off":
-                box.pack(fill="x", pady=(8, 4), before=said)
-                for w in (on_btn, open_btn, copy_btn, again_btn):
-                    w.pack(side="left", padx=(0 if w is on_btn else 8, 0))
-                close_btn.configure(style="TButton")
-            else:                                      # on (nothing to do), or the file isn't there yet
-                again_btn.pack(side="left")
-                close_btn.configure(style="Primary.TButton")
-            close_btn.pack(side="right")
-
-        def check():
-            st, path = RF.state()
-            text, col = {"on": ("✓ On - your filter applies in the Favours window.", C.get("good", C["text"])),
-                         "off": ("✗ Off - turn it on, or follow the steps below.", C.get("warn", C["text"])),
-                         "missing": ("? The line isn't in your file - start the game once, close it, check again.",
-                                     C["muted"]),
-                         "nofile": ("? The file isn't there yet - start the game once, close it, check again.",
-                                    C["muted"])}[st]
-            status.config(text=text, fg=col)
-            where.config(text=RF.shown(path))          # (no Windows user name on screen)
-            self.ritual_filter_state()
-            layout(st)
-            try:
-                if wait.get("job") is None:
-                    on_btn.state(["!disabled"])
-            except tk.TclError:
-                pass
-            return st, path
+        open_btn.pack(side="left")
+        copy_btn.pack(side="left", padx=(8, 0))
+        close_btn.pack(side="right")
+        Tooltip(open_btn, "Opens the folder in Explorer. The file itself is left for you to open.")
+        Tooltip(copy_btn, f"Copies {RF.LINE_ON}.")
 
         def open_folder():
-            _st, path = RF.state()
             try:
                 if sys.platform == "win32":
-                    import subprocess
-                    if os.path.isfile(path):
-                        subprocess.Popen(["explorer", "/select,", path])
-                    else:
-                        os.startfile(os.path.dirname(path) if os.path.isdir(os.path.dirname(path))
-                                     else RF.documents())
+                    os.startfile(RF.folder())               # (the folder only - never the file)
                     said.config(text="Opened the folder.")
                 else:
                     said.config(text="Opening folders works on Windows.")
             except Exception:
                 buglog.caught()
-                said.config(text="Couldn't open the folder - it's shown above.")
+                said.config(text="Couldn't open the folder - the path is above.")
 
         def copy_line():
             try:
                 self.root.clipboard_clear()
-                self.root.clipboard_append(f"{RF.KEY}=false")
-                self.own_clip = f"{RF.KEY}=false"
-                said.config(text=f"Copied: {RF.KEY}=false - paste it into Notepad's Find.")
+                self.root.clipboard_append(RF.LINE_ON)
+                self.own_clip = RF.LINE_ON
+                said.config(text=f"Copied: {RF.LINE_ON}")
             except tk.TclError:
-                said.config(text="Couldn't copy - type it: " + RF.KEY)
-
-        def file_mtime(path):
-            try:
-                return os.path.getmtime(path)
-            except OSError:
-                return None
-
-        def turn_on():
-            """2.130.4 (feedback): the game must be fully closed (it saves this file as it closes) - then the one
-            line is changed, and you're told when to start the game again."""
-            if not dlg.winfo_exists():
-                return
-            _st, path = RF.state()
-            if game_rect() is not None:
-                wait["gone"], wait["mt"] = None, None
-                said.config(text="Close the game fully, not just to the character screen - waiting for it…",
-                            fg=C.get("warn", C["text"]))
-                on_btn.state(["disabled"])
-                wait["job"] = dlg.after(1000, turn_on)
-                return
-            now, mt = time.time(), file_mtime(path)
-            if wait["gone"] is None or mt != wait["mt"]:          # just closed (or still saving): wait 4 s quiet
-                wait["gone"], wait["mt"] = now, mt
-            if now - wait["gone"] < 4:
-                said.config(text="The game is closing - one moment…", fg=C["muted"])
-                wait["job"] = dlg.after(1000, turn_on)
-                return
-            ok, note = RF.turn_on(path, P("backups"))
-            wait["job"] = None
-            said.config(text=(note + " You can start the game again.") if ok else note,
-                        fg=C.get("good", C["text"]) if ok else C.get("warn", C["text"]))
-            check()
-        on_btn.configure(command=turn_on)
+                said.config(text="Couldn't copy - type it: " + RF.LINE_ON)
         open_btn.configure(command=open_folder)
         copy_btn.configure(command=copy_line)
-        again_btn.configure(command=check)
         dlg.bind("<Escape>", lambda _e: dlg.destroy())
-        check()
         try:
             from .style import center_over
             center_over(dlg, self.dlg_parent())
         except Exception:
             buglog.caught()
-        dlg.rf_check, dlg.rf_open, dlg.rf_copy, dlg.rf_said, dlg.rf_status = check, open_folder, copy_line, said, status
-        dlg.rf_on, dlg.rf_on_btn, dlg.rf_close, dlg.rf_steps = turn_on, on_btn, close_btn, box
+        dlg.rf_open, dlg.rf_copy, dlg.rf_said, dlg.rf_how, dlg.rf_close = open_folder, copy_line, said, how, close_btn
         return dlg
 
     def alerts_test_desecrate(self):

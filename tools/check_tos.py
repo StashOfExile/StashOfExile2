@@ -24,6 +24,9 @@ base rule for the whole program:
   - a function that reads the clipboard (clipread take / take_now / app_paste) and puts itself back on a timer
   - a key sender (SendInput, send_copy, type_chat ...) reachable from a timer (.after, after_idle, threading.Timer)
 GGG's developer guidelines (https://www.pathofexile.com/developer/docs/index#guidelines):
+  - the game's own files: nothing opens, reads or writes poe2_production_Config.ini (or anything in the game's folder
+    in Documents, My Games); only soe2/ritual_filter.py names it, to show words and open the folder. Client.txt in the
+    install / log folder is the one game file that is read.
   - the exact notice NOTICE in README.md and on Settings › About (soe2/about_page.py)
   - the User-Agent (config.APP_UA) says how to reach the project: "(contact: ...)"."""
 import ast
@@ -259,6 +262,42 @@ def key_blocking(trees, src_of):
     return bad
 
 
+GAME_DOCS = re.compile(r"poe2_production_Config|production_Config\.ini|\bMy Games\b", re.I)
+GAME_FILE_FILE = os.path.join("soe2", "ritual_filter.py")      # names the file to show words (never opens it)
+FILE_CALLS = {"open", "read_text", "read_bytes", "write_text", "write_bytes", "replace", "rename", "remove", "unlink",
+              "copy", "copy2", "copyfile", "move", "getmtime", "isfile", "exists", "stat", "scandir", "listdir",
+              "ConfigParser", "startfile", "Popen", "run"}
+
+
+def game_files(trees, src_of):
+    """The game's settings file (poe2_production_Config.ini) and anything in Documents\\My Games is never opened, read
+    or written. Only soe2/ritual_filter.py may name them, and there no call may open, read, write, copy or check a
+    file; the folder is opened by the caller (os.startfile of a folder). [(file, line, what)]"""
+    bad = []
+    for rel, tree in trees:
+        text = "\n".join(code_lines(src_of[rel]))
+        lines = text.split("\n")
+        if rel != GAME_FILE_FILE:
+            # (strings inside code - docstrings and comments may tell the history)
+            for no, ln in enumerate(lines, 1):
+                if GAME_DOCS.search(ln):
+                    bad.append((rel, no, "names the game's settings file (Documents, My Games) - only "
+                                         "soe2/ritual_filter.py may, to show words; never open, read or write it"))
+            continue
+        for n in ast.walk(tree):
+            if isinstance(n, ast.Call):
+                f = n.func
+                name = f.attr if isinstance(f, ast.Attribute) else getattr(f, "id", "")
+                if name in FILE_CALLS:
+                    bad.append((rel, n.lineno, f"{name}() in the Ritual filter - the game's settings file is never "
+                                               f"opened, read or written"))
+            if isinstance(n, (ast.Import, ast.ImportFrom)):
+                mods = [a.name for a in n.names] + [getattr(n, "module", None) or ""]
+                if any(m.split(".")[0] in ("shutil", "subprocess", "pathlib", "configparser") for m in mods):
+                    bad.append((rel, n.lineno, "a file or process module in the Ritual filter"))
+    return bad
+
+
 def guidelines():
     """GGG's developer guidelines: the notice, and the User-Agent's contact."""
     bad = []
@@ -320,6 +359,7 @@ def check():
     bad += [f"{rel}:{ln}: {what}" for rel, ln, what in grant_callers(trees)]
     bad += [f"{rel}:{ln}: {what}" for rel, ln, what in timer_readers(trees)]
     bad += [f"{rel}:{ln}: {what}" for rel, ln, what in key_blocking(trees, srcs)]
+    bad += [f"{rel}:{ln}: {what}" for rel, ln, what in game_files(trees, srcs)]
     bad += guidelines()
     return bad
 

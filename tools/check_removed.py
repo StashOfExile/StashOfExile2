@@ -275,6 +275,11 @@ REMOVED = [
               "Campaign): the data packs look by themselves after the start and then once a day (packcheck.py)",
      ("Check for a newer one", "Check for a newer guide"),
      ("mm_ch_pack_check", "mm_ch_pack_done", "camp_check_pack", "_mm_ch_checking")),
+    ("3.0.7", "Filter in the Ritual window's file access: the app read poe2_production_Config.ini for a status "
+              "(On / Off / Not found) and its Turn it on button wrote the line after waiting for the game to close "
+              "(GGG policy: no changing the game's files). Now plain instructions, Open folder and Copy line",
+     ("isn't in your file", "isn't there yet - start the game once", "Game must be closed to edit config file"),
+     ("ritual_filter.turn_on", "ritual_filter_state", "al_rfilter_state", "read_value", "config_path", "rf_on_btn")),
     ("2.106.0", "Wealth's public stash tabs (Scan stash replaces them)", ("Sync stash tabs",), ("w_sync_btn",), True),
 ]
 ABSENT = re.compile(r"\bnot\b|\bgone\b|\bremoved\b|\bno longer\b|\.pop\(|\bdel\b|None\)", re.I)
