@@ -294,7 +294,6 @@ class StratNewPage:
         d = self.mm_nd
         card = d["way"] if which == "way" else d["cards"][which]
         card["ticked"] = [m for m in card["ticked"] if m != line] + ([] if line in card["ticked"] else [line])
-        self._mm_new_cost_later()
         self.mm_new_cv.later(1)
 
     def mm_new_select(self, which):
@@ -332,7 +331,6 @@ class StratNewPage:
             d["cards"].pop(which)
         d["sel"] = None
         self._mm_new_city()
-        self._mm_new_cost_later()
         self.mm_new_cv.later(1)
 
     def mm_new_slot_menu(self, which, x, y):
@@ -499,7 +497,6 @@ class StratNewPage:
             self._mm_new_city()
         d["sel"] = h["which"]
         d["hand"] = None
-        self._mm_new_cost_later()
         self.mm_new_cv.later(1)
         return card
 
@@ -540,7 +537,6 @@ class StratNewPage:
             self._mm_new_city()
             self._say(f"New strat: tablet {len(d['cards'])} of {MM.TABLETS_MAX} - {card['name']}. Tick the mods that "
                       "matter.", 5)
-        self._mm_new_cost_later()
         self.mm_new_cv.later(1)
         return card
 
@@ -579,19 +575,14 @@ class StratNewPage:
         return [(i.get("kind"), i.get("base"), tuple(i.get("key_mods") or ()), i.get("count"), i.get("lasts"))
                 for i in items]
 
-    def _mm_new_cost_later(self):
-        """The copies changed: check their prices a moment after the last change (one search per item, behind your
-        own price checks). No league or no engine (a test): nothing."""
-        d = self.mm_nd
-        if d.get("job"):
-            try:
-                self.root.after_cancel(d["job"])
-            except (tk.TclError, ValueError):
-                pass
-            d["job"] = None
+    def mm_new_cost_check(self):
+        """Check cost (a press - never typing): one search per item, behind your own price checks. No league or no
+        engine (a test): nothing."""
         if getattr(self, "engine", None) is None or not SETTINGS.get("league"):
-            return
-        d["job"] = self.root.after(2500, self._mm_new_cost_go)
+            return None
+        sid = self._mm_new_cost_go()
+        self.mm_new_cv.later(1)
+        return sid
 
     def _mm_new_cost_go(self):
         d = getattr(self, "mm_nd", None)
@@ -616,9 +607,9 @@ class StratNewPage:
         if not items:
             return None, False
         same = d.get("cost_sid") and self._mm_new_sig(items) == self._mm_new_sig(d["cost_items"])
-        busy = bool(d.get("job")) or not same or d.get("cost_sid") in getattr(self, "_mm_cost_busy", set())
+        busy = bool(same) and d.get("cost_sid") in getattr(self, "_mm_cost_busy", set())
         if not same:
-            return None, busy
+            return None, False
         c = MM.run_cost({"id": d["cost_sid"], "items": d["cost_items"]}, self.mm_costs())
         if c and c["sum"] == "the author's estimate":
             c = None
@@ -1468,7 +1459,7 @@ class StratNewPage:
         cost, busy = self.mm_new_cost()
         how = cost["how"] if cost else ("What goes in your map device each map, at today's prices on the trade site "
                                         "(the cheapest real offer of each): the waystone, plus each tablet's price ÷ "
-                                        "its uses. Checked a moment after you copy or tick.")
+                                        "its uses. Checked only when you press Check cost.")
         card, yy = self._nw_side_box(cv, x0, x1, y, "Cost per map", how, "nw_cost_i")
         num = (TH.head_font(None, "num"), 20)
         cv.text(x0 + 16, yy - 2, f"{MM.short_div(cost['value'])} div" if cost else "—", num, fill=cv.c("text_strong"),
@@ -1481,10 +1472,15 @@ class StratNewPage:
             line = "checking the trade site…"
         elif d["cards"] or d["way"]:
             line = ("needs your league in Settings to check the trade site" if not SETTINGS.get("league") else
-                    "no price found yet")
+                    "Cost not checked yet")
         else:
             line = "Copy your waystone and tablets: their prices today add up here."
-        yy = cv.bottom(cv.text(x0 + 16, yy, line, F9, fill=cv.c("text_muted"), width=x1 - x0 - 32), yy + 14) + 16
+        yy = cv.bottom(cv.text(x0 + 16, yy, line, F9, fill=cv.c("text_muted"), width=x1 - x0 - 32), yy + 14) + 8
+        if (d["cards"] or d["way"]) and SETTINGS.get("league") and not busy:
+            cv.button(x0 + 16, yy, "Check cost", "nw_cost_check", self.mm_new_cost_check, h=32,
+                      tip="Searches the trade site for what these items cost now.")
+            yy += 32
+        yy += 8
         cv.coords(card, *_rr_points(x0, y, x1, yy, R))
         return yy
 

@@ -985,7 +985,7 @@ class RateModsPage:
         self._rm_roll_changed(key)
 
     def _rm_roll_changed(self, key):
-        """By roll changed: the items you priced follow it at once (Bulk Pricing prices them again)."""
+        """By roll changed: the items you priced are marked Rating changed (Bulk Pricing prices them again on Re-price)."""
         affected = []
         for rid, rec in self.records.items():
             hit = False
@@ -997,7 +997,7 @@ class RateModsPage:
                 affected.append(rid)
         if affected:
             try:
-                self.reprice(affected)
+                self.rating_changed(affected)          # (marked Rating changed - Re-price N items searches them)
             except Exception:
                 buglog.caught()
         self.rm_cardcv.later(0)
@@ -1056,7 +1056,7 @@ class RateModsPage:
         affected = [rid for rid, rec in self.records.items() if rec.get("mark", "new") == "new" and rec.get("src") not in
                     ("pc", "fav") and any(RM.key_for(rec, m) in ks for m in rec["item"]["mods"])]
         if affected:
-            self.reprice(affected)
+            self.rating_changed(affected)
         self._rm_recount(self.rm_set)
         self._rm_rules_later()
 

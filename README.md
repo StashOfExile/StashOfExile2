@@ -101,7 +101,7 @@ Every release has a Linux download on the same page: `StashOfExile2-<version>-li
 
 ## Privacy
 
-- The usage count (on until you switch it off, Settings › Privacy & community): a random id made on your PC, every 10 minutes, so we know how many people use the app. Not your account, name or PC.
+- The usage count (off until you switch it on, Settings › Privacy & community): a random id made on your PC, every 10 minutes, so we know how many people use the app. Not your account, name or PC.
 - Nothing else leaves your PC unless you turn on Community data sharing - and then only anonymous data, never names or wealth.
 - Error reports: off until you say yes. Only where in the code an error happened and its type - never messages, names, items or files.
 - Logs (`app_log.txt`, `crash_report.txt`) stay on your PC and leave out your names and folders. You see every word before a bug report is sent.

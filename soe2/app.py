@@ -801,6 +801,9 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
             tk.Label(inner, text="The newest league is picked for you. Prices come from this league; click it to "
                                  "change it in Settings › General.", bg=P1, fg=C["muted"], font=("Segoe UI", 9),
                      anchor="w", padx=16).pack(fill="x", pady=(4, 0))
+            tk.Label(inner, text="Stash of Exile 2 is a fan-made tool. It is not affiliated with or endorsed by "
+                                 "Grinding Gear Games.", bg=P1, fg=C["muted"], font=("Segoe UI", 9), anchor="w",
+                     padx=16).pack(fill="x", pady=(4, 0))       # 3.0.7: the non-affiliation line, first run only
         foot = tk.Frame(inner, bg=P1, padx=16, pady=8)
         foot.pack(fill="x", side="bottom")
         ttk.Button(foot, text="Got it", style="Primary.TButton", command=self.close_whatsnew).pack(side="right")
@@ -1986,11 +1989,15 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
 
     # ---------------- settings handlers
     def on_league(self, _e=None):
+        old = SETTINGS.get("league")
         self.league_changed(self.league_var.get())
-        for rid, rec in self.records.items():      # re-price everything for the new league
-            rec["state"] = "queued"
-            self.update_row(rid)
-            self.engine.add(2, "price", rid)
+        new = SETTINGS.get("league")
+        # 3.0.7 (GGG policy): a league change searches nothing by itself - say where the prices are from, and offer
+        # Re-price all (a press)
+        if old and new and old != new and any(r.get("state") == "done" for r in self.records.values()):
+            self.notes_set("league", f"Prices are from {old}", "Re-price all", self.reprice_all)
+        elif old == new or not old:
+            self.notes_set("league")
 
     def league_changed(self, new):
         """Switch the market memory to `new`. Prices never mix between leagues; on a new league the list of
@@ -2079,10 +2086,16 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
 
 
 
+    def ev_rate_stop(self, msg):
+        """3.0.7: the trade site said 429 - the searches stopped (paused); Resume or a new Search goes on."""
+        self.status_text, self.status_until = msg, time.time() + 30
+        self.toggle_pause(set_to=True)
+        self.engine.rate_stopped = True
 
-
-    def toggle_pause(self):
-        self.engine.paused = not self.engine.paused
+    def toggle_pause(self, set_to=None):
+        self.engine.paused = (not self.engine.paused) if set_to is None else set_to
+        if not self.engine.paused:
+            self.engine.rate_stopped = False
         self.pause_btn.config(text="▶ Resume" if self.engine.paused else "⏸ Pause")
         if getattr(self, "bk_tb", None) is not None:
             from .bulk_page import bk_flow
@@ -2106,9 +2119,9 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
         if self.engine.paused:
             txt, bg, fg = "⏸  Paused - items you copy still queue up. Press Resume to continue.", C["panel2"], C["muted"]
         elif st["blocked"] > 0:
-            txt = (f"⏳  The trade site rate-limited us. Resuming automatically in {mmss(st['blocked'])}.  "
-                   + (f"{waiting} item{'s' if waiting != 1 else ''} queued - nothing is lost." if waiting
-                      else "You can keep copying items; they'll queue up."))
+            txt = (f"⏳  The trade site asked us to slow down - try again in {mmss(st['blocked'])}.  "
+                   + (f"{waiting} item{'s' if waiting != 1 else ''} queued - press Resume or Search again then."
+                      if waiting else "You can keep copying items; they'll queue up."))
             bg, fg = "#3a1a16", C["red"]
         elif st["wait"] > 20:
             txt = (f"⏳  Staying under the trade site's limits - next check in {mmss(st['wait'])} ({st['why']}).  "
@@ -3600,6 +3613,9 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
                 buglog.caught()
 
     def reprice(self, rids):
+        if getattr(self.engine, "rate_stopped", False):          # a Search after a 429 is the press that goes on
+            self.engine.rate_stopped = False
+            self.toggle_pause(set_to=False)
         for rid in rids:
             rec = self.records.get(rid)
             if not rec:
@@ -3609,13 +3625,78 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
             if pc:                                               # 2.87.0: a new Search replaces its older one
                 rec["gen"] = rec.get("gen", 0) + 1
             rec.pop("changed", None)
+            rec.pop("rating_changed", None)
             self.batch_ids.add(rid)
             self.update_row(rid)
             self.refresh_detail_if_selected(rid)
             self.engine.add(0 if pc else (2 if rec["resolved"] else 1), "price" if rec["resolved"] else "resolve", rid)
 
     def reprice_all(self):
+        self.notes_set("league")
         self.reprice([rid for rid, r in self.records.items() if r.get("mark", "new") == "new" and self.in_list(r)])
+
+    # ---------------- 3.0.7: nothing searches by itself (GGG policy) - old prices get a note and a button
+    def notes_banner(self, parent, before):
+        """A one-line note with one button above a list (Prices are from <old league> / Rating changed on N items).
+        Hidden while there is nothing to say."""
+        P2 = C["panel2"]
+        fr = tk.Frame(parent, bg=P2)
+        lbl = tk.Label(fr, text="", anchor="w", bg=P2, fg=C["text"], font=("Segoe UI", 9), padx=12, pady=4)
+        lbl.pack(side="left")
+        btn = ttk.Button(fr, text="")
+        btn.pack(side="right", padx=(8, 12), pady=4)
+        self.note_frames = getattr(self, "note_frames", []) + [(fr, lbl, btn, before)]
+        self.notes_paint()
+        return fr
+
+    def notes_set(self, kind, text=None, button=None, fn=None):
+        """Say it (or, with no text, take it back). The newest note shows."""
+        notes = self.__dict__.setdefault("notes", {})
+        notes.pop(kind, None)
+        if text:
+            notes[kind] = (text, button, fn)
+        self.notes_paint()
+
+    def notes_paint(self):
+        notes = getattr(self, "notes", {})
+        text, button, fn = notes[list(notes)[-1]] if notes else ("", "", None)
+        for fr, lbl, btn, before in getattr(self, "note_frames", []):
+            try:
+                if not text:
+                    if fr.winfo_ismapped():
+                        fr.pack_forget()
+                    continue
+                if lbl.cget("text") != text:
+                    lbl.config(text=text)
+                if str(btn.cget("text")) != button:
+                    btn.config(text=button)
+                btn.config(command=fn)
+                if not fr.winfo_ismapped():
+                    fr.pack(fill="x", padx=8, pady=(0, 4), before=before)
+            except tk.TclError:
+                pass
+
+    def rating_changed(self, rids):
+        """A mod's rating or a rule changed: the items that have it are marked Rating changed, and Re-price N items
+        (one press) searches them. Nothing is searched here."""
+        for rid in rids:
+            rec = self.records.get(rid)
+            if rec is not None:
+                rec["rating_changed"] = True
+                self.update_row(rid)
+                self.refresh_detail_if_selected(rid)
+        self.rating_note()
+        self.dirty = True
+
+    def rating_note(self):
+        ids = [rid for rid, r in self.records.items() if r.get("rating_changed")]
+        if not ids:
+            return self.notes_set("rating")
+        n = len(ids)
+        self.notes_set("rating", f"Rating changed on {n} item{'s' if n != 1 else ''}",
+                       f"Re-price {n} item{'s' if n != 1 else ''}",
+                       lambda: (self.notes_set("rating"),
+                                self.reprice([rid for rid, r in self.records.items() if r.get("rating_changed")])))
 
     def on_listing_rules(self, _e=None):
         SETTINGS["status"], SETTINGS["age"] = self.status_var.get(), self.age_var.get()
@@ -3638,9 +3719,9 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
                 it["mods"] = [{**m, "flags": sorted(m["flags"])} for m in rec["item"]["mods"]]
                 r["item"] = it
                 if rec.get("src") in ("pc", "fav"):        # 2.87.0: Recent keeps its listings over a restart
-                    from .trade import RAW_LISTINGS
+                    from .trade import RAW_LISTINGS, scrub_raw
                     ids = [i for st in rec.get("stages") or [] for i in st.get("ids") or []]
-                    r["_raw"] = [RAW_LISTINGS[i] for i in dict.fromkeys(ids) if i in RAW_LISTINGS][:20]
+                    r["_raw"] = [scrub_raw(RAW_LISTINGS[i]) for i in dict.fromkeys(ids) if i in RAW_LISTINGS][:20]
                 recs.append(r)
             data = {"next_id": self.next_id, "records": recs}
         except Exception:
@@ -3684,12 +3765,14 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
                     for e in raw:
                         keep_raw(e)
                 self.records[int(r["id"])] = r
-                if r.get("state") in ("queued", "pricing"):      # was still waiting when the app closed
-                    r["state"] = "queued"
-                    self.engine.add(2 if r.get("resolved") else 1, "price" if r.get("resolved") else "resolve", r["id"])
+                if r.get("state") in ("queued", "pricing"):      # was still waiting when the app closed:
+                    r["state"] = "idle"                          # Not priced - nothing is searched at the start
+                    r.pop("held", None)                          # (Re-price, or Re-price all, searches it)
             except Exception:
                 continue
         self.next_id = max([int(data.get("next_id", 1))] + [rid + 1 for rid in self.records])
+        if any(r.get("rating_changed") for r in self.records.values()):
+            self.rating_note()
         self.seen_texts = {hash(r["raw"].strip()): rid for rid, r in self.records.items() if r.get("raw")}
         self.rebuild_tree()
         try:                                                  # 2.87.0 (feedback: Recent was empty after a restart):
@@ -4066,7 +4149,7 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
         affected = [rid for rid, rec in self.records.items()
                     if rec.get("mark", "new") == "new" and any(norm(m["text"]) in keys for m in rec["item"]["mods"])]
         if affected:
-            self.reprice(affected)
+            self.rating_changed(affected)
         self.refresh_all()
         self.refresh_rules()
 
@@ -4094,11 +4177,11 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
         affected = [rid for rid, rec in self.records.items() if rec.get("mark", "new") == "new"
                     and any(norm(m["text"]) in keys or key_for(rec, m) in keys for m in rec["item"]["mods"])]
         if affected:
-            self.reprice(affected)
+            self.rating_changed(affected)
         self.refresh_all()
         self.refresh_rules()
         self._say(f"{'Cleared' if tier is None else 'Rated ' + tier} {len(keys)} mod{'s' if len(keys) != 1 else ''}"
-                  + (f"; re-pricing {len(affected)} item(s)." if affected else "."), 8)
+                  + (f"; {len(affected)} item(s) marked Rating changed." if affected else "."), 8)
 
     def cycle_rule(self, event, cat="tablet"):
         ns = self.rt[cat]
@@ -4129,11 +4212,12 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
         affected = [rid for rid, rec in self.records.items()
                     if rec.get("mark", "new") == "new" and any(norm(m["text"]) in keys or key_for(rec, m) in keys
                                                                for m in rec["item"]["mods"])]
-        self.reprice(affected)
+        if affected:
+            self.rating_changed(affected)
         self.refresh_all()
         self.refresh_rules()
         if affected:
-            self.status_text, self.status_until = f"Re-pricing {len(affected)} item{'s' if len(affected) != 1 else ''} with the new rule", time.time() + 8
+            self.status_text, self.status_until = f"{len(affected)} item{'s' if len(affected) != 1 else ''} marked Rating changed - press Re-price", time.time() + 8
 
     # ---------------- derived data
     def good_mods(self, rec):
@@ -4180,6 +4264,8 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
             stamp = fmt_stamp(rec.get("priced_at"))
         elif st == "error":
             est, listings, match = "—", "", rec["label"]
+        elif st == "idle":                                    # 3.0.7: back from a restart, not searched
+            est, listings, match = "—", "", "Not priced"
         elif rec.get("held"):                                 # 2.73.2: paused by hand
             est, listings, match = "⏸", "", "paused - right-click › Resume pricing"
         else:
@@ -4215,6 +4301,10 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
     def price_status(self, rec):
         """P1 (2.103.0): an item not marked listed / sold / removed - where its pricing is, in words."""
         st = rec["state"]
+        if rec.get("rating_changed") and st not in ("queued", "pricing"):
+            return "↻ Rating changed"
+        if st == "idle":
+            return "– Not priced"
         if st == "done":
             if rec.get("nomatch"):
                 return "– No listings"
@@ -4476,7 +4566,7 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
         rids = [int(i) for i in sel if str(i).isdigit() and int(i) in self.records]
         one = self.records[rids[0]] if len(rids) == 1 else None
         n = f" ({len(rids)})" if len(rids) > 1 else ""
-        waiting = [r for r in rids if self.records[r].get("state") != "done"]
+        waiting = [r for r in rids if self.records[r].get("state") not in ("done", "idle")]
         held = [r for r in waiting if self.records[r].get("held")]
         return [(f"⏸ Pause pricing{n}" if not held or len(held) < len(waiting) else f"▶ Resume pricing{n}",
                  (lambda: self.pricing_hold(waiting, not (held and len(held) == len(waiting)))), bool(waiting)),

@@ -52,7 +52,14 @@ also ask for this notice, word for word, and a User-Agent that says how to reach
    altar identifying, the Delirium helper and Fast Beacon Read are gone for this reason). In maps nothing looks at the screen on entering one or to tell
    that it's done: Map Content's icons are never read - the helpers there follow Client.txt (area changes) and read only what you press the Read Key for.
 3. **Never touch the game client.** No reading or writing its memory, no injecting code, no hooking its graphics, no
-   reading or changing its network traffic.
+   reading or changing its network traffic. The game's own files are never opened, read or written: Filter in the
+   Ritual window only shows the line to change in poe2_production_Config.ini, copies it and opens the folder in
+   Explorer (tools/check_tos.py enforces it). Client.txt is the one game file the app reads.
+3b. **Every trade search comes from a press.** Opening a page, typing, changing a league, rating a mod and starting the
+   app search nothing: Farming Strategies shows "Cost not checked yet" until you press Check cost; items still queued at
+   shutdown come back as Not priced; a league change says "Prices are from <old league>" with Re-price all; a rating
+   change marks items Rating changed with Re-price N items. After a 429 the app stops, says how long to wait and never
+   tries again by itself. The one automatic request is the trade site's data lists at the start (once, cached).
 4. **The app's only input to the game:** after *your* key press, one game action - the game's own item copy
    (Ctrl+Alt+C), or one chat command (pasted, one Enter). The mouse is never moved or clicked for you.
 5. **What the app reads, and when** (the user is told - each helper's one line names the Read Key, the read mark

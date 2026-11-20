@@ -356,6 +356,17 @@ def keep_raw(e):
         RAW_LISTINGS.pop(next(iter(RAW_LISTINGS)))
 
 
+def scrub_raw(e):
+    """3.0.7: a fetched listing as it may be saved to session.json: no seller (account name, character), no whisper
+    text or token, no stash - nothing that names a person. A copy; the one in memory is left as it is."""
+    out = dict(e or {})
+    lst = dict(out.get("listing") or {})
+    for k in ("account", "whisper", "whisper_token", "stash", "method", "indexed_by", "seller"):
+        lst.pop(k, None)
+    out["listing"] = lst
+    return out
+
+
 def fetch_rich(qid, ids, max_hours=None):
     """One fetch call for up to 10 listings -> [{id, price, ts, mods}] cheapest first.
     mods = [(normalized text, [numbers])] straight from the listing, or None if the listing didn't say.

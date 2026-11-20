@@ -437,7 +437,8 @@ class UtilitiesPage:
         cfg["poe_title"] = self.ov_vars["poe_title"].get().strip() or "Path of Exile 2"
         cmds = []
         for name, key, cmd in self.ov_cmd_vars:            # 2.61.1: every row keeps its place (row n = command n,
-            n_, k, c = name.get().strip(), key.get().strip(), cmd.get().strip()   # the Hotkeys page's cmd:n), and a
+            n_, k, c = name.get().strip(), key.get().strip(), " ".join(cmd.get().split())   # the Hotkeys page's cmd:n), and a
+            #                                                (3.0.7: one line - no newline can reach the chat box)
             if k and not parse_key(k):                     # command is kept before it has a key
                 bad.append(k)
             cmds.append({"name": n_, "key": k, "cmd": c})

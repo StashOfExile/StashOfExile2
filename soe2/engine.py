@@ -11,7 +11,7 @@ import time
 from . import buglog
 from .config import BASE, load_json, P, save_json, SETTINGS
 from .util import mmss
-from .net import call, STATUS
+from .net import call, STATUS, RateLimited
 from .rates import RATES
 from .mods import DUPS, OPTS, find_stat, norm, pretty, vfilter
 from . import gear, waystone
@@ -203,6 +203,7 @@ class Engine(TabReaderJobs, WealthJobs, StratCostJobs, threading.Thread):
         self.table = None
         self.logged_unmatched = set()
         self.paused = False
+        self.rate_stopped = False                  # 3.0.7: paused by a 429 (a new Search goes on)
         self.lock = threading.Lock()
 
     def add(self, prio, *job):
@@ -289,16 +290,36 @@ class Engine(TabReaderJobs, WealthJobs, StratCostJobs, threading.Thread):
                 continue
             try:
                 getattr(self, "do_" + job[0])(*job[1:])
+            except RateLimited as e:                       # 3.0.7: stop - the person presses Resume / Search again
+                self.paused = self.rate_stopped = True
+                self.ui_q.put(("error", job[0], str(e), job[1] if len(job) > 1 else None))
+                self.ui_q.put(("rate_stop", str(e)))
             except Exception as e:
                 self.ui_q.put(("error", job[0], str(e), job[1] if len(job) > 1 else None))
             self.ui_q.put(("queue",))
 
     # ---- jobs
-    def do_init(self):
+    def _load_leagues(self):
+        """The trade site's league list: once per start, kept on disk for 6 hours (3.0.7: the one automatic request
+        at the start, like the other lists). Failing: the saved list, else none."""
+        cache = P("trade_leagues.json")
         try:
-            leagues = [l["id"] for l in call("GET", BASE + "/data/leagues")["result"]]
+            if os.path.exists(cache) and time.time() - os.path.getmtime(cache) < 6 * 3600:
+                data = load_json("trade_leagues.json", {})
+                if data.get("result"):
+                    return [l["id"] for l in data["result"]]
+            data = call("GET", BASE + "/data/leagues")
+            save_json("trade_leagues.json", data)
+            return [l["id"] for l in data["result"]]
         except Exception:
-            leagues = []
+            data = load_json("trade_leagues.json", {})
+            try:
+                return [l["id"] for l in data.get("result") or []]
+            except Exception:
+                return []
+
+    def do_init(self):
+        leagues = self._load_leagues()
         self.ui_q.put(("leagues", leagues))
         try:
             self.table = self._load_stats()

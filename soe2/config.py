@@ -192,7 +192,6 @@ HEADERS = {"User-Agent": APP_UA, "Content-Type": "application/json"}
 DEFAULTS = {
     "league": "",
     "good_div": 0.5,       # a mod is "good" if the cheapest listings with it cost at least this many divines
-    "learn": True,         # look up every new mod in the background
     "popups": True,
     "sound": True,         # beep when a batch finishes
     "toast_secs": 6,

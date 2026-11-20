@@ -84,6 +84,7 @@ class BulkPage:
         main = tk.Frame(body, bg=P1)
         main.pack(fill="both", expand=True, padx=12, pady=(0, 8))
         self.checks_area = self.bk_main = main          # (banners go just above it)
+        self.notes_banner(body, main)                   # 3.0.7: Prices are from ... / Rating changed, one button
         if not SETTINGS.get("bk_side_k2"):              # (once, owner round 2: the card is 0.9 now, not 0.8 - a side
             pw = int(SETTINGS.get("panel_w") or ITEM_W)  # made 0.8 narrower gets that back, and is ITEM_W at least)
             SETTINGS["panel_w"] = max(ITEM_W, int(pw * (BULK / 0.8) if SETTINGS.get("bk_side_k") else pw))

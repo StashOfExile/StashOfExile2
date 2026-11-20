@@ -225,12 +225,12 @@ class GearBookPage:
         return keys
 
     def gb_reprice(self, keys):
-        """Re-price the not-yet-listed items that have any of these lines."""
+        """Mark the not-yet-listed items that have any of these lines Rating changed (a press re-prices them)."""
         from .ratemods import key_for
         keys = set(keys)
         affected = [rid for rid, rec in self.records.items() if rec.get("mark", "new") == "new"
                     and any(key_for(rec, m) in keys for m in (rec.get("item") or {}).get("mods") or [])]
         if affected:
-            self.reprice(affected)
+            self.rating_changed(affected)
         return affected
 

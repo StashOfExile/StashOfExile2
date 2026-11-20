@@ -475,6 +475,7 @@ class PriceCheckPage:
         cw = max(360, int(SETTINGS.get("pc_card_w", 520) or 520))
         wrap = Splitter(body, width=cw, lo=360, keep=380, on_set=self._pc_pane_saved, bg=C["panel"])
         self.limit_banner(body, wrap)                # 2.103.3: the "Staying under the limits" line
+        self.notes_banner(body, wrap)                # 3.0.7: Prices are from ... / Rating changed, one button
         wrap.pack(fill="both", expand=True, padx=12, pady=(0, 8))
         self.pc_pane = wrap
         left, right = wrap.left, wrap.right

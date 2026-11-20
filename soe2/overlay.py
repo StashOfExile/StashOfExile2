@@ -210,6 +210,7 @@ def type_chat(cmd, sender=None, sleep=time.sleep, clip=None, gid=0):
     so the chat box only flashes for a moment. Your clipboard is put back afterwards: its text is read once for this
     key press (gid: the press's clipread grant - GGG policy, one read per press; no grant, nothing is read or put
     back). Modifier keys you are still holding are released first, so Ctrl+H doesn't turn into shortcuts."""
+    cmd = " ".join(str(cmd).split())              # 3.0.7: one line - a newline would send a second message
     send = sender or _send_keys
     if clip is None:
         from .clipread import take_now, write_text

@@ -731,7 +731,7 @@ class MoneyMakersPage(StratViews, StratNewPage):
             m.add_command(label=f"Suggestions waiting ({post['suggestions']})…", command=self.bm_inbox)
         m.add_command(label="Export…", command=self.mm_export)
         if s.get("items"):                                         # 2.46.0
-            m.add_command(label="Check what it costs now", command=lambda: (self.mm_cost_check(True, s["id"]),
+            m.add_command(label="Check cost", command=lambda: (self.mm_cost_check(True, s["id"]),
                                                                              self.mm_show_detail(s)))
         if s["origin"] == "mine" or post.get("mine"):
             m.add_separator()
@@ -997,7 +997,8 @@ class MoneyMakersPage(StratViews, StratNewPage):
         return self._mm_costs
 
     def mm_cost_check(self, force=False, only=None):
-        """Queue the strats whose cost wasn't checked today (or one strat now: force=True, only=its id)."""
+        """Queue a cost check - only from a Check cost press: one strat (only=its id), or the strats whose cost is
+        older than a day. Never from opening the page."""
         from .stratcost import due
         league = SETTINGS.get("league") or ""
         if not league:
@@ -1036,10 +1037,7 @@ class MoneyMakersPage(StratViews, StratNewPage):
             self.mm_league.set(self.mm_league_default())          # (your league changed in Settings)
             self.mm_filters_changed()
         self.mm_check_live(force=False)
-        try:
-            self.mm_cost_check()                                  # 2.46.0: once a day, strats that list their items
-        except Exception:
-            self.log_error("checking what strats cost")
+        # (no cost search here: opening the page is not a request - Check cost is, GGG policy)
         self.mm_account_paint()
         if B.configured() and not getattr(self, "_mm_official_asked", False):
             self._mm_official_asked = True

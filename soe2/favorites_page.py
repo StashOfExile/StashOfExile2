@@ -72,6 +72,7 @@ class FavoritesPage:
         self.fav_msg.pack(fill="x")
         wrap = tk.Frame(body, bg=P2)
         self.limit_banner(body, wrap)                     # 2.103.3 (feedback): the "Staying under the limits" line
+        self.notes_banner(body, wrap)                     # 3.0.7: Prices are from ... / Rating changed, one button
         wrap.pack(fill="both", expand=True, pady=(8, 0))
         # ---- your favorites
         lf = tk.Frame(wrap, bg=P1, width=300)             # P2: narrower list, wider card

@@ -808,13 +808,17 @@ class StratViews:
             elif kind == "cost":
                 l_ = cv.text(x0 + 20, ty + 26, "COST PER MAP", lab, fill=cv.c("text_muted"), anchor="w")
                 how = cost["how"] if cost else "The trade site's price of what goes in your map device - checked " \
-                                               "once a day while Farming Strategies is open."
+                                               "only when you press Check cost."
                 cv.info(cv.bbox(l_)[2] + 6, ty + 26, f"{tag}_i", how)
                 cv.text(x0 + 20, ty + 42, f"{MM.short_div(cost['value'])} div" if cost else "—", num,
                         fill=cv.c("text_strong"), tags=(tag,))
                 cv.tips[tag] = how
-                line = cost["sum"] if cost else ("checking the trade site…" if busy else "not checked yet")
+                line = cost["sum"] if cost else ("checking the trade site…" if busy else "Cost not checked yet")
                 cv.text(x0 + 20, ty + 86, cv.fit(line, f9, tw - 40), f9, fill=cv.c("text_muted"))
+                if s.get("items") and not busy:                # a search only when you press (GGG policy)
+                    cv.button(x0 + tw - 16, ty + 14, "Check cost", f"{tag}_check",
+                              lambda s=s: (self.mm_cost_check(True, s["id"]), self.mm_show_detail(s)),
+                              anchor="e", h=28, tip="Searches the trade site for what this strat's items cost now.")
             elif kind == "way":
                 cv.text(x0 + 20, ty + 26, "WAYSTONE", lab, fill=cv.c("text_muted"), anchor="w")
                 got = cv.icon(way["base"], x0 + 20, ty + 46, 36, tags=(tag,))

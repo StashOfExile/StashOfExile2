@@ -1,4 +1,4 @@
-"""Usage count (UI overhaul): how many people use Stash of Exile 2 - on by default, one switch in Settings ›
+"""Usage count (UI overhaul): how many people use Stash of Exile 2 - off until you say yes (3.0.7, GGG policy audit: opt-in), one switch in Settings ›
 Privacy & community.
 
 What it sends: a random id made on this PC the first time - not your account, character, name or PC - to the
@@ -19,7 +19,7 @@ _lock = threading.Lock()
 
 
 def on():
-    return bool(SETTINGS.get("usage_ping", True))
+    return bool(SETTINGS.get("usage_ping", False))
 
 
 def set_on(value):

@@ -280,6 +280,13 @@ REMOVED = [
               "(GGG policy: no changing the game's files). Now plain instructions, Open folder and Copy line",
      ("isn't in your file", "isn't there yet - start the game once", "Game must be closed to edit config file"),
      ("ritual_filter.turn_on", "ritual_filter_state", "al_rfilter_state", "read_value", "config_path", "rf_on_btn")),
+    ("3.0.7", "Trade searches nobody pressed for (GGG policy audit): Farming Strategies' costs checked on opening the "
+              "page, the New strat editor's search 2.5 s after typing, the session restore's re-pricing, the league "
+              "change's re-pricing of the list, the rating / rule cascade's re-pricing, the 6 automatic tries after a "
+              "429, the unused Mod Book background learning setting",
+     ("Check what it costs now", "Checked a moment after you copy or tick", "Still rate limited",
+      "Resuming automatically"),
+     ("_mm_new_cost_later", "learn_ok", "learn_cap")),
     ("2.106.0", "Wealth's public stash tabs (Scan stash replaces them)", ("Sync stash tabs",), ("w_sync_btn",), True),
 ]
 ABSENT = re.compile(r"\bnot\b|\bgone\b|\bremoved\b|\bno longer\b|\.pop\(|\bdel\b|None\)", re.I)
