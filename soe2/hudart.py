@@ -1,7 +1,7 @@
 """The Bar's artwork (2.65.1, 2.66.0): drawn here with Pillow, no image files, in Path of Exile 2's own HUD style
 so it sits in the game's bottom bar like part of it - charcoal stone, an aged pewter frame with a thin gold inner
-line, corner brackets with rivets, end caps with a gothic arch holding a gem (crimson on the life side, sapphire on
-the mana side), a small crest on top, switches in square sockets like the flask and skill slots (a warm gold glow
+line, corner brackets with rivets, end caps with a gothic arch holding a pale gold gem (owner decision, GGG policy audit:
+not the game's red and blue - nothing reads as a life or mana orb), a small crest on top, switches in square sockets like the flask and skill slots (a warm gold glow
 when on) and thin double dividers. Drawn 3x and scaled down, so edges and curves are smooth. Cached per size.
 The Bar keeps this look in every theme - it is part of the game's bar; the other layouts use the theme.
 
@@ -16,8 +16,7 @@ PEWTER_HI, PEWTER, PEWTER_MID, PEWTER_LO, PEWTER_DK = (178, 170, 152), (128, 121
 GOLD_LINE, GOLD, GOLD_HI = (112, 92, 54), (196, 160, 92), (240, 214, 150)
 STONE_TOP, STONE_BOT = (30, 28, 25), (12, 11, 10)
 WELL_TOP, WELL_BOT = (8, 8, 7), (17, 16, 14)
-CRIMSON = ((60, 6, 6), (120, 14, 12), (190, 32, 24), (255, 150, 130))
-SAPPHIRE = ((6, 14, 50), (14, 40, 110), (40, 96, 200), (170, 210, 255))
+PALE_GOLD = ((72, 58, 32), (142, 116, 66), (206, 178, 116), (252, 238, 200))
 AMBER = ((70, 34, 6), (150, 80, 16), (220, 150, 50), (255, 226, 160))
 
 
@@ -135,7 +134,7 @@ def _bracket(d, x, y, sx, sy, n, t):
     _rivet(d, x + sx * n * 0.45, y + sy * n * 0.45, t * 1.3)
 
 
-def plate(root, w, h, P=None, ends=("crimson", "sapphire"), cap=None):
+def plate(root, w, h, P=None, ends=("gold", "gold"), cap=None):
     """The whole bar: stone, pewter frame with a gold inner line, corner brackets, end caps with gems, a crest on top,
     the recessed well between the caps. -> PhotoImage (None without Pillow)."""
     key = ("plate", w, h, ends, cap)
@@ -159,7 +158,7 @@ def plate(root, w, h, P=None, ends=("crimson", "sapphire"), cap=None):
         d.line((x0, y1, x1, y1), fill=PEWTER_LO + (220,), width=t)
         d.line((x0 - t, y0, x0 - t, y1), fill=K + (220,), width=t)
         d.line((x1, y0, x1, y1), fill=PEWTER_LO + (200,), width=t)
-    ramps = {"crimson": CRIMSON, "sapphire": SAPPHIRE, "amber": AMBER}
+    ramps = {"gold": PALE_GOLD, "amber": AMBER}
     _cap(d, 5 * t + cw // 2, H, cw, t, ramps[ends[0]], -1)
     _cap(d, W - 5 * t - cw // 2, H, cw, t, ramps[ends[1]], 1)
     n = min(H * 0.22, 7 * t)

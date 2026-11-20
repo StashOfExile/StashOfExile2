@@ -4,8 +4,8 @@ own frame, colors, fonts and trim (the window frame comes from overlaywin, the p
 
   run half    row 1: the state chip (⌂ HIDEOUT, ● IN MAP ...) · LAST MAP / THIS MAP, the map and its time
               row 2: SESSION 14:47:43 ⓘ | LAST MAP'S PROFIT +3 div ⓘ   (the campaign: YOU ⓘ | ACT TIME ⓘ)
-  tools half  row 1: Notes Calc Regex Rates (Vendor in the campaign)
-              row 2: App ▸, the clock, the lock and ⚙ (Quick settings)
+  tools half  row 1: Notes Calc Regex Rates (Vendor in the campaign), the clock
+              row 2: App ▸, the lock and ⚙ (Quick settings), the Name badge (under the clock)
 
 By default the run half sits right of the life orb (bottom left) and the tools half left of the mana orb (bottom
 right); Quick settings › ⇄ Swap sides puts them the other way round (shown only while the Layout is Split - the one
@@ -450,7 +450,7 @@ class SplitOverlay:
         return (bb[2] if bb else x) + self._u(12)
 
     def _sp_tools(self, w, cv, P, want, x0, r1, r2):
-        """The tools half: Notes Calc Regex Rates (row 1), App ▸ · the clock · lock and ⚙ (row 2). The right-hand
+        """The tools half: Notes Calc Regex Rates · the clock (row 1), App ▸ · lock and ⚙ · the Name badge (row 2). The right-hand
         items are drawn from x = 0 leftwards and tagged sp_right (split_half moves them to the right edge).
         -> the content's right edge, from x0."""
         u = self._u
@@ -466,10 +466,12 @@ class SplitOverlay:
             x = self._sp_tool(w, cv, P, "app", x0, r2)
             self._lt_halo_tags(cv, P, ("mg_app",))
         before = set(cv.find_all())
-        gx = self._lt_glyphs(w, cv, P, 0, r2)
+        bw = self.ov_badge(cv, P, 0, r2)[0]                 # the Name badge at the right of row 2, the clock over it
+        gx = self._lt_glyphs(w, cv, P, -bw - u(8), r2)
+        cw = 0
         if want["timer"] and cfg.get("clock", True):
-            gx -= self._lt_clock(cv, P, gx, r2) + u(4)
+            cw = self._lt_clock(cv, P, 0, r1) + u(14)
         for it in set(cv.find_all()) - before:
             cv.addtag_withtag("sp_right", it)
         right_w = -gx
-        return max(row1, x + right_w)
+        return max(row1 + cw, x + right_w)

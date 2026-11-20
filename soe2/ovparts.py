@@ -354,7 +354,7 @@ class OverlayParts:
             from . import hudart                              # stone plate and end caps
             ends, self._hud_ends = getattr(self, "_hud_ends", None), ("amber", "amber")
             lft, rgt = self._hud_frame(cv, P, W, H, cap=hudart.cap_width(mh))
-            self._hud_ends = ends or ("crimson", "sapphire")
+            self._hud_ends = ends or ("gold", "gold")
         elif classic:                                         # the Panel's stone and frame (2.124.1: as the Bar)
             from . import hudart
             art = hudart.panel(cv, W, H)

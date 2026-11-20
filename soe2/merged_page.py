@@ -1162,7 +1162,7 @@ class MergedOverlay:
             if not cfg.get("mlocked"):
                 w.draggable(cv)
             W, H = ww - 2, hh - 2
-            self._hud_ends = ("crimson", "sapphire")
+            self._hud_ends = ("gold", "gold")
             self._hud_row(w, cv, P, want, W, H)
             wins.append(w)
             if self.tk_ov_cv is None:
@@ -1263,7 +1263,7 @@ class MergedOverlay:
         """The game bar's plate (hudart: carved stone, bevelled bronze frame, end caps with an amber gem, a
         recessed well). -> the left / right edges of the well, where content goes."""
         from . import hudart
-        img = hudart.plate(cv, W, H, P, ends=getattr(self, "_hud_ends", ("crimson", "sapphire")), cap=cap)
+        img = hudart.plate(cv, W, H, P, ends=getattr(self, "_hud_ends", ("gold", "gold")), cap=cap)
         m = (cap or hudart.cap_width(H)) + 14
         if img is not None:
             cv.create_image(0, 0, image=img, anchor="nw", tags=("hudbg",))
@@ -1319,10 +1319,15 @@ class MergedOverlay:
 
         gx = self._mg_glyphs(w, cv, P, rgt, mid)
         right = gx
-        if want["timer"] and cfg.get("clock", True):
-            self._hud_clock(w, cv, P, gx - 2, mid)
-            right = gx - fm.measure("00:00 PM") - 6 - SW
-            self._hud_sep(cv, P, right + SW // 2, H, cy=mid, h=sh)
+        cfm = self._lt_fm(cv, P, 9, family=P["font"])
+
+        def clock_at(cx, cy):
+            self._hud_clock(w, cv, P, cx, cy)
+            return cfm.measure("00:00 PM")
+        used = self.ov_clock_badge(cv, P, gx - 2, H / 2, clock_at, family=P["font"],   # the clock, the Name badge under it
+                                   clock=bool(want["timer"] and cfg.get("clock", True)))
+        right = gx - 2 - used - 4 - SW
+        self._hud_sep(cv, P, right + SW // 2, H, cy=mid, h=sh)
         if want["timer"] and self.bar_buttons_on():         # 2.118.0: one row - Notes ▾ … before the clock
             right = self._mg_bar_buttons(w, cv, P, right - 4, mid, anchor="e") - SW
             self._hud_sep(cv, P, right + SW // 2, H, cy=mid, h=sh)

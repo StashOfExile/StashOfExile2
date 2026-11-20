@@ -28,6 +28,8 @@ _FM_CACHE = {}                   # 2.112.3: measuring fonts, kept (see _lt_fm)
 LIGHT = ("hairline", "slate", "micro") + ORNATE
 BOXLESS = ("hairline",)
 KEY = "#010101"                    # a box-less look's see-through color (never used for anything that shows)
+BADGE = "STASH OF EXILE 2"         # owner decision (GGG policy audit): the app's name on every overlay layout, in a
+                                   # small badge under the clock (names.py: Name badge) - so it never reads as the game's
 WARN = "#e0a352"
 
 # id: (name, box, line, text, strong, muted, accent) - each theme pack's own surface_sunken, border, text,
@@ -214,7 +216,7 @@ class LightOverlay:
                     W, H = getattr(self, f"_lt_{kind}_panel")(f, cv, P, want, (0, 0, width, spot_h), piece)
                 elif style == "classic":
                     W, H = width - 2, spot_h - 2
-                    self._hud_ends = ("crimson", "sapphire")
+                    self._hud_ends = ("gold", "gold")
                     self._hud_row(f, cv, P, want, W, H)
                 else:
                     kind = "ornate" if style in ORNATE else style
@@ -368,6 +370,70 @@ class LightOverlay:
         f = self._lt_fm(cv, P, 9, family="Segoe UI Symbol")
         return self._lt_gear() + f.measure("🔓") + 2 * self._u(6)
 
+    # ---------------------------------------------------------------- the Name badge (every layout)
+    def _badge_font(self, cv, P):
+        """The badge's font and its measures: Cinzel in Classic (the bar's own lettering), the style's body font
+        elsewhere. -> (font tuple, tkfont.Font)"""
+        from . import fonts
+        fam = fonts.family("Cinzel") if P.get("poe") else self._lt_family(P, 7)
+        size = max(6, round(6.5 * getattr(self, "_hud_k", 1.0)))
+        key = (fam, size, True)
+        fm = _FM_CACHE.get(key)
+        if fm is None:
+            fm = _FM_CACHE[key] = tkfont.Font(root=cv.winfo_toplevel().nametowidget("."), family=fam, size=size,
+                                              weight="bold")
+        return (fam, size, "bold"), fm
+
+    @staticmethod
+    def _caps(fm):
+        """A font's capital height and how far its capitals' middle sits below its line's middle (px)."""
+        asc, desc = fm.metrics("ascent"), fm.metrics("descent")
+        cap = round(asc * 0.72)
+        return cap, (asc - cap - desc) / 2
+
+    def ov_badge_size(self, cv, P):
+        """-> (w, h) of the Name badge."""
+        _f, fm = self._badge_font(cv, P)
+        cap, _off = self._caps(fm)
+        return fm.measure(BADGE) + 2 * self._u(5), cap + 2 * self._u(2) + 2
+
+    def ov_badge(self, cv, P, x, y, anchor="e", tags=()):
+        """The Name badge: STASH OF EXILE 2 in small capitals in a box, its middle at y; x is its right edge (e),
+        left edge (w) or middle (center). -> (w, h)"""
+        f, fm = self._badge_font(cv, P)
+        cap, off = self._caps(fm)
+        w, h = self.ov_badge_size(cv, P)
+        x0 = x - w if anchor == "e" else (x - w // 2 if anchor == "center" else x)
+        y0 = round(y - h / 2)
+        tg = ("mg", "ov_badge") + tuple(tags)
+        edge = "#806a3e" if P.get("poe") else P.get("line", P["muted"])
+        cv.create_rectangle(x0, y0, x0 + w - 1, y0 + h - 1, outline=edge,
+                            fill=P.get("cell_bg") or P.get("field") or P["bg"], tags=tg)
+        cv.create_text(x0 + w / 2, y0 + h / 2 - off, text=BADGE, anchor="center", font=f,
+                       fill=P.get("accent") or P.get("head") or P["text"], tags=tg)
+        return w, h
+
+    def ov_stack_h(self, cv, P, size=9, family=None):
+        """The height the clock (its capitals) with the badge under it takes. -> (total, clock cap, gap, badge h)"""
+        cap, _off = self._caps(self._lt_fm(cv, P, size, family=family))
+        _bw, bh = self.ov_badge_size(cv, P)
+        gap = self._u(4)
+        return cap + gap + bh, cap, gap, bh
+
+    def ov_clock_badge(self, cv, P, x, mid, draw_clock, anchor="e", size=9, family=None, clock=True):
+        """The clock with the Name badge under it, the two centered on mid (only the badge without a clock).
+        draw_clock(x, y) draws the clock's text (anchor e / w, its line's middle at y) and returns its width.
+        -> the width taken."""
+        _bw, bh = self.ov_badge_size(cv, P)
+        if not clock:
+            return self.ov_badge(cv, P, x, mid, anchor=anchor)[0]
+        total, cap, gap, bh = self.ov_stack_h(cv, P, size, family)
+        _c, off = self._caps(self._lt_fm(cv, P, size, family=family))
+        top = mid - total / 2
+        cw = draw_clock(x, round(top + cap / 2 - off))
+        bw = self.ov_badge(cv, P, x, top + cap + gap + bh / 2, anchor=anchor)[0]
+        return max(cw, bw)
+
     def _lt_clock(self, cv, P, x, y, anchor="e"):
         t = self._lt_text(cv, P, x, y, "", 9, P["muted"], anchor=anchor)
         self.tk_ov_clock = _LtClock(t)
@@ -513,15 +579,15 @@ class LightOverlay:
             else:
                 self._lt_text(cv, P, x, mid, "·", 10, P["muted"], anchor="center")
 
-        H = u(34)                                           # 2.139.0: a label over each value (2.139.1: 40 -> 34)
+        H = max(u(34), self.ov_stack_h(cv, P)[0] + u(16))   # 2.139.0: a label over each value (2.139.1: 40 -> 34);
+        # (taller if the clock and the Name badge under it need it - room above, below and between them)
         r2 = (u(5), H - (u(5) if slate else u(7)))
         m2 = (r2[0] + r2[1]) // 2
         # ---- the right end: lock, ⚙, the clock, the menus
         x = self._lt_glyphs(w, cv, P, W - pad, m2)
-        if clock:
-            x -= self._lt_clock(cv, P, x, m2) + u(4)
-            sep(x - sw // 2, *r2, m2)
-            x -= sw
+        x -= self.ov_clock_badge(cv, P, x, m2, lambda cx, cy: self._lt_clock(cv, P, cx, cy), clock=clock) + u(4)
+        sep(x - sw // 2, *r2, m2)                           # (the Name badge is always there, the clock over it)
+        x -= sw
         if menus_w:
             x = self._lt_menus(w, cv, P, x, m2) + 12 - u(4)
             if want["timer"]:
@@ -550,7 +616,7 @@ class LightOverlay:
         First, ova8)."""
         u = self._u
         cfg = self.tracker_cfg()
-        H = u(34)
+        H = max(u(34), self.ov_stack_h(cv, P)[0] + u(16))  # (room for the clock and the Name badge under it)
         mid = H // 2
         pad = u(8)
 
@@ -563,9 +629,9 @@ class LightOverlay:
             mw = self._lt_menus_w(cv, P)
             self._lt_menus(w, cv, P, x + mw, mid)
             x += mw + u(6)
-        if want["timer"] and cfg.get("clock", True):
-            x = sep(x)
-            x += self._lt_clock(cv, P, x, mid, anchor="w") + u(8)
+        x = sep(x)                                          # the clock with the Name badge under it (the badge always)
+        x += self.ov_clock_badge(cv, P, x, mid, lambda cx, cy: self._lt_clock(cv, P, cx, cy, anchor="w"), anchor="w",
+                                 clock=bool(want["timer"] and cfg.get("clock", True))) + u(8)
         x = sep(x)
         W = x + self._lt_glyphs_w(cv, P) + pad
         self._lt_glyphs(w, cv, P, W - pad, mid)

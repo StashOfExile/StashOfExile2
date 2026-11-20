@@ -34,6 +34,8 @@ PAGES = {
 }
 
 FEATURES = (
+    "Name badge",               # GGG policy audit: STASH OF EXILE 2 in a small badge under the overlay's clock, every
+                                # style and layout (ovlight.BADGE) - so the overlay never reads as part of the game
     "Alert card",               # 2.131.0 every helper's alert over the game (alertcard.py); 2.131.6: was "calm alert card"
     "Regex keys",               # 2.132.6 a key types 1-4 Regex favorites in the stash search, one per press
     "Temple Helper",

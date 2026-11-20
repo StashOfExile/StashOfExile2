@@ -407,13 +407,13 @@ class OverlayA8:
         cfg, ln = self.tracker_cfg(), self.ov_lines()
         pad = u(10)
         R = PW - pad
-        hh = u(30)
+        hh = max(u(30), self.ov_stack_h(cv, P)[0] + u(16))  # (room for the clock and the Name badge under it)
         self._a8_chip(cv, P, pad, hh // 2, u(20))
         if not want["timer"]:                               # no session: ▶ START SESSION starts one
             self.tk_ov_lbls.pop("a8_chip").config(text=chip_text("idle"))
         x = self._lt_glyphs(w, cv, P, R, hh // 2)
-        if want["timer"] and cfg.get("clock", True):
-            self._lt_clock(cv, P, x, hh // 2)
+        self.ov_clock_badge(cv, P, x, hh // 2, lambda cx, cy: self._lt_clock(cv, P, cx, cy),    # the clock, the Name
+                            clock=bool(want["timer"] and cfg.get("clock", True)))                # badge under it
         cv.create_line(0, hh, PW, hh, fill=P["line"], tags=("mg",))
         y = hh
         if want["timer"] and self.ov_camp_mode():           # the Campaign Bar as one card (the step once)
