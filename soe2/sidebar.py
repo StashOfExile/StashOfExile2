@@ -259,7 +259,7 @@ class Sidebar(tk.Canvas):
         x0, x1 = 4, w - 5
         font = ("Segoe UI", 9)
 
-        def row(k, y):
+        def row(k, y, mod=None):
             sel = k == active or (k in chain and k != "_goto")
             hov = k == self.hover
             col = sel_txt if sel else txt if hov else mut
@@ -283,6 +283,8 @@ class Sidebar(tk.Canvas):
                 self.create_image((x0 + x1) // 2, y + 17, image=img)
             if newchip.page_new(k):                          # 3.0.0: the NEW chip by the icon's top right
                 newchip.draw(self, x1 - 3, y + 8, acc, ink_on(acc), size=7)
+            elif mod is not None and _beta(mod):             # BETA as on the wide sidebar - a word, by the icon
+                self.create_text(x1 - 3, y + 3, text="BETA", anchor="ne", font=("Segoe UI", 7, "bold"), fill=acc)
             self._rows.append((k, y, y1))
             return y1
         upd = self.update_tag()
@@ -300,7 +302,7 @@ class Sidebar(tk.Canvas):
                 continue
             if "tab" in it or it.get("child"):
                 continue
-            y = row(it["key"], y) + gap
+            y = row(it["key"], y, it.get("mod")) + gap
         need = y + getattr(self, "_rail_top", 0) + len(bottom) * 54 + 16
         self._rail_more = max(0, need - h)                  # (a short window: the rows scroll)
         y = max(y + 8, h - len(bottom) * 54 - 8) if not self._rail_more else y + 8
