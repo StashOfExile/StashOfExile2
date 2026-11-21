@@ -316,7 +316,6 @@ class SettingsPage:
         self.league_box.pack(side="left")
         self.league_box.bind("<<ComboboxSelected>>", self.on_league)
         self.league_box.bind("<<ComboboxSelected>>", lambda e: self.root.after(20, self.root.focus_set), add="+")
-        # (3.0.6, owner: Your account moved to where it's used - Bulk Pricing › Stash tab, app.acc_link)
 
         # (2.120.0, UX pass 2: Game window title is in Settings › Advanced › Over the game)
 
@@ -1151,8 +1150,8 @@ class SettingsPage:
 
     # ---------------- 2.59.0: Settings › Price checking - one home for the price check settings
     def pc_vars(self):
-        """The Price checking settings' variables, made once and shared by Settings, the Price checks toolbar, the
-        Stash tab row and Wealth (whichever is built first makes them)."""
+        """The Price checking settings' variables, made once and shared by Settings and the Price checks toolbar
+        (whichever is built first makes them)."""
         if getattr(self, "pop_var", None) is not None:
             return
         from .pricefmt import PRICE_UNITS
@@ -1162,22 +1161,6 @@ class SettingsPage:
         self.status_var = tk.StringVar(value=SETTINGS["status"])
         self.age_var = tk.StringVar(value=SETTINGS["age"])
         self.unit_var = tk.StringVar(value=dict(PRICE_UNITS).get(SETTINGS.get("price_unit") or "auto", PRICE_UNITS[0][1]))
-        self.acc_var = tk.StringVar(value=SETTINGS.get("wealth_account", ""))
-        self.pc_acc = self.w_acc = self.acc_var                 # (the names the Stash tab row and Wealth used)
-        self.acc_var.trace_add("write", lambda *_a: self.on_account())
-        self.acc_links = []                                      # labels that show the account (Stash tab, Wealth)
-
-    def on_account(self):
-        v = self.acc_var.get().strip()
-        if v != SETTINGS.get("wealth_account", ""):
-            SETTINGS["wealth_account"] = v
-            save_json("settings.json", SETTINGS)
-        for lbl in list(getattr(self, "acc_links", [])):
-            try:
-                lbl.config(text=getattr(lbl, "_acc_fn", self.acc_text)())     # (Bulk Pricing: never the name)
-                getattr(lbl, "_acc_paint", lambda: None)()
-            except tk.TclError:
-                self.acc_links.remove(lbl)
 
     def pc_rules_text(self):
         lbl = getattr(self, "pc_rules_lbl", None)

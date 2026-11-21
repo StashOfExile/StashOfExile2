@@ -17,36 +17,6 @@ DESC_RE = __import__("re").compile(r"""'description': (['"])(.*?)\1, '""")
 HASH_RE = __import__("re").compile(r"'hash': '(stat\.[^']+)'")
 
 
-def own_marker_prices():
-    """[(amount, currency)] of the prices you put on your own stash tabs (Price checks > Stash tab, Wealth tabs)."""
-    out = []
-    pc = SETTINGS.get("pctab") or {}
-    for t in pc.get("tabs") or []:                       # each stash tab has its own price
-        if isinstance(t, dict) and t.get("amount"):
-            out.append((t["amount"], t.get("currency") or "divine"))
-    if not pc.get("tabs") and pc.get("amount"):          # (an older single tab, not moved into the list yet)
-        out.append((pc["amount"], pc.get("currency") or "divine"))
-    out += [tuple(x) for x in SETTINGS.get("own_markers") or [] if isinstance(x, (list, tuple)) and len(x) == 2]
-    try:
-        from .wealth import WEALTH
-        out += [(t["amount"], t["currency"]) for t in WEALTH.tabs if t.get("amount")]
-    except Exception:
-        buglog.caught()
-    return list(dict.fromkeys(out))
-
-
-def remember_marker(amount, currency):
-    """Keep a tab price you used (so listings at it are never counted, even after you change the tab's price)."""
-    lst = SETTINGS.setdefault("own_markers", [])
-    if amount and [amount, currency] not in lst:
-        lst.append([amount, currency])
-        del lst[:-20]
-        try:
-            MARKET.drop_markers()
-        except NameError:                              # (MARKET not made yet)
-            pass
-
-
 def _num_txt(x):
     try:
         return f"{float(x):g}"
@@ -171,19 +141,19 @@ class Market:
     ABSURD_DIV = 10000          # and anything over this (more than a Mirror and a half) on its own
 
     def drop_markers(self, extra=()):
-        """Stash-tab marker listings (yours or anyone's: a whole tab at one price nobody would pay, like 37882 div) out
-        of the listings kept: they'd top Market Insights and lift the Mod book's typical prices. Your own tab prices
-        (Price checks > Stash tab, Wealth tabs) go too, whatever they are. -> rows removed."""
+        """Stash-tab marker listings (anyone's: a whole tab at one price nobody would pay, like 37882 div) out of the
+        listings kept: they'd top Market Insights and lift the Mod book's typical prices. extra: [(amount, currency)]
+        to drop as well, whatever they are. -> rows removed."""
         if not self.db:
             return 0
-        own = {f"{_num_txt(a)} {c}" for a, c in own_marker_prices()} | {f"{_num_txt(a)} {c}" for a, c in extra}
+        drop = {f"{_num_txt(a)} {c}" for a, c in extra}
         try:
             with self.lock:
                 n = self.db.execute(
                     "DELETE FROM listings WHERE price_txt IN (SELECT price_txt FROM listings WHERE price_div>=? "
                     "GROUP BY league, price_txt HAVING COUNT(*)>=3)", (self.MARKER_DIV,)).rowcount
                 n += self.db.execute("DELETE FROM listings WHERE price_div>=?", (self.ABSURD_DIV,)).rowcount
-                for t in own:
+                for t in drop:
                     n += self.db.execute("DELETE FROM listings WHERE price_txt=?", (t,)).rowcount
                 self.db.commit()
             return n

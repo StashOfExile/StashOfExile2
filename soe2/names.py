@@ -91,11 +91,8 @@ FEATURES = (
     "Scan stash",
     "Search Options",           # Settings › Price checking
     "Session timer",
-    "Manually Add",             # Bulk Pricing's source switch: Ctrl+Alt+C on each item in game (saved as "Manual Add";
-                                # was "Copy items")
-    "Add from stash tab",       # Bulk Pricing's source switch, BETA: every item on a public stash tab, through the
-                                # trade site (saved as "Stash tab"; was "Read a stash tab"); its row: Tab's price in
-                                # game, Read tab
+    "Manually Add",             # Bulk Pricing: Ctrl+Alt+C on each item in game, into the tab shown (was "Copy items";
+                                # 3.0.7: the only way - Add from stash tab is removed, so there is no switch)
     "Trade Whisper Watcher",
     "History",                  # UI overhaul: Price Checks ↳ History - every item you priced (was the Recent menu)
     # drawer build (drawer/PLAN.md 1.1): never "compact", "side panel", "game mode" or "portable" for these
@@ -235,11 +232,10 @@ OLD = {
     "Active Loadout": "In your map device",
     "Loadout": "In your map device",
     "Copy items": "Manually Add",              # Bulk Pricing's source switch (owner, 3.0.7)
-    "Read a stash tab": "Add from stash tab",
+    # 3.0.7 (GGG policy audit): reading a stash tab through the trade site is removed - Manually Add is the one way
+    "Read a stash tab": "Manually Add",
+    "Add from stash tab": "Manually Add",
 }
-
-# Bulk Pricing's source switch, as it reads (saved as tabreader_page.MODES: "Manual Add", "Stash tab")
-BULK_MANUAL, BULK_STASH = "Manually Add", "Add from stash tab"
 
 # an old page name that now means another page: before 2.80.0, Bulk Pricing was called "Price checks"
 WAS_PAGE = {"Price checks": "checks"}

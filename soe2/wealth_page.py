@@ -2,11 +2,9 @@
 
 Part of StashOfExile2. Split out of the single-file app in 1.37 (see the launcher's VERSION HISTORY)."""
 
-import random
 import threading
 import time
 import tkinter as tk
-import webbrowser
 from datetime import datetime
 from tkinter import messagebox
 from tkinter import ttk
@@ -19,11 +17,8 @@ from .rates import RATES
 from .trade import ago
 from .pricefmt import fmt_div
 from .inplace import set_cfg, tv_sync
-from .wealth import (
-    parse_price_text, parse_trade_link, WEALTH, WEALTH_CURRENCIES, wealth_display_name,
-    wealth_rows, WEALTH_SYNC, wealth_trade_url, WPRICES, WEALTH_RARES, rare_sig, parse_stack,
-)
-from .style import C, SegBar, Tooltip, autowrap, trade_icon
+from .wealth import WEALTH, wealth_display_name, wealth_rows, WPRICES, parse_stack
+from .style import C, SegBar, Tooltip, autowrap
 
 
 class _MenuItem:
@@ -42,7 +37,7 @@ class _MenuItem:
 
 # ------------------------------------------------------------------ the app
 class WealthPage:
-    """The Wealth page (mixed into App): tab markers, sync, net worth, history and every item with its value."""
+    """The Wealth page (mixed into App): net worth, history and every item with its value."""
 
     W_COLS = [("item", "Name", 320, "w"), ("tab", "From", 150, "w"), ("qty", "Quantity", 90, "e"),
               ("each", "Price", 100, "e"), ("total", "Total", 110, "e"), ("chg", "7 days", 90, "e"),
@@ -54,11 +49,10 @@ class WealthPage:
     RANGES = {"24 hours": 86400, "7 days": 7 * 86400, "30 days": 30 * 86400, "Lifetime": None}
 
     def build_wealth_page(self, tab):
-        """2.75.0 (feedback: this page needs a major pass to improve UX): three pages, listed in the sidebar -
-        Wealth ↳ Overview (the total, what moved it, every item), ↳ Stash tabs (your priced tabs: the list, add one,
-        each one's last sync) and ↳ Snapshots (look back, compare two). Sync and Count currency sit on top of every
-        page. The first time, the setup steps are cards on the Overview (no pop-up); once done they fold into one
-        status line."""
+        """2.75.0 (feedback: this page needs a major pass to improve UX): two pages, listed in the sidebar -
+        Wealth ↳ Overview (the total, what moved it, every item) and ↳ Snapshots (look back, compare two). Scan stash
+        and More ▾ sit on top of every page. The first time, the setup steps are cards on the Overview (no pop-up);
+        once done they fold into one status line."""
         P1, P2 = C["panel"], C["panel2"]
         lab = dict(bg=P1, fg=C["muted"])
         self.w_tabfilter, self.w_snap_sel, self.w_mv_item = None, None, None
@@ -84,15 +78,13 @@ class WealthPage:
         more.config(menu=mm)
         more.pack(side="right")
         self.w_price_btn = _MenuItem(mm, 0)
-        # P3 (2.105.1): no synced stash tabs - no Sync, Stop or Re-check rares; Count currency is the main button
-        self.w_stop_btn = ttk.Button(abar, text="Stop", command=self.wealth_stop, state="disabled")   # (never shown)
+        # P3 (2.105.1): no synced stash tabs - Scan stash is the main button
         self.w_scan_btn = ttk.Button(abar, text="Scan stash…", command=self.stash_scan_start,    # 2.102.0
                                      style="Primary.TButton")                                    # (2.135.0: the main one)
         self.w_scan_btn.pack(side="right", padx=(0, 8))
         Tooltip(self.w_scan_btn, "Reads your Currency, Abyss, Delirium, Breach, Expedition, Ritual, Essence, "
                                   "Fragments and Socketables tabs from the screen. You check the numbers before they're saved. Only "
                                   "looks: no keys, no clicks; the picture is never saved.")
-        self.w_sync_btn = ttk.Button(abar, text="⟳ Sync stash tabs", command=self.wealth_sync)   # (never shown)
         self.w_msg = tk.Label(tab, text="", anchor="w", justify="left", bg=P1, fg=C["muted"], padx=12,
                               font=("Segoe UI", 10, "bold"))
         self.w_msg.pack(fill="x", pady=(4, 0))
@@ -248,84 +240,6 @@ class WealthPage:
         self.w_count.bind("<Configure>", lambda e: self.w_count.config(wraplength=max(200, e.width - 6)))
         self.w_empty = tk.Label(itf, bg=P1, fg=C["muted"], font=("Segoe UI", 10), justify="center",
                                 text="Nothing counted yet.\nPress Scan stash to read your stash tabs.")
-
-        # ---- Stash tabs: your priced tabs - the list, each one's last sync, adding one (always shown here)
-        self.w_setup = tk.Frame(tab, bg=P1)                 # P3 (2.105.1): built, never shown (the old tab parts)
-        st = self.w_setup
-        lab2 = dict(bg=P1, fg=C["muted"])
-        so, sf = chrome_section(st, "Your stash tabs", "Public, priced tabs the app reads through the trade site. "
-                                                       "Sync reads every one that's on.", padx=12, pady=8)
-        so.pack(fill="x", padx=8, pady=(8, 8))
-        arow = tk.Frame(sf, bg=P2)
-        arow.pack(fill="x")
-        tk.Label(arow, text="Account", bg=P2, fg=C["muted"]).pack(side="left")
-        self.acc_link(arow, P2).pack(side="left", padx=(8, 8))   # 2.59.0: set in Settings › Price checking
-        tvf = tk.Frame(sf, bg=P2)
-        tvf.pack(fill="x", pady=(8, 0))
-        self.w_tabs = ttk.Treeview(tvf, columns=("tab", "marker", "items", "value", "last"), show="headings",
-                                   height=6, selectmode="browse")
-        for cid, title, w, anchor in (("tab", "Tab", 180, "w"), ("marker", "Price on the tab", 160, "w"),
-                                      ("items", "Items", 70, "e"), ("value", "Value", 100, "e"),
-                                      ("last", "Last sync", 220, "w")):
-            self.w_tabs.heading(cid, text=title)
-            self.w_tabs.column(cid, width=w, anchor=anchor, stretch=cid in ("tab", "last"))
-        self.w_tabs.tag_configure("off", foreground=C["muted"])
-        self.w_tabs.tag_configure("bad", foreground=C["red"])
-        self.w_tabs.tag_configure("warn", foreground=C["good"])
-        self.w_tabs.pack(fill="x")
-        self.w_tabs.bind("<<TreeviewSelect>>", lambda e: self.wealth_show_tab_result())
-        self.w_tabs.bind("<Double-1>", lambda e: self.wealth_open_trade())
-        self.list_register("wealth", self.w_tabs, delete=lambda rows: self.wealth_remove_tab(), multi=False)
-        self.w_tabs_empty = tk.Label(sf, text="No stash tabs yet - add one below.", bg=P2, fg=C["muted"], anchor="w")
-        acts = tk.Frame(sf, bg=P2)
-        acts.pack(fill="x", pady=(8, 0))
-        self.w_acts = acts
-        ttk.Button(acts, text="Include / leave out", command=self.wealth_toggle_tab).pack(side="left")
-        trade_icon(ttk.Button(acts, text="Trade Site", command=self.wealth_open_trade)).pack(side="left", padx=8)
-        ttk.Button(acts, text="Remove", command=self.wealth_remove_tab, style="Danger.TButton").pack(side="left")
-        self.w_tabinfo = tk.Label(sf, text="", bg=P2, fg=C["muted"], justify="left", anchor="w",
-                                  wraplength=700, font=("Segoe UI", 9))
-        self.w_tabinfo.pack(fill="x", pady=(4, 0))
-
-        ao, af = chrome_section(st, "Add a stash tab", padx=12, pady=8)
-        ao.pack(fill="x", padx=8, pady=(0, 8))
-        self.w_help = tk.Label(af, text="1.  In game, make a Premium stash tab public.\n"
-                                        "2.  Price the whole tab at something nobody would pay, like 37882 Divine Orbs. "
-                                        "Each tab needs its own price. Never a Merchant's Tab: those sell instantly, "
-                                        "even when you're offline.\n"
-                                        "3.  Type that price here, or paste the trade link, and press Add tab.\n"
-                                        "Currency doesn't need a tab: Scan stash reads it.",
-                               bg=P2, fg=C["text"], justify="left", anchor="w", font=("Segoe UI", 9), wraplength=760)
-        self.w_help.pack(fill="x", pady=(0, 8))
-        add = tk.Frame(af, bg=P2)
-        add.pack(fill="x")
-        self.w_add = add
-        self.w_new_name = tk.StringVar()
-        self.w_new_amt = tk.StringVar()
-        self.w_new_cur = tk.StringVar(value=WEALTH_CURRENCIES[0][1])
-        tk.Label(add, text="Price", bg=P2, fg=C["muted"]).pack(side="left")
-        self.w_amt_entry = ttk.Entry(add, textvariable=self.w_new_amt, width=9)
-        self.w_amt_entry.pack(side="left", padx=(4, 4))
-        self.w_amt_entry.bind("<Return>", lambda e: self.wealth_add_tab())
-        cur = ttk.Combobox(add, textvariable=self.w_new_cur, values=[n for _, n in WEALTH_CURRENCIES], state="readonly", width=14)
-        cur.config(width=24, postcommand=lambda c=cur: c.config(values=[n for _, n in WEALTH_CURRENCIES]))   # 2.16.0
-        cur.pack(side="left")
-        cur.bind("<<ComboboxSelected>>", lambda e: self.root.after(20, self.root.focus_set), add="+")
-        tk.Label(add, text="Name (optional)", bg=P2, fg=C["muted"]).pack(side="left", padx=(8, 0))
-        ttk.Entry(add, textvariable=self.w_new_name, width=12).pack(side="left", padx=(4, 0))
-        ttk.Button(add, text="Add tab", style="Primary.TButton", command=self.wealth_add_tab).pack(side="left", padx=(8, 0))
-        lnk = tk.Frame(af, bg=P2)
-        lnk.pack(fill="x", pady=(8, 0))
-        self.w_lnk = lnk
-        tk.Label(lnk, text="or paste a trade link", bg=P2, fg=C["muted"]).pack(side="left")
-        self.w_link = tk.StringVar()
-        le = ttk.Entry(lnk, textvariable=self.w_link, width=38)
-        le.pack(side="left", padx=(8, 0))
-        le.bind("<Return>", lambda e: self.wealth_add_from_link())
-        ttk.Button(lnk, text="Add from link", command=self.wealth_add_from_link).pack(side="left", padx=(8, 0))
-        # 2.18.0: the tab you read in Price checks > Stash tab, one click away (same tab, same reader)
-        self.w_pc_btn = ttk.Button(lnk, text="", command=self.wealth_add_pc_tab)
-        _ = lab2
 
         # ---- Snapshots: look back, compare two
         sp = self.w_pages["Snapshots"]
@@ -567,8 +481,7 @@ class WealthPage:
 
     def wealth_remove_rows(self, rows):
         """2.4.0: Delete removes the selected rows - one, several (Ctrl / Shift+click) or all (Ctrl+A). Counted stacks
-        are gone until you count them again; items from a synced tab come back with the next sync if they're still
-        in that tab. Ctrl+Z / Undo puts them back."""
+        are gone until you count or scan them again. Ctrl+Z / Undo puts them back."""
         items = [it for r in rows for it in (self.w_rowitems.get(r) or [])]
         if not items:
             return
@@ -647,9 +560,6 @@ class WealthPage:
         self.wealth_side()
 
     # ---------------- 2.0 beta 7: side list, breakdown, filters
-    def wealth_toggle_edit(self):
-        self.wealth_show_page("Overview")                     # (P3: no Stash tabs page)
-
     def wealth_side(self):
         """The Snapshots page (P3, 2.105.1: what happened, the change since the one before)."""
         lg = SETTINGS.get("league", "")
@@ -754,28 +664,6 @@ class WealthPage:
         c = (it.get("cat") or "other").split(".")[0].lower()
         return c if c in WealthPage.CAT_INFO else "other"
 
-    # ---------------- actions
-    def wealth_save_account(self):
-        self.pc_vars()
-        self.on_account()                     # 2.59.0: the one account (Settings › Price checking)
-
-    def wealth_next_amount(self):
-        used = [t["amount"] for t in WEALTH.tabs]
-        return max(used) + 1 if used else 37916
-
-    def wealth_toggle_adding(self):
-        self.wealth_show_page("Overview")                     # (P3: no stash tabs to add)
-
-    def wealth_setup_layout(self):
-        """2.75.0: the Stash tabs page always shows its list and Add a stash tab; the Overview shows the setup steps
-        the first time, then one status line."""
-        if WEALTH.tabs:
-            self.w_tabs_empty.pack_forget()
-        elif not self.w_tabs_empty.winfo_ismapped():
-            self.w_tabs_empty.pack(fill="x", pady=(4, 0), after=self.w_tabs.master)
-        self.wealth_pc_refresh()
-        self.wealth_steps_refresh()
-
     # ---------------- 2.75.0: the setup steps on the Overview (were a pop-up guide), then one status line
     def wealth_step_state(self):
         """P3 (2.105.1): -> (counted or scanned anything)."""
@@ -794,11 +682,6 @@ class WealthPage:
     def wealth_steps_hide(self):
         SETTINGS["wealth_steps_hidden"] = True
         SETTINGS["wealth_steps_force"] = False
-        save_json("settings.json", SETTINGS)
-        self.wealth_steps_refresh()
-
-    def wealth_skip_tab(self):
-        SETTINGS["wealth_skip_tab"] = True
         save_json("settings.json", SETTINGS)
         self.wealth_steps_refresh()
 
@@ -899,215 +782,12 @@ class WealthPage:
             self.w_items.selection_set(rows)
             self.w_items.see(rows[0])
 
-    def wealth_pc_tab(self):
-        """(amount, currency) of the tab read in Price checks > Stash tab, if it isn't a Wealth tab yet."""
-        t = self.pctab_current() if hasattr(self, "pctab_current") else None     # (the shown tab's price)
-        a, c = (t or {}).get("amount"), (t or {}).get("currency") or "divine"
-        if not a or any(t["amount"] == a and t["currency"] == c for t in WEALTH.tabs):
-            return None
-        return a, c
-
-    def wealth_pc_refresh(self):
-        btn = getattr(self, "w_pc_btn", None)
-        if btn is None:
-            return
-        got = self.wealth_pc_tab()
-        if got:
-            btn.config(text=f"Use my Bulk Pricing tab ({got[0]:,} {dict(WEALTH_CURRENCIES).get(got[1], got[1])})")
-            if not btn.winfo_ismapped():
-                btn.pack(side="left", padx=(16, 0))
-        elif btn.winfo_ismapped():
-            btn.pack_forget()
-
-    def wealth_add_pc_tab(self):
-        got = self.wealth_pc_tab()
-        if got and self._wealth_add(got[0], got[1], "Price Checks tab"):
-            self._w_tell("Added the tab you read in Bulk Pricing. Press Sync to count what's on it.", "ok")
-        self.wealth_pc_refresh()
-
     def _w_tell(self, text, kind="error"):
         """Say something on the Wealth page itself (and in the status line)."""
         if not hasattr(self, "w_msg"):
             return self._say(text, 15)
         self.w_msg.config(text=text, fg={"error": C["red"], "ok": C["green"], "note": C["good"]}.get(kind, C["muted"]))
         self._say(text, 15)
-
-    def _wealth_add(self, amount, cur, name=""):
-        """-> True if added."""
-        if any(t["amount"] == amount and t["currency"] == cur for t in WEALTH.tabs):
-            self._w_tell(f"You already have a tab priced at {amount:,} {dict(WEALTH_CURRENCIES).get(cur, cur)}.", "note")
-            return False
-        with WEALTH.lock:
-            WEALTH.tabs.append({"id": "%08x" % random.getrandbits(32), "label": name or f"~price {amount} {cur}",
-                                "amount": amount, "currency": cur, "enabled": True})
-        WEALTH.save()
-        from .market import remember_marker
-        remember_marker(amount, cur)                    # 2.18.0: listings at this price are never counted
-        if hasattr(self, "w_tabs"):                     # (Price checks can add one before Wealth was ever opened)
-            self.refresh_wealth(force=True)
-        return True
-
-    def wealth_pending(self):
-        """Is something typed in the Price, Name or trade-link box that hasn't been added yet?"""
-        return any(v.get().strip() for v in (self.w_new_amt, self.w_new_name, self.w_link))
-
-    def wealth_add_tab(self, quiet=False):
-        """Add what's typed. -> True if a tab was added (or that exact price already was one)."""
-        txt, name = self.w_new_amt.get().strip(), self.w_new_name.get().strip()
-        if "trade2/search" in txt or "trade2/search" in name:          # a link pasted in the wrong box
-            self.w_link.set(txt if "trade2/search" in txt else name)
-            self.w_new_amt.set("")
-            self.w_new_name.set("")
-            return self.wealth_add_from_link(quiet)
-        amount, cur = parse_price_text(txt)
-        if amount is None and name:                                     # price typed in the Name box
-            amount, cur = parse_price_text(name)
-            if amount is not None:
-                name = ""
-        if not amount or amount <= 0:
-            self.w_amt_entry.focus_set()
-            self._w_tell("Type the price you put on the tab in game in the Price box like 37882, pick its currency, "
-                         "then press Add tab.")
-            return False
-        cur = cur or next((cid for cid, n in WEALTH_CURRENCIES if n == self.w_new_cur.get()), "divine")
-        if any(t["amount"] == amount and t["currency"] == cur for t in WEALTH.tabs):
-            self.w_new_amt.set("")
-            self.w_new_name.set("")
-            return True
-        if self._wealth_add(amount, cur, name):
-            self.w_new_name.set("")
-            self.w_new_amt.set("")
-            if not quiet:
-                self._w_tell(f"Added the tab priced at {amount:,} {dict(WEALTH_CURRENCIES).get(cur, cur)}. "
-                             f"Press Sync tabs to read it.", "ok")
-            return True
-        return False
-
-    def wealth_add_from_link(self, quiet=False):
-        info, err = parse_trade_link(self.w_link.get())
-        if err:
-            self._w_tell(err)
-            return False
-        notes = []
-        acc_now = self.w_acc.get().strip()
-        if info["account"] and info["account"].lower() != acc_now.lower():
-            self.w_acc.set(info["account"])
-            self.wealth_save_account()
-            notes.append(f"account set to {info['account']}" + (f" (was {acc_now})" if acc_now else ""))
-        if info["league"] != SETTINGS.get("league"):
-            notes.append(f"this link is for {info['league']}: pick that league in Settings › General")
-        if any(t["amount"] == info["amount"] and t["currency"] == info["currency"] for t in WEALTH.tabs):
-            self.w_link.set("")
-            return True
-        if not self._wealth_add(info["amount"], info["currency"]):
-            return False
-        self.w_link.set("")
-        cur = dict(WEALTH_CURRENCIES).get(info["currency"], info["currency"])
-        msg = f"Added the tab priced at {info['amount']:,} {cur}" + ("; " + "; ".join(notes) if notes else "") + "."
-        if any("league" in n for n in notes) or not quiet:
-            self._w_tell(msg + ("" if quiet else " Press Sync tabs."), "note" if any("league" in n for n in notes) else "ok")
-        return True
-
-    def _wealth_sel_tab(self):
-        sel = self.w_tabs.selection()
-        return WEALTH.tab(sel[0]) if sel else None
-
-    def wealth_toggle_tab(self):
-        t = self._wealth_sel_tab()
-        if not t:
-            return self._w_tell("Select a tab in the list first.", "note")
-        with WEALTH.lock:
-            t["enabled"] = not t.get("enabled", True)
-        WEALTH.save()
-        # UI rule 22: only this tab's row changes (a tab left out of syncs does not change the stash's numbers)
-        kw = self._w_tab_row(t, self._w_by_tab())
-        self.w_tabs.item(t["id"], **kw)
-        self.wealth_show_tab_result()
-
-    def wealth_remove_tab(self):
-        t = self._wealth_sel_tab()
-        if not t:
-            return self._w_tell("Select a tab in the list first.", "note")
-        if not messagebox.askyesno("Remove tab", f"Remove \"{t['label']}\" and the items read from it?\n\n"
-                                                 "Your net worth history is kept."):
-            return
-        with WEALTH.lock:
-            pos = next((i for i, x in enumerate(WEALTH.tabs) if x["id"] == t["id"]), len(WEALTH.tabs))
-            old_items, old_res = WEALTH.items.get(t["id"]), WEALTH.results.get(t["id"])
-            WEALTH.tabs = [x for x in WEALTH.tabs if x["id"] != t["id"]]
-            WEALTH.items.pop(t["id"], None)
-            WEALTH.results.pop(t["id"], None)
-        WEALTH.save()
-
-        def restore():
-            with WEALTH.lock:
-                WEALTH.tabs.insert(pos, t)
-                if old_items is not None:
-                    WEALTH.items[t["id"]] = old_items
-                if old_res is not None:
-                    WEALTH.results[t["id"]] = old_res
-            WEALTH.save()
-            self.refresh_wealth(force=True)
-        self.push_undo("wealth", f"the tab \"{t['label']}\"", restore)
-        self.refresh_wealth(force=True)
-
-    def wealth_open_trade(self):
-        t = self._wealth_sel_tab()
-        res = WEALTH.results.get(t["id"]) if t else None
-        if not res or not res.get("qid"):
-            return self._say("Sync first: the trade-site link comes from the last sync of that tab.", 8)
-        webbrowser.open(wealth_trade_url(res.get("league") or SETTINGS.get("league", ""), res["qid"]))
-
-    def wealth_sync(self):
-        self.wealth_save_account()
-        if not WEALTH.tabs and not self.wealth_pending():          # 2.0 beta 7: only counted currency: just re-price it
-            if WEALTH.holdings:
-                self.wealth_update_prices()
-                self.w_msg.config(text="Updating prices… No stash tabs are set up, so Sync only updates the prices of "
-                                       "what you counted by hand. Add a tab in Wealth ↳ Stash tabs.", fg=C["muted"])
-                return
-            self.wealth_show_page("Stash tabs")
-        if self.wealth_pending():                       # 1.36: a price still in the boxes counts - add it first
-            ok = (self.wealth_add_from_link(quiet=True) if self.w_link.get().strip() and not self.w_new_amt.get().strip()
-                  else self.wealth_add_tab(quiet=True))
-            if not ok:
-                return
-        err = self.engine.wealth_start()
-        if err:
-            if "priced tab" in err:
-                self.w_amt_entry.focus_set()
-            return self._w_tell(err)
-        busy = sum(1 for r in self.records.values() if r["state"] in ("queued", "pricing"))
-        self.w_msg.config(text="Waiting for item pricing to finish…" if busy else "Starting…", fg=C["muted"])
-        self.wealth_buttons()
-
-    def wealth_stop(self):
-        s = WEALTH_SYNC["cur"]
-        if s and s["running"]:
-            s["cancel"] = True
-            self.w_msg.config(text="Stopping after the current request…", fg=C["muted"])
-        if WEALTH_RARES["running"]:                       # 2.0: stop pricing rares too (what's priced so far is kept)
-            WEALTH_RARES["gen"] += 1
-            WEALTH_RARES["running"] = False
-            WEALTH.save()
-            self.w_msg.config(text=f"Stopped price-checking rares after {WEALTH_RARES['done']} of {WEALTH_RARES['total']}. "
-                                   "Re-check rares carries on.", fg=C["muted"])
-            self.refresh_wealth(force=True)
-        self.wealth_buttons()
-
-    def wealth_recheck_rares(self):
-        """Price-check the magic / rare items again: the ones that are new, changed or 3+ days old (2.0)."""
-        lg = SETTINGS.get("league")
-        if not lg:
-            return self._say("Pick a league first.", 8)
-        if (WEALTH_SYNC["cur"] or {}).get("running") or WEALTH_RARES["running"]:
-            return self._say("Already busy - wait for the sync and rare checks to finish, or press Stop.", 8)
-        n = self.engine.wealth_queue_rares(lg)
-        if not n:
-            n = self.engine.wealth_queue_rares(lg, force=True)       # all fresh: the button means "do them all again"
-        self.w_msg.config(text=f"Price-checking {n} magic / rare item{'s' if n != 1 else ''} in the background…" if n else
-                          "No magic or rare items in your tabs. Sync first.", fg=C["muted"])
-        self.wealth_buttons()
 
     def wealth_update_prices(self):
         lg = SETTINGS.get("league")
@@ -1149,79 +829,21 @@ class WealthPage:
         self.w_sort_col = col
         self.wealth_fill_items()
 
-    # ---------------- events from the engine
+    # ---------------- events from the price update's thread
     def ev_wealth(self, kind):
-        s = WEALTH_SYNC["cur"]
-        if kind == "progress" and s:
-            extra = f"   {s['fetched']} of {s['expected']} items read" if s["expected"] else ""
-            self.w_msg.config(text=s["msg"] + extra, fg=C["muted"])
-        elif kind == "done" and s:
-            self.w_msg.config(text=s["msg"], fg=C["red"] if "failed" in s["msg"] else C["green"])
-            self._say(s["msg"], 15)
-            self.refresh_wealth(force=True)
-        elif kind == "rare":
-            R = WEALTH_RARES
-            self.w_msg.config(text=f"Price-checking magic and rare items: {R['done']} of {R['total']} done, {R['priced']} priced. "
-                                   f"Anything you copy goes first. F2 pauses…", fg=C["muted"])
-            if R["done"] % 5 == 0:
-                self.refresh_wealth(force=True)
-        elif kind == "rares_done":
-            self.w_msg.config(text=WEALTH_RARES["msg"], fg=C["green"])
-            self.refresh_wealth(force=True)
-        elif kind == "prices":
+        if kind == "prices":
             self.w_price_btn.config(state="normal")
             msg = "Prices updated." if not WPRICES.errors else "Prices updated, but some poe.ninja categories failed."
             self.w_msg.config(text=msg, fg=C["green"] if not WPRICES.errors else C["good"])
             self.refresh_wealth(force=True)
-        self.wealth_buttons()
-
-    def wealth_buttons(self):
-        s = WEALTH_SYNC["cur"]
-        running = bool(s and s["running"])
-        rares = bool(WEALTH_RARES["running"])
-        self.w_sync_btn.config(state="disabled" if running or rares else "normal")
-        self.w_stop_btn.config(state="normal" if running or rares else "disabled")
-
-    def _w_tab_row(self, t, by_tab):
-        """One tab's row in the tab list: its cells and tag (kept apart so a switch can repaint just that row)."""
-        curname = dict(WEALTH_CURRENCIES)
-        res = WEALTH.results.get(t["id"]) or {}
-        n, val = by_tab.get(t["id"], (0, 0.0))
-        if res.get("error"):
-            last, tag = "failed - select for details", "bad"
-        elif res.get("ts"):
-            last, tag = fmt_stamp(res["ts"]) + (" - see note" if res.get("warnings") else ""), ("warn" if res.get("warnings") else "")
-        else:
-            last, tag = "not synced yet", ""
-        if not t.get("enabled", True):
-            tag, last = "off", "left out of syncs"
-        return dict(tags=(tag,) if tag else (),
-                    values=(t["label"], f"{t['amount']:,} {curname.get(t['currency'], t['currency'])}",
-                            n, fmt_div(val) if val else "", last))
-
-    def _w_by_tab(self):
-        by_tab = {}
-        for it, _e, tot, _s in getattr(self, "w_rows", []):
-            by_tab.setdefault(it["tab"], [0, 0.0])
-            by_tab[it["tab"]][0] += 1
-            by_tab[it["tab"]][1] += tot or 0
-        return by_tab
 
     # ---------------- drawing
     def refresh_wealth(self, force=False):
         if not force and not self.page_open("Wealth"):
             return
-        self.wealth_buttons()
         rows, total, priced = wealth_rows(WEALTH.all_items(), WPRICES)
         self.w_rows = rows
-        self.wealth_setup_layout()                           # (P3: after the rows - the status line adds them up)
-        by_tab = {}
-        for it, _e, tot, _s in rows:
-            by_tab.setdefault(it["tab"], [0, 0.0])
-            by_tab[it["tab"]][0] += 1
-            by_tab[it["tab"]][1] += tot or 0
-        tv_sync(self.w_tabs, [(t["id"], self._w_tab_row(t, by_tab)) for t in WEALTH.tabs])    # (UI rule 22: in place)
-        self.wealth_show_tab_result()
+        self.wealth_steps_refresh()                          # (P3: after the rows - the status line adds them up)
 
         lg = SETTINGS.get("league", "")
         self.w_total.config(text=fmt_div(total) if rows else "No items yet", fg=C["good"] if rows else C["muted"],
@@ -1316,22 +938,6 @@ class WealthPage:
     @staticmethod
     def _w_ago(ts):
         return "just now" if time.time() - ts < 60 else ago(ts)
-
-    def wealth_show_tab_result(self):
-        t = self._wealth_sel_tab()
-        if not t:
-            self.w_tabinfo.config(text="", fg=C["muted"])
-            return
-        res = WEALTH.results.get(t["id"]) or {}
-        if res.get("error"):
-            self.w_tabinfo.config(text=f"{t['label']}: {res['error']}", fg=C["red"])
-        elif res.get("warnings"):
-            self.w_tabinfo.config(text=f"{t['label']}: " + "  ".join(res["warnings"]), fg=C["good"])
-        elif res.get("ts"):
-            self.w_tabinfo.config(text=f"{t['label']}: read {res.get('fetched', 0)} of {res.get('total', 0)} items. "
-                                       f"Double-click the tab to see it on the trade site.", fg=C["muted"])
-        else:
-            self.w_tabinfo.config(text="", fg=C["muted"])
 
     def wealth_fill_items(self):
         rows = getattr(self, "w_rows", [])
@@ -1614,17 +1220,7 @@ class WealthPage:
 
     @staticmethod
     def _w_why_unpriced(it):
-        if it["frame"] not in (1, 2):
-            return WPRICES.why_unpriced(it)
-        rp = WEALTH.rare_prices.get(str(it.get("lid")))
-        if not rp or rp.get("sig") != rare_sig(it):
-            return "waiting for a price check" if WEALTH_RARES["running"] else "not checked yet (Re-check rares)"
-        lab = rp.get("label") or ""
-        if "no listings" in lab or "NO MATCH" in lab:
-            return "price check: no matching listings"
-        if lab.startswith("CHECK BY HAND"):
-            return "price check: check by hand"
-        return "price check: " + (lab[:60] or "no price")
+        return WPRICES.why_unpriced(it)
 
     def _w_chart_hover(self, e):
         """UI overhaul: the point under the mouse - its day, its total and the change from the one before."""

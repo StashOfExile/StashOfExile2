@@ -49,6 +49,7 @@ NOTES = {
     "3.0.5": {
         "small": [
             ("Linux", "The Linux download is on the same release page as Windows, built at the same time."),
+            ("Bulk Pricing", "Reading a stash tab is removed. The app no longer keeps your account name."),
         ],
     },
     # 3.0.4 (owner): Wealth's What moved it, 7-day prices, no typed prices; Exchange Rates 7 days; Freedom of Faith;

@@ -24,7 +24,7 @@ FEATURE_AT = {
     "Trade Whisper Watcher": OV, "Quick settings": OV, "Reset position": ("tracker", "Options"),
     "Layout": ("tracker", "Look"), "Style": ("tracker", "Look"), "Theme": ("settings", "Appearance"),
     "Regex keys": ("regex", None), "Data pack": ("crafthelper", None),
-    "Scan stash": ("wealth", None), "Stash tab": ("pricecheck", None), "Clear All": ("checks", None),
+    "Scan stash": ("wealth", None), "Clear All": ("checks", None), "Manually Add": ("checks", None),
     "Keybinds": ("settings", "Keybinds"), "Read Key": ("settings", "Keybinds"), "Features": ("settings", "General"), "Setup": ("settings", "General"),
     "Data folder": ("settings", "Advanced"), "Search Options": ("settings", "Price checking"),
     "Error reports": ("settings", None), "Community data sharing": ("settings", None),

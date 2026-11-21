@@ -96,9 +96,10 @@ also ask for this notice, word for word, and a User-Agent that says how to reach
    | Scan stash | Start reading (a click) only arms; each Read Key press reads one tab | the click reads nothing |
 
    Plus public websites: the official trade site's search API, only for
-   searches you started (a copied item, a sync you pressed), always inside the limits it sends back (clause 22), and
+   searches you started (a copied item, a button you pressed), always inside the limits it sends back (clause 22), and
    always saying who is asking (User-Agent "StashOfExile2/<version> (contact: stashofexile@gmail.com)", config.APP_UA) -
-   never automated buying, whispers or listing, never scraping its pages - and poe.ninja.
+   never automated buying, whispers or listing, never scraping its pages, never a search for your own account's
+   listings (the app keeps no account name: 3.0.7 removed reading a stash tab through the trade site) - and poe.ninja.
    The app never connects to the game's servers (7.5) and never changes the game client or its files (7.2).
 6. **Overlays are just windows on top.** Click-through where they sit over the game, they never change what the game
    draws or does, and they're left out of screen captures where Windows allows it (the bar, while a Read Key read

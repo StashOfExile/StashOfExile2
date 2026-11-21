@@ -12,7 +12,7 @@ GROUPS = (
              "Price Checks, Favorites, Rate Mods, Mod Book.",
      "modules": ("pricecheck", "favorites", "modbook", "ratemods", "library")},
     {"key": "bulk", "name": "Bulk Pricing", "keys": "Ctrl+Alt+C",
-     "what": "Add many items in game (Manually Add), or Add from stash tab: they're priced as a list, in the "
+     "what": "Add many items in game with Ctrl+Alt+C (Manually Add): they're priced as a list, in the "
              "background. Best for tablets, waystones and jewels; price expensive gear with Price Checks.",
      "modules": ("checks",)},
     # nav phase 1: named as the sidebar names it (was "Game Overlay"); the Regex page is no longer in it - switching

@@ -287,7 +287,46 @@ REMOVED = [
      ("Check what it costs now", "Checked a moment after you copy or tick", "Still rate limited",
       "Resuming automatically"),
      ("_mm_new_cost_later", "learn_ok", "learn_cap")),
-    ("2.106.0", "Wealth's public stash tabs (Scan stash replaces them)", ("Sync stash tabs",), ("w_sync_btn",), True),
+    ("3.0.7", "Bulk Pricing's Add from stash tab (GGG policy audit risk 3: it searched your account's listings at a "
+              "marker price on the trade site, as a stash API): the Manually Add | Add from stash tab switch, the tab's "
+              "price in game (amount + currency, on its chip too), Read tab, Stop, ⓘ How, the BETA notice, Count it "
+              "in Wealth, List order and tab_reader_log.txt. Bulk Pricing's tabs stay as plain lists (bulk_tabs.py)",
+     ("Add from stash tab", "Read tab", "Tab's price in game", "Count it in Wealth", "Make the tab public",
+      "reading a stash tab may not work", "Searching your tab", "No listings found at that price", "Down columns",
+      "Across rows", "tab_reader_log.txt"),
+     ("tabreader", "tabreader_page", "TabReaderJobs", "TabReaderPage", "PCTAB", "PCTAB_PRIO", "pctab_start",
+      "do_pctab_search", "do_pctab_fetch", "do_pctab_finish", "pctab_read", "pctab_stop", "pctab_mode", "pctab_on",
+      "pctab_primary", "pctab_explain", "pctab_price_flush", "pctab_price_soon", "pctab_cur_picked", "pctab_cur_id",
+      "pctab_show_price", "pctab_price_short", "pctab_to_wealth", "pctab_wealth_link", "pctab_read_shown",
+      "pctab_stop_shown", "pctab_finished", "pctab_add", "pctab_empty_text", "ev_pctab", "pc_mode", "pc_mode_hint",
+      "pc_read_btn", "pc_read_hint", "pc_amt", "pc_amt_box", "pc_cur", "pc_cur_box", "pc_acc_lbl", "pc_tabrow",
+      "pc_tabrow_row", "pc_join", "pc_beta", "pc_msg", "pc_stop", "pc_how_lbl", "pc_to_wealth", "MODES",
+      "MODE_LABELS", "BULK_STASH", "BULK_MANUAL", "KNOWN_CURRENCY_NAMES", "CURRENCY_SHORT", "READ_HINT", "bk_stash",
+      "stash_order", "stash_order_set", "stash_order_soon", "EMPTY_TEXT_TAB", "currencies_loaded",
+      "ev_currencies_loaded", "pctab_beta")),
+    ("3.0.7", "the account name (GGG policy audit risk 3): Settings' / Bulk Pricing's / Wealth's account (✓ Account "
+              "set, the Your account dialog, Account: link) and leaving your own listings out of prices by it - other "
+              "price checkers don't know your account either. The saved name and every marker price are deleted "
+              "(migrations.no_stash_reading_307)",
+     ("Account set", "Account not set", "Account: not set", "Your account name as the trade site shows it"),
+     ("wealth_account", "own_account", "is_own", "OWN_SKIPPED", "acc_var", "acc_link", "acc_links", "acc_mark",
+      "acc_mark_text", "acc_ask", "acc_text", "ACC_WHY", "on_account", "pc_acc", "w_acc", "_pcpop_mine",
+      "own_marker_prices", "remember_marker", "own_markers")),
+    ("3.0.7", "Wealth's public stash tabs, for good (2.106.0 hid them; Scan stash replaces them): the Stash tabs part "
+              "(Your stash tabs, Add a stash tab, Add from link, Use my Bulk Pricing tab, Include / leave out), Sync "
+              "and Stop, the sync through the trade site (your account's listings at a marker price) and Re-check rares "
+              "(it priced only items read from those tabs)",
+     ("Sync stash tabs", "Your stash tabs", "Add a stash tab", "Add from link", "Use my Bulk Pricing tab",
+      "Include / leave out", "Re-check rares", "Press Sync tabs", "left out of syncs", "not synced yet"),
+     ("WealthJobs", "wealth_start", "do_wealth_search", "do_wealth_fetch", "do_wealth_finish", "do_wealth_rare",
+      "do_wealth_rares_done", "wealth_queue_rares", "WEALTH_SYNC", "WEALTH_RARES", "WEALTH_PRIO", "WEALTH_FINISH_PRIO",
+      "WEALTH_RARE_PRIO", "wealth_query", "wealth_children", "split_bases", "WEALTH_CATS", "wealth_item", "rare_sig",
+      "rares_to_price", "parse_trade_link", "parse_price_text", "WEALTH_CURRENCIES", "TAB_CURRENCY_NAMES",
+      "set_trade_currencies", "w_sync_btn", "w_stop_btn", "w_tabs", "w_tabinfo", "w_tabs_empty", "w_pc_btn",
+      "wealth_sync", "wealth_stop", "wealth_recheck_rares", "wealth_add_tab", "wealth_add_from_link",
+      "wealth_add_pc_tab", "wealth_pc_tab", "wealth_pc_refresh", "_wealth_add", "wealth_toggle_tab",
+      "wealth_remove_tab", "wealth_open_trade", "wealth_buttons", "_w_tab_row", "_w_by_tab", "wealth_show_tab_result",
+      "wealth_setup_layout", "wealth_save_account", "wealth_skip_tab")),
 ]
 ABSENT = re.compile(r"\bnot\b|\bgone\b|\bremoved\b|\bno longer\b|\.pop\(|\bdel\b|None\)", re.I)
 

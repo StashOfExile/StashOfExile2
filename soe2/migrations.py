@@ -327,6 +327,39 @@ def _topup_key_gone(S):
     S.pop("topup_key_2131", None)
 
 
+def _no_stash_reading_307(S):
+    """3.0.7 (GGG policy audit): reading a stash tab through the trade site (Bulk Pricing's Add from stash tab, Wealth's
+    synced tabs) is gone, and the app keeps no account name. Deleted: the account name, every stash-tab price and
+    marker price, the tab list's order and the reading's log file. Bulk Pricing's tabs are plain lists now: the
+    Manually Add list is Tab 1, and a stash tab's list that has items (session.json) stays as the next tab."""
+    import os
+    import re
+    from .config import load_json, P
+    for k in ("wealth_account", "own_markers", "stash_order", "wealth_skip_tab"):
+        S.pop(k, None)
+    if isinstance(S.get("notices_closed"), dict):
+        S["notices_closed"].pop("pctab_beta", None)          # (the stash tab reading's BETA notice)
+    pc = S.get("pctab") if isinstance(S.get("pctab"), dict) else {}
+    try:
+        recs = (load_json("session.json", {}) or {}).get("records") or []
+        used = {str(r.get("src")) for r in recs if isinstance(r, dict)}
+    except Exception:
+        used = set()
+    tabs = [{"id": "manual", "name": "Tab 1", "renamed": False}]
+    for t in pc.get("tabs") or []:
+        if not isinstance(t, dict) or not t.get("id") or t["id"] == "manual" or f"tab:{t['id']}" not in used:
+            continue
+        name = str(t.get("name") or "").strip()[:24]
+        renamed = t["renamed"] if "renamed" in t else not re.fullmatch(r"Tab \d+", name)
+        tabs.append({"id": str(t["id"]), "name": name, "renamed": bool(renamed and name)})
+    cur = pc.get("current") if pc.get("mode") == "Stash tab" else "manual"
+    S["pctab"] = {"tabs": tabs, "current": cur if cur in [t["id"] for t in tabs] else "manual"}
+    try:
+        os.remove(P("tab_reader_log.txt"))
+    except OSError:
+        pass
+
+
 STEPS = (
     ("modbook_import", "1.x", "app", _modbook_import, "modbook_imported"),
     ("rules_scoped", "2.6.0", "app", _rules_scoped, "rules_scoped_26"),
@@ -360,6 +393,7 @@ STEPS = (
     ("breach_reminder_follows_helper", "3.0.6", "settings", _breach_reminder_follows_helper, None),
     ("split_layout", "Split layout", "settings", _split_layout, None),
     ("topup_key_gone", "3.0.6", "settings", _topup_key_gone, None),
+    ("no_stash_reading_307", "3.0.7", "settings", _no_stash_reading_307, None),
 )
 
 

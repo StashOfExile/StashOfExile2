@@ -27,6 +27,7 @@ def fake(**over):
     f.show_dup = lambda: setattr(f, "dup_win", object())
     f.dup_notice = lambda it: f.notices.append(it["name"])
     f.add_clean = lambda t: f.added.append(t)
+    f.list_src = lambda: "manual"                     # (Bulk Pricing's tab shown: bulk_tabs)
     f.not_priceable_yet = lambda t: None
     f.copy_currency = A.App.copy_currency
     f.status_line_unpriced = lambda t: "not priced"

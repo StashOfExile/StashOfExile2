@@ -246,7 +246,6 @@ class Lists(Tk):
         s._apply_sort = lambda: None
         s.in_list = lambda rec: True
         s.list_src = lambda: "manual"
-        s.pctab_empty_text = lambda: "tab"
         s.update_total = lambda: None
         s.bk_empty_paint = lambda: None                      # (Bulk Pricing's empty state: bulk_page)
         s.show_detail = lambda rec: s.detail.append(rec)
@@ -326,33 +325,10 @@ class Wealth(Tk):
         from soe2.wealth_page import WealthPage
         top = self.frame()
         s = WealthPage.__new__(WealthPage)
-        s.w_tabs = ttk.Treeview(top, columns=("a", "b", "c", "d", "e"), show="headings")
-        s.w_tabs.pack()
-        s.w_tabinfo = tk.Label(top)
         s.w_rows = []
-        s._wealth_sel_tab = lambda: None
         s.w_snap_cats = tk.Frame(top)
         s.w_snap_cats.pack()
         return s
-
-    def test_tab_switch_changes_only_its_row(self):
-        from soe2 import wealth_page as WP
-        s = self.stub()
-        tab = {"id": "t1", "label": "Tab one", "amount": 5, "currency": "chaos", "enabled": True}
-        other = {"id": "t2", "label": "Tab two", "amount": 7, "currency": "chaos", "enabled": True}
-        with mock.patch.object(WP.WEALTH, "tabs", [tab, other]), mock.patch.object(WP.WEALTH, "save", lambda: None), \
-                mock.patch.object(WP.WEALTH, "results", {}):
-            IP.tv_sync(s.w_tabs, [(t["id"], s._w_tab_row(t, {})) for t in (tab, other)])
-            s._wealth_sel_tab = lambda: tab
-            s.refresh_wealth = mock.Mock(side_effect=AssertionError("the whole page was drawn again"))
-            before = s.w_tabs.get_children()
-            s.wealth_toggle_tab()
-            self.assertEqual(s.w_tabs.get_children(), before)
-            self.assertEqual(s.w_tabs.item("t1", "values")[4], "left out of syncs")        # a word, not just a color
-            self.assertEqual(tuple(s.w_tabs.item("t1", "tags")), ("off",))
-            self.assertEqual(s.w_tabs.item("t2", "values")[4], "not synced yet")
-            s.wealth_toggle_tab()
-            self.assertEqual(s.w_tabs.item("t1", "values")[4], "not synced yet")
 
     def test_snapshot_kinds_keep_their_labels(self):
         s = self.stub()

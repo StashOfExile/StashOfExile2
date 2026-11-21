@@ -51,7 +51,7 @@ class Base(unittest.TestCase):
         S.apply_look(TH.DEFAULT, cls.root)
         S.setup_style(cls.root)
         SETTINGS.update(league="Standard", min_results=3, range_factor=0.9, status="Instant Buyout", age="2 days",
-                        pc_fold={}, pc_art=False, wealth_account=BKL.ACCOUNT, view="Not yet listed", detail_adv=False)
+                        pc_fold={}, pc_art=False, view="Not yet listed", detail_adv=False)
         if GOLD.TABLE is None:
             GOLD.TABLE = GOLD.stat_table()
             M.DUPS.clear()

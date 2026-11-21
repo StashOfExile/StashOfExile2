@@ -1,9 +1,10 @@
 """Bulk Pricing's layout (owner pick: mockup A in a wide window, C in the Drawer). The picked item is shown as Price
 Checks shows one - the price card, the item card in the one order, the cheapest listings, Search again | Trade Site |
 Add to favorites at the bottom of that column - beside the list when wide, under it when narrow; nothing picked: no
-side panel, the list has the whole width. One orange button a screen (Search again, or Read tab with Read a stash
-tab); the account name is never on the page; Filters · n ▾ counts the filters set. UI rule 22: a new price paints the
-price card and the listings in place, and a resize lays the page out again without building the list again.
+side panel, the list has the whole width. One orange button a screen (Search again); Bulk Pricing's tabs are plain
+lists (3.0.7: no stash tab reading, no price, no account); Filters · n ▾ counts the filters set. UI rule 22: a new
+price paints the price card and the listings in place, and a resize lays the page out again without building the list
+again.
 
     python3.12 -m unittest tests.test_bulk_layout          (or tests/runall.sh)"""
 import collections
@@ -27,8 +28,6 @@ import test_pricecheck_golden as GOLD                     # noqa: E402
 import test_pricecheck_layout as PCL                      # noqa: E402
 from soe2 import mods as M, trade as T                    # noqa: E402
 from soe2.config import SETTINGS                          # noqa: E402
-
-ACCOUNT = "SecretStreamer#4242"
 
 
 def bulk_rec(name, rid, src="manual"):
@@ -71,7 +70,7 @@ class Layout(unittest.TestCase):
         S.apply_look(TH.DEFAULT, cls.root)
         S.setup_style(cls.root)
         SETTINGS.update(league="Standard", min_results=3, range_factor=0.9, status="Instant Buyout", age="2 days",
-                        pc_fold={}, pc_art=False, wealth_account=ACCOUNT, view="Not yet listed", detail_adv=False)
+                        pc_fold={}, pc_art=False, view="Not yet listed", detail_adv=False)
         if GOLD.TABLE is None:
             GOLD.TABLE = GOLD.stat_table()
             M.DUPS.clear()
@@ -87,11 +86,8 @@ class Layout(unittest.TestCase):
         for w in self.root.winfo_children():
             w.destroy()
         self.root.minsize(1, 1)
-        SETTINGS["pctab"] = {"mode": "Manual Add", "tabs": [{"id": "t1", "name": "Tab 1", "amount": 62555,
-                                                            "currency": "chaos", "currency_name": "Chaos Orb"},
-                                                           {"id": "t2", "name": "Tab 2", "amount": None,
-                                                            "currency": "divine", "currency_name": "Divine Orb"}],
-                             "current": "t1"}
+        SETTINGS["pctab"] = {"tabs": [{"id": "manual", "name": "Tab 1", "renamed": False},
+                                      {"id": "t2", "name": "Tab 2", "renamed": False}], "current": "manual"}
         self.app = make_app(self.root)
         self.body = tk.Frame(self.root)
         self.body.pack(fill="both", expand=True)
@@ -112,6 +108,13 @@ class Layout(unittest.TestCase):
     def pump(self, n=8):
         for _ in range(n):
             self.root.update()
+
+    def fill_more(self, src, n, start):
+        for i in range(start, start + n):
+            self.app.records[i] = bulk_rec("rare_gloves_quality_sockets", i, src)
+        self.app.rebuild_tree()
+        self.app.pctab_counts_paint()
+        self.pump()
 
     def fill(self, src="manual", n=3):
         names = ("rare_gloves_quality_sockets", "rare_amulet_fractured", "rare_gloves_quality_sockets")
@@ -154,40 +157,20 @@ class Layout(unittest.TestCase):
         self.assertEqual(filled, [], "nothing else is orange-filled")
         self.assertNotIn("Primary", str(self.app.reprice_all_btn.cget("style")), "Re-price all is secondary")
 
-    def test_one_orange_on_an_empty_stash_tab(self):
-        self.app.pc_mode.pick("Add from stash tab")
+    def test_one_orange_on_an_empty_tab(self):
         self.app.pctab_pick("Tab 2")
         self.pump()
         e = self.app.empty_lbl
         self.assertTrue(e.winfo_viewable())
         self.assertEqual(e.title_lbl.cget("text"), "Tab 2 is empty")
+        self.assertIn("Ctrl+Alt+C", e.body_lbl.cget("text"))
         btns, filled = self.oranges()
-        self.assertEqual(len(btns), 1, [b.cget("text") for b in btns])
-        self.assertIs(btns[0], e.btn)
-        self.assertEqual(btns[0].cget("text"), "Read tab")
-        self.assertFalse(self.app.pc_read_btn.winfo_viewable(), "the stash row's Read tab waits")
+        self.assertEqual(btns, [self.app.bk_search_btn], "one orange button, greyed out until an item is picked")
+        self.assertEqual(str(self.app.bk_search_btn.cget("state")), "disabled")
         self.assertEqual(filled, [])
 
-    def test_one_orange_on_a_stash_tab_with_an_item_picked(self):
-        self.app.pc_mode.pick("Add from stash tab")
-        self.pump()
-        self.fill(src="tab:t1")
-        self.pick()
-        btns, _filled = self.oranges()
-        self.assertEqual(btns, [self.app.pc_read_btn], "Read tab - Search again is secondary while the row shows")
-
-    def test_source_switch_is_plain_with_a_mark(self):
-        sw = self.app.pc_mode
-        self.assertTrue(sw.plain)
-        self.assertTrue(sw.btns[sw.get()][0].cget("text").startswith("✓ "))
-        self.assertEqual(set(sw.btns), {"Manually Add", "Add from stash tab"})
-
-    # ---- privacy
-    def test_account_name_never_shown(self):
-        self.app.pc_mode.pick("Add from stash tab")
-        self.pump()
-        self.fill(src="tab:t1")
-        self.pick()
+    # ---- 3.0.7 (GGG policy audit): no stash tab reading, no account
+    def texts(self):
         seen = []
         for w in self.walk(self.body):
             try:
@@ -197,10 +180,73 @@ class Layout(unittest.TestCase):
             tip = getattr(w, "_tip", None)
             if tip is not None:
                 seen.append(str(tip.text))
-        self.assertTrue(any("Account set" in t for t in seen))
-        name = ACCOUNT.split("#")[0]
-        self.assertFalse([t for t in seen if name in t], "the account name is on the page")
-        self.assertIn("hidden", self.app.pc_acc_lbl._tip.text)
+        return seen + [tip.text for tip in self.app.pc_tab_tips.values()]
+
+    def test_stash_tab_reading_is_gone(self):
+        self.fill()
+        self.pick()
+        for gone in ("pc_mode", "pc_read_btn", "pc_amt", "pc_cur", "pc_acc_lbl", "pc_tabrow", "pc_msg"):
+            self.assertFalse(hasattr(self.app, gone), gone)
+        seen = " | ".join(self.texts())
+        for words in ("Add from stash tab", "Manually Add", "Read tab", "price in game", "Account", "BETA",
+                      "Count it in Wealth"):
+            self.assertNotIn(words, seen)
+
+    def test_tabs_are_plain_lists(self):
+        self.fill(n=2)
+        self.fill_more("tab:t2", 1, start=10)
+        a = self.app
+        self.assertEqual(a.pc_tabs["manual"].cget("text"), "▸ Tab 1 · 2", "the shown tab: ▸, its name and count")
+        self.assertEqual(a.pc_tabs["t2"].cget("text"), "Tab 2 · 1", "no price on a chip")
+        self.assertIn("right-click", a.pc_tab_tips["t2"].text)
+        self.assertEqual(sorted(a.tree.get_children()), ["1", "2"], "only the shown tab's items")
+        a.pctab_pick("Tab 2")
+        self.pump()
+        self.assertEqual(list(a.tree.get_children()), ["10"])
+        self.assertTrue(a.bk_worth_lbl.cget("text").startswith("Tab 2 is"), "more than one tab: says which")
+        for t in SETTINGS["pctab"]["tabs"]:
+            self.assertEqual(set(t), {"id", "name", "renamed"}, "a tab has no price")
+
+    def test_ctrl_alt_c_adds_to_the_tab_shown(self):
+        a = self.app
+        item = bulk_rec("rare_amulet_fractured", 0)["item"]
+        a.read_any = lambda text: dict(item)
+        a.engine.add = lambda *job: None
+        a.update_total_soon = a.update_total
+        a.pctab_pick("Tab 2")
+        rid = a.add_item_text("copied")
+        self.assertEqual(a.records[rid]["src"], "tab:t2")
+        self.assertIn(str(rid), a.tree.get_children())
+        self.pump()
+        self.assertEqual(a.pc_tabs["t2"].cget("text"), "▸ Tab 2 · 1")
+        a.pctab_pick("Tab 1")
+        rid2 = a.add_item_text("copied again")
+        self.assertEqual(a.records[rid2]["src"], "manual", "Tab 1's items keep src manual")
+
+    def test_clear_all_clears_the_tab_shown_only(self):
+        self.fill(n=2)
+        self.fill_more("tab:t2", 1, start=10)
+        a = self.app
+        a.dup_pending, a.dup_win = [], None
+        a.update_total_soon = a.update_total
+        a.pctab_pick("Tab 2")
+        with mock.patch("tkinter.messagebox.askyesno", return_value=True) as ask:
+            a.clear()
+        self.assertIn("Tab 2's list", ask.call_args[0][1])
+        self.assertEqual(sorted(a.records), [1, 2])
+        self.pump()
+        self.assertEqual(a.pc_tabs["t2"].cget("text"), "▸ Tab 2 · 0")
+
+    def test_one_tab_says_your_list(self):
+        SETTINGS["pctab"] = {"tabs": [{"id": "manual", "name": "Tab 1", "renamed": False}], "current": "manual"}
+        a = self.app
+        a._pc_bar_sig = None
+        a.pctab_bar()
+        a.bk_empty_paint()
+        self.pump()
+        self.assertEqual(a.empty_lbl.title_lbl.cget("text"), "Your list is empty")
+        self.assertTrue(a.pc_add_btn.winfo_viewable(), "＋ Tab is there with one tab")
+        self.assertEqual(str(a.pc_add_btn.winfo_class()), "TButton")
 
     # ---- the layout
     def test_item_beside_the_list_when_wide_and_under_it_when_narrow(self):
@@ -310,14 +356,14 @@ class Layout(unittest.TestCase):
 
     def test_tabs_named_by_place(self):
         tabs = SETTINGS["pctab"]["tabs"]
-        tabs.append({"id": "t3", "name": "Maps", "amount": None, "currency": "divine"})
-        tabs.append({"id": "t4", "name": "Tab 7", "amount": None, "currency": "divine"})
+        tabs.append({"id": "t3", "name": "Maps"})
+        tabs.append({"id": "t4", "name": "Tab 7"})
         names = lambda: [t["name"] for t in self.app.pctab_tabs()]          # noqa: E731
         self.assertEqual(names(), ["Tab 1", "Tab 2", "Maps", "Tab 4"],
                          "a saved tab never renamed is named by its place; a name of its own stays")
         self.app.pctab_new()
         self.assertEqual(names()[-1], "Tab 5")
-        self.app.pctab_delete("t1")
+        self.app.pctab_delete("manual")
         self.assertEqual(names(), ["Tab 1", "Maps", "Tab 3", "Tab 4"], "Tab 1 closed: the next one is Tab 1 now")
         self.assertEqual(self.app.pctab_tabs()[0]["id"], "t2")
         self.assertIn("Tab 1 · ", self.app.pc_tabs["t2"].cget("text"))

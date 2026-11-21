@@ -220,7 +220,6 @@ DEFAULTS = {
     "bulk_cols_off": [],          # 2.125.3: Bulk Pricing columns turned off in Columns ▾ (all show by default)
     "panel_w": 430,               # remembered width of the side panel
     "uses": "10",                 # tablets: only compare with tablets that have at least this many uses left
-    "wealth_account": "",         # Wealth page: your account name as the trade site shows it, e.g. Name#1234 (1.33)
     "on_top": False,              # keep the window in front of other windows, and undo minimizes you didn't ask for (1.35)
                                   # (2.116.0, feedback: off for new installs - a saved setting is kept)
     "auto_check_updates": False,  # 2.0 beta 7: look for a new version on GitHub when the app starts (tells you, asks first)

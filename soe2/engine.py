@@ -23,8 +23,6 @@ from .trade import (cheapest_real,
 from .searchopts_page import default_opts
 from .market import MARKET, Market
 from .pricefmt import confidence, fmt_div, fmt_price
-from .wealth import WealthJobs
-from .tabreader import TabReaderJobs
 from .stratcost import StratCostJobs          # 2.46.0: what a strat costs today
 
 
@@ -192,7 +190,7 @@ def _game_data_id(text):
         return None
 
 
-class Engine(TabReaderJobs, WealthJobs, StratCostJobs, threading.Thread):
+class Engine(StratCostJobs, threading.Thread):
     """One background thread does all network work. Lower priority number = sooner."""
 
     def __init__(self, records, ui_q):
@@ -366,9 +364,8 @@ class Engine(TabReaderJobs, WealthJobs, StratCostJobs, threading.Thread):
                 set_trade_filters(load_json("trade_filters.json", {}))
 
     def _load_static(self):
-        """2.16.0: the trade site's list of currencies (ids for every currency a stash tab can be priced in), once a
-        day like the mod list. Never stops the app: without it the built-in currencies stay."""
-        from .wealth import set_trade_currencies
+        """2.16.0: the trade site's static list (waystone tier pictures: pricecheck_page.waystone_tier_icons), once a
+        day like the mod list. Never stops the app."""
         try:
             cache = P("trade_static.json")
             if os.path.exists(cache) and time.time() - os.path.getmtime(cache) < 86400:
@@ -376,8 +373,6 @@ class Engine(TabReaderJobs, WealthJobs, StratCostJobs, threading.Thread):
             else:
                 data = call("GET", BASE + "/data/static")
                 save_json("trade_static.json", data)
-            set_trade_currencies(data)
-            self.ui_q.put(("currencies_loaded",))          # 2.40.0: Stash tab's box can show the saved currency
         except Exception:
             buglog.caught()
 

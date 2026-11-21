@@ -55,7 +55,7 @@ from .wealth_page import WealthPage
 from .listkeys import ListKeys
 from .alerts_page import AlertsPage
 from .about_page import AboutPage
-from .tabreader_page import TabReaderPage
+from .bulk_tabs import BulkTabsPage
 from .bulk_page import BulkPage, conf_words
 from .searchopts_page import SearchOptsPage
 from .valuelog import VALUE_LOG
@@ -307,7 +307,7 @@ from .names import CARD_SECTIONS                 # noqa: E402  (the item card's 
 KIND_WORD = {"Implicit": "Implicit", "Enchant": "Enchant", "Rune": "Rune"}
 
 
-class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage, BoardModPage, LeaderboardPage, WellSoulsPage, RumoursPage, ListKeys, AlertsPage, AboutPage, TabReaderPage, SearchOptsPage, ExchangePage, WealthPage, LibraryPage, RegexPage, UtilitiesPage, TrackerPage, SearchPage, CalcOverlay, InsightsPage, MoneyMakersPage, MapLibraryPage, RemnantPage, FavoursPage, LedgerPage, FeedbackPage, FeedPage, MergedOverlay, LightOverlay, SplitOverlay, GamePlanPage, FocusPokes, OverlayHelp, OverlayParts, CampaignUI, OverlayRates, CommunityPage, RateModsPage, StashScanPage, OverlayQuick, FeaturesPage, TopUpPage, MapProfitPage, TemplePage, SekhemasPage, HoverPage, SharePage, MusicPage, OverlayA8, LookPage, ReadMarkPage, DrawerHost):
+class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage, BoardModPage, LeaderboardPage, WellSoulsPage, RumoursPage, ListKeys, AlertsPage, AboutPage, BulkTabsPage, SearchOptsPage, ExchangePage, WealthPage, LibraryPage, RegexPage, UtilitiesPage, TrackerPage, SearchPage, CalcOverlay, InsightsPage, MoneyMakersPage, MapLibraryPage, RemnantPage, FavoursPage, LedgerPage, FeedbackPage, FeedPage, MergedOverlay, LightOverlay, SplitOverlay, GamePlanPage, FocusPokes, OverlayHelp, OverlayParts, CampaignUI, OverlayRates, CommunityPage, RateModsPage, StashScanPage, OverlayQuick, FeaturesPage, TopUpPage, MapProfitPage, TemplePage, SekhemasPage, HoverPage, SharePage, MusicPage, OverlayA8, LookPage, ReadMarkPage, DrawerHost):
     COLS = [("added", "#", 36, "e"), ("name", "Item", 170, "w"), ("type", "Type", 110, "w"), ("mark", "Status", 104, "w"),
             ("est", "Price", 104, "e"), ("conf", "Confidence", 120, "w"), ("listings", "Listings", 70, "e"), ("priced", "Priced at", 130, "w"),
             ("match", "How it was priced", 300, "w"), ("vmods", "★", 36, "center"),
@@ -1279,13 +1279,11 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
 
     EMPTY_TEXT = ("Nothing to price yet\nHover an item in game and press Ctrl+Alt+C: it shows up here and gets "
                   "priced. Tablets, jewels, waystones and gear - weapons, armor, rings, uniques.")
-    EMPTY_TEXT_TAB = ("Type your tab's price above and press Read tab:\nevery item on it shows up here and gets priced.\n"
-                      "(Ctrl+Alt+C in game still adds items one at a time.)")
 
     @property
     def empty_text(self):
-        """2.8.0: the hint for an empty list follows "Add items from"."""
-        return self.EMPTY_TEXT_TAB if SETTINGS.get("pctab", {}).get("mode") == "Stash tab" else self.EMPTY_TEXT
+        """The hint for an empty list."""
+        return self.EMPTY_TEXT
 
     SCOPE_TEXT = ("Bulk Pricing prices tablets, jewels, waystones and gear. Gear (2.72.0) is searched on the mods "
                   "buyers pay for - filler mods and low tiers are left out - by its totals (defenses, DPS, total "
@@ -2031,61 +2029,6 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
                                           self.settings_open("General", "league")))
         return lbl
 
-    def acc_text(self):
-        v = SETTINGS.get("wealth_account", "")
-        return f"Account: {v}" if v else "Account: not set"
-
-    ACC_WHY = ("Your account name as the trade site shows it, like Name#1234. Only used by Bulk Pricing › Stash tab "
-               "to find your own public stash tab. No password, no sign-in.")
-
-    def acc_link(self, parent, bg):
-        """A small 'Account: Name' label; a click asks for it. 3.0.6 (in Settings › General it did not explain
-        what it is used for): it lives only where it's used - Bulk Pricing ›
-        Stash tab - and says why it's asked."""
-        from .style import Tooltip
-        self.pc_vars()
-        lbl = tk.Label(parent, text=self.acc_text(), bg=bg, fg=C["accent"], cursor="hand2", font=("Segoe UI", 9, "underline"))
-        lbl.bind("<Button-1>", lambda e: self.acc_ask())
-        Tooltip(lbl, self.ACC_WHY)
-        self.acc_links.append(lbl)
-        return lbl
-
-    def acc_mark_text(self):
-        """Bulk Pricing's account line: set or not, with a mark and a word - never the name (it could be on a stream)."""
-        return "✓ Account set" if SETTINGS.get("wealth_account", "").strip() else "! Account not set"
-
-    def acc_mark(self, parent, bg):
-        """"✓ Account set" (a click changes it, as before); its hover says it's hidden so it never shows on a stream."""
-        from .style import Tooltip
-        self.pc_vars()
-        lbl = tk.Label(parent, text=self.acc_mark_text(), bg=bg, cursor="hand2", font=("Segoe UI", 9))
-        lbl._acc_fn = self.acc_mark_text
-        lbl.bind("<Button-1>", lambda e: self.acc_ask())
-        tip = Tooltip(lbl, "")
-
-        def paint():
-            on = SETTINGS.get("wealth_account", "").strip()
-            lbl.config(fg=C["green"] if on else C["good"])
-            tip.text = ("Read tab only takes your own listings, at this tab's price, from any of your stash tabs. "
-                        "Click to change. The name is hidden."
-                        if on else "Your account name as the trade site shows it (Name#1234) finds your public tab. "
-                                   "Click to set it. No password, no sign-in.")
-        lbl._acc_paint = paint
-        paint()
-        self.acc_links.append(lbl)
-        return lbl
-
-    def acc_ask(self):
-        """The account name, asked where it's used (Bulk Pricing › Stash tab): one box, with what it's for."""
-        from tkinter import simpledialog
-        self.pc_vars()
-        v = simpledialog.askstring("Your account", self.ACC_WHY, initialvalue=self.acc_var.get())
-        if v is not None:
-            self.acc_var.set(v.strip())
-
-
-
-
     def ev_rate_stop(self, msg):
         """3.0.7: the trade site said 429 - the searches stopped (paused); Resume or a new Search goes on."""
         self.status_text, self.status_until = msg, time.time() + 30
@@ -2759,7 +2702,7 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
             self.status_until = time.time() + 8
             return "nothing - " + self.status_text
         same = [r for r in self.records.values() if self.item_sig(r["item"]) == self.item_sig(item)
-                and r.get("src", "manual") == "manual"]           # 2.42.0: your own list (not a stash tab's)
+                and r.get("src", "manual") == self.list_src()]    # the tab shown (3.0.7: each tab is a list)
         if same:                                                 # exact same name + exact same mods: ask
             self.dup_pending.append((text, item, same[-1], len(same)))
             if not self.dup_win:
@@ -3033,11 +2976,7 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
         item = self.read_any(text)
         if not item:
             return None
-        src = src or "manual"                  # 2.42.0: which list it belongs to ("manual" or "tab:<id>")
-        if src == "manual" and self.list_src() != "manual" and hasattr(self, "pc_mode"):
-            from .tabreader_page import MODE_LABELS
-            self.pc_mode.pick(MODE_LABELS["Manual Add"])     # a Ctrl+Alt+C while a stash tab's list shows: yours
-            self.pctab_mode()
+        src = src or self.list_src()           # which list it belongs to: the tab shown ("manual" or "tab:<id>")
         rid = self.next_id
         self.next_id += 1
         try:                                           # 2.99.0: a unique's lines for Mod book › Unique rules
@@ -3052,8 +2991,8 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
         self.batch_ids.add(rid)
         self.root.title(APP_TITLE)
         hidden_by_cat = not self.cat_ok(self.records[rid])
-        if src != self.list_src():           # 2.73.2: it belongs to another list (a stash tab read while Manual Add
-            self.engine.add(1, "resolve", rid)          # shows, or the other way round): priced, not shown here
+        if src != self.list_src():           # 2.73.2: it belongs to another list (Price Checks, Favorites, another
+            self.engine.add(1, "resolve", rid)          # tab): priced, not shown here
             return rid
         if SETTINGS["view"] not in ("Not yet listed", "All") or hidden_by_cat:   # a new item would be hidden - show it
             if SETTINGS["view"] not in ("Not yet listed", "All"):
@@ -3328,8 +3267,8 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
         head = getattr(self, "list_head", None)
         if head is None:
             return
-        t = self.pctab_current() if self.list_src() != "manual" else None
-        head.set_title(f"Items · {t['name']}" if t else "Items")       # (2.123.0: the switch beside it says the source)
+        t = self.pctab_current() if self.pctab_many() else None
+        head.set_title(f"Items · {t['name']}" if t else "Items")       # (the tab shown, with more than one tab)
         n = self.cat_count.cget("text")
         srt = {"est": "value", "conf": "confidence", "listings": "listings", "priced": "when priced", "name": "name",
                "type": "type", "mark": "status", "vmods": "★ mods", "ilvl": "item level"}.get(getattr(self, "sort_col", None))
@@ -4470,34 +4409,18 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
             arrow = (" ▼" if self.sort_rev else " ▲") if cid == self.sort_col else ""
             self.tree.heading(cid, text=title + arrow)
 
-    # ---------------- 2.87.0 (feedback: the trade site lists a public tab's items in no order - work top to
-    # bottom and left to right across the stash): each item read from a tab keeps its place (the listing's stash x / y),
-    # and the list follows the tab - down each column, columns left to right (or across each row; Settings key
-    # "stash_order": "columns" / "rows"). The # column shows the place (C3 R5 = column 3, row 5).
+    # ---------------- 2.87.0: an item that kept its place in a stash tab (an older list's "pos": stash x / y) is
+    # listed down each column, columns left to right. The # column shows the place (C3 R5 = column 3, row 5).
     def stash_key(self, rec):
         pos = rec.get("pos")
         if not pos:
             return (1, 0, 0, rec["id"])
         x, y = pos
-        return (0, x, y, rec["id"]) if SETTINGS.get("stash_order", "columns") == "columns" else (0, y, x, rec["id"])
+        return (0, x, y, rec["id"])
 
     def stash_spot(self, rec):
         pos = rec.get("pos")
         return f"C{pos[0] + 1} R{pos[1] + 1}" if pos else rec["id"]
-
-    def stash_order_soon(self):
-        if getattr(self, "_so_job", None) is None:
-            def go():
-                self._so_job = None
-                if self.sort_col in (None, "added"):
-                    self.sort_col = self.sort_col or "added"
-                    self._apply_sort()
-            self._so_job = self.root.after(300, go)
-
-    def stash_order_set(self, how):
-        SETTINGS["stash_order"] = how
-        save_json("settings.json", SETTINGS)
-        self.sort_added()
 
     def sort_added(self):
         self.sort_col, self.sort_rev = "added", False
@@ -4513,7 +4436,7 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
         def key(rid):
             rec = self.records[int(rid)]
             if col == "added":                                 # 2.0 beta 22: the order you copied them in
-                return self.stash_key(rec)                      # (2.87.0: a stash tab's items: their place in it)
+                return self.stash_key(rec)                      # (2.87.0: an older list's place in a tab)
             if col == "est":
                 return rec["est"] if rec["est"] is not None else -1
             if col == "conf":
@@ -4662,23 +4585,14 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
                   f"{'them' if n != 1 else 'it'} back.", 12)
 
     def clear(self):
-        """Clear the list you're looking at (2.42.0: Manual Add, or one stash tab's list - the others stay)."""
+        """Clear the list you're looking at (the tab shown - the other tabs stay)."""
         mine = [rid for rid, r in self.records.items() if self.in_list(r)]
-        src = self.list_src()
-        what = "this tab's list" if src != "manual" else "your Manually Add list"
+        t = self.pctab_current() if self.pctab_many() else None
+        what = f"{t['name']}'s list" if t else "your list"
         if mine and not messagebox.askyesno("Clear All", f"Remove all items from {what}?\nThe Mod Book is kept."):
             return
         for rid in mine:
             del self.records[rid]
-        if src != "manual":                          # (the rest below is about your own copies)
-            self.dirty = True
-            self.tree.delete(*self.tree.get_children())
-            self.update_total()
-            self.show_detail(None)
-            self.bk_empty_paint()
-            if hasattr(self, "pctab_bar"):
-                self.pctab_bar()
-            return
         if hasattr(self, "cat_var"):
             self.cat_var.set(self.ALL_CATS)
         self.dup_pending.clear()
@@ -4697,6 +4611,7 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
         self.update_total()
         self.show_detail(None)
         self.bk_empty_paint()
+        self.pctab_bar()
 
     def export(self):
         path = filedialog.asksaveasfilename(defaultextension=".csv", initialfile="stash_prices.csv",

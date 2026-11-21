@@ -21,8 +21,8 @@ Close key (2.121.1, feedback): Esc by default, as PoE Overlay closes its dialogs
 game (or the card) is in front, and that press is used up (the game's menu doesn't open). Set it on Settings › Keybinds or
 with the card's ⚙ (Card settings: the close key, where the price shows, All price check settings…).
 
-Privacy: other players' seller names show as on the app's card (public on the trade site); your own account name
-is never shown here.
+Privacy: seller names show as on the app's card (public on the trade site). The app keeps no account name (3.0.7),
+so it can't tell your own listings apart.
 GGG ToS: the key presses the game's copy once (overlay.py, as before); the card only shows what the app found.
 Works the same on Windows and Linux / Hyprland (an OverlayWindow: topmost, follows the game)."""
 import tkinter as tk
@@ -691,7 +691,7 @@ class PricePopup:
         tk.Label(top, text=price, bg=P["bg"], fg=P["big"], font=(head, 10, "bold")).pack(side="left", padx=(4, 8))
         when = ago(f["ts"]) if f.get("ts") else ""
         seller = f.get("seller") or ""
-        if seller and not self._pcpop_mine(seller):          # (yours never shows - with or without its #1234)
+        if seller:
             when = f"{seller} · {when}" if when else seller
         if f.get("times", 1) > 1:                             # 2.113.0: one row per seller
             when = f"listed {f['times']}× · {when}" if when else f"listed {f['times']}×"
@@ -1037,14 +1037,6 @@ class PricePopup:
             except tk.TclError:
                 pass
         self.root.after_idle(go)
-
-    @staticmethod
-    def _pcpop_mine(seller):
-        try:
-            from .trade import is_own
-            return is_own(seller)
-        except Exception:
-            return False
 
     def _pcpop_drag_add(self, rec, cb, tl, on, apply, on_fg, off_fg, P):
         """3.0.6 (owner: tick boxes by holding the left button and dragging across them - every box on the card, not

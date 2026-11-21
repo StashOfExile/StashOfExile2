@@ -1,13 +1,12 @@
-"""Bulk Pricing (owner pick: mockup A in a wide window, C in the Drawer). Top to bottom: what the list is worth and how many items it has; your stash tabs (with
-Add from stash tab: the chips, the account mark at their right end, and the shown tab's box - its price in game, Read
-tab - joined to its chip); the toolbar - a search box first, Filters · n ▾, Columns ▾, then Manually Add | Add from
-stash tab, Re-price all and Pause; the list; the key bar.
+"""Bulk Pricing (owner pick: mockup A in a wide window, C in the Drawer). Top to bottom: what the list is worth and how many items it has; the tabs
+(plain named lists: Tab 1, Tab 2, ＋ Tab - bulk_tabs.py); the toolbar - a search box first, Filters · n ▾, Columns ▾,
+then Re-price all and Pause; the list; the key bar. Items are added with Ctrl+Alt+C in game (Manually Add), to the tab
+shown.
 The picked item is shown as Price Checks shows one - the price card, the item card (Base and Properties, Mods,
 Augments, Item Flags), the cheapest listings, then Search again | Trade Site | Add to favorites - beside the list in a
 wide window, under it in a narrow one, about 10% smaller than Price Checks' card in the Drawer (cardscale.BULK; text
 never below the app's normal small size; a long card scrolls). It is always there: the first row is picked by itself; with no row picked it says what it
-is, with one button. Your account name is never on the page (it could show on a stream). UI rule 22: a new price
-paints the price card and the listings only."""
+is, with one button. UI rule 22: a new price paints the price card and the listings only."""
 import tkinter as tk
 import types
 from tkinter import ttk
@@ -15,7 +14,6 @@ from tkinter import ttk
 from . import buglog
 from .config import save_json, SETTINGS
 from .cardscale import BULK
-from .names import BULK_MANUAL, BULK_STASH
 from .pricecheck_page import CONF_CHIP, WIDE_PX, search_tip
 from .style import C, Splitter, Tooltip, flowify, flow_show, trade_icon
 
@@ -67,18 +65,18 @@ class BulkPage:
         self.checks_body = body
         self.pc_vars()
         self._bk_sel_ids, self._bk_sig, self._bk_list_sig, self._bk_how = set(), None, None, None
-        self._bk_layout_job, self._bk_empty_on = None, False
+        self._bk_layout_job = None
         P1 = C["panel"]
         # ---- the key bar, at the bottom (claims its space first)
         kbf = tk.Frame(body, bg=P1)
         kbf.pack(fill="x", side="bottom")
         self.build_keybar(kbf)
         self._bk_summary(body)                          # worth · items (the tabs are under it: pc_tabblock)
-        self._bk_toolbar(body)                          # search, Filters · n ▾, Columns ▾ | the source, Re-price all
-        self.pc_tabblock = tk.Frame(body, bg=P1)        # (shown with Add from stash tab: pctab_mode) the tabs'
-        self.bk_stash = tk.Frame(self.pc_tabblock, bg=P1)   # strip, and under it the shown tab's box (pctab_mode)
+        self._bk_toolbar(body)                          # search, Filters · n ▾, Columns ▾ | Re-price all, Pause
+        self.pc_tabblock = tk.Frame(body, bg=P1)        # the tabs' strip, over the toolbar
+        self.pc_tabblock.pack(fill="x", padx=12, pady=(0, 8), before=self.bk_tb)
         self.view_var = tk.StringVar(value=SETTINGS["view"])
-        self.build_tab_reader(self.bk_stash)
+        self.build_bulk_tabs(self.pc_tabblock)
         self.banner = tk.Label(body, text="", anchor="w", padx=12, pady=2, font=("Segoe UI", 9), justify="left")
         # ---- the list (left) and the picked item (right; under the list in a narrow window)
         main = tk.Frame(body, bg=P1)
@@ -105,7 +103,7 @@ class BulkPage:
                                            open_btn=self.bk_trade_btn)
         split.set_layout("side")                        # (the picked item's side is always there: bk_layout)
         body.bind("<Configure>", self._bk_page_cfg, add="+")
-        self.pctab_mode(save=False)
+        self.bk_empty_paint()
         self.show_detail(None)
         self.bk_filters_paint()
 
@@ -152,8 +150,6 @@ class BulkPage:
 
     # ---------------------------------------------------------------- the toolbar
     def _bk_toolbar(self, body):
-        from .tabreader_page import MODES, MODE_LABELS
-        from .style import SegBar
         P1 = C["panel"]
         tb = self.price_tb = tk.Frame(body, bg=P1)
         tb.pack(fill="x", padx=12, pady=(0, 8))
@@ -192,23 +188,13 @@ class BulkPage:
         self.cols_btn.pack(side="left")
         Tooltip(self.cols_btn, "The list's columns, its order, and Export CSV")
         self._bk_filters_build(body)
-        # right: Pause (far right), Re-price all, the source switch
+        # right: Pause (far right), Re-price all
         self.pause_btn = ttk.Button(tb, text="⏸ Pause", command=self.toggle_pause)
         self.pause_btn.pack(side="right", padx=(8, 0))
         Tooltip(self.pause_btn, "Pause the searches (F2). Items you copy still join the list.")
         self.reprice_all_btn = ttk.Button(tb, text="↻ Re-price all", command=self.reprice_all)
         self.reprice_all_btn.pack(side="right", padx=(8, 0))
         Tooltip(self.reprice_all_btn, "Searches every item in this list again")
-        cfg = SETTINGS.setdefault("pctab", {})
-        if cfg.get("mode") not in MODES:
-            cfg["mode"] = MODES[0]
-        # owner (mockup A): a plain switch - the picked one says "✓" and its word, never orange; BETA on its button
-        self.pc_mode = SegBar(tb, [MODE_LABELS[m] for m in MODES], value=MODE_LABELS[cfg["mode"]], size=9,
-                              pad=(12, 4), plain=True, badges={MODE_LABELS["Stash tab"]: "BETA"},
-                              command=lambda v: self.pctab_mode())
-        self.pc_mode.pack(side="right", padx=(8, 0))
-        Tooltip(self.pc_mode, f"{BULK_MANUAL}: Ctrl+Alt+C on each item in game. {BULK_STASH}: every item on one of "
-                              "your public stash tabs, through the trade site (BETA). Each has its own list.")
         flowify(tb)
 
     def _bk_filters_build(self, body):
@@ -275,7 +261,7 @@ class BulkPage:
             bk_flow(self.bk_tb)
 
     def cols_menu(self):
-        """Columns ▾: the extra columns, the list's order (as added, or as the tab holds it) and Export CSV."""
+        """Columns ▾: the extra columns, the list's order (as added) and Export CSV."""
         m = tk.Menu(self.root, tearoff=0, bg=C["panel2"], fg=C["text"], activebackground=C["accent"])
         off = set(self.bulk_cols_off())
         self._cols_vars = {}
@@ -285,13 +271,6 @@ class BulkPage:
             m.add_checkbutton(label=label, variable=v, command=lambda c=cid, vv=v: self.cols_set(c, bool(vv.get())))
         m.add_separator()
         m.add_command(label="Order added", command=self.sort_added)
-        if self.pctab_on():                              # 2.87.0: the list follows the tab
-            self._order_var = tk.StringVar(value=SETTINGS.get("stash_order", "columns"))
-            sub = tk.Menu(m, tearoff=0, bg=C["panel2"], fg=C["text"], activebackground=C["accent"])
-            for key, name in (("columns", "Down columns"), ("rows", "Across rows")):
-                sub.add_radiobutton(label=name, value=key, variable=self._order_var,
-                                    command=lambda k=key: self.stash_order_set(k))
-            m.add_cascade(label="List order", menu=sub)
         m.add_separator()
         m.add_command(label="Export CSV…", command=self.export)
         b = self.cols_btn
@@ -355,16 +334,12 @@ class BulkPage:
         self.tree.bind("<<TreeviewSelect>>", lambda e: self.update_mark_buttons(), add="+")   # 2.103.1: lit at once
         self.tree.bind("<Double-1>", lambda e: self.open_trade())
         self.tree.bind("<Button-1>", lambda e: self.bk_filters_toggle(False), add="+")
-        # the empty list: what it is, and one button (Read tab with Add from stash tab)
-        self.empty_lbl = EmptyState(left, "⚖", "", button=("Read tab", self.pctab_read))
-        self.bk_empty_more = tk.Label(self.empty_lbl, text="", bg=P1, fg=C["muted"], font=("Segoe UI", 9),
-                                      justify="center")
-        self.bk_empty_more.pack(pady=(12, 0))
+        # the empty list: what it is (filters that hide everything: Clear filters, its one button)
+        self.empty_lbl = EmptyState(left, "⚖", "", button=("✕ Clear filters", self.cat_reset))
 
     def bk_empty_paint(self):
-        """The list's empty state, when it has no rows: a stash tab with nothing read yet - its name, one line and
-        Read tab (the stash row's own Read tab hides meanwhile: one orange button); your own list - how to add items;
-        filters that hide everything - Clear filters."""
+        """The list's empty state, when it has no rows: an empty tab - how to add items; filters that hide
+        everything - Clear filters."""
         e = getattr(self, "empty_lbl", None)
         if e is None:
             return
@@ -372,35 +347,22 @@ class BulkPage:
             shown = bool(self.tree.get_children())
         except tk.TclError:
             return
-        stash = self.pctab_on()
         mine = any(self.in_list(r) for r in self.records.values())
-        btn, more = e.btn, ""
+        btn = e.btn
         if shown:
             e.place_forget()
+            return
+        if mine:
+            e.set_text("Nothing in this view\nNo item matches the search or the filters.")
+            if not btn.winfo_manager():
+                btn.pack(pady=(12, 0))
         else:
-            if mine:
-                e.set_text("Nothing in this view\nNo item matches the search or the filters.")
-                btn.config(text="✕ Clear filters", command=self.cat_reset, style="TButton")
-            elif stash:
-                t = self.pctab_current()
-                e.set_text(f"{t['name'] if t else 'This tab'} is empty\nPress Read tab to list and price everything "
-                           "in it.")
-                btn.config(text="Read tab", command=self.pctab_read, style="Primary.TButton")
-                more = "Or hover an item in game and press Ctrl+Alt+C."
-            else:
-                e.set_text("Your list is empty\nHow to add items: hover an item in game and press Ctrl+Alt+C. It "
-                           "shows up here and gets priced - tablets, jewels, waystones and gear.")
-            if mine or stash:
-                if not btn.winfo_manager():
-                    btn.pack(pady=(12, 0), before=self.bk_empty_more)
-            elif btn.winfo_manager():
+            t = self.pctab_current() if self.pctab_many() else None
+            e.set_text(f"{t['name'] + ' is' if t else 'Your list is'} empty\nHow to add items: hover an item in game "
+                       "and press Ctrl+Alt+C. It shows up here and gets priced - tablets, jewels, waystones and gear.")
+            if btn.winfo_manager():
                 btn.pack_forget()
-            self.bk_empty_more.config(text=more)
-            e.place(relx=0.5, rely=0.45, anchor="center")
-        on = not shown and stash and not mine           # (the empty state's Read tab is the one shown)
-        if on != self._bk_empty_on:
-            self._bk_empty_on = on
-            self.pctab_read_shown(not on)
+        e.place(relx=0.5, rely=0.45, anchor="center")
 
     # ---------------------------------------------------------------- the picked item
     def _bk_item_col(self, col):
@@ -745,7 +707,7 @@ class BulkPage:
                   and not r.get("skip")]
         tot = sum(r["est"] for r in priced)
         busy = sum(1 for r in shown if r["state"] in ("queued", "pricing"))
-        t = self.pctab_current() if self.pctab_on() else None
+        t = self.pctab_current() if self.pctab_many() else None
         filt = self.bk_filters_count() or bool(self.search_var.get().strip())
         who = "These items are" if filt else (f"{t['name']} is" if t else "Your list is")
         val = ("≈ " + (fmt_div(tot) if tot else "0 div")) if shown else "-"
