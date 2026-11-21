@@ -62,6 +62,8 @@ Checks a release runs (each exits 1 and lists what to fix):
   py tools/check_names.py      one name per feature: page names from soe2/names.py, in Title Case; no old names
   py tools/check_removed.py    a removed feature leaves no text, setting or test behind (REMOVED lists them;
                                add --tests path\to\tests to look at the tests too)
+  py tools/check_ui_text.py    no parenthesis aside in a UI string - the detail goes in the tooltip; older ones
+                               are listed in tools/ui_text_baseline.txt, which only shrinks: --update drops fixed ones
   py tools/check_ux.py         opens every page in an empty data folder (offline): one orange button and one BETA
                                chip per screen; lists icon buttons without a tip, list pages whose search box isn't
                                first, and buttons that are on with nothing picked (UX round 2)

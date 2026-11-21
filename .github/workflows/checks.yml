@@ -44,6 +44,8 @@ jobs:
         run: python tools/check_names.py
       - name: A removed feature leaves nothing behind (2.126.0)
         run: python tools/check_removed.py
+      - name: No parenthesis asides in UI text
+        run: python tools/check_ui_text.py
       - name: Error reports stay private
         run: python tools/check_private.py
       - name: Code check (ruff - names that don't exist, broken code; 2.115.0)

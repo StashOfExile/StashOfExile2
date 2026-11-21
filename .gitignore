@@ -20,3 +20,6 @@ __pycache__/
 stashref/
 *stash*shot*.png
 counts.json
+
+# Claude Code: this PC's own permissions - never in git
+.claude/settings.local.json
