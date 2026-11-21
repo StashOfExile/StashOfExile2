@@ -43,7 +43,7 @@ def _num(text):
 
 
 # 2.56.0: Div / hour is the verdict's big number; these are the tiles next to it
-TILES = (("profit", "Profit / run", "loot − cost"), ("roi", "Loot ÷ cost", "150% = the loot is worth 1.5× the cost"),
+TILES = (("profit", "Profit / run", "loot − cost"), ("roi", "Loot ÷ cost", "150% means the loot is worth 1.5 times the cost"),
          ("avg", "Average run", ""), ("loot", "Loot / run", ""), ("cost", "Cost / run", ""), ("runs", "Runs", ""))
 LOG_COLS = (("n", "#", 40, "e"), ("when", "When", 120, "w"), ("v", "Ver.", 44, "center"), ("runs", "Runs", 50, "e"),
             ("time", "Time", 70, "e"), ("cost", "Cost", 66, "e"), ("loot", "Loot", 70, "e"), ("profit", "Profit", 74, "e"),
@@ -195,7 +195,7 @@ class LedgerPage:
 
     # ================================================================ the page
     def build_ledger(self, page):
-        """2.56.0 (feedback: "a bit confusing ... modern, clean, functional, ease of use for the average user"; the
+        """2.56.0 (feedback: a bit confusing - it should be modern, clean, functional and easy for the average user; the
         Strat Tracker Redesign mockups): your setups as cards on the left; on the right the setup's name and what it
         is, ONE main button (Log loot), whether runs are being counted, then the verdict in plain words ("Makes about
         10.3 div an hour"), the figures, where the money comes from, profit per log, and the sheet. No setup yet:
@@ -211,7 +211,7 @@ class LedgerPage:
         lh = tk.Frame(left, bg=P2)
         lh.pack(fill="x")
         tk.Label(lh, text="MY SETUPS", bg=P2, fg=C["muted"], font=("Segoe UI", 9, "bold")).pack(side="left")
-        ttk.Button(lh, text="＋ New", command=self.fl_new, style="Quiet.TButton").pack(side="right")
+        ttk.Button(lh, text="＋ New strat", command=self.fl_new_strat, style="Quiet.TButton").pack(side="right")
         self.fl_list = SetupCards(left, self, bg=P2)
         self.fl_list.pack(fill="both", expand=True, pady=(8, 8))
         ttk.Button(left, text="Compare setups", command=self.fl_compare).pack(fill="x")
@@ -369,14 +369,20 @@ class LedgerPage:
                      anchor="w").pack(fill="x")
         b = tk.Frame(inner, bg=P1)
         b.pack(pady=(16, 0))
-        ttk.Button(b, text="Make my first setup", style="Primary.TButton", command=self.fl_new).pack(side="left")
+        ttk.Button(b, text="＋ New strat", style="Primary.TButton", command=self.fl_new_strat).pack(side="left")   # 3.0.6: one way
         ttk.Button(b, text="Start from a strat", command=self._fl_to_strats).pack(side="left", padx=(8, 0))
         ttk.Button(b, text="Import a CSV…", style="Quiet.TButton", command=self.fl_import_csv).pack(side="left",
                                                                                                  padx=(8, 0))
         return f
 
+    def fl_new_strat(self):
+        """3.0.6 (owner): ＋ New strat here is Find's - the same New strat page (one way to make one); Run this strat
+        then makes its setup here."""
+        self._fl_to_strats()
+        return self.mm_add()
+
     def _fl_to_strats(self):
-        self.mm_page.pick("Strats", notify=False)
+        self.mm_page.pick("Find", notify=False)
         self.mm_show_page()
 
     # ================================================================ filling it
@@ -624,7 +630,7 @@ class LedgerPage:
         w, h = max(200, cv.winfo_width()), max(60, cv.winfo_height())
         logs = [l for l in sorted(self.fl_logs_shown(), key=lambda l: l["start"])
                 if not l.get("skipped") and isinstance(l.get("profit"), (int, float))]
-        cv.create_text(8, 8, text="Profit per log (bars) and in total (line), divines", anchor="nw", fill=C["muted"],
+        cv.create_text(8, 8, text="Profit per log as bars and in total as a line, in divines", anchor="nw", fill=C["muted"],
                        font=("Segoe UI", 9))
         if not logs:
             cv.create_text(w // 2, h // 2 + 6, text="Log your first loot to see the chart", fill=C["muted"],
@@ -817,7 +823,7 @@ class LedgerPage:
         else:
             n = _num(text)
             if n is False or (n is None and key in ("runs", "cost")):
-                self._say("A number, please (divines: 2.5).", 5)
+                self._say("A number in divines, please, like 2.5.", 5)
                 return
             if key == "runs":                              # 2.85.0: the cost scales with the runs (it stayed at the old count)
                 old = max(1, int(l.get("runs") or 1))
@@ -891,9 +897,9 @@ class LedgerPage:
         m.add_command(label="CSV - logs (Excel, Google Sheets)", command=lambda: self.fl_export("logs"))
         m.add_command(label="CSV - every drop", command=lambda: self.fl_export("loot"))
         m.add_command(label="CSV - logs of every setup", command=lambda: self.fl_export("all"))
-        m.add_command(label="Setup file (.json) - for a friend's Strat Tracker", command=lambda: self.fl_export("json"))
-        m.add_command(label="Strat guide (CSV) - share this setup as a strat", command=lambda: self.fl_export("strat"))
-        m.add_command(label="Copy summary (for Discord)", command=self.fl_copy_summary)
+        m.add_command(label="Setup file for a friend's Strat Tracker", command=lambda: self.fl_export("json"))
+        m.add_command(label="Strat guide as CSV - share this setup as a strat", command=lambda: self.fl_export("strat"))
+        m.add_command(label="Copy summary for Discord", command=self.fl_copy_summary)
         m.add_command(label="📤 Upload to the community strats…", command=self.fl_upload)
         m.add_separator()
         m.add_command(label="Import a setup file…", command=self.fl_import_json)
@@ -1006,18 +1012,18 @@ class LedgerPage:
         except Exception:
             buglog.caught()
         try:
-            self.mm_page.pick("Strats", notify=False)
+            self.mm_page.pick("Find", notify=False)
             self.mm_show_page()
             self.mm_show_mine(sid)
         except Exception:
             self.log_error("opening the strat in Farming Strategies")
 
     def fl_upload_fill(self, st, probs):
-        """The strat still misses something the board needs -> Money Makers › Strats › Mine with it picked."""
-        self.mm_page.pick("Strats", notify=False)
+        """The strat still misses something the board needs -> Farming Strategies › Find, From: Mine, with it open."""
+        self.mm_page.pick("Find", notify=False)
         self.mm_show_page()
         self.mm_show_mine(st["id"])
-        self.app_toast(f"\"{st['name']}\" is saved in Farming Strategies › Strats › Mine. Before it can go to the community "
+        self.app_toast(f"\"{st['name']}\" is saved in Farming Strategies › Find (From: Mine). Before it can go to the community "
                        f"strats it needs: {', '.join(p.replace('missing ', '') for p in probs[:4])}. Fill those in, "
                        "then press 📤 Post to Community.", "Upload a strat", secs=30)
 
@@ -1198,7 +1204,7 @@ class LedgerPage:
                 row=len(rows) + 1, column=j + 1, sticky="w")
         few = [c[0] for c in cols if 0 < c[1]["runs"] < 20]
         if few:
-            tk.Label(g, text="Few runs (under 20) - rough numbers: " + ", ".join(few), bg=C["panel"], fg=C["muted"],
+            tk.Label(g, text="Under 20 runs - rough numbers: " + ", ".join(few), bg=C["panel"], fg=C["muted"],
                      font=("Segoe UI", 9)).grid(row=len(rows) + 2, column=0, columnspan=len(cols) + 1, sticky="w",
                                                 pady=(8, 0))
         self.fl_compare_win = win
@@ -1212,8 +1218,8 @@ class LedgerPage:
         p = d.get("pending")
         if p and p.get("setup") == s["id"]:
             if p.get("runs") and not messagebox.askyesno(
-                    "Stop counting", f"{p['runs']} run(s) haven't been logged yet. Stop counting anyway?\n"
-                                     "(✎ Log loot now logs them first.)", parent=self.dlg_parent()):
+                    "Stop counting", f"Unlogged runs: {p['runs']}. Stop counting anyway?\n"
+                                     "✎ Log loot now logs them first.", parent=self.dlg_parent()):
                 return
             d["pending"] = None
         else:
@@ -1373,7 +1379,7 @@ class LedgerPage:
         # ---- 2: loot
         tk.Label(f2, text="What dropped?", bg=bg, fg=fg, font=(P["font"], 12, "bold"), anchor="w").pack(fill="x",
                                                                                                    pady=(4, 2))
-        tk.Label(f2, text="Ctrl+Alt+C each drop in game (or a stash full of them), paste, or type \"7 Divine Orb\". "
+        tk.Label(f2, text="Ctrl+Alt+C each drop in game, or a stash full of them, paste, or type \"7 Divine Orb\". "
                           "Each one is priced with poe.ninja.", bg=bg, fg=mut, font=(P["font"], 9), anchor="w",
                  justify="left", wraplength=420).pack(fill="x", pady=(0, 8))
         self.fl_box_text = tk.Text(f2, height=4, bg=P["field"], fg=fg, insertbackground=fg, relief="flat",
@@ -1513,10 +1519,16 @@ class LedgerPage:
             return
         P = pal()
         box = self.fl_box_rows
-        for c in box.winfo_children():
-            c.destroy()
         rows = self.fl_box_items
-        for i, r in enumerate(rows[:12]):
+        # UI rule 22: typing the number of runs changes the totals only - the item rows are built again only when
+        # the items (or their prices) changed
+        rsig = (box, tuple((r["qty"], r["name"], r["total"]) for r in rows[:12]), len(rows))
+        same_rows = rsig == getattr(self, "_fl_rows_sig", None) and bool(box.winfo_children() or not rows)
+        if not same_rows:
+            self._fl_rows_sig = rsig
+            for c in box.winfo_children():
+                c.destroy()
+        for i, r in enumerate(rows[:12] if not same_rows else []):
             tk.Label(box, text=f"{r['qty']}×", bg=P["bg"], fg=P["muted"], font=(P["font"], 10), anchor="e",
                      width=4).grid(row=i, column=0, sticky="e")
             tk.Label(box, text=r["name"], bg=P["bg"], fg=P["text"], font=(P["font"], 10), anchor="w").grid(
@@ -1524,7 +1536,7 @@ class LedgerPage:
             tk.Label(box, text="no price" if r["total"] is None else fmt_short(r["total"]), bg=P["bg"],
                      fg=P["muted"] if r["total"] is None else P["text"], font=(P["font"], 10, "bold"),
                      anchor="e").grid(row=i, column=2, sticky="e")
-        if len(rows) > 12:
+        if len(rows) > 12 and not same_rows:
             tk.Label(box, text=f"… and {len(rows) - 12} more", bg=P["bg"], fg=P["muted"], font=(P["font"], 9)).grid(
                 row=13, column=1, sticky="w")
         box.columnconfigure(1, weight=1)
@@ -1703,7 +1715,7 @@ class LedgerPage:
         self.fl_ed_cols = {}
         for f, kind, title, hint in ((f2, "waystones", "Waystone", "One copy of the kind of waystone you run - "
                                       "Ctrl+Alt+C it in game. Then pick the numbers that make it work."),
-                                     (f3, "tablets", "Tablets & more", "Each tablet (and anything else you use up), "
+                                     (f3, "tablets", "Tablets & more", "Each tablet and anything else you use up, "
                                       "and how many runs it lasts. Ctrl+Alt+C each one in game.")):
             g = head(f, title, hint)
             drop = tk.Label(g, text="Ctrl+Alt+C it in game - or click here and press Ctrl+V", bg=P1,
@@ -1772,7 +1784,7 @@ class LedgerPage:
             self.fl_ed_shot_paste(event=e)
             return "break"
         win.bind("<Control-v>", shot_key, add="+")
-        tk.Label(a, text="Notes (masters, the order you take nodes …)", bg=P2, fg=C["muted"],
+        tk.Label(a, text="Notes", bg=P2, fg=C["muted"],
                  font=("Segoe UI", 9), anchor="w").pack(fill="x", pady=(12, 2))
         self.fl_ed_notes = tk.Text(a, height=4, bg=C["panel"], fg=C["text"], insertbackground=C["text"],
                                    relief="flat", font=("Segoe UI", 9), wrap="word")
@@ -2086,7 +2098,7 @@ class LedgerPage:
         mine = tk.StringVar(value="" if auto or e.get("manual") is None else f"{e['manual']:g}")
         ent = ttk.Entry(r, textvariable=mine, width=6)
         ent.pack(side="right", padx=(0, 4))
-        Tooltip(ent, "Your own price (divines) - empty: the price checker's")
+        Tooltip(ent, "Your own price in divines. Empty uses the price checker's")
         mine.trace_add("write", lambda *a: self._fl_ed_manual(e, mine, pl))
         km = tk.Label(card, text="★ Pick the mods that matter…", bg=P1, fg=C["blue"], cursor="hand2",
                       font=("Segoe UI", 9, "underline"), anchor="w")
@@ -2099,7 +2111,7 @@ class LedgerPage:
                                    "Opens the trade site: this base with the mods that matter"
                                    + (", 10+ uses remaining" if kind == "tablets" else "")),
                                   ("⧉ Copy regex", self.fl_copy_regex,
-                                   "Copies a stash search for the mods that matter (paste it in your stash)")):
+                                   "Copies a stash search for the mods that matter - paste it in your stash")):
                 lb = tk.Label(lr, text=text, bg=P1, fg=C["blue"], cursor="hand2", font=("Segoe UI", 9, "underline"))
                 lb.pack(side="left", padx=(0, 12))
                 lb.bind("<Button-1>", lambda ev, f=fn: f(e))
@@ -2266,7 +2278,7 @@ class LedgerPage:
         way = bool(e.get("props"))
         tk.Label(f, text=f"{e['name']}: which {'numbers' if way else 'mods'} make this setup work?", bg=C["panel"],
                  fg=C["accent"], font=("Segoe UI", 10, "bold"), anchor="w").pack(fill="x")
-        tk.Label(f, text="Tick the ones you'd pay for (pack size, rarity, +1 Breach …). They're shown on the setup and "
+        tk.Label(f, text="Tick the ones you'd pay for, like pack size, rarity or +1 Breach. They're shown on the setup and "
                          "used to check what it costs.", bg=C["panel"], fg=C["muted"], font=("Segoe UI", 9),
                  wraplength=420, justify="left", anchor="w").pack(fill="x", pady=(2, 8))
         vars_ = []

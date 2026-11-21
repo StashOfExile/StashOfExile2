@@ -95,7 +95,7 @@ class Root:
 
 class Look(LookPage):
     """LookPage with two helpers that cut their part of the press's picture the way the app's do: Top Up's inventory
-    (from the game window) and the hover read round the mouse (Ritual Identifier / Vaal Lens)."""
+    (from the game window) and the hover read round the mouse (Vaal Lens)."""
 
     def __init__(self, u):
         self.root = Root(u)
@@ -110,9 +110,9 @@ class Look(LookPage):
 
         def hover():
             self.boxes.append(("hover", region(ptr, g)))
-            return SR.capture(region(ptr, g), "Ritual Identifier")
+            return SR.capture(region(ptr, g), "Vaal Lens")
         self.ctx = ctx
-        return [("Top Up", inv, lambda _r: None), ("Ritual Identifier", hover, lambda _r: None)]
+        return [("Top Up", inv, lambda _r: None), ("Vaal Lens", hover, lambda _r: None)]
 
     def run_bg(self, work, done):
         done(work())
@@ -155,7 +155,7 @@ class DpiPin(unittest.TestCase):
         self.assertTrue(SR.grant("Ctrl+Shift+R"))
         lk = Look(u)
         with mock.patch.object(A, "game_rect", u.app_game_rect):
-            self.assertEqual(lk.ev_look(), ["Top Up", "Ritual Identifier"])
+            self.assertEqual(lk.ev_look(), ["Top Up", "Vaal Lens"])
         return lk.boxes, self.grabs[-1][0], lk.ctx
 
     def test_pin_is_on(self):

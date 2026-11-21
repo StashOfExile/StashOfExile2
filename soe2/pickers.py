@@ -1,7 +1,7 @@
 """2.118.0: one picker for Settings › Appearance - a list of names (grouped) beside a big live preview, with one line
 about the one shown. Hovering a name (or tabbing to it) previews it without changing anything; a click, Enter or Space
 picks it. Leaving the list shows the one in use again. Used by the app theme (ThemePicker, themepick.py) and the
-overlay style (StylePicker, ovstylepick.py) - feedback: "theme previews should work like the overlay style previews".
+overlay style (StylePicker, ovstylepick.py) - feedback: theme previews should work like the overlay style previews.
 
 The preview is drawn by `render(host, key)` into an empty Frame; a quick run of hovers draws only the last one
 (DELAY ms after the mouse stops). GGG ToS: it only draws in the app's own window."""

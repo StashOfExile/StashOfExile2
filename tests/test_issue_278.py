@@ -30,7 +30,7 @@ class WhatsNewCloses(unittest.TestCase):
     def test_lead_reachable(self):
         v = config.APP_VERSION
         lv = W.lead_version(v)
-        self.assertEqual(lv, "3.0.0")
+        self.assertEqual(lv, "3.1.0")                                     # 3.1.0 leads with its groups
         self.assertEqual(W.lead_of(W.notes_between(None, v)) != [], v == lv)   # (3.0.1 on: no lead of its own)
         self.assertTrue(W.lead_of([(lv, W.NOTES.get(lv))]))                   # ... so the card takes 3.0.0's
 
@@ -38,7 +38,6 @@ class WhatsNewCloses(unittest.TestCase):
         app = source("app.py")
         self.assertIn("lead = lead_of([(lead_version(APP_VERSION)", app)
         self.assertIn('getattr(self, "_wn_lead_shown", False) or notes_card', app)
-        self.assertIn("self._wn_notes_card = False", source("about_page.py"))   # (the quick start isn't one)
 
 
 class RatesPictures(unittest.TestCase):

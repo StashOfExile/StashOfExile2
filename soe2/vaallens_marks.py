@@ -64,7 +64,7 @@ class Marks:
                 pass
 
     def _smooth(self, game, marks, P, icons, chain):
-        """UI overhaul (feedback: "very janky"): one smooth picture in a layered window. -> True when shown."""
+        """UI overhaul (feedback: janky): one smooth picture in a layered window. -> True when shown."""
         import sys
         if sys.platform != "win32":
             return False
@@ -93,12 +93,13 @@ class Marks:
         """game: (left, top, width, height); marks: {tile: (kind, what)} - "p" (step, room): a planned room, its own
         picture and its step; "now" (step or None, room or card): where the picked card goes, framed solid; "x": a
         tile that touches a reward room. icons: {room or card name: its picture (PIL)}. P: the overlay palette.
-        2.142.2 (feedback: "I don't want the lines on screen ... I want it to be self-explanatory of what to place
-        where"): no callouts, no lines - each room's own picture on its tile, with its step."""
+        2.142.2 (feedback: no lines on screen - self-explanatory what goes where): no callouts, no lines - each
+        room's own picture on its tile,
+        with its step."""
         if not marks:
             return self.hide()
         icons = icons or {}
-        key = (tuple(game), tuple(sorted((t, repr(v)) for t, v in marks.items())), tuple(sorted(icons)),
+        key = (tuple(game), tuple(sorted((repr(t), repr(v)) for t, v in marks.items())), tuple(sorted(icons)),
                tuple(chain or ()))
         if key == self.drawn and self.shown():
             return
@@ -131,38 +132,44 @@ class Marks:
             cv.create_line(*[v for pt in pts_ for v in pt], fill=P.get("gold") or "#d9b13a",
                            width=max(4, int(14 * s)), capstyle="round", joinstyle="round")
         for t, (m, what) in marks.items():
+            if m == "lbl":                                  # 3.0.6: a card's / medallion's step, at a screen point
+                x, y, r = t[1] - gx, t[2] - gy, max(9, int(17 * s))
+                cv.create_oval(x - r, y - r, x + r, y + r, fill=bg, outline=accent, width=2)
+                cv.create_text(x, y, text=str(what), fill=accent, font=(fam, small, "bold"))
+                continue
             x, y = V.xy(*t)
             x, y = ox + x * s, oy + y * s
             pts = (x, y - hh, x + hw, y, x, y + hh, x - hw, y)
             if m == "x":
                 cv.create_polygon(*pts, fill="", outline=warn, width=max(2, int(4 * s)), dash=(8, 6))
-                cv.create_text(x, y, text="✕", fill=warn, font=(fam, big, "bold"))
+                d = max(7, int(16 * s))                    # 3.0.6 (the x turned into a square): drawn as
+                for a, b in ((-d, -d), (-d, d)):            # two lines - a theme's font may have no ✕ in it
+                    cv.create_line(x + a, y + b, x - a, y - b, fill=warn, width=max(3, int(6 * s)), capstyle="round")
                 continue
             step, room = what
             if m == "now":
                 cv.create_polygon(*pts, fill="", outline=accent, width=max(3, int(7 * s)))
             else:
                 cv.create_polygon(*pts, fill="", outline=accent, width=max(2, int(3 * s)), dash=(5, 4))
-            pic = icons.get(room) if room != "path" else None
-            if room == "path":                              # (the gold lane above is its picture)
-                pic = False
-            if pic:
-                try:
-                    from PIL import ImageTk
-                    ph = ImageTk.PhotoImage(pic.convert("RGBA").resize((side, side)))   # (2.143.0: cut out)
-                    self.photos.append(ph)
-                    cv.create_image(x, y, image=ph)
-                except Exception:
-                    buglog.caught()
-                    pic = None
-            if pic is None:                                 # (no picture yet: the room's name, short)
-                cv.create_text(x, y, text=str(room or "")[:12], fill=accent, font=(fam, small, "bold"),
-                               width=int(hw * 1.6), justify="center")
+            # 3.0.6 (owner): no room pictures - the step's number (as on its card / medallion); an arrow / a padlock
+            # for an Upgrade / Lock medallion's room (drawn: a theme's font may not have the symbol)
+            if m == "do":
+                u = hh * 0.42
+                if step == "Upgrade":
+                    cv.create_polygon(x, y - u, x + u * 0.8, y, x + u * 0.32, y, x + u * 0.32, y + u, x - u * 0.32,
+                                      y + u, x - u * 0.32, y, x - u * 0.8, y, fill=accent, outline=bg)
+                else:
+                    bw = u * 0.85
+                    cv.create_arc(x - bw * 0.62, y - u * 1.05, x + bw * 0.62, y + u * 0.25, start=0, extent=180,
+                                  style="arc", outline=accent, width=max(3, int(u * 0.22)))
+                    cv.create_rectangle(x - bw, y - u * 0.1, x + bw, y + u * 0.9, fill=accent, outline=accent)
+                    cv.create_oval(x - u * 0.12, y + u * 0.3, x + u * 0.12, y + u * 0.54, fill=bg, outline=bg)
+                cv.create_text(x, y + hh * 0.66, text=step, fill=accent, font=(fam, small, "bold"))
+                continue
             if step:
-                r = max(9, int(17 * s))
-                bx, by = x, y - hh + r * 0.4
-                cv.create_oval(bx - r, by - r, bx + r, by + r, fill=bg, outline=accent, width=2)
-                cv.create_text(bx, by, text=str(step), fill=accent, font=(fam, small, "bold"))
+                r = max(11, int(22 * s))
+                cv.create_oval(x - r, y - r, x + r, y + r, fill=bg, outline=accent, width=2)
+                cv.create_text(x, y, text=str(step), fill=accent, font=(fam, small, "bold"))
         self.drawn = key
         w.deiconify()
         w.update_idletasks()

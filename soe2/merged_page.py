@@ -15,9 +15,11 @@ from .config import SETTINGS, save_json
 from .overlaywin import CanvasText, OverlayWindow, pal
 
 # 2.66.0: one look (the app's theme); the layout says the shape - Minimal moved here from the old Style list
-# 2.67.0 (feedback: "get rid of all of the other options"): the Panel in the game's vendor-window style (the
+# 2.67.0 (feedback: drop all the other options): the Panel in the game's vendor-window style (the
 # Treasurer's ledger) and the Bar on the XP bar. Strip, Minimal and beside-the-orbs are gone (-> Panel).
-LAYOUTS = {"panel": "Panel", "xpbar": "Bar"}     # 2.67.0: beside the orbs is gone; 2.74.0: "Bar"
+# owner decision: Split - two halves beside the orbs (ovsplit.py) - is a Layout, in every style (it was the "flanks"
+# style). Layout and Style are separate choices.
+LAYOUTS = {"xpbar": "Bar", "panel": "Panel", "split": "Split"}     # 2.74.0: "Bar"
 HUD = ("xpbar",)                 # 2.65.0: fitted to the game's own bottom bar, in its look
 
 # Where the game's bottom bar leaves room, as parts of the game window's height (PoE2 at 16:9, UI scale 100 %;
@@ -25,9 +27,9 @@ HUD = ("xpbar",)                 # 2.65.0: fitted to the game's own bottom bar, 
 #   x0 / x1 >= 0: from the left edge, < 0: from the right edge; bottom: up from the bottom edge.
 # 2.79.1: as wide as the XP bar (measured at 1440p), over it. 2.118.0: one row (no switches above it) - 0.036 high
 # (was 0.056 for two rows); a bar you moved keeps its bottom edge where you put it (OLD_HUD_H)
-# 2.130.1 (feedback: "bottom alignment mode is a few px above the xp bar, needs moved down"): measured on a 1440p
+# 2.130.1 (feedback: bottom alignment sat a few px above the xp bar): measured on a 1440p
 # screenshot, the XP bar's top is 22 px (0.0153) up from the bottom - the Bar's bottom edge sits on it (was 0.0205)
-HUD_SPOTS = {"xpbar": [(0.531, -0.531, 0.0153, 0.040)]}     # 2.139.1: 0.046 was too tall ("real tall and funky")
+HUD_SPOTS = {"xpbar": [(0.531, -0.531, 0.0153, 0.040)]}     # 2.139.1: 0.046 was too tall
 OLD_HUD_H = 0.056
 
 
@@ -47,7 +49,7 @@ def click_not_drag(cv, item, fn):
 
 
 def hud_k(game_h):
-    """2.78.3 (feedback: "make sure the overlay is detecting a person's resolution and scaling it to fit"): how much
+    """2.78.3 (feedback: detect the player's resolution and scale the overlay to fit): how much
     bigger than at 1080 px the overlay is drawn - the game window's height / 1080 (720p 0.67, 1440p 1.33, 4K 2.0)."""
     return max(0.6, min(3.0, (game_h or 1080) / 1080))
 
@@ -55,7 +57,7 @@ def hud_k(game_h):
 def set_click_through(w, on, _tries=0):
     """Windows: mouse clicks pass through the window to whatever is under it (WS_EX_TRANSPARENT on a layered window).
     GGG ToS: a window style of the app's own window - nothing is sent to the game.
-    2.133.1 (feedback: "Hollow deep is still causing crashes"): no update_idletasks - it runs layout jobs until none
+    2.133.1 (feedback: crashes after a theme change): no update_idletasks - it runs layout jobs until none
     are left, and a theme change that keeps a page laying itself out never let it return (12 s+, "not responding").
     A window not on screen yet has no frame: tried again in 50 ms, up to 1 s.
     The style change and the window's see-through color (a boxless Style) + opacity are set together (layered.apply) -
@@ -270,7 +272,7 @@ class MergedOverlay:
         oc = self.overlay.cfg
         if not self.ov_enabled():                         # 2.92.2: the master switch is off - nothing over the game
             return {"bar": False, "timer": False, "helpers": False, "notes": False}
-        # 2.118.0 (feedback: the helpers' switches were "just screen clutter"): no switches on the bar - every helper
+        # 2.118.0 (feedback: the helpers' switches were screen clutter): no switches on the bar - every helper
         # is on or off in Settings › Overlay › Helpers. The bar itself (menus, clock, lock, ⚙) shows while the
         # overlay is on; "helpers" stays False for the drawing code that used to lay the switches out.
         return {"bar": True, "timer": bool(getattr(self, "mg_timer", False)), "helpers": False,
@@ -333,8 +335,8 @@ class MergedOverlay:
         """The overlay's parts that show (Options › On the overlay) - in a campaign zone without the map's rank, its
         name, Maps and Avg."""
         ln = dict(self.tracker_cfg()["lines"])
-        # 2.132.6 (feedback: "remove the map name from the bar ... that information just needs registered
-        # internally"): the map's name is never on the overlay (it's still known - the rank, Map Library, the logs)
+        # 2.132.6 (feedback: remove the map name from the bar - it only needs registering internally): the map's name
+        # is never on the overlay (it's still known - the rank, Map Library, the logs)
         ln["where"] = False
         if self.ov_camp_mode():
             ln.update(rank=False, where=False, maps=False, avg=False)
@@ -430,7 +432,7 @@ class MergedOverlay:
             self.overlay.notes_tabbar = None
         self.mg_notes_in = False
         try:
-            if w.winfo_ismapped() and w.winfo_width() > 1:
+            if w.winfo_ismapped() and w.winfo_width() > 1 and self.merged_layout() != "split":   # (Split: sp_pos)
                 cfg = self.tracker_cfg()
                 cfg.update(mx=w.winfo_x(), my=w.winfo_y() + lines_h)
                 if w.winfo_height() > 1 and getattr(self, "mg_built", {}).get("notes"):
@@ -446,7 +448,7 @@ class MergedOverlay:
         """(Re)build the one window from what's on. -> the window, or None when nothing is on. 2.74.0: then
         click-through, as the lock says."""
         w = self._merged_build()
-        if w is not None:                                    # 2.124.0: the NOW / Campaign / Ritual lines, on top -
+        if w is not None:                                    # 2.124.0: the NOW / Campaign lines, on top -
             def gb():                                        # 2.133.1: once the window is laid out (after_idle), so
                 if getattr(self, "mg_win", None) is not w:   # nothing forces a layout flush (a theme change froze
                     return                                   # Windows in one)
@@ -466,44 +468,24 @@ class MergedOverlay:
 
     def click_through_on(self):
         """Settings › Appearance › Overlay › Click-through: clicks go through the overlay's bar to the game.
-        2.74.3 (feedback: "an isolated toggle that isn't tied to being locked"): its own switch, off by default."""
+        2.74.3 (feedback: a toggle not tied to being locked): its own switch, off by default."""
         return bool(self.tracker_cfg().get("click_through", False))
 
     def overlay_hide_capture(self):
-        """2.85.2 (feedback: "Ritual alerts aren't working, maybe because the overlay is in the position of where the
-        ritual (x/3) counter is"): the bar is left out of screen captures, so the Ritual / Delirium watchers see the
-        game's counters under it. Its own switch (Overlay › Options), on by default; off = screenshots
-        and streams show the bar."""
+        """Overlay › Options › Hide all overlay information from screen captures (3.0.6: one switch for every window
+        over the game; off = screenshots, recordings and streams show it all. A Read Key read sees through the
+        overlay by itself - screenread.see_through - so no area hides it any more)."""
         cfg = self.tracker_cfg()
-        # 2.129.4 (feedback: the line said 0 of 3 after 2 were done - the overlay's Ritual line covers the game's
-        # counter, so a read never saw it change): in a Ritual map the bar is left out of captures by itself, so a
-        # Read Key press sees the counter (and the tribute) under it. A Ritual map is known from the game's log (a
-        # ritual started) or a counter read - never from Map Content (owner decision). Elsewhere screenshots and
-        # streams show it.
-        # 2.136.1 (feedback: "see through the overlay (the same way ritual does) and read the crystal count"): in a temple
-        # area with the Temple Helper on, the Temple Console's count under the bar is read.
-        try:
-            if getattr(self, "tm_in_temple", False) and self.temple_on():
-                return True
-        except Exception:
-            buglog.caught()
-        try:
-            if self.ritual_cfg().get("on") and getattr(self, "br_area", None) in ("map", None) and \
-                    (getattr(self, "rt_map", None) or self.ritual_log_counts()[0]):
-                return True
-        except Exception:
-            buglog.caught()
         if not cfg.get("hidecap_2891"):
-            # 2.89.1 (feedback): off for everyone, once - the Ritual /
-            # Delirium watchers ran all the time for anyone who had them on, so the bar was never in a screenshot.
-            # Turn it on again only if a watcher can't read a counter the bar covers.
-            cfg["hide_capture"], cfg["hidecap_2891"] = False, True
-        # 2.132.0 (feedback: "changed to just say 'Hide the overlay from screen captures'"): on = always left out
+            cfg["hide_capture"], cfg["hidecap_2891"] = False, True      # (2.89.1: off for everyone, once)
         return bool(cfg.get("hide_capture", False))
 
     def overlay_click_through(self):
         """The overlay's bar windows (not Notes or the calculator - you type in those)."""
-        from .remnant_page import capture_affinity
+        from .remnant_page import capture_affinity, capture_rule_all, capture_rule_install
+        capture_rule_install(self.root)
+        if self.overlay_hide_capture() != getattr(self, "_cap_hidden", None):
+            capture_rule_all(self.root)
         on, hide = self.click_through_on(), self.overlay_hide_capture()
         for w in (getattr(self, "mg_win", None), getattr(self, "mg_win2", None), getattr(self, "gb_win", None)):
             if w is None:
@@ -526,7 +508,9 @@ class MergedOverlay:
         self.mg_built = dict(want)
         if not any(want.values()):
             return None
-        if self.ov_light():                                 # 2.101.0: Hairline, Slate, Flanks or Micro (ovlight.py)
+        if self.merged_layout() == "split":                 # two halves by the orbs, in any style (ovsplit.py)
+            return self._sp_build(want)
+        if self.ov_light():                                 # 2.101.0: Hairline, Slate or Micro (ovlight.py)
             return self._mg_light_build(want)
         if self.merged_layout() in HUD:                     # 2.65.0
             return self._mg_hud_build(want)
@@ -587,7 +571,7 @@ class MergedOverlay:
                 win.hide() if self.mg_hidden else win.show()
             except tk.TclError:
                 pass
-        if not self.mg_hidden and w is not None and self.merged_layout() not in HUD:
+        if not self.mg_hidden and w is not None and self.merged_layout() == "panel":
             self._mg_on_screen(w)
         return self.mg_hidden
 
@@ -691,7 +675,7 @@ class MergedOverlay:
                     cv.tag_bind(tag, b, lambda e=None: e is not None and self.ov_quick_toggle(e))
             else:
                 cv.tag_bind(tag, "<Button-1>", lambda e=None, c=cmd: e is not None and c())
-            self.ov_tip(cv, tag, "Quick settings" if tag == "mg_cog" else "Lock / unlock the overlay")
+            self.ov_tip(cv, tag, "Quick settings" if tag == "mg_cog" else "Lock or unlock the overlay")
             x -= 20
         return x
 
@@ -829,7 +813,7 @@ class MergedOverlay:
         """A tool's name on hover. App ▸ says where it opens the app (the Drawer or the full window)."""
         tip = self.TOOL_TIPS[what]
         if what == "app" and getattr(self, "drawer_eff", lambda: "drawer")() == "full":
-            tip = "Open the app (full window)"
+            tip = "Open the app in the full window"
         return tip
 
     def ov_tip(self, cv, tag, text, hand=True):
@@ -856,7 +840,7 @@ class MergedOverlay:
             pass
         tk.Label(w, text=text, bg=P.get("bg", "#151311"), fg=P.get("text", "#efe6d2"), padx=8, pady=4, justify="left",
                  highlightthickness=1, highlightbackground=P.get("rim") or P.get("line", "#3a3226"),
-                 font=(P.get("font") or "Segoe UI", 10)).pack()
+                 font=(P.get("body") or P.get("font") or "Segoe UI", 10)).pack()
         w.update_idletasks()
         w.geometry(f"+{int(x - w.winfo_reqwidth() // 2)}+{int(y - w.winfo_reqheight() - 14)}")
 
@@ -917,7 +901,7 @@ class MergedOverlay:
     START_TEXT = "Start session"
 
     def start_on_bar(self):
-        """2.131.1 (feedback: "the overlay on startup has no option to start session tracking"): while no session
+        """2.131.1 (feedback: no way to start session tracking from the overlay at startup): while no session
         runs, ▶ Start session sits first on the bar; the timer takes its place once one starts."""
         # 2.139.0 Map First: the state chip starts one (▶ START) - no separate Start session on the bar
         return False
@@ -1005,9 +989,10 @@ class MergedOverlay:
         body.pack(fill="both", expand=True)
         bg = P["bg"]
         favs = self.rx_ov_favs()
-        tip = "Click one = copied · Ctrl+V in the stash or shop search" if favs else \
+        tip = "Click one to copy it, then paste it into the stash or shop search with Ctrl+V" if favs else \
             "No favorites yet. Build a search on the Regex page, then press ☆ Add to Favorites."
-        tk.Label(body, text=tip, bg=bg, fg=P["muted"], font=(P["font"], self.ov_font(9)), anchor="w", justify="left",
+        tk.Label(body, text=tip, bg=bg, fg=P["muted"], font=(P.get("body") or P["font"], self.ov_font(9)), anchor="w",
+                 justify="left",
                  wraplength=self.ov_px(340)).pack(fill="x")
         self.rx_ov_btns = {}
         for name, rx in favs[:12]:
@@ -1016,8 +1001,9 @@ class MergedOverlay:
             self.rx_ov_btns[name] = b
         if len(favs) > 12:
             tk.Label(body, text=f"+{len(favs) - 12} more on the Regex page", bg=bg, fg=P["muted"],
-                     font=(P["font"], self.ov_font(8)), anchor="w").pack(fill="x", pady=(4, 0))
-        self.rx_ov_msg = tk.Label(body, text="", bg=bg, fg=P["on"], font=(P["font"], self.ov_font(9)), anchor="w")
+                     font=(P.get("body") or P["font"], self.ov_font(8)), anchor="w").pack(fill="x", pady=(4, 0))
+        self.rx_ov_msg = tk.Label(body, text="", bg=bg, fg=P["on"], font=(P.get("body") or P["font"], self.ov_font(9)),
+                                  anchor="w")
         self.rx_ov_msg.pack(fill="x", pady=(8, 0))
         self.rx_ov_win = w
         w.show()
@@ -1040,7 +1026,7 @@ class MergedOverlay:
             except tk.TclError:
                 pass
 
-    # 2.74.3 (feedback: "a small pause play toggle for the session tracker directly on the overlay")
+    # 2.74.3 (feedback: a small pause / play toggle for the session tracker on the overlay)
     def play_glyph(self):
         s = getattr(self, "tk_session", None)
         running = s is not None and s.ended is None and s.paused_at is None
@@ -1110,7 +1096,7 @@ class MergedOverlay:
         else:
             w = getattr(self, "mg_win2", None) or getattr(self, "mg_win", None)
             try:
-                if w is not None and w.winfo_ismapped() and self.merged_layout() in HUD:   # opens above the bar
+                if w is not None and w.winfo_ismapped() and self.merged_layout() != "panel":   # opens above the bar
                     ov.cfg.update(notes_x=w.winfo_x() + max(0, w.winfo_width() - int(ov.cfg.get("notes_w", 300))),
                                   notes_y=max(0, w.winfo_y() - int(ov.cfg.get("notes_h", 220)) - 6))
                 elif w is not None and w.winfo_ismapped():
@@ -1124,7 +1110,7 @@ class MergedOverlay:
 
     # ---------------------------------------------------------------- 2.66.1: the Panel (the game's Treasurer window)
     def _mg_classic_panel(self, w, cv, P, want):
-        """2.124.1 (feedback: "classic panel visual look needs to be the same as bar"): the Slate Panel's parts on the
+        """2.124.1 (feedback: the classic panel look should match the bar): the Slate Panel's parts on the
         Bar's stone and pewter frame, in its colors and type. (2.67.0-2.124.0: a vendor-window card, _mg_card.)"""
         from . import hudart
         spot = self.hud_spots("xpbar")[0]
@@ -1176,7 +1162,7 @@ class MergedOverlay:
             if not cfg.get("mlocked"):
                 w.draggable(cv)
             W, H = ww - 2, hh - 2
-            self._hud_ends = ("crimson", "sapphire")
+            self._hud_ends = ("gold", "gold")
             self._hud_row(w, cv, P, want, W, H)
             wins.append(w)
             if self.tk_ov_cv is None:
@@ -1209,7 +1195,7 @@ class MergedOverlay:
 
     def ov_btn(self, style="TButton"):
         """A button style for a card over the game: its text at the game's size.
-        2.125.5 (feedback: "ALL tools that open over the game ... should follow these rules for styling matching"):
+        2.125.5 (feedback: every tool that opens over the game should follow the same styling rules):
         in the overlay's style too - its colors and font, not the app's (the app's orange and blue showed on every
         card). Primary = the one picked: the style's accent edge and strong text (Quick settings' chips)."""
         from .overlaywin import pal
@@ -1217,7 +1203,8 @@ class MergedOverlay:
         P = pal()
         size = self.ov_font(10)
         kind = style.split(".")[0] if "." in style else "TButton"
-        sig = "|".join(str(P.get(k)) for k in ("bg", "text", "muted", "line", "head", "accent", "cell_bg", "font", "poe"))
+        sig = "|".join(str(P.get(k)) for k in ("bg", "text", "muted", "line", "head", "accent", "cell_bg", "font", "body",
+                                               "poe"))
         name = f"Ov{size}x{abs(hash(sig)) % 10 ** 6}.{style}"
         acc = P["head"] if P.get("poe") else (P.get("accent") or P["head"])
         face = P.get("cell_bg") or P["bg"]
@@ -1229,7 +1216,8 @@ class MergedOverlay:
             st.layout(name, [("Button.border", {"sticky": "nswe", "border": "1", "children": [
                 ("Button.focus", {"sticky": "nswe", "children": [("Button.padding", {"sticky": "nswe", "children": [
                     ("Button.label", {"sticky": "nswe"})]})]})]})])
-            st.configure(name, font=(P.get("font") or "Segoe UI", size, "bold" if on else "normal"), anchor="center",
+            st.configure(name, font=(P.get("body") or P.get("font") or "Segoe UI", size, "bold" if on else "normal"),
+                         anchor="center",
                          padding=(self.ov_px(8), self.ov_px(4)), background=bg,
                          foreground=P["text"] if on else (P["text"] if kind != "Quiet" else P["text"]),
                          bordercolor=acc if on else P["line"], lightcolor=bg, darkcolor=bg,
@@ -1249,7 +1237,7 @@ class MergedOverlay:
         from .overlaywin import pal
         P = pal()
         face = P.get("field") or P.get("cell_bg") or P["bg"]
-        sig = "|".join(str(P.get(k)) for k in ("bg", "text", "line", "field", "cell_bg", "font"))
+        sig = "|".join(str(P.get(k)) for k in ("bg", "text", "line", "field", "cell_bg", "font", "body"))
         name = f"Ov{abs(hash(sig)) % 10 ** 6}.TCombobox"
         try:
             st = ttk.Style(self.root)
@@ -1258,11 +1246,11 @@ class MergedOverlay:
                          darkcolor=face, selectbackground=face, selectforeground=P["text"])
             st.map(name, fieldbackground=[("readonly", face)], foreground=[("readonly", P["text"])],
                    selectbackground=[("readonly", face)], selectforeground=[("readonly", P["text"])])
-            cb.configure(style=name, font=(P.get("font") or "Segoe UI", self.ov_font(10)))
+            cb.configure(style=name, font=(P.get("body") or P.get("font") or "Segoe UI", self.ov_font(10)))
             pd = cb.tk.call("ttk::combobox::PopdownWindow", str(cb))
             cb.tk.call(f"{pd}.f.l", "configure", "-background", P["bg"], "-foreground", P["text"],
                        "-selectbackground", P.get("cell_bg") or P["line"], "-selectforeground", P["head"],
-                       "-font", (P.get("font") or "Segoe UI", self.ov_font(10)))
+                       "-font", (P.get("body") or P.get("font") or "Segoe UI", self.ov_font(10)))
         except tk.TclError:
             pass
         return cb
@@ -1275,7 +1263,7 @@ class MergedOverlay:
         """The game bar's plate (hudart: carved stone, bevelled bronze frame, end caps with an amber gem, a
         recessed well). -> the left / right edges of the well, where content goes."""
         from . import hudart
-        img = hudart.plate(cv, W, H, P, ends=getattr(self, "_hud_ends", ("crimson", "sapphire")), cap=cap)
+        img = hudart.plate(cv, W, H, P, ends=getattr(self, "_hud_ends", ("gold", "gold")), cap=cap)
         m = (cap or hudart.cap_width(H)) + 14
         if img is not None:
             cv.create_image(0, 0, image=img, anchor="nw", tags=("hudbg",))
@@ -1316,8 +1304,8 @@ class MergedOverlay:
         mid = H // 2 + 1
         f = (P["font"], self._hf(10))
         fm = tkfont.Font(root=cv, family=P["font"], size=self._hf(10))
-        # ---- row 2 (or the only row): the numbers - 2.73.5: a divider between each part (feedback: "more visual
-        # division between the different areas of text")
+        # ---- row 2 (or the only row): the numbers - 2.73.5: a divider between each part (feedback: more visual
+        # division between the areas of text)
         SW = self._hf(14)                                    # a divider's slot (2.118.0: 20 -> 14, one row holds more)
         sh = None
         drawn = []
@@ -1331,10 +1319,15 @@ class MergedOverlay:
 
         gx = self._mg_glyphs(w, cv, P, rgt, mid)
         right = gx
-        if want["timer"] and cfg.get("clock", True):
-            self._hud_clock(w, cv, P, gx - 2, mid)
-            right = gx - fm.measure("00:00 PM") - 6 - SW
-            self._hud_sep(cv, P, right + SW // 2, H, cy=mid, h=sh)
+        cfm = self._lt_fm(cv, P, 9, family=P["font"])
+
+        def clock_at(cx, cy):
+            self._hud_clock(w, cv, P, cx, cy)
+            return cfm.measure("00:00 PM")
+        used = self.ov_clock_badge(cv, P, gx - 2, H / 2, clock_at, family=P["font"],   # the clock, the Name badge under it
+                                   clock=bool(want["timer"] and cfg.get("clock", True)))
+        right = gx - 2 - used - 4 - SW
+        self._hud_sep(cv, P, right + SW // 2, H, cy=mid, h=sh)
         if want["timer"] and self.bar_buttons_on():         # 2.118.0: one row - Notes ▾ … before the clock
             right = self._mg_bar_buttons(w, cv, P, right - 4, mid, anchor="e") - SW
             self._hud_sep(cv, P, right + SW // 2, H, cy=mid, h=sh)

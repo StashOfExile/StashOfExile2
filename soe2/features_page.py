@@ -303,13 +303,13 @@ class FeaturesPage:
 
             def pick(v):
                 st["layout"] = next((k for k, t in LAYOUTS.items() if t == v), "xpbar")
-            seg = SegBar(lr, [LAYOUTS["xpbar"], LAYOUTS["panel"]], value=LAYOUTS.get(st["layout"], LAYOUTS["xpbar"]),
+            seg = SegBar(lr, list(LAYOUTS.values()), value=LAYOUTS.get(st["layout"], LAYOUTS["xpbar"]),
                          command=pick, size=9, pad=(16, 4))
             seg.pack(side="left")
             li = tk.Label(lr, text="ⓘ", bg=P2, fg=C["muted"], font=("Segoe UI", 9), cursor="question_arrow")
             li.pack(side="left", padx=8)
-            Tooltip(li, "Bar: rests on the game's XP bar. Panel: a card you place anywhere. Overlay › Look changes "
-                        "it.")
+            Tooltip(li, "Bar: rests on the game's XP bar. Panel: a card you place anywhere. Split: two halves by the "
+                        "orbs. Overlay › Look changes it.")
             w.seg_layout = seg
             back.pack(side="right", padx=(0, 8), before=nxt)
             back.config(command=lambda: go(1))
@@ -367,7 +367,8 @@ class FeaturesPage:
                             self.alerts_toggle(k, bool(v))
                         except Exception:
                             buglog.caught()
-                if layout in ("xpbar", "panel") and layout != self.merged_layout():
+                from .merged_page import LAYOUTS
+                if layout in LAYOUTS and layout != self.merged_layout():
                     try:
                         self.merged_set(layout=layout)
                     except Exception:

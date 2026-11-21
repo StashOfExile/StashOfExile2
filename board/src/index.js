@@ -105,9 +105,21 @@ export function validateStrat(s) {
       (x.count === undefined || (Number.isInteger(x.count) && x.count >= 1 && x.count <= 1000)) &&
       (x.lasts === undefined || (Number.isInteger(x.lasts) && x.lasts >= 1 && x.lasts <= 100)) &&
       (x.key_mods === undefined || (Array.isArray(x.key_mods) && x.key_mods.length <= 12 && x.key_mods.every((m) => typeof m === "string" && m.length <= 200))) &&
-      Object.keys(x).every((k) => ["kind", "base", "name", "count", "lasts", "key_mods"].includes(k));
+      (x.mods === undefined || (Array.isArray(x.mods) && x.mods.length <= 20 && x.mods.every((m) => typeof m === "string" && m.length <= 200))) &&
+      (x.rarity === undefined || (typeof x.rarity === "string" && x.rarity.length <= 20)) &&
+      Object.keys(x).every((k) => ["kind", "base", "name", "count", "lasts", "key_mods", "mods", "rarity"].includes(k));
     if (!Array.isArray(it) || it.length > 30 || !it.every(okItem))
-      out.push('items must be up to 30 of {"kind", "base", "name", "count" 1-1000, "lasts" 1-100, "key_mods"}');
+      out.push('items must be up to 30 of {"kind", "base", "name", "count" 1-1000, "lasts" 1-100, "key_mods", "mods", "rarity"}');
+  }
+  // 3.0.6: the league it was made in, and its Atlas master (one, with up to RULES.master_picks of its choices)
+  if (s.league !== undefined && !(typeof s.league === "string" && s.league.trim() && s.league.length <= 60))
+    out.push("league: a league name, 60 characters at most");
+  if (s.masters !== undefined) {
+    const ms = s.masters, M = RULES.masters || {};
+    const ok = ms && typeof ms === "object" && !Array.isArray(ms) && Object.keys(ms).length <= 1 && Object.entries(ms).every(([k, v]) =>
+      k in M && Array.isArray(v) && v.length <= (RULES.master_picks || 4) && new Set(v).size === v.length &&
+      v.every((x) => M[k].includes(x)));
+    if (!ok) out.push(`masters must be one master with up to ${RULES.master_picks || 4} of its choices`);
   }
   if (s.ledger !== undefined) {
     const lg = s.ledger;
@@ -273,11 +285,12 @@ const MIGRATIONS = [
   `CREATE TABLE IF NOT EXISTS reviews (target TEXT NOT NULL, user_id TEXT NOT NULL, vote TEXT NOT NULL,
     created INTEGER NOT NULL, PRIMARY KEY (target, user_id))`,
   "CREATE TABLE IF NOT EXISTS limits (key TEXT PRIMARY KEY, n INTEGER NOT NULL, day TEXT NOT NULL)",
-  // 2.86.0: global leaderboards - one row per account / board / key / league / class: its best time
+  // 2.86.0: global leaderboards (3.0.6: up to 10 rows per account / board / key / league / class - its fastest runs;
+  // a table made before 3.0.6 has UNIQUE (user_id, cat, key, league, cls): lbMulti() rebuilds it, see below)
   `CREATE TABLE IF NOT EXISTS lb (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, cat TEXT NOT NULL,
     key TEXT NOT NULL, league TEXT NOT NULL, cls TEXT NOT NULL DEFAULT '', secs REAL NOT NULL, level INTEGER NOT NULL DEFAULT 0,
     deaths INTEGER NOT NULL DEFAULT 0, at INTEGER NOT NULL, sent INTEGER NOT NULL, reports INTEGER NOT NULL DEFAULT 0,
-    hidden INTEGER NOT NULL DEFAULT 0, UNIQUE (user_id, cat, key, league, cls))`,
+    hidden INTEGER NOT NULL DEFAULT 0, UNIQUE (user_id, cat, key, league, cls, secs, at))`,
   "CREATE INDEX IF NOT EXISTS lb_board ON lb (cat, key, league, hidden, secs)",
   // 2.87.0: Simulacrum of Delusion is a pinnacle fight (2.86.0 filed it under Trials) - a time already sent moves
   // (unless the same player already has one under Bosses: then the faster stays and the Trials copy goes)
@@ -316,7 +329,29 @@ async function migrate(env) {
     try { await env.DB.prepare(sql).run(); } catch (_e) { /* already there */ }
   }
   try { await imageKeys(env); } catch (_e) { /* next time */ }
+  try { await lbMulti(env); } catch (_e) { /* next time (migrated stays false below) */ migrated = false; return; }
   migrated = true;
+}
+
+// 3.0.6, once: leaderboard times - up to 10 per account / board / key / league / class instead of one. SQLite can't drop a
+// UNIQUE constraint, so an old table (UNIQUE ... cls) is copied into a new one (UNIQUE ... cls, secs, at) in one
+// batch (D1 runs a batch as one transaction: all or nothing). Every row keeps its id - reports (lb_reports) and
+// reviews still point at it. A database that already has the new table (a new one, or done before) is left alone.
+async function lbMulti(env) {
+  const t = await env.DB.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'lb'").first();
+  if (!t || !/UNIQUE\s*\(\s*user_id\s*,\s*cat\s*,\s*key\s*,\s*league\s*,\s*cls\s*\)/i.test(t.sql)) return;
+  await env.DB.batch([
+    env.DB.prepare("DROP TABLE IF EXISTS lb_v2"),
+    env.DB.prepare(`CREATE TABLE lb_v2 (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, cat TEXT NOT NULL,
+      key TEXT NOT NULL, league TEXT NOT NULL, cls TEXT NOT NULL DEFAULT '', secs REAL NOT NULL, level INTEGER NOT NULL DEFAULT 0,
+      deaths INTEGER NOT NULL DEFAULT 0, at INTEGER NOT NULL, sent INTEGER NOT NULL, reports INTEGER NOT NULL DEFAULT 0,
+      hidden INTEGER NOT NULL DEFAULT 0, UNIQUE (user_id, cat, key, league, cls, secs, at))`),
+    env.DB.prepare(`INSERT INTO lb_v2 (id, user_id, cat, key, league, cls, secs, level, deaths, at, sent, reports, hidden)
+      SELECT id, user_id, cat, key, league, cls, secs, level, deaths, at, sent, reports, hidden FROM lb`),
+    env.DB.prepare("DROP TABLE lb"),
+    env.DB.prepare("ALTER TABLE lb_v2 RENAME TO lb"),
+    env.DB.prepare("CREATE INDEX IF NOT EXISTS lb_board ON lb (cat, key, league, hidden, secs)"),
+  ]);
 }
 
 // 2.89.3, once: posts and versions that named a picture by its old counting number ("b:12") name it by its key
@@ -947,20 +982,23 @@ async function official(env) {
 }
 
 // ------------------------------------------------------------------ 2.86.0: global leaderboards
-// POST /lb {entries: [{cat, key, secs, league, cls, level, deaths, at}]} - your best times (the app sends each board's
-// best; it keeps the faster of old and new). Times come from the game's log, so they're self-reported: impossible
-// ones are refused (LB_FLOOR / LB_CEIL); reports from accounts 7+ days old, reviewers and admins hide them.
+// POST /lb {entries: [{cat, key, secs, league, cls, level, deaths, at}]} - your fastest runs (3.0.6: the app sends up to
+// 10 per board / key / league / class, fastest first; before that, only the best). Times come from the game's log, so
+// they're self-reported: impossible ones are refused (LB_FLOOR / LB_CEIL); reports from accounts 7+ days old,
+// reviewers and admins hide them. The board keeps each account's LB_PER fastest per (cat, key, league, cls); a run sent
+// again (same secs and day - the app re-sends every 15 minutes) is the same row.
 // 2.124.0: "zone" - one campaign zone, from entering it to leaving it (its name is the key)
 const LB_CATS = ["campaign", "zone", "map", "boss", "trial"];
 const LB_FLOOR = { campaign: 120, zone: 10, map: 30, boss: 10, trial: 60 };
 const LB_CEIL = { campaign: 48 * 3600, zone: 3 * 3600, map: 3 * 3600, boss: 3600, trial: 3 * 3600 };
 const LB_EVERY = 10 * 60;
+const LB_PER = 10;
 
 async function lbSend(req, env, me) {
   const body = await readBody(req);
   const last = await env.DB.prepare("SELECT MAX(sent) AS t FROM lb WHERE user_id = ?").bind(me.id).first();
   if (last?.t && now() - last.t < Number(env.LB_EVERY ?? LB_EVERY) && !me.admin) return fail(429, "too soon");
-  const t = now(), stmts = [];
+  const t = now(), stmts = [], groups = new Map();
   let ok = 0, bad = 0;
   for (const e of (Array.isArray(body.entries) ? body.entries : []).slice(0, 400)) {
     const cat = String(e?.cat), key = String(e?.key ?? "").trim(), league = String(e?.league ?? "").trim();
@@ -971,19 +1009,37 @@ async function lbSend(req, env, me) {
     const deaths = Math.max(0, Math.min(999, Math.floor(Number(e.deaths) || 0)));
     // 2.89.3: only the day is kept - the exact second would show when (and in which time zone) someone plays
     const at = Math.floor(Math.min(t, Math.max(0, Math.floor(Number(e.at) || t))) / DAY) * DAY;
-    stmts.push(env.DB.prepare(`INSERT INTO lb (user_id, cat, key, league, cls, secs, level, deaths, at, sent)
-      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10) ON CONFLICT(user_id, cat, key, league, cls) DO UPDATE SET
-      secs = MIN(secs, ?6), level = CASE WHEN ?6 < secs THEN ?7 ELSE level END,
-      deaths = CASE WHEN ?6 < secs THEN ?8 ELSE deaths END, at = CASE WHEN ?6 < secs THEN ?9 ELSE at END, sent = ?10`)
-      .bind(me.id, cat, key, league, cls, secs, level, deaths, at, t));
-    ok++;
+    // at most LB_PER runs of one (cat, key, league, cls) are taken from one send (the fastest)
+    const g = JSON.stringify([cat, key, league, cls]);
+    if (!groups.has(g)) groups.set(g, []);
+    groups.get(g).push({ cat, key, league, cls, secs, level, deaths, at });
+  }
+  for (const runs of groups.values()) {
+    runs.sort((a, b) => a.secs - b.secs);
+    for (const r of runs.slice(0, LB_PER)) {
+      // the same (secs, day) again only refreshes "sent" (the 10-minute limit) - hidden / reports stay as they are
+      stmts.push(env.DB.prepare(`INSERT INTO lb (user_id, cat, key, league, cls, secs, level, deaths, at, sent)
+        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10) ON CONFLICT(user_id, cat, key, league, cls, secs, at) DO UPDATE SET
+        level = ?7, deaths = ?8, sent = ?10`).bind(me.id, r.cat, r.key, r.league, r.cls, r.secs, r.level, r.deaths, r.at, t));
+      ok++;
+    }
+    const r0 = runs[0];
+    // keep the fastest LB_PER of this account's (cat, key, league, cls); a slower one drops off (with its reports)
+    stmts.push(env.DB.prepare(`DELETE FROM lb WHERE user_id = ?1 AND cat = ?2 AND key = ?3 AND league = ?4 AND cls = ?5
+      AND id NOT IN (SELECT id FROM lb WHERE user_id = ?1 AND cat = ?2 AND key = ?3 AND league = ?4 AND cls = ?5
+      ORDER BY secs, id LIMIT ${LB_PER})`).bind(me.id, r0.cat, r0.key, r0.league, r0.cls));
   }
   if (!ok) stmts.push(env.DB.prepare("UPDATE lb SET sent = ? WHERE user_id = ?").bind(t, me.id));
+  else {
+    stmts.push(env.DB.prepare("DELETE FROM lb_reports WHERE NOT EXISTS (SELECT 1 FROM lb WHERE lb.id = lb_reports.lb_id)"));
+    stmts.push(env.DB.prepare(`DELETE FROM reviews WHERE target LIKE 'lb:%'
+      AND NOT EXISTS (SELECT 1 FROM lb WHERE 'lb:' || lb.id = reviews.target)`));
+  }
   for (let i = 0; i < stmts.length; i += 50) await env.DB.batch(stmts.slice(i, i + 50));
   return json({ ok: true, kept: ok, refused: bad });
 }
 
-// GET /lb?cat=&key=&league=&cls=&limit= -> the board (fastest first, one row per account); without key: the keys
+// GET /lb?cat=&key=&league=&cls=&limit=&per= -> the board (fastest first, up to `per` (10) rows per account); without key: the keys
 async function lbList(url, env, me) {
   const p = url.searchParams, cat = p.get("cat") || "map";
   if (!LB_CATS.includes(cat)) return fail(400, "cat: " + LB_CATS.join(", "));
@@ -1004,17 +1060,18 @@ async function lbList(url, env, me) {
     return json({ keys: rows.results, classes: cls.results.map((r) => r.cls), leagues: leagues.results.map((r) => r.league),
       league_players: Object.fromEntries(lp.results.map((r) => [r.league, r.n])) });
   }
-  where.push(`l.key = ?${args.length + 1}`);
-  args.push(p.get("key"));
   const limit = Math.min(200, Math.max(1, Number(p.get("limit")) || 100));
-  // one row per account: its fastest (over the chosen leagues / classes)
-  const rows = await env.DB.prepare(`SELECT l.*, u.name FROM lb l JOIN users u ON u.id = l.user_id
-    WHERE ${where.join(" AND ")} AND l.secs = (SELECT MIN(x.secs) FROM lb x WHERE x.user_id = l.user_id AND x.cat = l.cat
-    AND x.key = l.key AND x.hidden = 0 ${p.get("league") ? "AND x.league = l.league" : ""} ${p.get("cls") ? "AND x.cls = l.cls" : ""})
-    GROUP BY l.user_id ORDER BY l.secs, l.id LIMIT ${limit}`).bind(...args).all();
+  // 3.0.6: `per` = the most rows of one account (default and most LB_PER; per=1 is the old one-row-per-account view)
+  const per = Math.min(LB_PER, Math.max(1, Math.floor(Number(p.get("per"))) || LB_PER));
+  // an account's rows over the chosen leagues / classes, its fastest first (rank_in_player), then all accounts' rows
+  // fastest first
+  const rows = await env.DB.prepare(`SELECT * FROM (SELECT l.*, u.name,
+      ROW_NUMBER() OVER (PARTITION BY l.user_id ORDER BY l.secs, l.id) AS rank_in_player FROM lb l
+      JOIN users u ON u.id = l.user_id WHERE ${where.join(" AND ")} AND l.key = ?${args.length + 1})
+    WHERE rank_in_player <= ${per} ORDER BY secs, id LIMIT ${limit}`).bind(...args, p.get("key")).all();
   return json({ rows: rows.results.map((r) => ({ id: r.id, name: r.name, secs: r.secs, cls: r.cls, league: r.league,
-    level: r.level, deaths: r.deaths, at: Math.floor(r.at / DAY) * DAY, mine: !!me && me.id === r.user_id, hidden: !!r.hidden,
-    reports: canReview(me) ? r.reports : undefined })) });
+    level: r.level, deaths: r.deaths, at: Math.floor(r.at / DAY) * DAY, rank_in_player: r.rank_in_player,
+    mine: !!me && me.id === r.user_id, hidden: !!r.hidden, reports: canReview(me) ? r.reports : undefined })) });
 }
 
 async function lbReport(req, env, me, id) {

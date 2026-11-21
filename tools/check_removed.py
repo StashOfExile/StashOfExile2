@@ -25,13 +25,116 @@ DOCS = ("README.md", "TOS.md", "linux/README.md", "themes/README.md", "strats/RE
 
 # (version, what it was, words a person read, names in the code / settings keys[, pending])
 REMOVED = [
+    ("Split layout", "the overlay's \"flanks\" style, shown as Split (owner decision: Split is a Layout - Bar, Panel or "
+                     "Split - in every style; a saved flanks becomes Layout Split, Style Hairline)",
+     ("Flanks",), ("flanks", "_lt_flanks_bar", "_lt_flanks_panel")),
+    ("3.0.6", "Wealth / League Plan prices from the trade site's bulk exchange for items poe.ninja doesn't list "
+              "(owner: player-set prices skew the data, so only poe.ninja - an item poe.ninja doesn't list is not "
+              "found on poe.ninja and left out of the total)",
+     ("bulk exchange (", "asking the trade site's exchange", "too few offers on poe.ninja or the trade site's exchange",
+      "or the bulk exchange", "else the trade site's exchange"),
+     ("bulk_missing", "BULK_TRIED", "wealth_bulk_fill", "_w_bulk_running", "_w_bulk_left", "bulk_prices.json",
+      "bulk.price", "bulk.cached", "bulk.missed", "bulk.search", "bulk.text", "bulk.exchange_id", "ids_from_static")),
+    ("3.0.6", "the Ritual helper's counter read: Read Key read \"2/4\" and the tribute off the screen (owner: ritual "
+              "reminders and reading / identifying rituals can be removed since they can't be automated "
+              "- can't be automated under GGG policy), the "
+              "Ritual line over the overlay's bar (On screen) and what Client.txt's ritual lines fed it; the Ritual "
+              "helper keeps only Favours prices and Filter in the Ritual window",
+     ("rituals done", "rituals started", "to read the counter", "Ritual counter", "On the overlay in Ritual maps",
+      "Ritual leave check"),
+     ("ritual_look_job", "ritual_look_done", "ritual_seen", "ritual_estimate", "ritual_log", "ritual_log_counts",
+      "ritual_readout", "ritual_readout_sync", "ritual_readout_changed", "_ritual_part", "ritual_line_label",
+      "RitualState", "RITUAL_START", "RITUAL_DISRUPTED", "al_rshow", "rt_map", "rt_log", "rt_base", "hud_rect",
+      "hud_prep", "hud_number", "HUD_BOX", "read_counter", "find_icon", "ritual_icon.png", "ritual_glyphs.json",
+      "readout")),
+    ("3.0.6", "the Ritual leave reminder: the Rituals not done alert card when you left a map with rituals left "
+              "(owner: reminders can't be automated - the count came from a screen read)",
+     ("Rituals not done", "Remind me when I leave the map with it unfinished (Ritual)"),
+     ("alerts_ritual_leave_changed", "alerts_test_ritual", "al_rleave")),
+    ("3.0.6", "the Ritual Identifier: hover a Ritual Altar and press the Read Key - its type, loot and danger on an "
+              "alert card (owner: can't be automated under GGG policy). Vaal Lens's medallion read stays",
+     ("Ritual Identifier", "Ritual type", "Hover a Ritual Altar"),
+     ("ritid_on", "ritid_changed", "ritid_seen", "ritid_alert", "rid_told", "rid_win", "RitualIdPage", "al_rid",
+      "hover_wanted")),
+    ("3.0.6", "Favours prices as its own switch under the Ritual helper (one place: the Ritual helper on is Favours "
+              "prices on)",
+     (), ("favours_changed", "al_rfav")),
+    ("3.0.6", "Top Up's teach key: Ctrl+C (or its own key) over an item in the open inventory learned its picture and "
+              "name (owner: pick the items you keep from the Item list in Top Up Reminders; the app knows their pictures)",
+     ("Top Up: teach the item under the mouse", "teach it", "Not taught yet", "Item learned", "Item not learned",
+      "hover it in your inventory and press"),
+     ("topup_key", "topup_key_2131", "topup_wants", "topup_take", "topup_hotkey", "topup_copy_learn", "topup_key_text",
+      "topup_key_is_copy", "topup_refine", "_tu_teach_card", "_tu_plain", "_tu_hover", "TEACH_SECS", "TEACH_WARN_SECS",
+      "learn_digits", "pending_set", "tu_time", "SUGGEST")),
+    ("3.0.6", "Strat Tracker's empty page: Make my first setup (it's ＋ New strat, the same page as Find's)",
+     ("Make my first setup",), ()),
+    ("3.0.6", "Farming Strategies' pickers to the approved mockup v3: Waystone by hand's Top numbers (now Waystone "
+              "modifiers · at least) and its mod picking (a waystone's mods aren't picked by hand), the tablet "
+              "picker's one search list (now Prefix 1 / 2, Suffix 1 / 2) and the old Atlas masters tab row",
+     ("TOP NUMBERS", "Top numbers", "ADD A MOD", "Search mods…"),
+     ("hand_waystone_mods", "mm_new_hand_pick", "mm_new_hand_add", "mm_new_hand_del", "_mm_hand_sync", "hand_min",
+      "nw_mtab_", "nw_mclear")),
+    ("3.0.6", "Farming Strategies' Sort words (owner: the sort names were unclear): "
+              "Per hour / Upvotes / Easiest / Name",
+     ("Sort: Per hour",), ()),
+    ("3.0.6", "Farming Strategies to the approved mockups v2 (owner: the opened strat was a wall of text, More "
+              "details was confusing, and Sacred Bloom farm isn't a real thing): New strat's More details and its "
+              "inputs (stash regex, waystone tiers, requirements, craft steps, other setup - older strats keep them, "
+              "shown under From the author), Farm type (Map type: City, Juiced maps, Low-tier maps, Campaign zones), "
+              "the opened strat's Your numbers card (Per hour fills in from your runs) and The guide card",
+     ("More details", "Sacred Bloom farm", "Farm type", "Your numbers"),
+     ("mm_new_more", "_mm_yours_card", "_mm_guide_card", "_mm_need_card", "MORE_LISTS", "OLD_LISTS")),
+    ("3.0.6", "Farming Strategies' Crafting, Trading and Other categories and their types (owner: this is for "
+              "farming strategies only, not crafting, trading, flipping or vendor recipes - Mapping and "
+              "Bossing; a strat of a dropped category stays on disk, out of Find); New strat's Also uses row in "
+              "More details (part 1's Mechanic takes several) and the Atlas masters' colors (one master at a time)",
+     ("Tablet crafting", "Waystone crafting", "Gear crafting", "Jewel crafting", "Flask & charm crafting",
+      "Currency flipping", "Bulk selling", "Buy low, sell high", "Vendor recipes"),
+     ()),
+    ("3.0.6", "Farming Strategies: the ＋ Add my own button (one name: ＋ New strat)", ("Add my own",), ()),
+    ("3.0.6", "Farming Strategies' Add my own form (owner: hard to understand - a popup of labels and switches): "
+              "New strat, a page in Farming Strategies with chips, your copied tablets and waystone, Made for you, "
+              "Atlas masters and How it goes; profit an hour comes from runs, not a typed estimate (older ones are "
+              "kept and read)",
+     ("Tags (everything else about it)", "Numbers (estimates)", "Est. profit per hour", "Est. cost per run",
+      "The guide (one line per item)", "What it is: the main thing you farm or do", "* = needed. Everything else "
+      "is optional."),
+     ("mm_form", "mm_form_win", "mm_form_save", "mm_form_vars")),
+    ("3.0.6", "Farming Strategies › Find: the Best for you right now card (owner: one list, best per hour first)",
+     ("Best for you right now", "BEST FOR YOU RIGHT NOW", "MORE STRATS"), ("_mm_best_card", "run_best")),
+    ("3.0.6", "Farming Strategies to the approved mockups: the Lucrative Strats tab (its one-liners are Quick tips, "
+              "folded at the bottom of Find - Add, Copy, Upvote, Post, Tags… inside), the Strats tab's name (Find), "
+              "the Cards | List switch and its sortable table (a row per strat; Sort orders them), the filter chip "
+              "rows with More filters / Fewer filters (one dropdown each: Budget, Effort, Type, From, More; the "
+              "Drawer: Filters), the toolbar's community name chip (⋯ › community name) and Track in Strat Tracker "
+              "(Run this strat, the one orange button)",
+     ("Lucrative Strats", "Lucrative strat", "Track in Strat Tracker", "Track it in the Strat Tracker", "More filters",
+      "Fewer filters", "Thoughts/click", "Est. profit/h", "Pick a strat on the left", "+ Add a one-liner",
+      "Farming Strategies › Strats", "Strats › Mine"),
+     ("mm_layout", "mm_more_filters", "mm_more_paint", "mm_layout_changed", "mm_cards_fill", "mm_cards_reflow",
+      "mm_cards_mark", "mm_card_w", "mm_sort_by", "mm_chips_paint", "mm_chip_rows", "_mm_flow", "_mm_chip",
+      "_mm_content_chips", "mm_content_menu", "mm_tree", "mm_one_tree", "mm_one_view", "mm_one_q", "mm_one_btns",
+      "mm_build_oneliners", "mm_need_items", "mm_cost_lines", "mm_mine_paint", "mm_mine_box", "mm_sash", "mm_pick",
+      "mm_one_greys", "mm_acct", "mm_btns", "mm_more")),
+    ("3.0.6", "tabs.txt and jewels.txt (owner: no reason to still use .txt - both are one modlists.json now)",
+     ("tabs.txt", "jewels.txt"), ("load_tabs", "load_jewels", "clean_jewel_line", "_clean_tab_line")),
+    ("3.0.6", "the Search with fewer mods button (owner: Broaden Search does it for every item - the orange button "
+              "searches without the lowest-rated ticked mod; one name for it)",
+     ("Search with fewer mods",), ()),
+    ("3.0.6", "Messages stay for, the Drawer's Width box and Settings › General › Your account (owner: removed, "
+              "no width input box needed - drag its edge; the account is asked where it's used, Stash tab and "
+              "Wealth)",
+     ("Messages stay for", "% of the game's width"), ("_drawer_share_pick", "build_account_settings")),
+    ("3.0.6", "the Quick start guide and About's Every version's notes link (owner: replaced with what new users get "
+              "on first start - Setup, Run setup again; the link showed only this version's notes)",
+     ("Quick start guide", "Every version's notes"), ("show_quickstart", "quickstart_go", "QUICKSTART")),
     ("3.0.4", "Wealth prices typed by hand (owner: never ask for a price - poe.ninja, else the trade site's exchange, "
               "else No price found) and the Where it is card (owner: it told nothing; What moved it took its place)",
      ("Set my own price", "Use the market price again", "Double-click a price to set your own", "Where it is",
       "Needs a price", "need a price", "set price", "Combine stacks"),
      ("wealth_set_price", "wealth_clear_price", "wealth_breakdown", "wealth_pick_cat", "w_catfilter", "w_bd_mode",
       "wealth_key", "w_combine", "w_unpriced")),
-    ("3.0.1", "the name Look key (owner: \"ctrl + shift + r = Read. R for Read.\" - it is the Read Key; its setting "
+    ("3.0.1", "the name Look key (owner: Ctrl+Shift+R = Read, R for Read - it is the Read Key; its setting "
               "is still look_key, its NEW chip's seen state moves over: migrations.read_key_name) and every line saying "
               "the game still gets the key (owner: nobody understands it - the key still reaches the game)",
      ("Look key", "The game still gets the key", "the game still gets the key", "the game still gets it",
@@ -164,7 +267,75 @@ REMOVED = [
      ("How searches are made", "Re-check a learned mod after", "Learn new mods in the background",
       "Skip a search the Mod Book already agrees on"),
      ("memory_shortcut", "model_shortcut")),
-    ("2.106.0", "Wealth's public stash tabs (Scan stash replaces them)", ("Sync stash tabs",), ("w_sync_btn",), True),
+    ("3.0.6", "The Remind column in Helpers: the Breach leave reminder follows the Breach helper being on "
+              "(owner: In Maps On should give the reminders)",
+     ("Remind me when I leave the map with it unfinished\"",),
+     ("leave_reminder", "al_leave", "alerts_leave_changed")),
+    ("3.0.6", "The 'Check for a newer one' / 'Check for a newer guide' buttons (Craft Helper's How to craft a tablet, "
+              "Campaign): the data packs look by themselves after the start and then once a day (packcheck.py)",
+     ("Check for a newer one", "Check for a newer guide"),
+     ("mm_ch_pack_check", "mm_ch_pack_done", "camp_check_pack", "_mm_ch_checking")),
+    ("3.0.7", "Filter in the Ritual window's file access: the app read poe2_production_Config.ini for a status "
+              "(On / Off / Not found) and its Turn it on button wrote the line after waiting for the game to close "
+              "(GGG policy: no changing the game's files). Now plain instructions, Open folder and Copy line",
+     ("isn't in your file", "isn't there yet - start the game once", "Game must be closed to edit config file"),
+     ("ritual_filter.turn_on", "ritual_filter_state", "al_rfilter_state", "read_value", "config_path", "rf_on_btn")),
+    ("3.0.7", "Trade searches nobody pressed for (GGG policy audit): Farming Strategies' costs checked on opening the "
+              "page, the New strat editor's search 2.5 s after typing, the session restore's re-pricing, the league "
+              "change's re-pricing of the list, the rating / rule cascade's re-pricing, the 6 automatic tries after a "
+              "429, the unused Mod Book background learning setting",
+     ("Check what it costs now", "Checked a moment after you copy or tick", "Still rate limited",
+      "Resuming automatically"),
+     ("_mm_new_cost_later", "learn_ok", "learn_cap")),
+    ("3.0.7", "Bulk Pricing's Add from stash tab (GGG policy audit risk 3: it searched your account's listings at a "
+              "marker price on the trade site, as a stash API): the Manually Add | Add from stash tab switch, the tab's "
+              "price in game (amount + currency, on its chip too), Read tab, Stop, ⓘ How, the BETA notice, Count it "
+              "in Wealth, List order and tab_reader_log.txt. Bulk Pricing's tabs stay as plain lists (bulk_tabs.py)",
+     ("Add from stash tab", "Read tab", "Tab's price in game", "Count it in Wealth", "Make the tab public",
+      "reading a stash tab may not work", "Searching your tab", "No listings found at that price", "Down columns",
+      "Across rows", "tab_reader_log.txt"),
+     ("tabreader", "tabreader_page", "TabReaderJobs", "TabReaderPage", "PCTAB", "PCTAB_PRIO", "pctab_start",
+      "do_pctab_search", "do_pctab_fetch", "do_pctab_finish", "pctab_read", "pctab_stop", "pctab_mode", "pctab_on",
+      "pctab_primary", "pctab_explain", "pctab_price_flush", "pctab_price_soon", "pctab_cur_picked", "pctab_cur_id",
+      "pctab_show_price", "pctab_price_short", "pctab_to_wealth", "pctab_wealth_link", "pctab_read_shown",
+      "pctab_stop_shown", "pctab_finished", "pctab_add", "pctab_empty_text", "ev_pctab", "pc_mode", "pc_mode_hint",
+      "pc_read_btn", "pc_read_hint", "pc_amt", "pc_amt_box", "pc_cur", "pc_cur_box", "pc_acc_lbl", "pc_tabrow",
+      "pc_tabrow_row", "pc_join", "pc_beta", "pc_msg", "pc_stop", "pc_how_lbl", "pc_to_wealth", "MODES",
+      "MODE_LABELS", "BULK_STASH", "BULK_MANUAL", "KNOWN_CURRENCY_NAMES", "CURRENCY_SHORT", "READ_HINT", "bk_stash",
+      "stash_order", "stash_order_set", "stash_order_soon", "EMPTY_TEXT_TAB", "currencies_loaded",
+      "ev_currencies_loaded", "pctab_beta")),
+    ("3.0.7", "the account name (GGG policy audit risk 3): Settings' / Bulk Pricing's / Wealth's account (✓ Account "
+              "set, the Your account dialog, Account: link) and leaving your own listings out of prices by it - other "
+              "price checkers don't know your account either. The saved name and every marker price are deleted "
+              "(migrations.no_stash_reading_307)",
+     ("Account set", "Account not set", "Account: not set", "Your account name as the trade site shows it"),
+     ("wealth_account", "own_account", "is_own", "OWN_SKIPPED", "acc_var", "acc_link", "acc_links", "acc_mark",
+      "acc_mark_text", "acc_ask", "acc_text", "ACC_WHY", "on_account", "pc_acc", "w_acc", "_pcpop_mine",
+      "own_marker_prices", "remember_marker", "own_markers")),
+    ("3.0.7", "Wealth's public stash tabs, for good (2.106.0 hid them; Scan stash replaces them): the Stash tabs part "
+              "(Your stash tabs, Add a stash tab, Add from link, Use my Bulk Pricing tab, Include / leave out), Sync "
+              "and Stop, the sync through the trade site (your account's listings at a marker price) and Re-check rares "
+              "(it priced only items read from those tabs)",
+     ("Sync stash tabs", "Your stash tabs", "Add a stash tab", "Add from link", "Use my Bulk Pricing tab",
+      "Include / leave out", "Re-check rares", "Press Sync tabs", "left out of syncs", "not synced yet"),
+     ("WealthJobs", "wealth_start", "do_wealth_search", "do_wealth_fetch", "do_wealth_finish", "do_wealth_rare",
+      "do_wealth_rares_done", "wealth_queue_rares", "WEALTH_SYNC", "WEALTH_RARES", "WEALTH_PRIO", "WEALTH_FINISH_PRIO",
+      "WEALTH_RARE_PRIO", "wealth_query", "wealth_children", "split_bases", "WEALTH_CATS", "wealth_item", "rare_sig",
+      "rares_to_price", "parse_trade_link", "parse_price_text", "WEALTH_CURRENCIES", "TAB_CURRENCY_NAMES",
+      "set_trade_currencies", "w_sync_btn", "w_stop_btn", "w_tabs", "w_tabinfo", "w_tabs_empty", "w_pc_btn",
+      "wealth_sync", "wealth_stop", "wealth_recheck_rares", "wealth_add_tab", "wealth_add_from_link",
+      "wealth_add_pc_tab", "wealth_pc_tab", "wealth_pc_refresh", "_wealth_add", "wealth_toggle_tab",
+      "wealth_remove_tab", "wealth_open_trade", "wealth_buttons", "_w_tab_row", "_w_by_tab", "wealth_show_tab_result",
+      "wealth_setup_layout", "wealth_save_account", "wealth_skip_tab")),
+    ("3.1.0", "Rate Mods By roll's Top | Middle and Middle | Low arrows that moved a group's edge one tier "
+              "(owner: not self-explanatory; the groups keep their default split)",
+     ("Top | Middle", "Middle | Low", "One tier fewer in", "Each group keeps at least one tier"),
+     ("move_edge", "rm_edge", "_rm_edge_ok")),
+    ("3.0.7", "Exchange Helper's Check a flip you see in game: two typed prices, the gain per item and the ratios to post "
+              "(owner: replaced by Compare a currency - one currency's worth in every other, no flip or profit wording)",
+     ("Check a flip", "flip you see in game", "How many I'd flip", "Flipping only works", "No gain: buying costs"),
+     ("build_flip", "flip_draw", "flip_names", "flip_filter", "flip_buy", "flip_sell", "flip_qty", "flip_item",
+      "flip_cur", "flip_box", "flip_out", "CXN.flip")),
 ]
 ABSENT = re.compile(r"\bnot\b|\bgone\b|\bremoved\b|\bno longer\b|\.pop\(|\bdel\b|None\)", re.I)
 

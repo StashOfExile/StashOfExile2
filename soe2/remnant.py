@@ -24,7 +24,7 @@ from . import buglog
 
 CREDIT_NAME = "PoE Ancients Price Helper (Pedro Quitério)"
 CREDIT_URL = "https://github.com/pedro-quiterio/PoeAncientsPriceHelper"
-SHOW_SECS = 12                    # 2.56.2 (feedback: "on screen too long"): was 30
+SHOW_SECS = 12                    # 2.56.2 (feedback: on screen too long): was 30
 MATCH = 0.84                      # how close an OCR'd line must be to an item name (difflib ratio)
 LAST_WORD = 0.75                  # ... and its last word to the name's last word (2.40.0)
 
@@ -38,46 +38,50 @@ JUNK = re.compile(r"[^\w' ()\-:,.]+")
 # rate them for loot. Sources gathered Nov 2026:
 #   epoe.io Expedition guide (Larky's farming priorities: S Opulent, Oath, Power; A Death, Soul, Time; skip Bond;
 #   "danger" runes Moon, Toxic, Bloodletting; arena hazards Earth; Life flagged for poor loot; Protective awkward),
-#   timesaver.gg Aldur's Saga guide (Power, Death, Bond; Opulent and Oath community picks), game8 (all 33 effects).
-# S and A are the guides' picks. B-D are grouped from those notes and each rune's effect: B = some upside (more
-# kills, XP), C = only makes monsters tougher, D = hazards / dangerous. Bond: reports differ, so it's marked.
+#   (timesaver.gg credit removed 2026-11-17: its guides are a currency-seller blog with "Buy now" boxes.)
+# Effect lines are the game's own rune text (RePoE poe2 export, keywords.json).
+# 2026-11-18 (owner): a player tier list the owner found, confirmed by a friend who farms it (its reasons are left out:
+# screen clutter). SS Opulent; S Power, Death, Bond, Oath; A Time, Rebirth; B the other purple runes; C the remaining
+# blue runes. Purple = poe2db's "RemnantRareRune..." ids (https://poe2db.tw/Power_Rune), blue = "RemnantRune...".
+# 0.5.5: Oath no longer makes its monster immune - it gains more Ward instead. No D tier any more.
 RUNE_TIPS_UPDATED = "Nov 2026"
-RUNE_TIERS = [   # (2.130.4, feedback: C and D in alphabetical order - S-B stay in the players' order)
-    ("S", "Opulent", "rarer monsters - more loot"),
-    ("S", "Power", "stronger runic mods (harder)"),
-    ("S", "Oath", "monsters summon allies"),
-    ("A", "Time", "slain monsters may return rarer"),
-    ("A", "Death", "slain monsters merge, stronger"),
-    ("A", "Soul", "union of souls"),
-    ("A", "Bond", "rares pass on mods - mixed reports"),
-    ("B", "Rebirth", "monsters may rebirth - more kills"),
-    ("B", "Wisdom", "more experience"),
-    ("B", "Ward", "monsters get runic ward"),
+RUNE_TIERS = [   # (C in alphabetical order - SS-B stay in the players' order)
+    ("SS", "Opulent", "increased monster rarity"),
+    ("S", "Power", "runic mods become empowered"),
+    ("S", "Death", "slain monsters may merge, stronger"),
+    ("S", "Bond", "rares may transfer a mod"),
+    ("S", "Oath", "a monster summons allies, more Ward"),
+    ("A", "Time", "slain monsters may respawn rarer"),
+    ("A", "Rebirth", "chance to rebirth on death"),
+    ("B", "Soul", "union of souls"),
+    ("B", "Life", "shared life"),
+    ("B", "Ward", "protected by runic ward"),
+    ("B", "Earth", "conjures earthly spires"),
+    ("B", "Sky", "conjures elemental tornados"),
     ("C", "Adaptive", "adaptation"),
-    ("C", "Arcane", "energy shield, nova"),
-    ("C", "Celestial", "elemental explosions on death"),
+    ("C", "Arcane", "extra energy shield, stunning nova"),
+    ("C", "Bloodletting", "life leech, corrupted blood on hit"),
+    ("C", "Celestial", "fire / cold / lightning explosion on death"),
     ("C", "Cold", "extra cold damage"),
-    ("C", "Cyclonic", "exposure, armor break, wither"),
-    ("C", "Electrocuting", "electrocute, shocked ground"),
+    ("C", "Cyclonic", "exposure, armour break, wither on hit"),
+    ("C", "Electrocuting", "extra lightning, electrocutes, shocked ground"),
     ("C", "Fire", "extra fire damage"),
-    ("C", "Life", "shared life - poor loot reported"),
     ("C", "Lightning", "extra lightning damage"),
-    ("C", "Momentum", "faster monsters"),
-    ("C", "Prismatic", "always shock, random element"),
-    ("C", "Protective", "Verisium shields - awkward"),
-    ("C", "Rage", "monsters enrage"),
-    ("C", "Stone", "armored, hard to stun"),
-    ("C", "Tempest", "shock / chill on all damage"),
-    ("C", "Vision", "reflects curses / shock / chill"),
-    ("C", "Volcanic", "ignite, burning ground"),
-    ("D", "Bloodletting", "life leech, corrupted blood"),
-    ("D", "Earth", "earthen spires (hazard)"),
-    ("D", "Moon", "moon beams (hazard)"),
-    ("D", "Sky", "elemental tornados (hazard)"),
-    ("D", "Tidal", "tidal waves (hazard)"),
-    ("D", "Toxic", "poison, toxic volatiles"),
+    ("C", "Momentum", "faster, cannot be slowed"),
+    ("C", "Moon", "conjures moon beams"),
+    ("C", "Prismatic", "all damage can shock / chill / ignite, more resists"),
+    ("C", "Protective", "periodic Verisium shields"),
+    ("C", "Rage", "periodically enrage"),
+    ("C", "Stone", "armoured, stun threshold, earthly prison"),
+    ("C", "Tempest", "immune to shock / chill, more of both"),
+    ("C", "Tidal", "conjures tidal waves"),
+    ("C", "Toxic", "poison, toxic volatiles on death"),
+    ("C", "Vision", "reflect curses, shock, chill"),
+    ("C", "Volcanic", "extra fire, can ignite, ignited ground"),
+    ("C", "Wisdom", "increased experience"),
 ]
-TIER_LOOK = {"S": ("#2a2108", "#ffd25a"), "A": ("#16213a", "#9fc2ff"), "B": ("#13241a", "#7fd9a0"),
+TIER_ORDER = ("SS", "S", "A", "B", "C")
+TIER_LOOK = {"SS": ("#3a2c06", "#fff0a0"), "S": ("#2a2108", "#ffd25a"), "A": ("#16213a", "#9fc2ff"), "B": ("#13241a", "#7fd9a0"),
              "C": ("#1c1c24", "#b4bccb"), "D": ("#2a1012", "#ff8a80")}
 
 
@@ -91,13 +95,25 @@ class OcrStuck(Exception):
 
 # ================================================================ reading lines (pure: tested offline)
 ONE_X = re.compile(r"^[lI|i!]\s?[x×х](?=\s)")     # 2.129.0 (its log: 3 of 5 lines unread): OCR reads "1x" as "lx"
-# 2.130.4 (feedback: "doesn't read 10x divine orb" - its log: 'IOX Divine Orb'): a count whose digits OCR read as
+# 2.130.4 (feedback: 10x Divine Orb was not read - its log: 'IOX Divine Orb'): a count whose digits OCR read as
 # letters (I/l/| for 1, O/o for 0), at the start of a line before x
 QTY_LETTERS = re.compile(r"^([0-9IlOo|]{2,4})\s?[xX×х](?=\s)")
 
 
+# 3.0.6 (its log: 'fly lx Warding Rune of Armature' - a few stray letters before the count): up to 8 characters of
+# noise in front of a count that starts the line's real text
+QTY_AFTER_NOISE = re.compile(r"^.{1,8}?\s([0-9IlOo|]{1,4})\s?[xX×х](?=\s)")
+
+
 def _fix_qty(t):
     m = QTY_LETTERS.match(t)
+    if not m:
+        n = QTY_AFTER_NOISE.match(t)
+        if n and re.search(r"[0-9Il|]", n.group(1)[0]) and not re.search(r"[A-Za-z]{4}", t[:n.start(1)]):
+            t = ONE_X.sub("1x", t[n.start(1):])
+            m = QTY_LETTERS.match(t)
+            if not m:
+                return t
     if not m or not re.search(r"[0-9Il|]", m.group(1)[0]):
         return t
     digits = m.group(1).translate(str.maketrans("IlOo|", "11001"))
@@ -127,7 +143,9 @@ class Names:
         for k in self.keys:
             self.by_first.setdefault(k[:1], []).append(k)
 
-    def match(self, text):
+    def match(self, text, cut_ok=False):
+        """cut_ok (3.0.6, a line with an amount - a reward - cut short by the book's edge: "2x Exalted"): the line may
+        be the start of exactly one name, whole words only."""
         low = text.lower()
         if len(low) < 4:
             return None
@@ -140,6 +158,10 @@ class Names:
         for h in hits:
             if same_ending(low, h):
                 return self.exact[h]
+        if cut_ok and len(low) >= 7:
+            starts = [k for k in self.keys if k.startswith(low + " ")]
+            if len(starts) == 1:
+                return self.exact[starts[0]]
         return None
 
 
@@ -161,6 +183,10 @@ def explicit_qty(text):
 GEM_LINE = re.compile(r"^(Skill|Support|Spirit)(?:\s+Level\s+(\d+))?\s*:\s*(.{3,})$", re.I)
 # 2.130.4 (its log: 'Level 20: POWered by Verisium' - the word Skill hidden under the runeshapes): a level with no kind
 LEVEL_LINE = re.compile(r"^Level\s+(\d+)\s*:\s*(.{3,})$", re.I)
+# 3.0.6 (its log: 'S ill Level 20: Rain of Blades', "' JUå@Skill Level 20: Rain of Blad" - the kind word broken or with
+# stray marks before it): a level with its colon, after up to two short fragments or a few stray marks
+LEVEL_AFTER_NOISE = re.compile(r"^(?:\W*[^\W\d_]{1,5}\s+){1,2}Level\s+(\d+)\s*:\s*(.{3,})$|^.{1,8}?(?:Skill|Support|Spirit)"
+                               r"\s+Level\s+(\d+)\s*:\s*(.{3,})$", re.I)
 
 
 def gem_line(text):
@@ -170,8 +196,40 @@ def gem_line(text):
     m = GEM_LINE.match(t)
     if not m:
         lv = LEVEL_LINE.match(t)
-        return ("skill", int(lv.group(1)), fix_case(lv.group(2).strip())) if lv else None
+        if lv:
+            return ("skill", int(lv.group(1)), fix_case(lv.group(2).strip()))
+        nz = LEVEL_AFTER_NOISE.match(t)
+        if nz:
+            lvl, nm = (nz.group(1), nz.group(2)) if nz.group(1) else (nz.group(3), nz.group(4))
+            return ("skill", int(lvl), fix_case(nm.strip()))
+        return None
     return m.group(1).lower(), (int(m.group(2)) if m.group(2) else None), fix_case(m.group(3).strip())
+
+
+def snap_gem(name, vocab):
+    """3.0.6 (its log: gem names read "Rain of Blade", "Wardbound Minion", "Skyfall ill", "Animus Exchan e"): a gem name
+    -> the name the trade site lists (vocab: its names), when one is a clear match - the same name in other letters
+    case, or (0.9 close, with a lead over the next) a near one, also without a short stray word at the end or with a
+    split last word joined. Otherwise the name as read (a search for it just finds nothing)."""
+    if not vocab or not name:
+        return name
+    by_low = {str(v).casefold(): v for v in vocab}
+    words = name.split()
+    tries = [name]
+    if len(words) > 1 and len(words[-1]) <= 3:
+        tries.append(" ".join(words[:-1]))
+        if len(words) > 2:
+            tries.append(" ".join(words[:-2] + [words[-2] + words[-1]]))
+    for t in tries:
+        low = t.casefold()
+        if low in by_low:
+            return by_low[low]
+        if len(low) < 6:
+            continue
+        sc = sorted(((difflib.SequenceMatcher(None, low, k).ratio(), k) for k in by_low), reverse=True)[:2]
+        if sc and sc[0][0] >= 0.9 and (len(sc) < 2 or sc[0][0] - sc[1][0] >= 0.04):
+            return by_low[sc[0][1]]
+    return name
 
 
 def fix_case(name):
@@ -189,12 +247,12 @@ UNIQUE_LINE = re.compile(r"^Unique\s+([A-Za-z][A-Za-z ]{2,30})$")
 
 
 def unique_line(text):
-    """2.130.0 (feedback: "Unique Ring" showed nothing): "Unique Ring" -> "ring" (the kind of item), or None."""
+    """2.130.0 (feedback: a "Unique Ring" line showed nothing): "Unique Ring" -> "ring" (the kind of item), or None."""
     m = UNIQUE_LINE.match(" ".join(str(text).split()))
     return m.group(1).strip().lower() if m else None
 
 
-def price_lines(lines, names, value_of, gem_value=None, unique_pool=None):
+def price_lines(lines, names, value_of, gem_value=None, unique_pool=None, gem_vocab=None):
     """[(text, box)] from OCR -> [{"text", "name", "qty", "each", "total", "box"}] for the lines that are items
     (value_of(name) -> divines each, or None when poe.ninja has no price). A reward line poe.ninja doesn't know at
     all is kept too, with "unknown": True and no price. 2.130.0: a gem line ("Skill Level 20: Repulsion") is priced
@@ -209,13 +267,14 @@ def price_lines(lines, names, value_of, gem_value=None, unique_pool=None):
             continue
         gl = gem_line(text) if gem_value else None
         if gl:
+            gl = (gl[0], gl[1], snap_gem(gl[2], gem_vocab))
             each, pending = gem_value(*gl)
             out.append({"text": text, "name": gl[2] + (f" (level {gl[1]})" if gl[1] else ""), "qty": 1,
                         "each": each, "total": each, "box": box, "gem": True, "pending": pending,
                         "unknown": each is None and not pending})
             continue
         base, qty = split_qty(text)
-        name = names.match(base)
+        name = names.match(base, cut_ok=explicit_qty(text))
         if not name:
             # 2.40.0: a reward line poe.ninja doesn't list (e.g. Warding Rune of Obsession) - still tagged, as
             # "no price", so you can see it was read (only lines with an amount: junk never has one)
@@ -232,6 +291,35 @@ def price_lines(lines, names, value_of, gem_value=None, unique_pool=None):
     return out
 
 
+REREAD_MOST = 8                   # 3.0.6: the most unmatched lines of one book read again on their own
+
+
+def reread_lines(img, lines, names, ocr=None, most=REREAD_MOST):
+    """3.0.6 (reader.py): the book's lines (in img's pixels) -> the same, with each reward line that matched no item
+    read again on its own, enlarged and made clean - its new text kept only when it is an item with an amount
+    (a reward line always has one) and the old one wasn't. Gem and unique lines are left as they were."""
+    from . import reader as R
+    out, tries = list(lines), 0
+    for k, (text, box) in enumerate(lines):
+        if tries >= most:
+            break
+        if not box or len(str(text).strip()) < 4 or gem_line(text) or unique_line(text):
+            continue
+        base, _q = split_qty(text)
+        if names.match(base, cut_ok=explicit_qty(text)):
+            continue
+        tries += 1
+        pad = max(2, int((box[3] - box[1]) * 0.3))
+
+        def priced(t):
+            return explicit_qty(t) and bool(names.match(split_qty(t)[0], cut_ok=True))
+        t, _tb, _how = R.read_one(img, (box[0] - pad, box[1] - pad, box[2] + pad * 4, box[3] + pad), kind="book-line",
+                                  want=priced, ocr=ocr)
+        if t and priced(t):
+            out[k] = (t, box)
+    return out
+
+
 # ================================================================ where the list is
 # The remnant's reward book opens at the left of the game (seen on a 2000x1125 screenshot, Nov 2026:
 # reward lines at x 44-560, y 110-740). The game scales its UI with the window's HEIGHT and anchors this panel to the
@@ -242,42 +330,45 @@ PARCHMENT = 0.35                  # share of the area that must look like the bo
 TITLE_MIN = 0.65                  # 2.129.0: the "Runeshape Combinations" title's match (the book 1.0, other screens <0.45)
 TITLE_AREA = (0.05, 0.04, 0.55, 0.22)   # 2.129.1: where the title is looked for (game heights from the top-left) - its
 #                                         own place: a learned reading area may start inside the title (the log)
-_TITLE = [None]
+
+
+TITLE_KEY = "remnant_title"              # gameart.screen_look: the book's title as this PC's screen showed it
 
 
 def has_title(img, game_h):
     """2.129.0 (feedback: a map's sandy ground showed the runeshape list): the book's own title, "Runeshape
-    Combinations" (templates/remnant_title.png, cut from a 1440p game), is in the picture (PIL, TITLE_AREA's grab).
-    No OpenCV or no template: True (as before - the parchment alone decides)."""
+    Combinations", is in the picture (PIL, TITLE_AREA's grab). 3.1 (no game pictures ship): learned on this PC - the
+    first time OCR reads "Runeshape" there, that piece of your screen is kept (gameart.screen_look). No OpenCV: True
+    (as before - the parchment alone decides)."""
     return title_score(img, game_h) >= TITLE_MIN
 
 
 def title_score(img, game_h):
-    """How well the title matches anywhere in the picture (0 .. 1; 1.0 = no OpenCV / no template)."""
+    """How well the learned title matches anywhere in the picture (0 .. 1; 1.0 = no OpenCV). Not learned yet: OCR
+    looks for the word and, found, keeps it (1.0)."""
     try:
         import cv2
         import numpy as np
-        if _TITLE[0] is None:
-            from pathlib import Path
-            base = getattr(sys, "_MEIPASS", None)
-            d = Path(base) / "soe2" / "templates" if base else Path(__file__).resolve().parent / "templates"
-            _TITLE[0] = cv2.imread(str(d / "remnant_title.png"), cv2.IMREAD_GRAYSCALE)
-        tpl = _TITLE[0]
-        if tpl is None:
-            return 1.0
+        from . import gameart as GA
+    except Exception:
+        return 1.0
+    try:
         a = cv2.cvtColor(np.asarray(img.convert("RGB")), cv2.COLOR_RGB2GRAY)
-        s = game_h / 1440.0
-        t = cv2.resize(tpl, None, fx=s, fy=s, interpolation=cv2.INTER_AREA) if abs(s - 1) > 0.01 else tpl
-        if a.shape[0] < t.shape[0] or a.shape[1] < t.shape[1]:
+        if GA.screen_look(TITLE_KEY) is not None:
+            return GA.match_look(a, TITLE_KEY, game_h)[0]
+        box = GA.find_word(img, ("runeshape",))
+        if box is None:
             return 0.0
-        return float(cv2.minMaxLoc(cv2.matchTemplate(a, t, cv2.TM_CCOEFF_NORMED))[1])
+        p = max(2, int(round(4 * game_h / 1440.0)))
+        GA.keep_screen_look(TITLE_KEY, a[max(0, box[1] - p):box[3] + p, max(0, box[0] - p):box[2] + p], game_h)
+        return 1.0
     except Exception:
         buglog.caught()
-        return 1.0
+        return 0.0
 
 
 def reading_area(learned):
-    """2.130.0 (feedback: "no price on greater charging rune or greater ward rune" - the book's last two lines): an
+    """2.130.0 (feedback: no price on Greater Charging Rune or Greater Ward Rune - the book's last two lines): an
     area learned by the old key (before 2.119.0) can be shorter than a long book - the area read is now the learned
     one and AREA together, so every line of the book is read."""
     if not learned or len(learned) != 4:
@@ -396,7 +487,7 @@ def _engine_new():
 
 _OCR_LOCK = threading.Lock()
 _OCR_ERRS = set()
-# 2.138.3 (feedback: "this ritual didn't give an alert either" while the altar's tooltip was on screen, and the Fast
+# 2.138.3 (feedback: a ritual gave no alert while the altar's tooltip was on screen, and the Fast
 # Beacon Read missed crystals): one read that never came back stopped every later look in that map. A read now gives up
 # after READ_SECS (its reader is dropped, a new one is made next time) and waiting for the reader after WAIT_SECS.
 READ_SECS = 8.0

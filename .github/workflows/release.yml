@@ -48,17 +48,40 @@ jobs:
 
       - name: Install the build tools
         if: steps.ver.outputs.skip == 'false'
-        run: python -m pip install -r requirements-build.txt     # exact versions (see the file)
+        run: python -m pip install -r requirements-build.txt     # exact versions, see the file. Before the checks: the screen-read check loads the app
+
+      - name: GGG policy checks before anything is built
+        if: steps.ver.outputs.skip == 'false'
+        shell: bash
+        env:
+          PYTHONUTF8: "1"
+        run: |
+          python tools/check_tos.py
+          python tools/check_screenread.py
+          python tools/check_rmt.py
 
       - name: Build StashOfExile2.exe
         if: steps.ver.outputs.skip == 'false'
         run: >
           python -m PyInstaller --noconfirm --clean --onefile --windowed --name StashOfExile2 --icon stashofexile2.ico
           --collect-submodules soe2
-          --add-data "tabs.txt;." --add-data "jewels.txt;." --add-data "gamedata.json;." --add-data "regexdata.json;."
-          --add-data "default_rules.json;." --add-data "searchdata.json;." --add-data "anointdata.json;." --add-data "cxnames.json;." --add-data "moneymakers.json;." --add-data "mapdata.json;." --add-data "campaign.json;." --add-data "crafthelper.json;." --add-data "tierdata.json;." --add-data "themes;themes" --add-data "stashofexile2.ico;."
-          --add-data "soe2\templates;soe2\templates" --add-data "soe2\ritual_glyphs.json;soe2" --add-data "soe2\sekhemas.json;soe2" --add-data "soe2\fonts;soe2\fonts" --hidden-import pystray._win32 --hidden-import PIL._tkinter_finder
+          --add-data "modlists.json;." --add-data "gamedata.json;." --add-data "regexdata.json;."
+          --add-data "default_rules.json;." --add-data "searchdata.json;." --add-data "anointdata.json;." --add-data "cxnames.json;." --add-data "gamedb.json;." --add-data "gamedb_hide.json;." --add-data "atlasmasters.json;." --add-data "moneymakers.json;." --add-data "mapdata.json;." --add-data "campaign.json;." --add-data "crafthelper.json;." --add-data "tierdata.json;." --add-data "themes;themes" --add-data "stashofexile2.ico;."
+          --add-data "soe2\ritual_glyphs.json;soe2" --add-data "soe2\sekhemas.json;soe2" --add-data "soe2\fonts;soe2\fonts" --hidden-import pystray._win32 --hidden-import PIL._tkinter_finder
           --hidden-import cv2 --hidden-import mss --hidden-import numpy --collect-submodules winrt stashofexile2.py
+
+      # 3.0.6 (an installer too, with the portable option kept): Setup-StashOfExile2-<version>.exe -
+      # per user (no admin), Start menu, Settings > Apps, uninstaller (installer/StashOfExile2.iss). Its name doesn't
+      # start with "StashOfExile2", so older apps' updater still takes the portable exe.
+      - name: Build the installer (Inno Setup)
+        if: steps.ver.outputs.skip == 'false'
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress; }
+          & $iscc "/DAppVersion=${{ steps.ver.outputs.version }}" installer\StashOfExile2.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Get-ChildItem dist
 
       - name: Make the build kit zip and the release notes
         if: steps.ver.outputs.skip == 'false'
@@ -73,7 +96,7 @@ jobs:
           python tools/release_notes.py "$V" > notes.md
           cat notes.md
 
-      # 2.132.8 (feedback: "virustotal link and checksums"): SHA-256 of each download (SHA256SUMS.txt + the notes),
+      # 2.132.8 (feedback: a VirusTotal link and checksums): SHA-256 of each download (SHA256SUMS.txt + the notes),
       # and the exe sent to VirusTotal so the notes can link its scan. No VT_API_KEY secret = no scan link, the rest
       # still happens.
       - name: Checksums and VirusTotal scan
@@ -84,7 +107,8 @@ jobs:
         run: |
           V="${{ steps.ver.outputs.version }}"
           cp dist/StashOfExile2.exe StashOfExile2.exe
-          sha256sum StashOfExile2.exe "StashOfExile2_build_kit_$V.zip" > SHA256SUMS.txt
+          cp "dist/Setup-StashOfExile2-$V.exe" "Setup-StashOfExile2-$V.exe"
+          sha256sum StashOfExile2.exe "Setup-StashOfExile2-$V.exe" "StashOfExile2_build_kit_$V.zip" > SHA256SUMS.txt
           cat SHA256SUMS.txt
           EXE=$(sha256sum StashOfExile2.exe | cut -d' ' -f1)
           ZIP=$(sha256sum "StashOfExile2_build_kit_$V.zip" | cut -d' ' -f1)
@@ -98,7 +122,8 @@ jobs:
               echo "::warning::VirusTotal upload failed - no scan link this time"
             fi
           fi
-          python tools/release_notes.py "$V" --sha "$EXE" "$ZIP" --vt "$VT" > body.md
+          SETUP=$(sha256sum "Setup-StashOfExile2-$V.exe" | cut -d' ' -f1)
+          python tools/release_notes.py "$V" --sha "$EXE" "$ZIP" --setup "$SETUP" --vt "$VT" > body.md
           cat .github/notice-2x.md body.md > notes.md
           cat notes.md
 
@@ -113,10 +138,11 @@ jobs:
           prerelease: false
           files: |
             dist/StashOfExile2.exe
+            dist/Setup-StashOfExile2-*.exe
             StashOfExile2_build_kit_*.zip
             SHA256SUMS.txt
 
-  # 3.0.5 (owner: "join main as long as it isn't going to create issues for windows builds"): the Linux build, after the
+  # 3.0.5 (owner: merge into main, provided it creates no issues for Windows builds): the Linux build, after the
   # Windows release is published, onto the SAME full release - StashOfExile2-<version>-linux.tar.gz + its checksum.
   # Its own job and machine: if it fails, the Windows release is already out and untouched. (Was linux-build.yml on
   # the linux branch, with its own pre-releases.)

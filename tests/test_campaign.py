@@ -328,6 +328,37 @@ class GotSoFar(unittest.TestCase):
         self.assertTrue(g)
 
 
+class RouteAskedOnce(unittest.TestCase):
+    """Feedback: Which guide? came back in every new area while carrying - the log's level-up lines switch between
+    the party's characters. Asked once a session; the answer goes to the run it was asked for; the next run takes it."""
+
+    def test_asked_once_and_the_answer_goes_to_its_run(self):
+        import types
+        from soe2 import campaign_ui as CU
+        g = Game()
+        CP.cfg()["ask_route"] = True
+        who = {"name": "Mine"}
+        CP.current_char = lambda: who["name"]
+        CP.char()["act"], CP.char()["route"] = "1", None
+        shown = []
+        app = types.SimpleNamespace(camp_rq_win=None)
+        app.camp_route_ask_show = lambda: (shown.append(1), setattr(app, "camp_rq_run", CP.char()))
+        app.camp_route_ask_close = lambda: None
+        app.camp_refresh = lambda *a, **k: None
+        for fn in ("camp_route_check", "camp_route_pick_new"):
+            setattr(app, fn, types.MethodType(getattr(CU.CampaignUI, fn), app))
+        self.assertEqual(app.camp_route_check(), "asked")
+        who["name"] = "Friend"                          # a party member's level-up line comes in before you answer
+        CP.char()["act"], CP.char()["route"] = "1", None
+        app.camp_route_pick_new("rush")
+        self.assertEqual(CP.char("Mine")["route"], "rush", "the run it was asked for")
+        self.assertEqual(app.camp_route_check(), "set", "no second question")
+        self.assertEqual(CP.char("Friend")["route"], "rush")
+        self.assertEqual(len(shown), 1)
+        CP.current_char = lambda: "Tester"
+        del g
+
+
 class Hideout(unittest.TestCase):
     """Round 18 (feedback: the Campaign Helper showed in the hideout): the line shows in campaign areas (towns too),
     never in a hideout - also right after a login there (the log's last area, read at start-up)."""

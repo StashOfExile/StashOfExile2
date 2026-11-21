@@ -6,8 +6,9 @@ from tkinter import ttk
 from . import buglog
 from . import gamesearch
 from .config import SETTINGS, save_json
-from .style import C, FONT_TITLE, SegBar
+from .style import C, FONT_TITLE, ScrollArea, SegBar
 from .chrome import SectionBar, Viewport
+from .cardlist import CardList, ICON
 
 PAGE = 60
 
@@ -66,8 +67,10 @@ class SearchPage:
         self.gs_side.pack_propagate(False)
         tk.Label(self.gs_side, text="CATEGORIES", bg=P1, fg=C["muted"], font=("Segoe UI", 9, "bold"), anchor="w"
                  ).pack(fill="x", pady=(4, 4))
-        self.gs_chips = tk.Frame(self.gs_side, bg=P1)
-        self.gs_chips.pack(fill="both", expand=True)
+        # (3.0.6: 25 categories with the game database's - the column scrolls when the window is short)
+        self.gs_scroll = ScrollArea(self.gs_side, bg=P1)
+        self.gs_scroll.pack(fill="both", expand=True)
+        self.gs_chips = self.gs_scroll.inner
         resw = tk.Frame(mid, bg=P1)
         resw.pack(side="left", fill="both", expand=True)
         self.gs_summary = tk.Label(resw, text="", bg=P1, fg=C["muted"], anchor="w")
@@ -109,12 +112,43 @@ class SearchPage:
             t.tag_bind(tg, "<Leave>", lambda e: t.config(cursor="arrow"))
         t.tag_bind("clear", "<Button-1>", lambda e: self.gs_recent_clear())
         t.config(state="disabled")
-        self.gs_text = t
+        self.gs_text, self.gs_sb = t, sb
+        # 3.0.6: the results are item cards on one canvas (cardlist.py); the text above is kept for the pages that are
+        # words (the empty page, nothing matched, Anoints with their prices)
+        self.gs_cards = CardList(res, bg=P2, art=self._gs_art, on_toggle=self.gs_toggle, on_wiki=self.gs_wiki,
+                                 on_more=self.gs_more)
+        self._art_hooks = getattr(self, "_art_hooks", []) + [lambda done: self.gs_cards.refresh_art()]
         self.gs_save_job = None
         # (UI overhaul: Anoints is a category again, in the column on the left - not a page of its own)
         self.gs_q.trace_add("write", lambda *a: self._gs_later())
         self.gs_entry.bind("<Escape>", lambda e: self.gs_clear())
         self.gs_render()
+
+    def _gs_art(self, row):
+        """The card's picture when the app knows one (the trade site's art: a tablet, a waystone, an item you priced)."""
+        if not SETTINGS.get("pc_art", True) or not hasattr(self, "pc_art"):
+            return None
+        if row.get("c") == "Jewel" and row.get("g") == "Jewels":
+            return None                          # 3.0.6 (owner): a base jewel's name matched other art - no picture
+        from .pricecheck_page import art_url
+        try:
+            return self.pc_art(art_url(row["n"]), px=ICON)
+        except Exception:
+            buglog.caught()
+            return None
+
+    def _gs_mode(self, cards):
+        """Cards (one canvas) or text (the pages that are words)."""
+        if cards:
+            self.gs_text.pack_forget()
+            self.gs_sb.pack_forget()
+            if not self.gs_cards.winfo_ismapped():
+                self.gs_cards.pack(fill="both", expand=True)
+        else:
+            self.gs_cards.pack_forget()
+            if not self.gs_sb.winfo_ismapped():
+                self.gs_sb.pack(side="right", fill="y")
+                self.gs_text.pack(side="left", fill="both", expand=True)
 
     # ---------------- searching
     def _gs_later(self):
@@ -211,7 +245,7 @@ class SearchPage:
         terms, neg = gamesearch.parse(q)
         has = bool(terms or neg)
         allr = gamesearch.search(q) if has else d["rows"]
-        # UI overhaul (feedback: "categories in alphabetical order to make navigation easier"): A-Z, All on top
+        # UI overhaul (feedback: categories in alphabetical order to ease navigation): A-Z, All on top
         order = sorted(set(d["order"]) | {gamesearch.ANOINTS}, key=str.lower)
         counts = {}
         for it in allr:
@@ -224,19 +258,19 @@ class SearchPage:
         y = t.yview()[0]
         t.config(state="normal")
         t.delete("1.0", "end")
-        if d.get("error"):
+        use_cards = bool(not d.get("error") and (has or self.gs_active) and lst and self.gs_active != gamesearch.ANOINTS)
+        self._gs_mode(use_cards)
+        if use_cards:
+            self._gs_summary(terms, has, lst)
+            self.gs_cards.set_rows(lst[:self.gs_shown], getattr(self, "gs_open", set()),
+                                   more=max(0, len(lst) - self.gs_shown), terms=terms, keep_scroll=keep_scroll)
+        elif d.get("error"):
             t.insert("end", "\n" + d["error"], "empty")
         elif not has and not self.gs_active:
             self.gs_summary.config(text="")
             self._gs_empty_page()
         else:
-            if has:
-                self.gs_summary.config(text=f"{len(lst):,} result{'s' if len(lst) != 1 else ''}"
-                                            + (f" in {self.gs_active}" if self.gs_active else " across all categories"))
-            else:                                              # 2.0 beta 21: a category on its own lists all of it
-                self.gs_summary.config(text=f"All {len(lst):,} in {self.gs_active}. Type to narrow it down."
-                                       + ("  Type an emotion (e.g. Isolation) to see every anoint that uses it. "
-                                          "Prices: poe.ninja." if self.gs_active == gamesearch.ANOINTS else ""))
+            self._gs_summary(terms, has, lst)
             if not lst:
                 t.insert("end", "\nNothing matched. Try fewer words, or a different spelling.", "empty")
             for n, it in enumerate(lst[:self.gs_shown]):
@@ -246,6 +280,15 @@ class SearchPage:
         t.config(state="disabled")
         if keep_scroll:
             t.yview_moveto(y)
+
+    def _gs_summary(self, terms, has, lst):
+        if has:
+            self.gs_summary.config(text=f"{len(lst):,} result{'s' if len(lst) != 1 else ''}"
+                                        + (f" in {self.gs_active}" if self.gs_active else " across all categories"))
+        else:                                              # 2.0 beta 21: a category on its own lists all of it
+            self.gs_summary.config(text=f"All {len(lst):,} in {self.gs_active}. Type to narrow it down."
+                                   + ("  Type an emotion like Isolation to see every anoint that uses it. "
+                                      "Prices: poe.ninja." if self.gs_active == gamesearch.ANOINTS else ""))
 
     @staticmethod
     def _gs_cut(text, terms, size):
@@ -282,13 +325,15 @@ class SearchPage:
             t.insert("end", "\n", "sep")
         self._gs_put(it["n"], terms, ("name",))
         t.insert("end", f"   {it['g']} · {it['c']}", ("tag",))
-        if it.get("n"):                                   # 2.14.2: its wiki page (the inspector link is gone)
+        if it.get("n") and not it.get("db"):              # 2.14.2: its wiki page (the inspector link is gone)
             tag = f"lnk{n}"
             t.insert("end", "   ")
             t.insert("end", "wiki ›", ("link", tag))
             t.tag_bind(tag, "<Button-1>", lambda e, nm=it["n"]: self.gs_wiki(nm))
         t.insert("end", "\n")
         opened = it["n"] + "|" + it["g"] in getattr(self, "gs_open", set())
+        if it.get("db"):                                  # 3.0.6: the offline game database - one line, the rest on open
+            return self._gs_db(it, terms, n, opened)
         if it["t"]:
             if opened:                                    # 2.23.0: the whole text, one line per part
                 self._gs_put(it["t"].replace(" | ", "\n"), terms, ("txt",))
@@ -305,6 +350,28 @@ class SearchPage:
         if it["k"]:
             self._gs_put(it["k"] if opened else self._gs_cut(it["k"], terms, 160), terms, ("kw",))
             t.insert("end", "\n")
+
+    def _gs_db(self, it, terms, n, opened):
+        """A gamedb.json row: its first line; opened, every line, its tags, and where it comes from."""
+        t = self.gs_text
+        parts = it["t"].split(" | ")
+        self._gs_put(parts[0] if opened else self._gs_cut(parts[0], terms, 300), terms, ("txt",))
+        if len(parts) > 1 or it["k"]:
+            tag = f"det{n}"
+            t.insert("end", "   ")
+            t.insert("end", "less ‹" if opened else "more ›", ("link", tag))
+            t.tag_bind(tag, "<Button-1>", lambda e, key=it["n"] + "|" + it["g"]: self.gs_toggle(key))
+        t.insert("end", "\n")
+        if opened:
+            if len(parts) > 1:
+                self._gs_put("\n".join(parts[1:]), terms, ("txt",))
+                t.insert("end", "\n")
+            if it["k"]:
+                self._gs_put(it["k"], terms, ("kw",))
+                t.insert("end", "\n")
+            v = it.get("v")
+            t.insert("end", f"Source: {it['src']} · " + (f"Game {v}" if v and v != "none" else "no game version in the file")
+                     + "\n", ("tag",))
 
     def _gs_anoint(self, it, terms):
         """The three Liquid Emotions, each with its poe.ninja price, and the total."""
@@ -392,22 +459,36 @@ class SearchPage:
         """UI overhaul: the categories down the left, each with how many results it has; the one picked has a bar,
         bold text and a filled row (never color alone)."""
         f = self.gs_chips
-        for w in f.winfo_children():
-            w.destroy()
-        for g, label in [(None, "All")] + [(g, g) for g in order]:
+        cats = [(None, "All")] + [(g, g) for g in order]
+        # UI rule 22: picking a category or typing a search re-counts and re-marks the rows that are there - they are
+        # built again only when the list of categories changes
+        have = getattr(self, "_gs_chip_rows", None)
+        if have is None or [h[0] for h in have] != [g for g, _l in cats] or \
+                not all(h[1].winfo_exists() for h in have) or have[0][1].master is not f:
+            for w in f.winfo_children():
+                w.destroy()
+            have = self._gs_chip_rows = []
+            for g, label in cats:
+                row = tk.Frame(f, bg=C["panel"], cursor="hand2")
+                row.pack(fill="x", pady=1)
+                bar = tk.Frame(row, width=3)
+                bar.pack(side="left", fill="y")
+                name = tk.Label(row, text=label, anchor="w", padx=8, pady=4)
+                cnt = tk.Label(row, padx=8, font=("Segoe UI", 9))
+                cnt.pack(side="right")                      # (D3: the count claims its room first, then the name)
+                name.pack(side="left", fill="x", expand=True)
+                for w in (row, name, cnt):
+                    w.bind("<Button-1>", lambda e, gg=g: self.gs_pick(gg))
+                have.append((g, row, bar, name, cnt))
+        from .inplace import set_cfg
+        for g, row, bar, name, cnt in have:
             n = total if g is None else counts.get(g, 0)
             on = self.gs_active == g
             bg = C["panel2"] if on else C["panel"]
-            row = tk.Frame(f, bg=bg, cursor="hand2")
-            row.pack(fill="x", pady=1)
-            tk.Frame(row, bg=C["accent"] if on else bg, width=3).pack(side="left", fill="y")
-            name = tk.Label(row, text=label, bg=bg, fg=C["text"] if (n or on) else C["muted"], anchor="w", padx=8,
-                            pady=4, font=("Segoe UI", 10, "bold" if on else "normal"))
-            cnt = tk.Label(row, text=f"{n:,}", bg=bg, fg=C["muted"], padx=8, font=("Segoe UI", 9))
-            cnt.pack(side="right")                          # (D3: the count claims its room first, then the name)
-            name.pack(side="left", fill="x", expand=True)
-            for w in (row, name, cnt):
-                w.bind("<Button-1>", lambda e, gg=g: self.gs_pick(gg))
+            set_cfg(row, bg=bg)
+            set_cfg(bar, bg=C["accent"] if on else bg)
+            set_cfg(name, bg=bg, fg=C["text"] if (n or on) else C["muted"], font=("Segoe UI", 10, "bold" if on else "normal"))
+            set_cfg(cnt, text=f"{n:,}", bg=bg, fg=C["muted"])
 
     def _gs_flow(self):
         """(2.0 beta 21's wrapping chips: the categories are a column now)"""

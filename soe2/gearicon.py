@@ -1,4 +1,4 @@
-"""The settings gear (UI overhaul, owner: "the ⚙ glyph renders like a flower"). Windows draws U+2699 from its emoji
+"""The settings gear (UI overhaul: the ⚙ glyph rendered like a flower). Windows draws U+2699 from its emoji
 font, a petalled shape at small sizes - so the gear is drawn here instead: eight flat teeth round a ring, smoothed
 (drawn four times bigger, then made small), in the color it's given - the theme's text color (C["text"] / the
 overlay's muted text), so it follows every theme and overlay style. Used by the sidebar's Settings row, the overlay's
@@ -43,7 +43,8 @@ def image(master, size, color):
     """A size x size picture of the gear in color (transparent around it), or None without Pillow."""
     size = max(8, int(size))
     rgb = _rgb(master, color)
-    key = (str(master.winfo_toplevel()) if hasattr(master, "winfo_toplevel") else "", size, rgb)
+    key = (id(getattr(master, "tk", None)), str(master.winfo_toplevel()) if hasattr(master, "winfo_toplevel") else "",
+           size, rgb)                         # (3.0.6: and its Tk - a picture belongs to the Tk that made it)
     got = _CACHE.get(key)
     if got is not None:
         return got

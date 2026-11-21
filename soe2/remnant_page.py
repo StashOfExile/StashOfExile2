@@ -32,19 +32,45 @@ def capture_affinity(win, hide=True):
         buglog.caught()
 
 
+def capture_hidden():
+    """3.0.6 (items show in screen captures unless the hide setting is on): Overlay › Options › Hide all overlay
+    information from screen captures - one switch for every
+    window over the game. (A Read Key read always sees through them: screenread.see_through.)"""
+    return bool((SETTINGS.get("tracker") or {}).get("hide_capture", False))
+
+
 def no_capture(win):
-    """Windows 10 2004+: leave this window out of screen captures (WDA_EXCLUDEFROMCAPTURE), so the Auto watcher -
-    and any screenshot - sees the game, not our tags. Only hides it from captures; it changes nothing in the game."""
-    if sys.platform != "win32":
+    """A window over the game follows the one capture switch (3.0.6: it was always left out - a screenshot of an
+    alert card showed nothing)."""
+    capture_affinity(win, capture_hidden())
+
+
+def capture_rule_install(root):
+    """3.0.6: every window over the game - bar, alert cards, Vaal Lens, its marks, tags, the read mark - follows the
+    capture switch from the moment it shows (each Toplevel's <Map>)."""
+    if getattr(root, "_cap_rule", False):
         return
+    root._cap_rule = True
+
+    def mapped(e):
+        w = e.widget
+        try:
+            if isinstance(w, tk.Toplevel) and w.winfo_toplevel() is w:
+                capture_affinity(w, capture_hidden())
+        except Exception:
+            buglog.caught()
+    root.bind_class("Toplevel", "<Map>", mapped, add="+")
+
+
+def capture_rule_all(root):
+    """The switch changed: every open window over the game, now."""
+    def walk(w):
+        for c in w.winfo_children():
+            if isinstance(c, tk.Toplevel):
+                capture_affinity(c, capture_hidden())
+            walk(c)
     try:
-        import ctypes
-        u = ctypes.windll.user32
-        u.GetParent.restype = ctypes.c_void_p
-        u.GetParent.argtypes = [ctypes.c_void_p]
-        h = u.GetParent(win.winfo_id()) or win.winfo_id()
-        u.SetWindowDisplayAffinity.argtypes = [ctypes.c_void_p, ctypes.c_uint]
-        u.SetWindowDisplayAffinity(h, 0x11)
+        walk(root)
     except Exception:
         buglog.caught()
 
@@ -145,7 +171,14 @@ class RemnantPage:
             if share < RM.PARCHMENT:
                 return []                             # no book open: the tags go
             t0 = time.time()
-            lines = RM.shift(RM.ocr(img), ar[0] - rect[0], ar[1] - rect[1])
+            raw = RM.ocr(img)
+            try:                                      # 3.0.6 (reader.py): lines that matched no item, read again alone
+                raw = RM.reread_lines(img, raw, self.remnant_names_now(league)[1])
+            except (RM.OcrUnavailable, RM.OcrStuck):
+                pass
+            except Exception:
+                buglog.caught()
+            lines = RM.shift(raw, ar[0] - rect[0], ar[1] - rect[1])
             self.rm_lines = (rect, lines, league)         # (kept to price again when a gem's price comes in)
             rows = self.remnant_price(lines, league)
             used = {r.get("text") for r in rows}
@@ -247,7 +280,7 @@ class RemnantPage:
         return RM.Names(names), value_of
 
     def remnant_prefetch(self, league):
-        """2.129.2 (feedback: "eventually popped up but took a while" - its log: the first read took 14.5 s): the
+        """2.129.2 (feedback: it popped up late - its log: the first read took 14.5 s): the
         prices are fetched in the background, before a book is opened, and kept fresh - a read never waits on
         poe.ninja when there are prices to use."""
         if getattr(self, "_rm_fetching", False) or not league or time.time() - getattr(self, "_rm_fetch_at", 0) < 300:
@@ -266,6 +299,13 @@ class RemnantPage:
         threading.Thread(target=go, daemon=True).start()
 
     def remnant_price(self, lines, league):
+        cache = self.remnant_names_now(league)
+        from . import gamedata
+        return RM.price_lines(lines, cache[1], cache[2], lambda k, lv, n: self.remnant_gem_value(k, lv, n, league),
+                              self.remnant_unique_pool, gem_vocab=gamedata.TRADE_ITEMS.get("bases") or None)
+
+    def remnant_names_now(self, league):
+        """-> ((league, prices' time), Names, value_of, built at): the item names and prices, built once a while."""
         from .wealth import WPRICES
         key = (league, getattr(WPRICES, "ts", 0))
         cache = getattr(self, "rm_names", None)
@@ -275,15 +315,14 @@ class RemnantPage:
                 self.remnant_prefetch(league)
             names, value_of = self.remnant_names_values(league, fetch=not held)
             cache = self.rm_names = ((league, getattr(WPRICES, "ts", 0)), names, value_of, time.time())
-        return RM.price_lines(lines, cache[1], cache[2], lambda k, lv, n: self.remnant_gem_value(k, lv, n, league),
-                              self.remnant_unique_pool)
+        return cache
 
     POOL_SHOWN = 3                                    # the most valuable uniques named on a "Unique Ring" line
 
     POOL_KINDS = {"jewellery": ("ring", "amulet"), "jewelry": ("ring", "amulet")}
 
     def remnant_unique_pool(self, kind):
-        """2.130.0 (feedback: "show potential expensive/good uniques they COULD get out of that basetype pool"): the
+        """2.130.0 (feedback: show the expensive or good uniques that base type pool could give): the
         uniques of this kind (ring, belt, amulet ...) worth the most on poe.ninja right now - names only, best first."""
         from . import gamedata
         from .wealth import NINJA_ITEM_TYPES, WPRICES
@@ -303,14 +342,14 @@ class RemnantPage:
 
     # ---------------- 2.130.0 (feedback): gems in a remnant's book - priced on the trade site, one search each
     GEM_FRESH = 24 * 3600                             # a gem's price is kept this long (2.130.4: was 30 min; 2.132.0
-    #                                                   (feedback: "people are gonna get rate limited hard"): a day)
-    # 2.130.4 (feedback: "trade site rate limited us on fetching prices"): a book's gems may use at most GEM_BUDGET
+    #                                                   (feedback: players would be rate limited hard): a day)
+    # 2.130.4 (feedback: the trade site rate limited price fetching): a book's gems may use at most GEM_BUDGET
     # searches per 5 minutes - the rest of the trade site's allowance stays for your own price checks; prices are kept
     # on disk (GEM_FILE), so the same gem in the next book costs nothing
     GEM_BUDGET = 3
     GEM_FILE = "remnant_gems.json"
-    # 2.132.0 (feedback: "we need another system on top of that in case there's very few people who are running
-    # expedition"): a gem's price comes from, in turn - your own search (a day), the board's pooled one (a day), then
+    # 2.132.0 (feedback: a fallback system for when few people run
+    # expedition): a gem's price comes from, in turn - your own search (a day), the board's pooled one (a day), then
     # either one up to GEM_KEEP old (shown at once, searched again when the trade site has room). Searches go highest
     # level first (the gems worth the most); prices you find go up with your hourly community batch (if you share).
     GEM_KEEP = 14 * 86400
@@ -408,7 +447,7 @@ class RemnantPage:
     # from screen capture (Windows 10 2004+), so the watcher never read its own tags. 2.128.1: they show in captures (as
     # the overlay does); the watcher paints over them (RM.OWN, RM.mask_own) before it reads.
     def remnant_show(self, rect, rows, secs=RM.SHOW_SECS):
-        """2.56.2 (feedback: "very bold and large ... more compact, less intrusive"): smaller, plain-weight tags in
+        """2.56.2 (feedback: too bold and large - more compact, less intrusive): smaller, plain-weight tags in
         the overlay style's own colors (Overlays › Appearance › Style), on its texture when it has one (the runeshape
         parchment), a thin edge; the best one in the style's warm color with a ★."""
         self.remnant_hide()
@@ -513,10 +552,10 @@ class RemnantPage:
         box.pack()
         tk.Label(box, text="Runeshapes for loot", bg=BG, fg=P["head"] if skinned() else TXT,
                  font=("Segoe UI", small, "bold"), anchor="w").pack(fill="x")
-        for tier in ("S", "A", "B", "C", "D"):                 # 2.40.0: every runeshape, best first
+        for tier in RM.TIER_ORDER:                            # 2.40.0: every runeshape, best first (3.0.6: SS-C)
             names = [(n, why) for tr, n, why in RM.RUNE_TIERS if tr == tier]
             bg, fg = RM.TIER_LOOK[tier]
-            if tier in ("S", "A"):                            # the picks: one line each, with what they do
+            if tier in ("SS", "S", "A"):                      # the picks: one line each, with what they do
                 for name, why in names:
                     row = tk.Frame(box, bg=BG)
                     row.pack(fill="x")
@@ -533,7 +572,7 @@ class RemnantPage:
                 tk.Label(row, text="  ·  ".join(n for n, _w in names), bg=BG, fg=MUT if tier == "C" else TXT if parchment() else fg,
                          font=("Segoe UI", small), anchor="w", justify="left",
                          wraplength=int(abs(size) * 24)).pack(side="left", padx=(8, 0))
-        tk.Label(box, text=f"S-A: players' picks · B-D: grouped by effect ({RM.RUNE_TIPS_UPDATED})", bg=BG,
+        tk.Label(box, text=f"Players' tier list · purple runes B, blue C ({RM.RUNE_TIPS_UPDATED})", bg=BG,
                  fg=MUT,
                  font=("Segoe UI", small), anchor="w").pack(fill="x", pady=(2, 0))
         never = tk.Label(box, text="Never show again", bg=BG, fg=MUT, cursor="hand2",      # 2.98.6 (feedback)

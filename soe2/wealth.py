@@ -1,4 +1,4 @@
-"""Wealth tracker: priced tabs, syncing them through the trade site, poe.ninja prices, snapshots.
+"""Wealth tracker: what you counted or scanned, poe.ninja prices, snapshots.
 
 Part of StashOfExile2. Split out of the single-file app in 1.37 (see the launcher's VERSION HISTORY)."""
 
@@ -8,82 +8,15 @@ import re
 import requests
 import threading
 import time
-from .config import BASE, load_json, save_json, SETTINGS
+from .config import load_json, save_json, SETTINGS
 from . import buglog
-from .net import call
 from .rates import Rates
-from .mods import JEWEL_KINDS, norm, strip_markup, TAB_KINDS
 from . import gamedata
 
 
-# ------------------------------------------------------------------ wealth: net worth of your marker-priced stash tabs (1.33)
-# PoE 2 has no stash API that tools may use, so the Wealth page reads your stash through the trade site instead: set a
-# public Premium stash tab to an exact price nobody would pay (e.g. 37916 Vaal Orbs) and the app searches for every
-# listing on your account at that price, reads the items 10 at a time and values them with poe.ninja.
-# Every request goes through the same call() and LIMITER as item pricing, as jobs on the same background thread with a
-# LOWER priority, so an item you copy with Ctrl+Alt+C is always priced first and the two never compete for the limits.
-
-WEALTH_PRIO = 5                    # item pricing uses 0-2, so it always jumps ahead of a running wealth sync
-
-
-WEALTH_FINISH_PRIO = 9             # runs once every search and fetch of the sync is done
-
-
-WEALTH_CURRENCIES = [("divine", "Divine Orb"), ("vaal", "Vaal Orb"), ("chaos", "Chaos Orb"), ("exalted", "Exalted Orb"),
-                     ("regal", "Regal Orb"), ("annul", "Orb of Annulment"), ("alch", "Orb of Alchemy")]
-# 2.16.0: every currency a stash tab can be priced in (the order shown). Their trade-site ids come from the site's own
-# list (/data/static, downloaded with the mod list once a day); one the site doesn't list isn't offered.
-TAB_CURRENCY_NAMES = ["Exalted Orb", "Greater Exalted Orb", "Perfect Exalted Orb", "Divine Orb", "Chaos Orb",
-                      "Greater Chaos Orb", "Perfect Chaos Orb", "Orb of Alchemy", "Orb of Annulment", "Regal Orb",
-                      "Greater Regal Orb", "Perfect Regal Orb", "Orb of Transmutation", "Greater Orb of Transmutation",
-                      "Perfect Orb of Transmutation", "Orb of Augmentation", "Greater Orb of Augmentation",
-                      "Perfect Orb of Augmentation", "Orb of Chance", "Vaal Orb", "Artificer's Orb", "Fracturing Orb",
-                      "Mirror of Kalandra", "Scroll of Wisdom"]
-
-
-def set_trade_currencies(static):
-    """The trade site's /data/static answer -> WEALTH_CURRENCIES (changed in place, so every list sees it): every
-    currency in TAB_CURRENCY_NAMES the site knows, with its id. Without the site's list the 7 built-in ones stay."""
-    ids = {}
-    for group in (static or {}).get("result") or []:
-        for e in group.get("entries") or []:
-            if e.get("text") and e.get("id"):
-                ids.setdefault(str(e["text"]).strip().lower(), str(e["id"]))
-    known = {n.lower(): c for c, n in WEALTH_CURRENCIES}
-    out = []
-    for name in TAB_CURRENCY_NAMES:
-        cid = ids.get(name.lower()) or known.get(name.lower())
-        if cid and cid not in [c for c, _n in out]:
-            out.append((cid, name))
-    if len(out) >= len(known):
-        WEALTH_CURRENCIES[:] = out
-    return WEALTH_CURRENCIES
-
-
-# The trade site returns at most 100 listing ids per search. A tab holding more is searched again in slices: by
-# category, then sub-category (the ids poe.ninja uses for PoE 2), then rarity, then item level.
-WEALTH_CATS = {
-    "weapon": ["weapon.bow", "weapon.crossbow", "weapon.claw", "weapon.dagger", "weapon.oneaxe", "weapon.onemace",
-               "weapon.onesword", "weapon.flail", "weapon.sceptre", "weapon.spear", "weapon.staff", "weapon.rod",
-               "weapon.talisman", "weapon.twoaxe", "weapon.twomace", "weapon.twosword", "weapon.wand", "weapon.warstaff"],
-    "armour": ["armour.chest", "armour.boots", "armour.gloves", "armour.helmet", "armour.shield", "armour.focus",
-               "armour.buckler", "armour.quiver"],
-    "accessory": ["accessory.amulet", "accessory.belt", "accessory.ring"],
-    "jewel": [],
-    "flask": ["flask.life", "flask.mana"],
-    "gem": ["gem.activegem", "gem.supportgem"],
-    "map": ["map.waystone", "map.tablet", "map.logbook", "map.bosskey", "map.barya", "map.ultimatum"],
-    "currency": [],
-    "sanctum": ["sanctum.relic"],
-}
-
-
-WEALTH_RARITIES = ["normal", "magic", "rare", "unique"]
-
-
-WEALTH_ILVLS = [(None, 44), (45, 64), (65, 74), (75, 79), (80, 81), (82, None)]
-ILVL_TOP = 86                      # 2.40.1: the highest item level split one by one ("82+" -> 82, 83 ... 86)
-
+# ------------------------------------------------------------------ wealth: net worth of what you hold (1.33)
+# 3.0.7 (GGG policy audit): Wealth no longer reads stash tabs through the trade site (it searched your account's
+# listings at a marker price) - Scan stash and Count by hand fill it, poe.ninja prices it.
 
 NINJA_ECON = (os.environ.get("SOE2_NINJA") or "https://poe.ninja") + "/poe2/api/economy"
 
@@ -99,230 +32,8 @@ NINJA_ITEM_TYPES = ["UniqueWeapons", "UniqueArmours", "UniqueAccessories", "Uniq
 from .config import APP_UA as WEALTH_UA                    # 2.92.0: one honest name for the app
 
 
-def wealth_children(extra, level):
-    """The slices to search when a search at `level` found more listings than one search can return.
-    -> [(type filters, next level, label)]"""
-    def with_(key, value):
-        d = dict(extra)
-        d[key] = value
-        return d
-    if level == "top":
-        return [(with_("category", {"option": c}), "cat", c) for c in WEALTH_CATS]
-    if level == "cat":
-        subs = WEALTH_CATS.get(extra.get("category", {}).get("option"), [])
-        if subs:
-            return [(with_("category", {"option": s}), "sub", s.split(".", 1)[1]) for s in subs]
-        level = "sub"
-    if level == "sub":
-        return [(with_("rarity", {"option": r}), "rarity", r) for r in WEALTH_RARITIES]
-    if level == "rarity":                          # 2.40.0: tablets / jewels / waystones by base (or tier) first
-        cat = extra.get("category", {}).get("option")
-        if cat == "map.waystone":
-            return [(with_("map_filters/map_tier", {"min": t, "max": t}), "base", f"tier {t}") for t in range(1, 17)]
-        bases = split_bases(cat)
-        if bases:
-            return [(with_("__type", b), "base", b) for b in bases]
-        level = "base"
-    if level == "base":
-        out = []
-        for lo, hi in WEALTH_ILVLS:
-            v = {k: n for k, n in (("min", lo), ("max", hi)) if n is not None}
-            out.append((with_("ilvl", v), "ilvl", f"ilvl {lo or 1}-{hi}" if hi else f"ilvl {lo}+"))
-        return out
-    # 2.40.1: still over 100 (a player's tab: 201 and 220 rare tier-15 waystones in one item-level range)
-    if level == "ilvl":                            # every single item level in the range
-        r = extra.get("ilvl") or {}
-        lo, hi = int(r.get("min") or 1), int(r.get("max") or ILVL_TOP)
-        if hi - lo >= 1:
-            return [(with_("ilvl", {"min": n, "max": n}), "ilvl1", f"ilvl {n}") for n in range(lo, hi + 1)]
-        level = "ilvl1"
-    if level == "ilvl1":                           # corrupted or not (every item is one or the other)
-        return [(with_("misc_filters/corrupted", {"option": o}), "corrupt", "corrupted" if o == "true" else "not corrupted")
-                for o in ("false", "true")]
-    if level == "corrupt":                         # the same slice read from its other end: the newest 100 as well
-        return [(with_("__sort", {"indexed": "desc"}), "sorted", "newest first")]
-    return []
-
-
-def wealth_query(account, tab, extra):
-    filters = {"trade_filters": {"filters": {"account": {"input": account.strip()},
-                                             "sale_type": {"option": "any"},          # 2.38.0: as the site's own link
-                                             "price": {"option": tab["currency"], "min": tab["amount"], "max": tab["amount"]}}}}
-    query = {"status": {"option": "any"}, "filters": filters}
-    sort = {"price": "asc"}
-    for k, v in (extra or {}).items():             # 2.40.0: "__type" = the base type; "group/filter" = another group
-        if k == "__type":
-            query["type"] = v
-        elif k == "__sort":                        # 2.40.1: read the same slice from the other end
-            sort = dict(v)
-        elif "/" in k:
-            g, f = k.split("/", 1)
-            filters.setdefault(g, {"filters": {}})["filters"][f] = v
-        else:
-            filters.setdefault("type_filters", {"filters": {}})["filters"][k] = v
-    # status "any": Premium tab listings are whisper listings, so they are not "securable" (instant buyout)
-    return {"query": query, "sort": sort}
-
-
-_BASES = {}
-
-
-def split_bases(cat):
-    """2.40.0: the base types a search can be split by (one search returns at most 100): the tablets in tabs.txt,
-    the jewels in jewels.txt (each section there starts with the base's name, then "Base Prefix")."""
-    f = {"map.tablet": "tabs.txt", "jewel": "jewels.txt"}.get(cat)
-    if not f:
-        return []
-    if f not in _BASES:
-        names = []
-        try:
-            from .config import RESOURCE_DIR, APP_DIR
-            for folder in (RESOURCE_DIR, APP_DIR):
-                path = os.path.join(folder, f)
-                if os.path.exists(path):
-                    with open(path, encoding="utf-8") as fh:
-                        prev = ""
-                        for ln in fh:
-                            ln = ln.rstrip("\n")
-                            if ln.startswith("Base Prefix") and prev and not prev.startswith("#"):
-                                names.append(prev.strip())
-                            prev = ln
-                    break
-        except Exception:
-            names = []
-        _BASES[f] = [n for i, n in enumerate(names) if n and n not in names[:i]]
-    return list(_BASES[f])
-
-
 def wealth_trade_url(league, qid):
     return f"https://www.pathofexile.com/trade2/search/poe2/{requests.utils.quote(league)}/{qid}"
-
-
-def _item_level_prop(it):
-    for p in it.get("properties") or []:
-        if str(p.get("name", "")).strip().lower() == "level":
-            try:
-                return int(re.findall(r"\d+", str(p["values"][0][0]))[0])
-            except Exception:
-                return None
-    return None
-
-
-RARITY_OF_FRAME = {0: "Normal", 1: "Magic", 2: "Rare", 3: "Unique"}
-MOD_SOURCES = (("explicit", "explicitMods", ""), ("fractured", "fracturedMods", "Fractured "),
-               ("desecrated", "desecratedMods", "Desecrated "), ("crafted", "craftedMods", "Crafted "))
-
-
-def _kind_guess(line, cls_text):
-    """Prefix or Suffix for a mod line when the listing doesn't say: tabs.txt / jewels.txt know (tablets, jewels)."""
-    k = norm(line)
-    kinds = (TAB_KINDS if "tablet" in cls_text.lower() else JEWEL_KINDS).get(k) or set()
-    return next(iter(kinds)) if len(kinds) == 1 else "Prefix"
-
-
-def _txt(x):
-    """A text field of a trade-site listing as plain text (2.8.2). Some listings (Irradiated Tablets, Oct 2026) give a
-    field as an object instead of a string - e.g. {"text": ...} or {"name": ...} - which used to stop item_text."""
-    if x is None:
-        return ""
-    if isinstance(x, str):
-        return x
-    if isinstance(x, dict):
-        for k in ("text", "value", "name", "line", "description"):
-            v = x.get(k)
-            if isinstance(v, (str, list, dict)) and v:
-                return _txt(v)
-        return ""
-    if isinstance(x, (list, tuple)):
-        return "\n".join(t for t in (_txt(v) for v in x) if t)
-    return str(x)
-
-
-def item_text(it):
-    """A trade-site listing's item -> the text a Ctrl+Alt+C copy of it would give (2.0), so the Wealth page can price
-    rares with the same price checkers. Mod headers (prefix / suffix, tier) come from the listing's 'extended' data."""
-    frame = it.get("frameType", 0)
-    rarity = it.get("rarity") or RARITY_OF_FRAME.get(frame, "Normal")
-    base = strip_markup(_txt(it.get("baseType")))
-    b = gamedata.base(gamedata.find_base(base) or base) or {}
-    cls = gamedata.classes().get(b.get("class") or "", {}).get("name") or ""
-    if not cls:
-        cat = ((it.get("extended") or {}).get("category") or "").lower()
-        cls = "Tablet" if "tablet" in base.lower() or "tablet" in cat else "Jewels" if cat == "jewel" else cat.title() or "Item"
-    lines = [f"Item Class: {cls}", f"Rarity: {rarity}"]
-    if it.get("name"):
-        lines.append(strip_markup(_txt(it["name"])))
-    lines.append(strip_markup(_txt(it.get("typeLine")) or base))
-    props, uses = [], None
-    for p in it.get("properties") or []:
-        name = strip_markup(_txt(p.get("name"))).strip()
-        vals = ", ".join(strip_markup(_txt(v[0] if isinstance(v, (list, tuple)) else v)) for v in (p.get("values") or []) if v)
-        if not name:
-            continue
-        if "use" in name.lower() and vals:
-            uses = re.sub(r"[^\d]", "", vals) or None
-            continue
-        if "{0}" in name:
-            name = name.replace("{0}", vals)
-            props.append(name)
-        else:
-            props.append(f"{name}: {vals}" if vals else name)
-    lines += ["--------"] + (props or ["(no properties)"])
-    if it.get("sockets"):
-        lines += ["--------", "Sockets: " + " ".join("J" if s_.get("type") == "jewel" else "S" for s_ in it["sockets"])]
-    if it.get("ilvl"):
-        lines += ["--------", f"Item Level: {it['ilvl']}"]
-    imp = [strip_markup(_txt(m)) for m in it.get("implicitMods") or []]
-    if uses and not any("uses remaining" in m.lower() for m in imp):
-        imp.append(f"{uses} uses remaining")
-    if imp:
-        lines += ["--------", "{ Implicit Modifier }"] + [l for m in imp for l in m.split("\n")]
-    for m in it.get("runeMods") or []:
-        lines += ["--------", strip_markup(_txt(m)) + " (rune)"]
-    ext = it.get("extended") or {}
-    body = []
-    for key, field, src in MOD_SOURCES:
-        texts = it.get(field) or []
-        hashes = (ext.get("hashes") or {}).get(key) or []
-        info = (ext.get("mods") or {}).get(key) or []
-        last = None
-        for n, raw in enumerate(texts):
-            t = strip_markup(_txt(raw))
-            mi = None
-            try:
-                mi = hashes[n][1][0] if hashes[n][1] else None
-            except Exception:
-                mi = None
-            m = info[mi] if mi is not None and mi < len(info) else None
-            if m is None or mi != last:                       # a new affix (lines of one hybrid mod share a header)
-                tier = str((m or {}).get("tier") or "")
-                kind = {"P": "Prefix", "S": "Suffix"}.get(tier[:1]) or _kind_guess(t, cls)
-                num = re.sub(r"[^\d]", "", tier)
-                head = f'{{ {src}{kind} Modifier' + (f' "{_txt(m.get("name"))}"' if m and m.get("name") else "") + \
-                       (f" (Tier: {num})" if num else "") + " }"
-                body.append(head)
-            last = mi
-            body += t.split("\n")
-    if body:
-        lines += ["--------"] + body
-    if it.get("corrupted"):
-        lines += ["--------", "Corrupted"]
-    return "\n".join(lines)
-
-
-def wealth_item(entry, tab):
-    """Keep what the Wealth page needs from one fetched listing."""
-    it, lst = entry.get("item") or {}, entry.get("listing") or {}
-    mods = []
-    for k in ("implicitMods", "runeMods", "explicitMods", "fracturedMods", "desecratedMods", "craftedMods"):
-        for m in it.get(k) or []:
-            mods += [strip_markup(l) for l in _txt(m).split("\n") if l.strip()]
-    return {"lid": entry.get("id"), "tab": tab["id"], "stash": (lst.get("stash") or {}).get("name") or tab["label"],
-            "name": _txt(it.get("name")), "type": _txt(it.get("typeLine")), "base": _txt(it.get("baseType")),
-            "frame": it.get("frameType", 0), "qty": it.get("stackSize") or 1, "ilvl": it.get("ilvl"),
-            "corrupted": bool(it.get("corrupted")), "cat": (it.get("extended") or {}).get("category") or "",
-            "level": _item_level_prop(it), "mods": mods[:14],
-            "text": item_text(it) if it.get("frameType", 0) in (1, 2) else None}     # 2.0: for pricing rares
 
 
 COUNTED_TAB = "counted"               # the "tab" of everything counted by hand
@@ -395,62 +106,9 @@ def wealth_display_name(it):
     return f"{it['name']} {base}".strip() if it["name"] else base
 
 
-WEALTH_CUR_WORDS = {"div": "divine", "divs": "divine", "divine": "divine", "divines": "divine", "d": "divine",
-                    "vaal": "vaal", "vaals": "vaal", "chaos": "chaos", "c": "chaos", "ex": "exalted", "exa": "exalted",
-                    "exalt": "exalted", "exalted": "exalted", "exalts": "exalted", "regal": "regal", "annul": "annul",
-                    "annulment": "annul", "alch": "alch", "alchemy": "alch"}
-
-
-def parse_price_text(text):
-    """"37882", "37,882", "37882 div", "~price 37882 divine", "~b/o 150 vaal" -> (amount, currency id or None).
-    (None, None) if there's no number in it."""
-    t = (text or "").strip().lower().replace(",", "")
-    m = re.search(r"(\d+(?:\.\d+)?)\s*([a-z]*)", t)
-    if not m:
-        return None, None
-    amount = float(m.group(1))
-    word = m.group(2)
-    if word == "k":                              # "38k" = 38,000
-        amount, word = amount * 1000, t[m.end():].strip().split(" ")[0] if t[m.end():].strip() else ""
-    amount = int(amount) if amount.is_integer() else amount
-    cur = WEALTH_CUR_WORDS.get(word)
-    if cur is None and word:                     # "divine orb" etc.: try the first word, then a known prefix
-        cur = next((v for k, v in WEALTH_CUR_WORDS.items() if len(k) > 2 and word.startswith(k)), None)
-    return amount, cur
-
-
-def parse_trade_link(link):
-    """Read a pathofexile.com/trade2 search link the way the site encodes it (gzip + base64 after the league).
-    -> ({"league", "account", "amount", "currency"}, None) or (None, plain-English reason)."""
-    import base64
-    import gzip
-    from urllib.parse import unquote, urlparse
-    link = (link or "").strip()
-    m = re.search(r"/trade2?/search/poe2/([^/?#]+)/([^/?#]+)", urlparse(link).path if "://" in link else link)
-    if not m:
-        return None, "That doesn't look like a Path of Exile 2 trade-site search link."
-    league, code = unquote(m.group(1)), m.group(2)
-    if not code.startswith("H4sI"):
-        return None, ("That is a short saved-search link, which only the trade site can read. Type the tab's price "
-                      "instead, or copy the address again after changing a filter on the page (it then gets longer).")
-    try:
-        raw = base64.urlsafe_b64decode(code + "=" * (-len(code) % 4))
-        q = json.loads(gzip.decompress(raw))
-    except Exception:
-        return None, "The search in that link couldn't be read. Type the tab's price instead."
-    q = q.get("query", q) if isinstance(q, dict) else {}
-    tf = ((q.get("filters") or {}).get("trade_filters") or {}).get("filters") or {}
-    price, account = tf.get("price") or {}, ((tf.get("account") or {}).get("input") or "").strip()
-    amount = price.get("min") if price.get("min") is not None else price.get("max")
-    if amount is None or not price.get("option"):
-        return None, ("That link has no price filter, so it covers everything you have listed. Use a link that "
-                      "searches for your tab's price (set Buyout Price min to it, and pick its currency).")
-    amount = int(amount) if float(amount).is_integer() else float(amount)
-    return {"league": league, "account": account, "amount": amount, "currency": str(price["option"])}, None
-
-
 class WealthStore:
-    """wealth.json: your tab markers, the items last read from them, manual prices and the net worth history."""
+    """wealth.json: what you counted or scanned (holdings) and the net worth history. tabs / items / results /
+    rare_prices held the stash tabs read through the trade site before 2.105.1 - emptied on load."""
 
     def __init__(self):
         d = load_json("wealth.json", {})
@@ -462,7 +120,7 @@ class WealthStore:
         self.last_sync = d.get("last_sync", 0)
         self.rare_prices = d.get("rare_prices", {})  # 2.0: listing id -> {est, sig, ts, label, conf, qid, league}
         self.holdings = d.get("holdings", {})      # 2.0 beta 7: counted by hand: name -> {qty, cls, ts, src}
-        # 2.105.1 (feedback: synced stash tabs are gone - "clean start"): what tabs read is dropped once - the tabs,
+        # 2.105.1 (feedback: synced stash tabs are gone - a clean start): what tabs read is dropped once - the tabs,
         # their items, results and rare prices, and the history they were part of. Counted currency stays.
         if self.tabs or self.items or self.results or self.rare_prices:
             self.tabs, self.items, self.results, self.rare_prices, self.snapshots = [], {}, {}, {}, []
@@ -528,7 +186,6 @@ class WealthStore:
 
 
 PRICES_VERSION = 3          # 3.0.4: each line's 7-day price line (sparkline) is kept too
-BULK_TRIED = set()          # 2.114.3: names the bulk exchange was asked about this run (no answer = too few offers)
 
 
 def _num(x):
@@ -598,7 +255,8 @@ class WealthPrices:
         """One poe.ninja overview. -> parsed JSON, or None when it hasn't changed since last time (HTTP 304)."""
         path = "exchange/current/overview" if typ in NINJA_EXCHANGE_TYPES else "stash/current/item/overview"
         hdr = {"User-Agent": WEALTH_UA, "Accept": "application/json"}
-        if self.src == league and self.etags.get(typ) and typ in self.parts:
+        if self.src == league and self.etags.get(typ) and typ in self.parts and \
+                (typ not in NINJA_ITEM_TYPES or "icons" in self.parts[typ]):   # (3.0.6: a part from before icons)
             hdr["If-None-Match"] = self.etags[typ]
         r = requests.get(f"{NINJA_ECON}/{path}", params={"league": league, "type": typ}, headers=hdr, timeout=20)
         if r.status_code == 304:
@@ -606,6 +264,19 @@ class WealthPrices:
         r.raise_for_status()
         self.etags[typ] = r.headers.get("ETag")
         return r.json()
+
+    def _learn_icons(self):
+        """3.0.6: the uniques' pictures poe.ninja sends with its prices go to the app's picture list (Price Checks'
+        icons.json) - so every unique (each unique tablet too) has its picture. No request of its own."""
+        got = {}
+        for typ in NINJA_ITEM_TYPES:
+            got.update((self.parts.get(typ) or {}).get("icons") or {})
+        if got:
+            try:
+                from .pricecheck_page import icons_learn
+                icons_learn(got)
+            except Exception:
+                buglog.caught()
 
     def ensure(self, league, force=False):
         """Refresh if older than an hour (or `force`). `league` is the trade-site name; poe.ninja may spell it
@@ -710,8 +381,11 @@ class WealthPrices:
                 if sp:
                     spark[ln["id"]] = [sp[0], sp[1], ln.get("maxVolumeCurrency"), _num(ln.get("maxVolumeRate"))]
             return {"primary": core.get("primary"), "names": names, "lines": lines, "images": images, "spark": spark}
-        lines, spark = [], {}
+        lines, spark, icons = [], {}, {}
         for ln in body.get("lines") or []:
+            icon = str(ln.get("icon") or "") if isinstance(ln, dict) else ""
+            if ln.get("name") and icon.startswith("https://"):            # 3.0.6: each unique's picture (kept)
+                icons.setdefault(str(ln["name"]), icon)
             try:
                 lines.append([ln["name"], ln.get("baseType") or "", float(ln["primaryValue"]),
                               int(ln.get("listingCount") or 0), bool(ln.get("corrupted"))])
@@ -721,10 +395,11 @@ class WealthPrices:
             k = ln["name"].lower()
             if sp and (k not in spark or lines[-1][3] > spark[k][2]):
                 spark[k] = [sp[0], sp[1], lines[-1][3]]
-        return {"lines": lines, "spark": spark}
+        return {"lines": lines, "spark": spark, "icons": icons}
 
     def _index(self):
         """Build the lookup tables in divines."""
+        self._learn_icons()
         cur = self.parts.get("Currency") or {}
         primary = cur.get("primary") or "divine"
         per_div = 1.0
@@ -819,7 +494,7 @@ class WealthPrices:
 
     def trend(self, it):
         """3.0.4: (change % over 7 days, [points]) in divines for this item, or None (no poe.ninja line for it,
-        priced by the trade site's exchange, or another league's prices)."""
+        or another league's prices)."""
         if not self.for_league() or it["frame"] in (1, 2):
             return None
         tn, ts = getattr(self, "trend_by_name", {}), getattr(self, "trend_by_slug", {})
@@ -849,13 +524,8 @@ class WealthPrices:
             pool = [c for c in pool if c[3] == it["corrupted"]] or pool
             best = max(pool, key=lambda c: c[2])
             return best[1], best[4]
-        if it["frame"] in (1, 2):                               # magic / rare: the price checker's result (2.0)
-            rp = WEALTH.rare_prices.get(str(it.get("lid")))
-            if rp and rp.get("est") is not None and rp.get("sig") == rare_sig(it):
-                uses = re.match(r"(\d+/\d+ uses)", rp.get("label") or "")
-                return rp["est"], ("price check" + (f" ({rp['conf']})" if rp.get("conf") and rp["conf"] != "-" else "")
-                                   + (f" · {uses.group(1)}" if uses else ""))
-            return None, None
+        if it["frame"] in (1, 2):                               # magic / rare: not priced here (3.0.7: they came
+            return None, None                                   # from stash tabs read through the trade site)
         names = [n for n in (it["type"], it["base"]) if n]
         if it.get("level"):
             names = [f"{n} (Level {it['level']})" for n in names] + names
@@ -867,74 +537,16 @@ class WealthPrices:
             hit = getattr(self, "by_slug", {}).get(slug(n))
             if hit:
                 return hit
-        from . import bulk                                      # 2.72.1: not on poe.ninja - the bulk exchange's
-        for n in names:                                         # price from the last hour (wealth_bulk_fill)
-            xid = bulk.exchange_id(n)
-            hit = bulk.cached(SETTINGS.get("league") or self.league or "", xid, max_age=6 * 3600) if xid else None
-            if hit:
-                return hit[0], bulk.text(hit)
-        return None, None
-
-    def bulk_missing(self, items, limit=None):
-        """2.72.1: the stackables poe.ninja has no price for that the bulk exchange knows -> [(name, exchange id)].
-        2.114.3 (feedback: scanned items weren't in the total): every one, not the first 30 - a scan of eight tabs
-        has a hundred or more."""
-        from . import bulk
-        out, seen = [], set()
-        for it in items:
-            if it.get("frame") in (1, 2, 3) or self.value(it)[0] is not None:
-                continue
-            for n in [x for x in (it.get("type"), it.get("base")) if x]:
-                xid = bulk.exchange_id(n)
-                if xid and (n in BULK_TRIED or bulk.missed(SETTINGS.get("league") or self.league or "", xid)):
-                    break                                       # 3.0.4: asked already - too few offers
-                if xid and xid not in seen:
-                    seen.add(xid)
-                    out.append((n, xid))
-                    break
-            if limit and len(out) >= limit:
-                break
-        return out
+        return None, None                                       # 3.0.6: not on poe.ninja - no price (owner: no guessing)
 
     def why_unpriced(self, it):
-        """2.114.3: why a stackable has no price - asked the bulk exchange yet or not."""
-        from . import bulk
-        names = [x for x in (it.get("type"), it.get("base")) if x]
-        if not any(bulk.exchange_id(n) for n in names):
-            return "not on poe.ninja or the trade site's exchange"
-        lg = SETTINGS.get("league") or self.league or ""
-        if any(n in BULK_TRIED or bulk.missed(lg, bulk.exchange_id(n)) for n in names if bulk.exchange_id(n)):
-            return "too few offers on poe.ninja or the trade site's exchange"
-        return "not on poe.ninja - asking the trade site's exchange…"
-
-
-def rare_sig(it):
-    """Changes when the item's text changes (re-rolled, re-crafted): its price must be checked again."""
-    import hashlib
-    return hashlib.sha1((it.get("text") or "").encode("utf-8")).hexdigest()[:16]
-
-
-RARE_MAX_AGE = 3 * 86400            # a rare's price is checked again after 3 days (or when the item changed)
-
-
-def rares_to_price(items, league, now=None):
-    """Magic and rare items needing a price check: new, changed or old. Most valuable (last time) first."""
-    now = now or time.time()
-    out = []
-    for it in items:
-        if it["frame"] not in (1, 2) or not it.get("text"):
-            continue
-        rp = WEALTH.rare_prices.get(str(it["lid"]))
-        if rp and rp.get("sig") == rare_sig(it) and rp.get("league") == league and now - rp.get("ts", 0) < RARE_MAX_AGE:
-            continue
-        out.append((-(rp or {}).get("est", 0) if rp and rp.get("est") else 0, it))
-    out.sort(key=lambda x: x[0])
-    return [it for _k, it in out]
+        """Why a stackable has no price (3.0.6: poe.ninja is the only source)."""
+        return "not found on poe.ninja"
 
 
 def wealth_rows(items, prices):
     """-> ([(item, divines each or None, divines total or None, source)], total, priced count). 3.0.4 (owner):
-    never a price typed by hand - poe.ninja, else the trade site's exchange, else no price found."""
+    never a price typed by hand - poe.ninja, else no price (not found on poe.ninja)."""
     rows, total, priced = [], 0.0, 0
     for it in items:
         each, src = prices.value(it)
@@ -950,218 +562,3 @@ WEALTH = WealthStore()
 
 
 WPRICES = WealthPrices()
-
-
-WEALTH_SYNC = {"cur": None}        # the running (or last) sync: progress for the page, read by the UI thread
-WEALTH_RARES = {"gen": 0, "total": 0, "done": 0, "priced": 0, "running": False, "msg": ""}   # 2.0: pricing rares
-WEALTH_RARE_PRIO = 10              # after the sync (5-9) and far behind items you copy yourself (0-2)
-
-
-class WealthJobs:
-    """Engine jobs for the Wealth page (mixed into Engine, so they run on the same thread, one request at a time)."""
-
-    def wealth_start(self):
-        """Queue a sync of every included tab. Called from the window. -> error text or None."""
-        league, acc = SETTINGS.get("league"), (SETTINGS.get("wealth_account") or "").strip()
-        tabs = [t for t in WEALTH.tabs if t.get("enabled", True)]
-        cur = WEALTH_SYNC["cur"]
-        if cur and cur["running"]:
-            return "A sync is already running."
-        if not league:
-            return "Pick a league first (Settings › General)."
-        if not re.search(r"#\d+$", acc):
-            return "Enter your account name with its number, e.g. YourName#1234 (it's shown on the trade site)."
-        if not tabs:
-            return ("Add your priced tab first: under \"Your priced tabs\", type the price you put on the tab in game "
-                    "(e.g. 37882 and Divine Orb) and press Add tab, or paste a trade link for it and press Add from link.")
-        sid = time.time()
-        WEALTH_RARES["gen"] += 1                       # a new sync replaces any rare pricing still queued
-        WEALTH_RARES["running"] = False
-        WEALTH_SYNC["cur"] = {"id": sid, "running": True, "cancel": False, "started": sid, "league": league, "account": acc,
-                              "expected": 0, "fetched": 0, "searches": 0, "msg": "Waiting for item pricing to finish…",
-                              "tabs": {t["id"]: {"label": t["label"], "total": None, "seen": set(), "items": [],
-                                                 "warnings": [], "error": None, "qid": None, "dropped": 0} for t in tabs}}
-        for t in tabs:
-            self.add(WEALTH_PRIO, "wealth_search", sid, t["id"], {}, "top", "")
-        self.add(WEALTH_FINISH_PRIO, "wealth_finish", sid)
-        return None
-
-    def _wsync(self, sid):
-        s = WEALTH_SYNC["cur"]
-        return s if s and s["id"] == sid and s["running"] and not s["cancel"] else None
-
-    def _wsay(self, s, msg):
-        s["msg"] = msg
-        self.ui_q.put(("wealth", "progress"))
-
-    def do_wealth_search(self, sid, tab_id, extra, level, label):
-        s = self._wsync(sid)
-        tab = WEALTH.tab(tab_id)
-        if not s or not tab or s["tabs"][tab_id]["error"]:
-            return
-        t = s["tabs"][tab_id]
-        self._wsay(s, f"Searching {tab['label']}" + (f" ({label})" if label else "") + "…")
-        try:
-            res = call("POST", f"{BASE}/search/poe2/{requests.utils.quote(s['league'])}",
-                       json=wealth_query(s["account"], tab, extra))
-        except Exception as e:
-            t["error"] = str(e)[:300]
-            self._wsay(s, f"{tab['label']}: search failed")
-            return
-        s["searches"] += 1
-        total, ids, qid = int(res.get("total") or 0), list(res.get("result") or []), res.get("id")
-        if level == "top":
-            t["total"], t["qid"] = total, qid
-        kids = wealth_children(extra, level) if total > len(ids) and ids else []
-        both_ends = len(kids) == 1 and kids[0][1] == "sorted"     # 2.40.1: an extra view, not a split
-        if kids and both_ends:
-            ex, lv, lab = kids[0]
-            self.add(WEALTH_PRIO, "wealth_search", sid, tab_id, ex, lv, f"{label}, {lab}" if label else lab)
-        if kids and not both_ends:
-            for ex, lv, lab in kids:
-                self.add(WEALTH_PRIO, "wealth_search", sid, tab_id, ex, lv, f"{label}, {lab}" if label else lab)
-            return
-        if total > (2 * len(ids) if level == "sorted" else len(ids)) and not both_ends:
-            t["warnings"].append(f"{label or 'The tab'}: {total} items but only {2 * len(ids) if level == 'sorted' else len(ids)} can be read. "
-                                 f"Move some to another tab with its own price.")
-        new = [i for i in ids if i not in t["seen"]]
-        t["seen"].update(new)
-        for i in range(0, len(new), 10):
-            self.add(WEALTH_PRIO, "wealth_fetch", sid, tab_id, qid, new[i:i + 10])
-        s["expected"] += len(new)
-        self.ui_q.put(("wealth", "progress"))
-
-    def do_wealth_fetch(self, sid, tab_id, qid, ids):
-        s = self._wsync(sid)
-        tab = WEALTH.tab(tab_id)
-        if not s or not tab or s["tabs"][tab_id]["error"]:
-            return
-        t = s["tabs"][tab_id]
-        self._wsay(s, f"Reading items from {tab['label']}…")
-        try:
-            res = call("GET", f"{BASE}/fetch/{','.join(ids)}", params={"query": qid})
-        except Exception as e:
-            t["error"] = str(e)[:300]
-            return
-        acc = s["account"].lower()
-        for e in res.get("result") or []:
-            if not e:
-                continue
-            lst = e.get("listing") or {}
-            p = lst.get("price") or {}
-            owner = str((lst.get("account") or {}).get("name") or "").lower()
-            mine = not owner or owner == acc or owner.split("#")[0] == acc.split("#")[0] and ("#" not in owner or "#" not in acc)
-            if p.get("amount") != tab["amount"] or p.get("currency") != tab["currency"] or not mine:
-                t["dropped"] += 1                   # not carrying the exact marker price, or someone else's listing
-                continue
-            try:
-                t["items"].append(wealth_item(e, tab))
-            except Exception as ex:                 # 2.8.3: one odd listing mustn't lose the rest of its batch
-                t["unreadable"] = t.get("unreadable", 0) + 1
-                if t["unreadable"] == 1:
-                    t["warnings"].append(f"Couldn't read a listing ({type(ex).__name__}: {str(ex)[:80]}) - it was left "
-                                         f"out. Report a bug (bottom bar) helps find out why.")
-                continue
-            s["fetched"] += 1
-        self.ui_q.put(("wealth", "progress"))
-
-    def do_wealth_finish(self, sid):
-        s = WEALTH_SYNC["cur"]
-        if not s or s["id"] != sid:
-            return
-        if s["cancel"]:
-            s["running"], s["msg"] = False, "Sync stopped. The last complete data is kept."
-            self.ui_q.put(("wealth", "done"))
-            return
-        now, good = time.time(), 0
-        with WEALTH.lock:
-            for tab_id, t in s["tabs"].items():
-                res = {"total": t["total"], "fetched": len(t["items"]), "warnings": list(t["warnings"]),
-                       "error": t["error"], "qid": t["qid"], "ts": now, "league": s["league"]}
-                if t["dropped"]:
-                    res["warnings"].append(f"{t['dropped']} listing(s) not at exactly this tab's price were left out.")
-                if t.get("unreadable", 0) > 1:
-                    res["warnings"].append(f"{t['unreadable']} listings couldn't be read and were left out.")
-                if not t["error"]:
-                    good += 1
-                    WEALTH.items[tab_id] = t["items"]             # a tab that failed keeps its last good items
-                    if t["total"] == 0:
-                        res["warnings"].append("No listings found. Is the tab public, priced at exactly this amount and "
-                                               "currency, and has the trade site had a minute to list it?")
-                    elif t["total"] and len(t["items"]) + t.get("unreadable", 0) < t["total"]:
-                        res["warnings"].append(f"Read {len(t['items'])} of {t['total']} items; the rest are in a "
-                                               f"category the app can't search separately. Split the tab.")
-                WEALTH.results[tab_id] = res
-            WEALTH.last_sync = now
-        WEALTH.save()
-        self._wsay(s, "Pricing currency, stackables and uniques with poe.ninja (magic / rare items get price-checked next)…")
-        try:
-            WPRICES.ensure(s["league"])
-        except Exception as e:
-            WPRICES.errors = [str(e)[:120]]
-        WEALTH.snapshot(s["league"], WPRICES, "synced")
-        n = sum(len(t["items"]) for t in s["tabs"].values() if not t["error"])
-        failed = len(s["tabs"]) - good
-        queued = self.wealth_queue_rares(s["league"])
-        s["running"] = False
-        s["msg"] = (f"Synced {n} items from {good} tab{'s' if good != 1 else ''} with {s['searches']} searches"
-                    + (f". {failed} tab{'s' if failed != 1 else ''} failed - see the tab list." if failed else ".")
-                    + (f" Now price-checking {queued} magic / rare item{'s' if queued != 1 else ''} in the background "
-                       f"(behind anything you copy)." if queued else ""))
-        self.ui_q.put(("wealth", "done"))
-
-    # ---- rares (2.0): priced with the same price checkers as Ctrl+Alt+C, one at a time, behind your own checks
-    def wealth_queue_rares(self, league, force=False):
-        """Queue price checks for the magic / rare items that need one. -> how many."""
-        items = WEALTH.all_items()
-        todo = [i for i in items if i["frame"] in (1, 2) and i.get("text")] if force else rares_to_price(items, league)
-        WEALTH_RARES["gen"] += 1
-        gen = WEALTH_RARES["gen"]
-        WEALTH_RARES.update(total=len(todo), done=0, priced=0, running=bool(todo), msg="")
-        for it in todo:
-            self.add(WEALTH_RARE_PRIO, "wealth_rare", it["lid"], gen)
-        if todo:
-            self.add(WEALTH_RARE_PRIO + 1, "wealth_rares_done", gen)
-        return len(todo)
-
-    def do_wealth_rare(self, lid, gen):
-        if gen != WEALTH_RARES["gen"]:
-            return                                     # stopped, or replaced by a newer sync
-        it = next((i for i in WEALTH.all_items() if i.get("lid") == lid), None)
-        if not it or not it.get("text"):
-            return
-        from .mods import parse_item
-        from . import gear, waystone
-        item = parse_item(it["text"]) or waystone.parse_waystone(it["text"]) or gear.parse_gear(it["text"])
-        rp = {"sig": rare_sig(it), "ts": time.time(), "league": SETTINGS.get("league"), "est": None, "conf": "-",
-              "label": "", "qid": None}
-        if not item:
-            rp["label"] = "this kind of item can't be price-checked"
-        else:
-            rec = {"item": item, "ov": {}, "resolved": False, "state": "queued", "label": "", "total": 0, "prices": [],
-                   "est": None, "qid": None}
-            self.resolve_rec(rec)
-            self.price_rec(rec)
-            from .pricefmt import needs_manual_price
-            manual = rec.get("manual") or needs_manual_price(rec)   # 2.18.0: same rule as Price checks
-            rp.update(est=None if manual else rec.get("est"), conf=rec.get("conf") or "-",
-                      label=(("Price manually - " if manual and rec.get("est") is not None else "")
-                             + rec.get("label", ""))[:200], qid=rec.get("qid"))
-        with WEALTH.lock:
-            WEALTH.rare_prices[str(lid)] = rp
-        WEALTH_RARES["done"] += 1
-        WEALTH_RARES["priced"] += rp["est"] is not None
-        if WEALTH_RARES["done"] % 5 == 0:
-            WEALTH.save()
-        self.ui_q.put(("wealth", "rare"))
-
-    def do_wealth_rares_done(self, gen):
-        if gen != WEALTH_RARES["gen"]:
-            return
-        WEALTH.save()
-        WEALTH.snapshot(SETTINGS.get("league"), WPRICES, "rares priced")
-        R = WEALTH_RARES
-        R["running"] = False
-        R["msg"] = (f"Price-checked {R['done']} magic / rare item{'s' if R['done'] != 1 else ''}: "
-                    f"{R['priced']} got a price.")
-        self.ui_q.put(("wealth", "rares_done"))

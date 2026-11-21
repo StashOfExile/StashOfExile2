@@ -3,11 +3,13 @@ build does - Python 3.14 prints these while building, and a later Python will ma
 return / break / continue that leaves a finally block (Python 3.14 warns about those too - PEP 765). A warning from
 site-packages while building (pystray's _util/gtk.py has a return in a finally block) isn't ours."""
 import ast
+import os
 import subprocess
 import sys
 import warnings
 
-files = subprocess.check_output(["git", "ls-files", "*.py"]).decode().split()
+# (a file deleted in the working tree but not committed yet is left out, as it won't be built)
+files = [f for f in subprocess.check_output(["git", "ls-files", "*.py"]).decode().split() if os.path.exists(f)]
 bad = []
 for f in files:
     with open(f, encoding="utf-8") as fh:

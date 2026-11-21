@@ -23,6 +23,10 @@ PROPS = {
     "gold found": ("map_gold", "Gold Found", "normal"),
     "revives available": ("map_revives", "Revives Available", "normal"),
 }
+# The numbers a waystone shows at its top (its header) - the by-hand picker (Farming Strategies › New strat) offers these.
+# Experience and Gold Found are in PROPS for copies that carry them, but they aren't waystone header numbers (owner).
+WAYSTONE_HEADERS = ("waystone drop chance", "item rarity", "pack size", "monster rarity", "monster effectiveness",
+                    "revives available")                 # (in the order a waystone reads)
 _PROP = re.compile(r"^([A-Za-z ]+):\s*([+-]?\d+(?:\.\d+)?)%?")
 SHOWN_ONLY = ("waystone tier", "quality")       # numbers at the top the card already shows another way
 _TIER = re.compile(r"Waystone \(Tier (\d+)\)")
@@ -82,9 +86,9 @@ def parse_waystone(text):
                      "kind": "Endgame", "tier": None, "mid": f"map:{fid}",
                      "flags": set(), "value": v, "lo": None, "hi": None, "roll": None, "sid": f"map:{fid}",
                      "ids": [f"map:{fid}"], "group": "total", "guess": None, "key": None, "novalue": False,
-                     "covered": "not searched by default (tick it to search on it)" if default == "ignore" else None,
+                     "covered": "not searched by default - tick it to search on it" if default == "ignore" else None,
                      "note": ("searched at your value or more (all the numbers are lowered together when too few "
-                              "listings match)" if default != "ignore" else "not searched by default (tick it to search on it)"),
+                              "listings match)" if default != "ignore" else "not searched by default - tick it to search on it"),
                      "endgame": True})
         mid += 1
     cur = None                                          # the monster / area mods: shown, never searched

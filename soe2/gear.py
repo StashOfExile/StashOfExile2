@@ -309,7 +309,7 @@ def _merge_same_stat(mods, refs_of):
         del refs_of[i]
 
 
-# 2.114.0 (feedback: "the 5 types of wombgifts ... they do exist" on the trade site): currency-like items that the
+# 2.114.0 (feedback: the 5 types of wombgifts do exist on the trade site): currency-like items that the
 # bulk exchange doesn't trade but the trade site lists as items - searched by their type alone, like the site's own
 # search for one ({"type": "Ornate Wombgift"}).
 TYPE_ONLY_CLASSES = ("Wombgifts",)
@@ -356,7 +356,7 @@ def gem_search(name, level=None, sockets=None, quality=0, corrupted=False):
 
 
 def gem_item(g, text):
-    """2.130.0 (feedback: "the price checker is currently unable to price skill/spirit gems"): a copied skill,
+    """2.130.0 (feedback: the price checker could not price skill or spirit gems): a copied skill,
     support or spirit gem -> a price-check item searched as the trade site's gem filters do (level, sockets,
     quality, corrupted), or None."""
     if not g or g.get("rarity") != "Gem" or g.get("class_text") not in GEM_CLASSES or not g.get("name"):
@@ -453,8 +453,8 @@ def _parse_gear(text):
         if not stat and not m["sid"]:
             m["note"] = m["note"] or "not found in the library or on the trade site's stat list"
         if kind == "Enchant" and unique and m.get("option") is not None:
-            # 2.138.4 (feedback: "Megalomaniac jewels can have any of the game's ... nodes on them, in any combination,
-            # we need to make them searchable"): which passive it allocates sets the price - each one searched
+            # 2.138.4 (feedback: Megalomaniac jewels can carry any of the game's nodes in any combination, so they
+            # must be searchable): which passive it allocates sets the price - each one searched
             m["auto"] = "high"
             m["note"] = "which passive it allocates decides the price - searched"
         elif kind == "Enchant" and g.get("corrupted") and m["sid"]:    # 2.98.2 (feedback): a corrupted item's
@@ -474,19 +474,24 @@ def _parse_gear(text):
                 m["note"] = f"well rolled ({r:.0%} of its range): searched at least this high"
             else:
                 m["covered"] = ("uniques are searched by name" + (f" - this roll is {r:.0%} of its range" if r is not None
-                                                                   else "") + " (tick it to search on its roll too)")
+                                                                   else "") + " - tick it to search on its roll too")
         elif kind in AFFIX_KINDS and stat and g["rarity"] in ("Magic", "Rare"):     # 2.72.0: what buyers pay for
             if "modifier magnitudes" in stat["ref"].lower():
                 # 2.120.1 (feedback): "#% increased Explicit Resistance Modifier magnitudes" (a crafted line) - what
                 # it adds is already in the mods' own numbers, which are searched; asking for it too only hid listings
                 m["auto"] = "ignore"
-                m["note"] = "its effect is already in the other mods' numbers - not searched (tick it to search on it)"
+                m["note"] = "its effect is already in the other mods' numbers - not searched - tick it to search on it"
             elif stat["ref"] in FILLER:
                 m["auto"] = "ignore"
-                m["note"] = "rarely adds to a rare's price - not searched (tick it to search on it)"
-            elif str(gm.get("tier") or "").isdigit() and int(gm["tier"]) >= LOW_TIER:
-                m["auto"] = "ignore"
-                m["note"] = f"low tier (T{gm['tier']}) - rarely adds to the price, not searched (tick it to search on it)"
+                m["note"] = "rarely adds to a rare's price - not searched - tick it to search on it"
+            else:
+                if str(gm.get("tier") or "").isdigit() and int(gm["tier"]) >= LOW_TIER:
+                    m["auto"] = "ignore"
+                    m["note"] = (f"low tier (T{gm['tier']}) - rarely adds to the price, not searched - tick it to "
+                                 "search on it")
+                    m["low_tier"] = True
+                from .gearbook import gear_key            # owner (Rate Mods, By roll): the letter of its roll's
+                m["roll_key"] = gear_key(cls, clean)        # group (weighed once the totals are known)
         mods.append(m)
         refs_of.append(stat["ref"] if stat else None)
     _merge_same_stat(mods, refs_of)
@@ -494,7 +499,7 @@ def _parse_gear(text):
     if unique:
         _exact_rolls(g["name"], mods)
 
-    # 2.98.4 (feedback: "I am unable to accurately price check a mageblood"): what a Mageblood's price hangs on -
+    # 2.98.4 (feedback: a Mageblood could not be price checked accurately): what a Mageblood's price hangs on -
     # its Legacies (which ones, how many of each: searched as Min N), its charm slots, and - with a duplicate - the
     # "increased effect per duplicate" roll (at least its value)
     notes = []
@@ -510,7 +515,7 @@ def _parse_gear(text):
                     m.update(auto="high", covered=None, novalue=False,
                              note="your Legacies have a duplicate: this roll counts - searched at least this high")
                 else:
-                    m["note"] = "no duplicate Legacy: this roll doesn't count (tick it to search on it anyway)"
+                    m["note"] = "no duplicate Legacy: this roll doesn't count - tick it to search on it anyway"
             elif m["kind"] == "Implicit" and "charm slot" in low and m["sid"] and m.get("value"):
                 m.update(auto="high", covered=None,
                          note=f"{int(m['value'])} charm slots - searched at least that")
@@ -569,8 +574,10 @@ def _parse_gear(text):
             for m in feeding:
                 m["covered"] = f"counted in the {name}"
         totals += hybrid_split(mods, totals)
+    from .ratemods import apply_roll
     for m in mods:
-        if m["covered"] and not m.get("note"):
+        apply_roll(m)                                        # owner: By roll in Rate Mods - an F group is left out
+        if m["covered"] and not m.get("note"):               # the low-tier way; another letter orders it
             m["note"] = m["covered"]
         if m.get("header"):                                  # a header word the app doesn't know yet: read as usual
             words = " ".join(w.title() for w in m["header"])
@@ -587,17 +594,17 @@ def _parse_gear(text):
             search["name"] = None
             notes.append(f"{g['name']} isn't on the trade site's list yet: any unique on this base")
         elif "unidentified" in g.get("flags", []) or not g["name"] or g["name"] == g["base"]:
-            # 2.120.0 (feedback: "unknown item name"): unidentified, a unique shows only its base - that's not a
+            # 2.120.0 (feedback: an unknown item name): unidentified, a unique shows only its base - that's not a
             # unique's name. The one unique on that base by name; with several (or none known), any unique on it.
             on = gamedata.uniques_on(g["base"])
             search["name"] = on[0] if len(on) == 1 else None
-            notes.append("unidentified: " + (f"searched as {on[0]} (the only unique on this base)" if len(on) == 1
+            notes.append("unidentified: " + (f"searched as {on[0]} - the only unique on this base" if len(on) == 1
                                              else "any unique on this base" + (f" ({', '.join(on)})" if on else "")))
         rolls = [m["roll"] for m in mods if m["roll"] is not None and m["kind"] in AFFIX_KINDS]
         if rolls:                                           # 2.72.0: how well its rolls came out, on the whole
             avg = sum(rolls) / len(rolls)
-            notes.append(f"rolls: {avg:.0%} of their ranges" + (" (well rolled)" if avg >= GOOD_ROLL else
-                                                                 " (low: most listings roll better)" if avg < 0.3 else ""))
+            notes.append(f"rolls: {avg:.0%} of their ranges" + (" - well rolled" if avg >= GOOD_ROLL else
+                                                                 " - low, most listings roll better" if avg < 0.3 else ""))
     elif cls in PER_BASE_CLASSES or not totals:
         search.update(type=g["base"], category=None)        # its own market (and anything without totals to compare on)
     if g["rarity"] in ("Normal", "Magic"):              # 2.79.0 (feedback): white and blue bases - the exact item
@@ -641,7 +648,7 @@ def _parse_gear(text):
             "ilvl": g.get("ilvl"), "group_id": g.get("group"), "search": search, "notes": notes}
 
 
-ILVL_TOP = 82            # 2.131.4 (feedback: "any ilvl above 82 doesn't matter ... always search at ilvl 82 min")
+ILVL_TOP = 82            # 2.131.4 (feedback: item level above 82 does not matter - always search at 82 min)
 
 def is_exceptional(cls, quality, sockets, name=None):
     """An exceptional base (the app's one meaning): over 20% quality, more sockets than its class usually rolls
@@ -745,8 +752,8 @@ def broadened_opts(opts, offer):
 
 
 def widens(item):
-    """Can this item's price check widen (Broaden Search: a white or blue base on the base route)? Owner: "all of
-    the white base rules apply to magic bases also" - a blue base's own mods are searched as before, every step."""
+    """Can this item's price check widen (Broaden Search: a white or blue base on the base route)? Owner: all of
+    the white base rules apply to magic bases also - a blue base's own mods are searched as before, every step."""
     return item.get("rarity") in ("Normal", "Magic") and bool((item.get("search") or {}).get("base_exact"))
 
 

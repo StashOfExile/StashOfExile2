@@ -145,7 +145,7 @@ def run(args):
     xv = ensure_x(args.display)
     home = make_home(args.data, args.shape)
     env = dict(os.environ, HOME=home, APPDATA=home, USERPROFILE=home, DISPLAY=args.display,
-               SOE2_TRADE_API=OFFLINE + "/api/trade2", SOE2_NINJA=OFFLINE, PYTHONDONTWRITEBYTECODE="1")
+               SOE2_TRADE_API=OFFLINE + "/api/trade2", SOE2_NINJA=OFFLINE, PYTHONDONTWRITEBYTECODE="1", SOE2_NO_BOARD="1")
     if args.self_test:
         env["SOE2_SMOKE_SELFTEST"] = "1"
     cmd = [sys.executable, os.path.abspath(__file__), "--child", out, "--display", args.display] + \

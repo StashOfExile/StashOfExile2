@@ -5,6 +5,7 @@ first, the cheapest real offer (trade.cheapest_real) in divines. Results in stra
 
 Engine jobs (mixed into Engine: the same thread and trade-site limits as every other search). Only searches and
 reads listings - never buys, whispers or lists anything (TOS.md)."""
+import re
 import time
 
 import requests
@@ -36,12 +37,35 @@ def due(s, all_costs, league, now=None):
 
 def query(item):
     """One item of a strat -> a trade search: its base type, its key mods (those the app knows), cheapest first."""
-    from .moneymakers import stat_id
+    from .moneymakers import _num, stat_id, value_range, waystone_maxes, waystone_props
     st = dict(STATUS_OPTIONS).get(SETTINGS.get("status"), "securable")
     q = {"query": {"status": {"option": st}, "type": item["base"]}, "sort": {"price": "asc"}}
-    ids = [i for i in (stat_id(m) for m in item.get("key_mods") or []) if i]
-    if ids:
-        q["query"]["stats"] = [{"type": "and", "filters": [{"id": i} for i in ids]}]
+    if str(item.get("rarity") or "").lower() == "unique" and item.get("name"):
+        q["query"]["name"] = item["name"]                   # 3.0.6: a unique tablet - by its name
+        return q, 0, 0
+    wp = waystone_props(item)                               # 3.0.6: a waystone - its tier and numbers, as
+    if wp is not None:                                      # Endgame filters with your Min and Max
+        tier, props = wp
+        his = waystone_maxes(item)
+        mp = {fid: value_range(v, his.get(fid)) for fid, _ro, v in props}
+        if tier:
+            mp["map_tier"] = {"min": tier, "max": tier}
+        if mp:
+            q["query"]["filters"] = {"map_filters": {"filters": mp}}
+        return q, len(props), len(item.get("key_mods") or [])
+    flt, his = [], item.get("key_max") or {}
+    for line in item.get("key_mods") or []:
+        sid = stat_id(line)
+        if not sid or any(f["id"] == sid for f in flt):
+            continue
+        f = {"id": sid}
+        if his.get(line) is not None:                       # a Max you set: sent with the line's own number as Min
+            n = re.search(r"[-+]?\d+(?:\.\d+)?", str(line))
+            f["value"] = value_range(_num(n.group(0)) if n else None, his[line])
+        flt.append(f)
+    ids = [f["id"] for f in flt]
+    if flt:
+        q["query"]["stats"] = [{"type": "and", "filters": flt}]
     return q, len(ids), len(item.get("key_mods") or [])
 
 

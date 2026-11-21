@@ -13,7 +13,7 @@ from .market import MARKET
 from .valuelog import VALUE_LOG, sig_of
 from .mods import impact_key, JEWEL_BASE, norm, SIDTEXT
 from .pricefmt import fmt_div
-from .style import C, SegBar
+from .style import C, SegBar, trade_icon
 from .chrome import section as chrome_section
 
 KINDS = ["All", "Gear", "Tablets", "Waystones", "Jewels", "Relics"]     # P2 (2.104.0): All and Gear (gear showed nowhere)
@@ -105,7 +105,7 @@ class InsightsPage:
         self.ins_det_btns = {
             "open": ttk.Button(dbar, text="Show in Bulk Pricing", command=self.ins_open_record),
             "again": ttk.Button(dbar, text="Price it again", command=self.ins_price_again),
-            "trade": ttk.Button(dbar, text="Trade Site", command=self.ins_open_search),
+            "trade": trade_icon(ttk.Button(dbar, text="Trade Site", command=self.ins_open_search)),
             "remove": ttk.Button(dbar, text="Remove", command=self.ins_remove_picked, style="Quiet.TButton")}
         self.undo_button(dbar, "insights", side="bottom", pady=(8, 0))   # P2: only with something to undo
         self.ins_card = tk.Frame(det, bg=P2)
@@ -153,7 +153,7 @@ class InsightsPage:
                                          ("Price it again", lambda: (self.ins_show("mine"), self.ins_price_again())),
                                          ("Remove", lambda: self.ins_forget(sel), bool(sel), "Del")]
         table(0, 1, "mods", "Mods worth the most", "What the Mod Book learned: the typical asking price of listings "
-                                                    "with this mod. ★ = valuable in your Mod Book.",
+                                                    "with this mod. ★ marks a mod that is valuable in your Mod Book.",
               (("mod", "Mod", 120, "w"), ("base", "On", 76, "w"), ("med", "Typical", 76, "e"), ("n", "Seen", 52, "e")))
         table(1, 0, "seen", "Most expensive listings seen", "The priciest listings your checks came across on the "
                                                      "trade site.",
@@ -581,7 +581,7 @@ class InsightsPage:
             save_json("settings.json", SETTINGS)
             self.refresh_insights()
         self.push_undo("insights", label, restore)
-        self._say(f"Removed {label} from Market Insights. Ctrl+Z (or Undo) puts them back.", 8)
+        self._say(f"Removed {label} from Market Insights. Ctrl+Z or Undo puts them back.", 8)
         self.refresh_insights()
         return len(xs)
 
@@ -602,7 +602,7 @@ class InsightsPage:
             self.refresh_insights()
         label = f"{len(keys)} mod{'s' if len(keys) != 1 else ''}"
         self.push_undo("insights", label, restore)
-        self._say(f"Removed {label} from Market Insights. Ctrl+Z (or Undo) puts them back.", 8)
+        self._say(f"Removed {label} from Market Insights. Ctrl+Z or Undo puts them back.", 8)
         self.refresh_insights()
         return len(keys)
 
@@ -725,7 +725,7 @@ class InsightsPage:
             VALUE_LOG.save()
             self.refresh_insights()
         self.push_undo("insights", label, restore)
-        self._say(f"Removed {label} from Market Insights. Ctrl+Z (or Undo) puts them back.", 8)
+        self._say(f"Removed {label} from Market Insights. Ctrl+Z or Undo puts them back.", 8)
         self.refresh_insights()
 
     def ins_price_again(self):

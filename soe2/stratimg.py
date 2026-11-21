@@ -3,7 +3,7 @@
 A picture is shrunk to a small JPEG (at most 1600 px wide, about 300 KB) and kept in the data folder
 (strat_images/). A strat names it in "atlas_image": "l:<file>" on this PC; posting the strat to the community board
 uploads it first and it becomes "b:<id>" (the board keeps it; anyone's app downloads it once and keeps a copy).
-Feedback: "I like the screenshot idea, no planner link - keep immersion in one place"."""
+Feedback: the screenshot idea is liked, with no planner link - keep immersion in one place."""
 import base64
 import io
 import os

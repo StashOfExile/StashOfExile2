@@ -34,8 +34,9 @@ NEXT = [
 # it should help ("X was doing Y; this should stop it", "should catch", "shouldn't ... any more"), never "Fixed X".
 # At most MAX_BIG big per card (skipped updates together, newest first); the rest go small.
 MAX_BIG = 3
-# 2.125.6 (feedback: "any updates to beta functions should only show in the What's new card if a person has labs/beta
-# enabled"): notes in these areas show only with Settings › General › Beta features on. Name a note's area after the
+# 2.125.6 (feedback: updates to beta functions should only show in the What's new card when labs / beta
+# is enabled): notes in these areas show only with Settings › General › Beta features
+# on. Name a note's area after the
 # beta feature it's about (a Labs page, or a part of a page marked BETA).
 BETA_AREAS = ("Wealth", "Money Makers", "Game Search", "Market Insights", "Craft Helper", "Stash tab", "Scan stash",
               "Desecration Helper")
@@ -44,6 +45,47 @@ BETA_AREAS = ("Wealth", "Money Makers", "Game Search", "Market Insights", "Craft
 # repeats. Someone coming from rollup["since"] or older (or a fresh install) sees it instead of each version; someone
 # on a pre-release already saw them and gets only this version's own lines (notes_between).
 NOTES = {
+    # 3.1.0: the owner's own patch notes, in his words - groups in order: GGG's rules, New, Changed, Improved
+    "3.1.0": {
+        "lead": [
+            ("🛡", "Made to follow GGG's rules", [
+                ("•", "The app only searches the trade site when you press a button. Automation removed."),
+                ("•", "It no longer reads your stash tabs or asks for account name for stash tab searches "
+                      "in Bulk Pricing."),
+                ("•", "Ritual filter: Instructions and directory opening dialogue added to enable your loot filter "
+                      "in the ritual window."),
+                ("•", "The overlay has a STASH OF EXILE 2 badge, so it never looks like part of the game, "
+                      "to meet GGG's rules."),
+            ]),
+            ("✦", "New", [
+                ("•", "Farming Strategies: make your own strategy. Copy in your waystone and tablets, or set them "
+                      "by hand."),
+                ("•", "Exchange Rates overlay: pick up to 10 currencies, put them in your preferred order, and choose "
+                      "what exchange rates you want to see."),
+                ("•", "Exchange Rates: see what one currency is worth in every other currency."),
+                ("•", "Game Search: Minor changes and bugfixes."),
+                ("•", "Wealth: Scan stash can now read Socketables tab: runes, soul cores and idols."),
+                ("•", "Overlay: a new Split layout puts it in two small halves."),
+                ("•", "One installer: it asks first, Full Install or Portable."),
+            ]),
+            ("↻", "Changed", [
+                ("•", "All exchange prices come from poe.ninja only."),
+                ("•", "Ritual helper shows Favours prices more accurately."),
+                ("•", "Rate Mods has its own section in the menu and a simpler way to rate."),
+                ("•", "Price Checks screen updates and changes for better visual structure."),
+                ("•", "Bulk Pricing screen updates and changes for better visual structure."),
+            ]),
+            ("▲", "Improved", [
+                ("•", "Vaal Lens gives you a full step-by-step plan for your temple."),
+                ("•", "Map Profit counts more items and keeps counting after a restart, hopefully more "
+                      "accurately."),
+                ("•", "Screen reading should work at any resolution, including ultrawide and 4K."),
+                ("•", "A softer, cleaner look."),
+                ("•", "Too few price check results? One click widens the search."),
+                ("•", "Added Implicit row to price checker panel."),
+            ]),
+        ],
+    },
     # 3.0.5: Linux joins main - its download is on the same release page.
     "3.0.5": {
         "small": [
@@ -319,7 +361,7 @@ NOTES = {
         ],
     },
     "2.135.0": {
-        # (feedback: "push it as full release with bugfixes as the what's new card")
+        # (feedback: push it as a full release, with the bugfixes as the What's new card)
         "big": [
             ("🪟", "Page windows stay with the app", "Moving the app shouldn't leave a page behind any more.", None,
              "App"),
@@ -2677,5 +2719,6 @@ def plain_lines(entry):
     """A version's notes as plain lines (About › Version), big ones first."""
     if not isinstance(entry, dict):
         return list(entry)
-    return [f"{title} - {text}" for _i, title, text, _go, _a in entry.get("big", [])] + \
+    return [f"{head}: {line}" for _i, head, lines in entry.get("lead", []) for _li, line in lines] + \
+        [f"{title} - {text}" for _i, title, text, _go, _a in entry.get("big", [])] + \
         [f"{a}: {t}" if a else t for a, t in entry.get("small", [])]

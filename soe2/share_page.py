@@ -1,5 +1,5 @@
-"""2.132.6 Shared lists (feedback: "allow people to publish their regex to the database, as well as favorites from the
-trade site section ... similar to the one-liners"; "sorting for Official | Community | Mine"): the board side of Regex
+"""2.132.6 Shared lists (feedback: let people publish their regexes to the database, and favorites from the
+trade site section, like the one-liners; sorting for Official | Community | Mine): the board side of Regex
 favorites and trade-site Favorites - the three views, each copy once, Post, Upvote and Tags. Posting needs Community
 data sharing and a community name, like strats."""
 import tkinter as tk

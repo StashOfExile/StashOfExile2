@@ -2,8 +2,7 @@
 
   * poe.ninja's sparkline is for the pair an item trades most against; the rate is turned the right way round by
     checking it against the price, and the pair's own change in divines is added on.
-  * The trade site's exchange: "too few offers" is kept (bulk_prices.json), so a restart doesn't keep saying
-    "asking…" and doesn't ask again at once.
+  * poe.ninja is the only price source (3.0.6): an item it doesn't list has no price and "not found on poe.ninja".
   * Wealth has no typed prices: wealth_rows takes no overrides.
 
     python3.12 -m unittest tests.test_wealth_trend          (or tests/runall.sh)"""
@@ -19,7 +18,7 @@ os.environ["HOME"] = os.environ["APPDATA"] = HOME
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from soe2 import bulk, wealth as W                 # noqa: E402
+from soe2 import wealth as W                 # noqa: E402
 from soe2.config import SETTINGS                  # noqa: E402
 
 
@@ -110,18 +109,16 @@ class NoTypedPrices(unittest.TestCase):
         self.assertIn("No price found", page)
 
 
-class ExchangeMiss(unittest.TestCase):
-    def test_miss_is_kept(self):
-        calls = []
-        old = bulk.search
-        bulk.search = lambda league, xid, have, call_=None: calls.append(have) or []
-        self.addCleanup(setattr, bulk, "search", old)
-        self.assertIsNone(bulk.price("L", "the-runefathers-alloy", lambda a, c: a))
-        self.assertTrue(bulk.missed("L", "the-runefathers-alloy"))
-        self.assertIsNone(bulk.cached("L", "the-runefathers-alloy"))
-        n = len(calls)
-        self.assertIsNone(bulk.price("L", "the-runefathers-alloy", lambda a, c: a))
-        self.assertEqual(len(calls), n)                      # (asked within the hour: not again)
+class NotOnNinja(unittest.TestCase):
+    def test_unlisted_item_has_no_price(self):
+        P = W.WealthPrices()
+        P.by_name, P.by_slug, P.uniques = {"divine orb": (1.0, "poe.ninja Currency")}, {}, {}
+        P.league = None
+        it = {"frame": 5, "type": "Greater Essence of Battle", "base": "", "name": "", "level": 0,
+              "corrupted": False, "text": ""}
+        self.assertEqual(P.value(it), (None, None))
+        self.assertEqual(P.why_unpriced(it), "not found on poe.ninja")
+        self.assertFalse(hasattr(W, "BULK_TRIED"))
 
 
 if __name__ == "__main__":

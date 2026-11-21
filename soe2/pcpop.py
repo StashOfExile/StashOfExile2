@@ -11,7 +11,7 @@ listings - each a one-line summary that opens to the whole item (implicits, ever
 Trade site and Open in app sit at the bottom.
 
 Typing: click into a Min / Max box and the card takes the keyboard (Enter searches again); click back into the
-game and it has the keyboard again. 3.0.1 (owner: "the Min / Max boxes don't take typing"): every box takes it - the
+game and it has the keyboard again. 3.0.1 (the Min / Max boxes did not take typing): every box takes it - the
 item's own boxes (item level, quality, sockets) never asked for the keyboard, only the mods' did; on Windows the card's
 window is made one that can have it (overlaywin.take_keyboard); a gray box ticks its row and puts the cursor in it; the
 box keeps the keyboard when the card is drawn again; the card waits only while you type (a key since the last search
@@ -21,8 +21,8 @@ Close key (2.121.1, feedback): Esc by default, as PoE Overlay closes its dialogs
 game (or the card) is in front, and that press is used up (the game's menu doesn't open). Set it on Settings › Keybinds or
 with the card's ⚙ (Card settings: the close key, where the price shows, All price check settings…).
 
-Privacy: other players' seller names show as on the app's card (public on the trade site); your own account name
-is never shown here.
+Privacy: seller names show as on the app's card (public on the trade site). The app keeps no account name (3.0.7),
+so it can't tell your own listings apart.
 GGG ToS: the key presses the game's copy once (overlay.py, as before); the card only shows what the app found.
 Works the same on Windows and Linux / Hyprland (an OverlayWindow: topmost, follows the game)."""
 import tkinter as tk
@@ -30,7 +30,7 @@ from tkinter import ttk
 
 from . import gearicon
 from .config import SETTINGS, save_json
-from .style import C, MOD_COL
+from .style import C, MOD_COL, trade_icon
 
 def ilvl_matters(it):
     """Round 18: does a listing's item level matter for this item (gear, jewels, bases)? Not for waystones (their
@@ -47,6 +47,7 @@ def socket_words(it):
     return f" ({', '.join(parts)})" if parts else ""
 
 
+KIND_WORD = {"Implicit": "Implicit", "Enchant": "Enchant", "Rune": "Rune"}   # (as the item card in the app says it)
 KIND_COL = {"Implicit": "implicit", "Rune": "rune", "Enchant": "enchant", "Prefix": "explicit", "Suffix": "explicit",
             "Total": "pseudo"}
 W0, H0 = 430, 600                 # the first size (then yours)
@@ -57,7 +58,7 @@ def pop_on():
 
 
 def ink(c, bg):
-    """A game color (rarity, mod kind) made readable on this card: on a light style (Gilded's marble) the light
+    """A game color (rarity, mod kind) made readable on this card: on a light card the light
     blues / greens / yellows are darkened, same hue, until they reach 4.5 : 1 against it. Dark styles: as is."""
     from .style import contrast, mix
     try:
@@ -159,7 +160,7 @@ class PricePopup:
 
     # ---------------------------------------------------------------- 2.127.0: currency and lineage gems
     def pcpop_rates(self, name, qty, each, src):
-        """2.127.0 (feedback: "ctrl+d on currency items and see the current common exchange rates"): a currency
+        """2.127.0 (feedback: Ctrl+D on currency items should show the current common exchange rates): a currency
         (or a lineage gem, or anything poe.ninja's exchange lists) in the card - what one is worth in the
         currencies people trade in, what a Divine / Exalted Orb buys of it, and the stack's worth."""
         self.pp_rid, self.pp_open = None, set()
@@ -189,7 +190,7 @@ class PricePopup:
         box = tk.Frame(inner, bg=P.get("field", P["bg"]), highlightthickness=1, highlightbackground=P["line"])
         box.pack(fill="x", padx=16, pady=(8, 0))
         if each is None:
-            lab(box, "No price on poe.ninja or the bulk exchange right now.", padx=8, pady=8)
+            lab(box, "Not found on poe.ninja.", padx=8, pady=8)
             return
         lab(box, "1 ≈ " + fmt_div(each), fg=P["big"], size=16, bold=True, font=head, padx=8, pady=(8, 0))
         worth, buys = RATES.common(each, RATES.key(name.replace(" ", "-")))
@@ -374,6 +375,9 @@ class PricePopup:
         st.configure(name, background=P["line"], troughcolor=P.get("field", P["bg"]), bordercolor=P["bg"],
                      arrowcolor=P["muted"], lightcolor=P["line"], darkcolor=P["line"], gripcount=0, arrowsize=12)
         st.map(name, background=[("active", P["accent"]), ("pressed", P["accent"])])
+        from . import soft                       # rule 24: thin and round, in the overlay style's colors
+        soft.scrollbar_style(self.root, st, name, soft.rgb(self.root, P["muted"]), ns="pcpop",
+                             strong=soft.rgb(self.root, P["accent"]))
         foot = tk.Frame(w.body, bg=P["bg"])
         foot.pack(fill="x", side="bottom", padx=8, pady=8)
         self.pp_foot = foot
@@ -416,7 +420,7 @@ class PricePopup:
     def pcpop_refresh(self, rec):
         """The item on Price Checks changed (searched, priced, a tick): the card follows if it shows that item.
         Another Price Checks item shown in the app while the card is open: the card shows that one too."""
-        if rec is None or getattr(self, "pp_win", None) is None:
+        if rec is None or getattr(self, "pp_win", None) is None or getattr(self, "_pp_own_change", False):
             return
         if rec["id"] != getattr(self, "pp_rid", None):
             if not (getattr(self, "pp_up", False) and getattr(self, "pp_rid", None) is not None
@@ -460,6 +464,7 @@ class PricePopup:
         for c in inner.winfo_children():
             c.destroy()
         self.pp_wraps = []
+        self.pp_ticks = []                                   # every box on the card - for drag-to-tick
         self.pp_boxes = {}
         it = rec.get("item") or {}
         body, head = P.get("body") or P["font"], P.get("hfont") or P["font"]
@@ -498,7 +503,7 @@ class PricePopup:
             tk.Label(box, text="≈ " + fmt_div(rec["est"]), bg=box["bg"], fg=P["big"], font=(head, 18, "bold"),
                      anchor="w").pack(fill="x", padx=8, pady=(8, 0))
             entries, total, n = self.pc_entries(rec)
-            conf = {"high": "a solid price", "medium": "a fair guess", "low": "thin data - check by hand"}.get(
+            conf = {"high": "high confidence", "medium": "medium confidence", "low": "low confidence"}.get(
                 str(rec.get("conf") or "").lower(), "")
             sub = f"from the {min(n, 5) or n} cheapest of {total} listing{'s' if total != 1 else ''}" + \
                 (f" · {conf}" if conf else "")
@@ -509,8 +514,11 @@ class PricePopup:
                    "done": "No listings matched these mods"}.get(st, "Waiting in line…")
             tk.Label(box, text=msg, bg=box["bg"], fg=C["red"] if st == "error" else P["text"], font=(body, 11),
                      anchor="w", justify="left", wraplength=360).pack(fill="x", padx=8, pady=8)
+        slot = tk.Frame(inner, bg=P["bg"])                  # 3.0.6: a slot, so a tick can show it in place
+        slot.pack(fill="x", **pad)
+        self.pp_notice = (slot, P, body)
         if rec.get("changed"):
-            lab(inner, "Ticks changed - press Search again.", fg=P["accent"], size=9, pady=(4, 0), **pad)
+            self._pcpop_notice()
         wl = widened_line(rec)                               # owner (base widening): as the app's card
         if wl:
             lab(inner, wl, fg=P["text"], size=9, pady=(4, 0), **pad)
@@ -539,7 +547,13 @@ class PricePopup:
             ticked = {id(m) for m in self.pc_ticked(rec)}
             if not ticked:
                 ticked = {id(m) for m in mods if m.get("sid") and mod_impact(rec, m) != "ignore"}
-            for m in mods:
+            first_kinds = ("Implicit", "Enchant")
+            for i, m in enumerate(mods):
+                prev = mods[i - 1].get("kind") if i else None
+                if i and prev in first_kinds and m.get("kind") not in first_kinds:
+                    # 3.0.6 (owner: implicits need a clear indicator): a line between the item's implicits and
+                    # its other mods, as in game - and each one says what it is ("Implicit · ...")
+                    tk.Frame(inner, bg=P.get("line") or P["muted"], height=1).pack(fill="x", padx=16, pady=4)
                 row = tk.Frame(inner, bg=P["bg"])
                 row.pack(fill="x", padx=16)
                 on = id(m) in ticked
@@ -554,15 +568,24 @@ class PricePopup:
                     col = MOD_COL["fractured"]
                 elif "desecrated" in flags:
                     col = MOD_COL["desecrated"]
-                tl = tk.Label(row, text=m.get("shown") or m["text"], bg=P["bg"], fg=ink(col, P["bg"]) if on or not can else P["muted"],
+                word = KIND_WORD.get(m.get("kind") or "")
+                shown = m.get("shown") or m["text"]
+                tl = tk.Label(row, text=f"{word} · {shown}" if word else shown, bg=P["bg"],
+                              fg=ink(col, P["bg"]) if on or not can else P["muted"],
                               font=(body, 10), anchor="w", justify="left", cursor="hand2" if can else "")
+                vb = None
                 if can and self._card_has_vals(rec, m):
-                    self._pcpop_vals(row, P, rec, m, on)
+                    vb = self._pcpop_vals(row, P, rec, m, on)
                 tl.pack(side="left", fill="x", expand=True, padx=(4, 0))
                 self.pp_wraps.append(tl)
                 if can:
-                    for wdg in (cb, tl):
-                        wdg.bind("<Button-1>", lambda e, mm=m, o=on: self._pcpop_tick(rec, mm, not o))
+                    t = self._pcpop_drag_add(rec, cb, tl, on, lambda to, mm=m: self.toggle_mod(rec, mm, to),
+                                             ink(col, P["bg"]), P["muted"], P)
+                    t["mod"], t["boxes"] = m, vb
+                src = next((x for x in ("fractured", "desecrated")
+                            if x in flags or str(m.get("sid") or "").startswith(x + ".")), None)
+                if src and can:
+                    self._pcpop_only(inner, P, rec, m, src, body)
 
         # the cheapest listings - a summary each; click opens the whole item (no seller names)
         if st == "done":
@@ -582,8 +605,10 @@ class PricePopup:
         from .style import Tooltip
         go = self._pcpop_btn(search_word(rec), lambda: self._pcpop_go(rec), primary=True)     # (owner: ↔ Broaden
         go.pack(side="left")                                                             # Search - one step a click)
-        Tooltip(go, search_tip(rec))
-        self._pcpop_btn("Trade site", self.pc_open_trade, enabled=bool(rec.get("qid"))).pack(side="left", padx=(8, 0))
+        go._search_tip = Tooltip(go, search_tip(rec))
+        self.pp_go = go
+        tb = self._pcpop_btn("Trade Site", self.pc_open_trade, enabled=bool(rec.get("qid")))
+        trade_icon(tb, color=tb.cget("fg"), size=14).pack(side="left", padx=(8, 0))
         self._pcpop_btn("Open in app", lambda: self._pcpop_in_app(rec)).pack(side="right")
         self.root.after_idle(lambda: self._pcpop_after(top))
         want, self._pp_refocus = getattr(self, "_pp_refocus", None), None
@@ -591,7 +616,7 @@ class PricePopup:
             self._pcpop_refocus(*want)
 
     def _pcpop_socketed(self, inner, P, rec, it, runes, body, head):
-        """2.125.5 (feedback: "it doesn't say slots or show what is in them"): what's in the item's sockets - the
+        """2.125.5 (feedback: the card did not show the slots or what is in them): what's in the item's sockets - the
         game's copy gives each socketed rune / soul core / talisman's effect, marked (rune), but not its name, so
         those effects are listed here (tick one to search it); a jewel socket says it's there."""
         from .style import Tooltip
@@ -601,8 +626,8 @@ class PricePopup:
         info = tk.Label(hr, text=(socket_words(it).strip(" ()") or "") + "  ⓘ", bg=P["bg"], fg=P["muted"],
                         font=(body, 9))
         info.pack(side="left", padx=(8, 0))
-        Tooltip(info, "What the item's sockets hold. The game's copy (Ctrl+C) lists what each socketed rune, soul "
-                      "core or talisman does - not its name - and nothing about a socketed jewel. Socketed effects "
+        Tooltip(info, "What the item's sockets hold. Ctrl+C in game lists what each socketed rune, soul "
+                      "core or talisman does, not its name, and says nothing about a socketed jewel. Socketed effects "
                       "can be swapped, so they aren't searched unless you tick one.")
         ticked = {id(m) for m in self.pc_ticked(rec)}
         for m in runes:
@@ -618,8 +643,9 @@ class PricePopup:
             tl.pack(side="left", fill="x", expand=True, padx=(4, 0))
             self.pp_wraps.append(tl)
             if can:
-                for wdg in (cb, tl):
-                    wdg.bind("<Button-1>", lambda e, mm=m, o=on: self._pcpop_tick(rec, mm, not o))
+                t = self._pcpop_drag_add(rec, cb, tl, on, lambda to, mm=m: self.toggle_mod(rec, mm, to),
+                                         ink(MOD_COL["rune"], P["bg"]), P["muted"], P)
+                t["mod"] = m
         if "J" in (it.get("socket_types") or ""):
             tk.Label(inner, text="◇ A jewel socket - the game's copy doesn't say which jewel is in it.", bg=P["bg"],
                      fg=P["muted"], font=(body, 9), anchor="w", justify="left").pack(fill="x", padx=16)
@@ -665,7 +691,7 @@ class PricePopup:
         tk.Label(top, text=price, bg=P["bg"], fg=P["big"], font=(head, 10, "bold")).pack(side="left", padx=(4, 8))
         when = ago(f["ts"]) if f.get("ts") else ""
         seller = f.get("seller") or ""
-        if seller and not self._pcpop_mine(seller):          # (yours never shows - with or without its #1234)
+        if seller:
             when = f"{seller} · {when}" if when else seller
         if f.get("times", 1) > 1:                             # 2.113.0: one row per seller
             when = f"listed {f['times']}× · {when}" if when else f"listed {f['times']}×"
@@ -743,25 +769,24 @@ class PricePopup:
             tl = tk.Label(row, text=text, bg=P["bg"], fg=P["text"] if on else P["muted"], font=(body, 10),
                           anchor="w", cursor="hand2")
             tl.pack(side="left", fill="x", expand=True, padx=(4, 0))
-            for wdg in (cb, tl):
-                wdg.bind("<Button-1>", lambda e: cmd())
+            self._pcpop_drag_add(rec, cb, tl, on, cmd, P["text"], P["muted"], P)
             return row
 
         def changed():
             rec["changed"] = True
             self.dirty = True
-            self.pcpop_fill(rec)
 
         same = cur.get("base") == "same"
         tick_row(same, f"Base type: {it['base']}" if same else f"Any {it.get('class') or 'base'}",
-                 lambda: (self.search_opt_set(rec, "base", "class" if same else "same", redraw=False), changed()))
+                 lambda to: (self.search_opt_set(rec, "base", "same" if to else "class", redraw=False), changed()))
+        self.pp_ticks[-1]["texts"] = (f"Base type: {it['base']}", f"Any {it.get('class') or 'base'}")
         self.pp_props = {}
         for key, label, have in rows:
             v = cur.get(key)
             lo, hi = (v.get("min"), v.get("max")) if isinstance(v, dict) else (v, None)
             on = v not in (None, "", 0, {})
-            tick = (lambda k=key, o=on, h=have: (self.search_opt_set(rec, k, None if o else {"min": h}, redraw=False),
-                                                 changed()))
+            tick = (lambda to, k=key, h=have: (self.search_opt_set(rec, k, {"min": h} if to else None, redraw=False),
+                                               changed()))
             row = tick_row(on, label, tick)
             boxes = {}
             for k, val in (("max", hi if on else None), ("min", lo if on else have)):    # (packed from the right)
@@ -785,16 +810,19 @@ class PricePopup:
                         e2.config(highlightbackground=C["red"])
                         return False
                 vals = {k2: v2 for k2, v2 in vals.items() if v2 is not None}
+                before = (rec.get("opts") or {}).get(k_)
                 self.search_opt_set(rec, k_, vals or None, redraw=False)
-                rec["changed"] = True
-                self.dirty = True
+                if (rec.get("opts") or {}).get(k_) != before:
+                    self._pcpop_changed(rec)
                 return True
             for k, e in boxes.items():
                 e.keep = keep                                 # (tests call it, as on the mods' boxes)
                 e.bind("<KeyRelease>", keep)
                 e.bind("<Return>", lambda _e, kp=keep: self._pcpop_enter(rec, kp))
-                self._pcpop_box(e, ("prop", key, k), tick)    # 3.0.1: a click here takes the keyboard (it never did)
+                self._pcpop_box(e, ("prop", key, k),           # 3.0.1: a click here takes the keyboard (it never did)
+                                lambda t=tick: (t(True), self.pcpop_fill(rec)))
             self.pp_props[key] = boxes
+            self.pp_ticks[-1]["boxes"] = boxes
 
     def _pcpop_misc(self, inner, P, rec, it, body, head):
         """MISCELLANEOUS (compact): the item's own flags (at Yes), Corrupted and Crafted - Any / Yes / No, the same
@@ -871,14 +899,15 @@ class PricePopup:
                 boxes["max"].config(highlightbackground=C["red"])
                 return False
             norm_auto = {k: (None if auto.get(k) is None else float(auto[k])) for k in ("min", "max")}
+            before = m.get("uval")
             if vals == norm_auto:
                 m.pop("uval", None)
             else:
                 m["uval"] = vals
                 for e in boxes.values():
                     e.config(highlightbackground=P["accent"])
-            rec["changed"] = True
-            self.dirty = True
+            if m.get("uval") != before:
+                self._pcpop_changed(rec)
             return True
         for key, e in boxes.items():
             e.keep = keep                                 # (tests call it: no window manager there to focus a box)
@@ -886,6 +915,35 @@ class PricePopup:
             e.bind("<Return>", lambda _e: self._pcpop_enter(rec, keep))
             self._pcpop_box(e, ("mod", id(m), key), lambda: self._pcpop_tick(rec, m, True))
         return boxes
+
+    def _pcpop_changed(self, rec):
+        """3.0.6 (owner: the button kept saying Broaden after a value was typed): a box you changed is a filter change -
+        the orange button says Search at once (the card isn't drawn again, so the box keeps the keyboard)."""
+        rec["changed"] = True
+        self.dirty = True
+        self._pcpop_notice()
+        go = getattr(self, "pp_go", None)
+        if go is None:
+            return
+        from .pricecheck_page import search_tip, search_word
+        try:
+            go.config(text=search_word(rec))
+            tip = getattr(go, "_search_tip", None)
+            if tip is not None:
+                tip.text = search_tip(rec)
+        except tk.TclError:
+            pass
+
+    def _pcpop_notice(self):
+        """The line under the price once the filters changed (once)."""
+        slot, P, body = getattr(self, "pp_notice", (None, None, None))
+        try:
+            if slot is None or slot.winfo_children():
+                return
+            tk.Label(slot, text="↻ Filters changed - press Search again.", bg=P["bg"], fg=P["accent"],
+                     font=(body, 9), anchor="w", justify="left").pack(fill="x", pady=(4, 0))
+        except tk.TclError:
+            pass
 
     def _pcpop_go(self, rec):
         """Search again / ↔ Broaden Search: what you typed is searched, and the card shows what it found."""
@@ -980,13 +1038,98 @@ class PricePopup:
                 pass
         self.root.after_idle(go)
 
-    @staticmethod
-    def _pcpop_mine(seller):
+    def _pcpop_drag_add(self, rec, cb, tl, on, apply, on_fg, off_fg, P):
+        """3.0.6 (owner: tick boxes by holding the left button and dragging across them - every box on the card, not
+        just the mods): a press flips this box; every box the mouse then crosses takes that same state. The boxes
+        are painted at once; the search changes once, on release. apply(on) changes the search (no redraw)."""
+        t = {"cb": cb, "tl": tl, "on": on, "apply": apply, "fg": (on_fg, off_fg), "P": P}
+        self.pp_ticks.append(t)
+        for w in (cb, tl):
+            if w is None:
+                continue
+            w.bind("<ButtonPress-1>", lambda e, tt=t: self._pcpop_drag_start(tt))
+            w.bind("<B1-Motion>", lambda e: self._pcpop_drag_over(e.x_root, e.y_root))
+            w.bind("<ButtonRelease-1>", lambda e: self._pcpop_drag_end(rec))
+        return t
+
+    def _pcpop_drag_paint(self, t, on):
         try:
-            from .trade import is_own
-            return is_own(seller)
-        except Exception:
-            return False
+            t["cb"].config(text="☑" if on else "☐", fg=t["P"]["accent"] if on else t["fg"][1])
+            if t["tl"] is not None:
+                t["tl"].config(fg=t["fg"][0] if on else t["fg"][1])
+                if t.get("texts"):
+                    t["tl"].config(text=t["texts"][0 if on else 1])
+        except tk.TclError:
+            pass
+
+    def _pcpop_drag_start(self, t):
+        self._pp_drag = {"to": not t["on"], "set": [t]}
+        self._pcpop_drag_paint(t, self._pp_drag["to"])
+
+    def _pcpop_drag_over(self, x, y):
+        d = getattr(self, "_pp_drag", None)
+        if not d:
+            return
+        try:
+            under = self.root.winfo_containing(x, y)
+        except (tk.TclError, KeyError):
+            under = None
+        if under is None:
+            return
+        for t in self.pp_ticks:
+            if under in (t["cb"], t["tl"]) and all(t is not u for u in d["set"]) and t["on"] != d["to"]:
+                d["set"].append(t)
+                self._pcpop_drag_paint(t, d["to"])
+
+    def _pcpop_drag_end(self, rec):
+        d, self._pp_drag = getattr(self, "_pp_drag", None), None
+        if not d:
+            return
+        changed = [t for t in d["set"] if t["on"] != d["to"]]
+        if not changed:
+            return
+        self._card_quiet = True                          # (the app's card redraws itself when it's shown)
+        try:
+            for t in changed:
+                t["apply"](d["to"])
+        finally:
+            self._card_quiet = False
+        self._pp_own_change = True                       # 3.0.6 (owner round 17: the overlay still flickered on a
+        try:                                             # tick): the app's card follows, but its pcpop_refresh would
+            self.card_changed(rec)                       # draw this card again - it's already painted
+        finally:
+            self._pp_own_change = False
+        if any(t.get("redraw") for t in changed):
+            return self.pcpop_fill(rec)
+        # 3.0.6 (owner: the card flickered on every tick - it was drawn again): painted in place - the boxes are
+        # already ticked; their Min / Max turn on or off, and the button and the notice say Search
+        for t in changed:
+            t["on"] = d["to"]
+            for e in (t.get("boxes") or {}).values():
+                try:
+                    e.config(state="normal" if d["to"] else "disabled")
+                except tk.TclError:
+                    pass
+        self._pcpop_changed(rec)
+        return None
+
+    def _pcpop_only(self, inner, P, rec, m, src, body):
+        """3.0.6 (owner: the box under a fractured / desecrated mod was missing here - Price Checks has it): right
+        under the mod, tied with └, a small box to search it only as fractured / desecrated. Ticking it ticks the
+        mod too."""
+        from .mods import norm
+        only = bool((rec.get("only") or {}).get(norm(m["text"])))
+        col = ink(MOD_COL[src], P["bg"])
+        row = tk.Frame(inner, bg=P["bg"])
+        row.pack(fill="x", padx=(24, 16))
+        parts = [tk.Label(row, text="└", bg=P["bg"], fg=col, font=(body, 9)),
+                 tk.Label(row, text="☑" if only else "☐", bg=P["bg"], fg=col, font=("Segoe UI Symbol", 9),
+                          cursor="hand2"),
+                 tk.Label(row, text=f"{src.capitalize()} only", bg=P["bg"], fg=col, font=(body, 9), cursor="hand2")]
+        for w in parts:
+            w.pack(side="left", padx=(0, 4))
+        t = self._pcpop_drag_add(rec, parts[1], parts[2], only, lambda to: self.card_only(rec, m, to), col, col, P)
+        t["redraw"] = True                               # (it may tick its mod too: the card is drawn again)
 
     def _pcpop_tick(self, rec, mod, on):
         self.toggle_mod(rec, mod, on)

@@ -1,6 +1,6 @@
-"""2.84.0: Price Checks ↳ Favorites (feedback: "a favorites (bookmark) tracker that you can paste a trade link into
-... loads an item view similar to the new price checks section + the trade site options for that item ... 'Add to
-favorites' next to 'Open on trade site' ... reorganize, give a name to it, edit/delete/etc, fully context menu aware").
+"""2.84.0: Price Checks ↳ Favorites (feedback: a favorites (bookmark) tracker that takes a pasted trade link and
+loads an item view like the Price Checks section plus the trade site options for that item, with Add to
+favorites next to Open on trade site, and reorganize, rename, edit and delete through a context menu).
 
 Left: your favorites in groups (drag to reorder or move between groups; right-click for everything; F2 renames,
 Alt+↑/↓ moves, Delete removes, Ctrl+Z undoes). Middle: the item card with every filter (an item from Price Checks) or
@@ -17,15 +17,12 @@ from urllib.parse import quote
 from . import buglog
 from . import favorites as FV
 from .config import SETTINGS
-from .style import over_app
+from .style import over_app, trade_icon
 from .style import C
 
 KEY = "favorites"
 GROUP_PRE = "grp:"
 SHARED_PRE = "s:"           # 2.132.6: a Community / Official favorite (not one of yours)
-FILTER_NAMES = {"type_filters": "Type", "equipment_filters": "Equipment", "req_filters": "Requirements",
-                "misc_filters": "Miscellaneous", "trade_filters": "Trade", "map_filters": "Waystone",
-                "socket_filters": "Sockets", "weapon_filters": "Weapon", "armour_filters": "Armor"}
 GROUP_TYPES = {"and": "All of these", "not": "None of these", "if": "If present", "count": "At least {n} of these",
                "weight": "Weighted sum ≥ {n}", "weight2": "Weighted sum ≥ {n}"}
 
@@ -38,8 +35,12 @@ def _ago(ts):
         if s < 86400 else f"{int(s // 86400)}d ago"
 
 
+FILTER_WORDS = {"lvl": "Level", "str": "Strength", "dex": "Dexterity", "int": "Intelligence", "ilvl": "Item level",
+                "gem_level": "Gem level", "ar": "Armour", "es": "Energy Shield", "ev": "Evasion"}
+
+
 def _pretty(key):
-    return key.replace("_", " ").strip().capitalize()
+    return FILTER_WORDS.get(key) or key.replace("_", " ").strip().capitalize()
 
 
 class FavoritesPage:
@@ -62,8 +63,8 @@ class FavoritesPage:
         self._fav_hint(ent)                               # P2 (2.104.0): a hint in the empty box
         ent.bind("<Return>", lambda e: self.fav_add_link())
         self.fav_link_entry = ent
-        ttk.Button(bar, text="Add trade link", style="Primary.TButton", command=self.fav_add_link).pack(
-            side="left", padx=(8, 0))
+        ttk.Button(bar, text="Add trade link", command=self.fav_add_link).pack(   # (one orange a screen: the card's
+            side="left", padx=(8, 0))                                               # Search)
         ttk.Button(bar, text="New group", command=self.fav_new_group).pack(side="left", padx=(8, 0))
         self.undo_button(bar, KEY, side="left", padx=(8, 0))     # P2: only while there's something to undo
         self.fav_msg = tk.Label(body, text="Right-click a favorite for everything you can do; drag to reorder.",
@@ -71,12 +72,13 @@ class FavoritesPage:
         self.fav_msg.pack(fill="x")
         wrap = tk.Frame(body, bg=P2)
         self.limit_banner(body, wrap)                     # 2.103.3 (feedback): the "Staying under the limits" line
+        self.notes_banner(body, wrap)                     # 3.0.7: Prices are from ... / Rating changed, one button
         wrap.pack(fill="both", expand=True, pady=(8, 0))
         # ---- your favorites
         lf = tk.Frame(wrap, bg=P1, width=300)             # P2: narrower list, wider card
         lf.pack(side="left", fill="y")
         lf.pack_propagate(False)
-        # 2.132.6 (feedback: "publish ... favorites from the trade site section"; "Official | Community | Mine")
+        # 2.132.6 (feedback: publish favorites from the trade site section; Official | Community | Mine)
         from .share_page import VIEWS as SHARE_VIEWS
         from .style import SegBar, Tooltip
         vrow = tk.Frame(lf, bg=P1)
@@ -90,6 +92,8 @@ class FavoritesPage:
                               ("▲ Upvote", self.fav_vote, "Upvote it"),
                               ("Trade Site", self.fav_shared_open, "Open its search on the trade site")):
             b = ttk.Button(self.fav_share_bar, text=text, command=fn)
+            if text == "Trade Site":
+                trade_icon(b)
             b.pack(side="left", padx=(0, 8))
             Tooltip(b, tip)
             self.fav_share_btns[text] = b
@@ -136,7 +140,7 @@ class FavoritesPage:
         head.pack(fill="x")
         count = tk.Label(head, text="", bg=P1, fg=C["text"], font=("Segoe UI", 10, "bold"))
         count.pack(side="left")
-        ob = ttk.Button(head, text="Trade Site", command=self.fav_open_trade, state="disabled")
+        ob = trade_icon(ttk.Button(head, text="Trade Site", command=self.fav_open_trade, state="disabled"))
         rcanvas, lst = self._pc_scroller(right, padx=12, bg_key="panel")
         self.favv = PCView(left, lcanvas, lst, rcanvas, count, ob)
         self.favv.rid = None
@@ -144,9 +148,45 @@ class FavoritesPage:
         self.favv.recard = lambda: self.fav_show(card_only=True)
         self.favv.search_btn = None
         self.favv.head_open = ob                            # P2: the card's own button replaces it while shown
-        self.pcv_fit(self.favv, wrap, mid, lo=460, share=0.42)   # 2.97.0: scale to fit; P2: a wider card
+        self.pcv_fit(self.favv, wrap, mid, lo=460, share=0.42, hi=900)   # 2.97.0: scale to fit; P2: a wider card
+        self.fav_lf, self.fav_mid, self.fav_right, self.fav_wrap = lf, mid, right, wrap
+        self._fav_right_on = True
+        wrap.bind("<Configure>", self._fav_wrap_cfg, add="+")     # the list takes ~a quarter of the page, the card
         self.fav_fill()
         self.fav_show()
+
+    # ---------------------------------------------------------------- scale to fit
+    FAV_LIST_SHARE, FAV_LIST_MIN, FAV_LIST_MAX = 0.26, 300, 460
+
+    def fav_list_width(self, page_w):
+        """The list column: about a quarter of the page, 300 to 460 px; the card and the listings take the rest."""
+        return max(self.FAV_LIST_MIN, min(self.FAV_LIST_MAX, int(page_w * self.FAV_LIST_SHARE)))
+
+    def _fav_wrap_cfg(self, e):
+        if e.widget is not self.fav_wrap:
+            return
+        w = self.fav_list_width(e.width)
+        try:
+            if abs(int(self.fav_lf.cget("width")) - w) >= 4:
+                self.fav_lf.config(width=w)
+        except tk.TclError:
+            pass
+
+    def fav_layout(self, listings):
+        """Nothing picked (or nothing to list): the card takes the whole width after the list; else the listings sit
+        beside it. Re-packed only when that changes (never on a resize)."""
+        if listings == getattr(self, "_fav_right_on", True):
+            return
+        self._fav_right_on = listings
+        try:
+            if listings:
+                self.fav_mid.pack_configure(fill="y", expand=False)
+                self.fav_right.pack(side="left", fill="both", expand=True)
+            else:
+                self.fav_right.pack_forget()
+                self.fav_mid.pack_configure(fill="both", expand=True)
+        except tk.TclError:
+            pass
 
     # ---------------------------------------------------------------- the list
     def fav_fill(self, select=None):
@@ -390,9 +430,10 @@ class FavoritesPage:
         return acts
 
     # ---------------------------------------------------------------- adding
-    def pc_add_fav(self):
-        """☆ Add to favorites on Price Checks: this item with your filters."""
-        rec = self.records.get(getattr(self, "pc_rid", None))
+    def pc_add_fav(self, rec=None, btn=None):
+        """☆ Add to favorites on Price Checks (and Bulk Pricing's picked item: rec, its button): this item with your
+        filters."""
+        rec = rec or self.records.get(getattr(self, "pc_rid", None))
         if not rec:
             return
         st = self.favs()
@@ -403,7 +444,7 @@ class FavoritesPage:
         rec["fav"] = f["id"]
         self.fav_store_last(f, rec)
         self.fav_changed([f["id"]])
-        self.pc_fav_state(rec)
+        self.pc_fav_state(rec, btn)
         try:
             self.app_toast(f"\"{f['name']}\" is in Trade › Favorites.", title="Added to favorites",
                            kind="success", actions=(("Open", lambda: (self.shell.open(KEY), self.fav_pick(f["id"]))),
@@ -412,8 +453,8 @@ class FavoritesPage:
         except Exception:
             buglog.caught()
 
-    def pc_fav_state(self, rec):
-        b = getattr(self, "pc_fav_btn", None)
+    def pc_fav_state(self, rec, btn=None):
+        b = btn if btn is not None else getattr(self, "pc_fav_btn", None)
         if b is None:
             return
         on = bool(rec and rec.get("fav") and self.favs().get(rec["fav"]))
@@ -777,6 +818,7 @@ class FavoritesPage:
         if v is None:
             return
         f = self.favs().get(self.fav_sel) if self.fav_sel else None
+        self.fav_layout(f is not None)
         keep = card_only and f is not None and f.get("kind") == "item" and v.rid is not None
         real, old = v.left, list(v.left.winfo_children())
         top = v.lcanvas.yview()[0] if keep else 0
@@ -833,7 +875,8 @@ class FavoritesPage:
         else:
             from .trade import RAW_LISTINGS
             ids = res.get("ids") or []
-            self.pcv_entries(v, [RAW_LISTINGS[i] for i in ids if i in RAW_LISTINGS], res.get("total", 0), len(ids))
+            self.pcv_entries(v, [RAW_LISTINGS[i] for i in ids if i in RAW_LISTINGS], res.get("total", 0), len(ids),
+                             rec={"id": "link:" + f["id"]})       # (the cards' open state: per favorite)
 
     def _fav_note(self, v, f):
         if f.get("note"):
@@ -893,7 +936,7 @@ class FavoritesPage:
 
     @staticmethod
     def fav_status(f):
-        """2.105.1 (feedback: a link favorite searched "Any"): Seller follows your Seller setting (Settings) unless
+        """2.105.1 (feedback: a link favorite searched status Any): Seller follows your Seller setting (Settings) unless
         you picked one on this card - a trade link's own status (the site's default) doesn't count."""
         from .trade import STATUS_CHOICES
         q = f.setdefault("query", {})
@@ -984,24 +1027,44 @@ class FavoritesPage:
         self.fav_say("Copied the trade-site link.", C["green"])
 
     # ---------------------------------------------------------------- a pasted search's filters
-    def fav_link_card(self, v, f):
-        """The search behind a trade link, as a card: every stat and filter with its switch and Min / Max. Changes
-        are kept with the favorite; Search (Enter) runs it again."""
-        from .mods import SIDTEXT
-        from .trade import STATUS_CHOICES
-        P2, bg = C["panel2"], C["odd"]
-        q = f.setdefault("query", {})
-        card = tk.Frame(v.left, bg=bg, highlightthickness=1, highlightbackground=C["line"], padx=8, pady=8)
-        card.pack(fill="x")
-        tk.Label(card, text=f["name"], bg=bg, fg=C["accent"], font=("Segoe UI", 12, "bold"), wraplength=320,
-                 justify="center").pack(fill="x")
-        what = [x for x in (FV.link_name(q) if FV.link_name(q) != f["name"] else "",
-                            f"searches {SETTINGS.get('league') or f.get('league') or ''}") if x]
-        tk.Label(card, text="  ·  ".join(what), bg=bg, fg=C["muted"], font=("Segoe UI", 9)).pack(fill="x")
+    # owner (round 2): a pasted search's filters as the item card has them - the card's box, its head (the name, what
+    # it is in one muted line) and its sections in the card's order and words (names.CARD_SECTIONS): Base and
+    # Properties (what it searches for, type, equipment, sockets ...), Requirements, Item Flags, Mods (each stat group
+    # with its own line), Trade Filters (price, Seller)
+    LINK_SECTIONS = (("props", ("type_filters", "equipment_filters", "weapon_filters", "armour_filters",
+                                "socket_filters", "map_filters")),
+                     ("req", ("req_filters",)), ("misc", ("misc_filters",)), ("stats", ()), ("trade", ("trade_filters",)))
 
-        def section(title):
-            tk.Label(card, text=title, bg=bg, fg=C["accent"], font=("Segoe UI", 9, "bold"), anchor="w").pack(
-                fill="x", pady=(8, 2))
+    def fav_link_card(self, v, f):
+        """The search behind a trade link, as the item card: every stat and filter with its switch and Min / Max, in
+        the card's sections and order. Changes are kept with the favorite; Search (Enter) runs it again."""
+        from . import themes as _th
+        from .mods import SIDTEXT
+        from .names import CARD_SECTIONS
+        from .trade import STATUS_CHOICES
+        P2 = C["panel2"]
+        bg = P2
+        q = f.setdefault("query", {})
+        card = tk.Frame(v.left, bg=bg, highlightthickness=1, highlightbackground=C["line"], padx=16, pady=12)
+        card.pack(fill="x")
+        t = _th.ST.theme
+        col = (t.c("unique", "#af6025") if t is not None else "#af6025") if q.get("name") else C["text"]
+        tk.Label(card, text=f["name"], bg=bg, fg=col, font=(_th.head_font(), 13, "bold"), anchor="w",
+                 justify="left", wraplength=400).pack(fill="x")
+        typ = q.get("type")
+        typ = (typ.get("option") or typ.get("discriminator") or "") if isinstance(typ, dict) else (typ or "")
+        what = [x for x in (str(typ) if typ and typ != f["name"] else
+                            (FV.link_name(q) if FV.link_name(q) != f["name"] else ""),
+                            f"searches {SETTINGS.get('league') or f.get('league') or ''}") if x]
+        tk.Label(card, text=" \u00b7 ".join(what), bg=bg, fg=C["muted"], font=("Segoe UI", 9), anchor="w").pack(
+            fill="x", pady=(4, 0))
+        n = {"heads": 0}
+
+        def section(key, summary=""):
+            """The section's heading, as the item card heads it."""
+            tk.Label(card, text=CARD_SECTIONS[key] + (f" \u00b7 {summary}" if summary else ""), bg=bg, fg=C["text"],
+                     font=("Segoe UI", 9, "bold"), anchor="w").pack(fill="x", pady=(16 if not n["heads"] else 12, 4))
+            n["heads"] += 1
 
         def changed(_e=None):
             self._fav_save_soon()
@@ -1041,93 +1104,115 @@ class FavoritesPage:
                     holder["disabled"] = True
                 changed()
             cb = tk.Checkbutton(row, variable=var, command=flip, bg=bg, activebackground=bg, selectcolor=C["panel"],
-                                fg=fg, activeforeground=fg, text=text, anchor="w", justify="left", wraplength=210,
+                                fg=fg, activeforeground=fg, text=text, anchor="w", justify="left", wraplength=260,
                                 font=("Segoe UI", 9), highlightthickness=0, bd=0)
             cb.pack(side="left", fill="x", expand=True)
             cb.var = var
             return cb
-        # ---- what it searches for
-        item_rows = [(k, q.get(k)) for k in ("name", "type", "term") if q.get(k)]
-        if item_rows:
-            section("ITEM")
-            for k, val in item_rows:
-                if isinstance(val, dict):
-                    val = val.get("option") or val.get("discriminator") or ""
-                row = tk.Frame(card, bg=bg)
-                row.pack(fill="x")
-                tk.Label(row, text={"term": "Text"}.get(k, k.capitalize()), bg=bg, fg=C["muted"], width=8,
-                         anchor="w", font=("Segoe UI", 9)).pack(side="left")
-                tk.Label(row, text=str(val), bg=bg, fg=C["text"], anchor="w", font=("Segoe UI", 9)).pack(side="left")
-        # ---- stats
-        for gi, g in enumerate(q.get("stats") or []):
-            fl = g.get("filters") or []
-            if not fl and g.get("type") == "and":
-                continue
-            n = (g.get("value") or {}).get("min")
-            title = GROUP_TYPES.get(g.get("type"), str(g.get("type") or "").upper()).format(n=n if n is not None else "?")
-            section(f"STATS  ·  {title.upper()}")
-            row = tk.Frame(card, bg=bg)
-            row.pack(fill="x")
-            gcb = switch(row, g, "this whole group", C["muted"])
-            if g.get("type") in ("count", "weight", "weight2"):
-                g.setdefault("value", {})
-                tk.Label(row, text="min", bg=bg, fg=C["muted"], font=("Segoe UI", 9)).pack(side="left")
-                vbox(row, g["value"], "min", 4).pack(side="left", padx=(2, 0))
-            for flt in fl:
-                row = tk.Frame(card, bg=bg)
-                row.pack(fill="x", pady=1)
-                sid = str(flt.get("id") or "")
-                text = SIDTEXT.get(sid) or sid
-                text = text[:1].upper() + text[1:]
-                kind = sid.split(".")[0] if "." in sid else ""
-                if kind and kind not in ("explicit",):
-                    text = f"{text}  ({kind})"
-                switch(row, flt, text, group=(g, gcb.var))
-                flt.setdefault("value", {})
-                if isinstance(flt["value"], dict) and "option" not in flt["value"]:
-                    vbox(row, flt["value"], "max").pack(side="right", padx=(2, 0))
-                    vbox(row, flt["value"], "min").pack(side="right")
-                elif isinstance(flt["value"], dict):
-                    tk.Label(row, text=str(flt["value"].get("option")), bg=bg, fg=C["muted"],
-                             font=("Segoe UI", 9)).pack(side="right")
-        # ---- the other filters
-        for gname, grp in (q.get("filters") or {}).items():
-            if not isinstance(grp, dict) or not grp.get("filters"):
-                continue
-            section(FILTER_NAMES.get(gname, _pretty(gname)).upper())
-            for key, val in grp["filters"].items():
+
+        def filter_rows(grp):
+            for key, val in (grp.get("filters") or {}).items():
                 if not isinstance(val, dict):
                     continue
                 row = tk.Frame(card, bg=bg)
                 row.pack(fill="x", pady=1)
-                if "option" in val:
+                if "option" in val and key != "price":
                     opt = val.get("option")
                     if key == "category":
                         opt = str(opt).split(".")[-1].replace("_", " ").title()
                     switch(row, val, f"{_pretty(key)}: {opt}")
-                elif key == "account":
-                    switch(row, val, f"Seller: {val.get('input') or ''}")
+                elif key == "account":                 # (privacy: no seller name on the page)
+                    switch(row, val, "One seller only")
                 else:
                     switch(row, val, _pretty(key))
-                    vbox(row, val, "max").pack(side="right", padx=(2, 0))
+                    vbox(row, val, "max").pack(side="right", padx=(4, 0))
                     vbox(row, val, "min").pack(side="right")
                     if key == "price" and val.get("option"):
-                        tk.Label(row, text=str(val["option"]), bg=bg, fg=C["muted"], font=("Segoe UI", 9)).pack(
-                            side="right", padx=(0, 4))
-        # ---- seller
-        section("SELLER")
-        st = self.fav_status(f)
-        names = [n for n, _v in STATUS_CHOICES]
-        var = tk.StringVar(value=next((n for n, val in STATUS_CHOICES if val == st.get("option")), names[0]))
-        cb = ttk.Combobox(card, textvariable=var, values=names, state="readonly")
-        cb.pack(fill="x")
-        cb.bind("<<ComboboxSelected>>", lambda e: (st.__setitem__("option", dict(STATUS_CHOICES)[var.get()]),
-                                                   f.__setitem__("status_own", True), changed()))
+                        from .pricecheck_page import cur_label
+                        tk.Label(row, text=cur_label(val["option"]), bg=bg, fg=C["muted"],
+                                 font=("Segoe UI", 9)).pack(side="right", padx=(0, 8))
+
+        groups = {g: grp for g, grp in (q.get("filters") or {}).items() if isinstance(grp, dict) and grp.get("filters")}
+        known = {g for _k, gs in self.LINK_SECTIONS for g in gs}
+        for key, gnames in self.LINK_SECTIONS:
+            if key == "props":
+                item_rows = [(k, q.get(k)) for k in ("name", "type", "term") if q.get(k)]
+                gs = [g for g in gnames if g in groups] + [g for g in groups if g not in known]   # (and any other)
+                if not item_rows and not gs:
+                    continue
+                section(key)
+                for k, val in item_rows:
+                    if isinstance(val, dict):
+                        val = val.get("option") or val.get("discriminator") or ""
+                    row = tk.Frame(card, bg=bg)
+                    row.pack(fill="x", pady=1)
+                    tk.Label(row, text={"term": "Text"}.get(k, k.capitalize()), bg=bg, fg=C["muted"], width=8,
+                             anchor="w", font=("Segoe UI", 9)).pack(side="left")
+                    tk.Label(row, text=str(val), bg=bg, fg=C["text"], anchor="w", font=("Segoe UI", 9)).pack(
+                        side="left")
+                for g in gs:
+                    filter_rows(groups[g])
+            elif key == "stats":
+                shown = [g for g in q.get("stats") or [] if (g.get("filters") or []) or g.get("type") != "and"]
+                if not shown:
+                    continue
+                section(key)
+                for gi, g in enumerate(shown):
+                    fl = g.get("filters") or []
+                    nmin = (g.get("value") or {}).get("min")
+                    title = GROUP_TYPES.get(g.get("type"), str(g.get("type") or "").title()).format(
+                        n=nmin if nmin is not None else "?")
+                    row = tk.Frame(card, bg=bg)
+                    row.pack(fill="x", pady=(8 if gi else 0, 1))
+                    gcb = switch(row, g, title, C["muted"])
+                    if g.get("type") in ("count", "weight", "weight2"):
+                        g.setdefault("value", {})
+                        tk.Label(row, text="min", bg=bg, fg=C["muted"], font=("Segoe UI", 9)).pack(side="left")
+                        vbox(row, g["value"], "min", 4).pack(side="left", padx=(4, 0))
+                    for flt in fl:
+                        row = tk.Frame(card, bg=bg)
+                        row.pack(fill="x", pady=1, padx=(12, 0))
+                        sid = str(flt.get("id") or "")
+                        text = SIDTEXT.get(sid) or sid
+                        text = text[:1].upper() + text[1:]
+                        kind = sid.split(".")[0] if "." in sid else ""
+                        if kind and kind not in ("explicit",):     # (the kind in a word first, as the card says it)
+                            text = f"{kind.title()} \u00b7 {text}"
+                        switch(row, flt, text, group=(g, gcb.var))
+                        flt.setdefault("value", {})
+                        if isinstance(flt["value"], dict) and "option" not in flt["value"]:
+                            vbox(row, flt["value"], "max").pack(side="right", padx=(4, 0))
+                            vbox(row, flt["value"], "min").pack(side="right")
+                        elif isinstance(flt["value"], dict):
+                            tk.Label(row, text=str(flt["value"].get("option")), bg=bg, fg=C["muted"],
+                                     font=("Segoe UI", 9)).pack(side="right")
+            elif key == "trade":
+                section(key)
+                for g in gnames:
+                    if g in groups:
+                        filter_rows(groups[g])
+                row = tk.Frame(card, bg=bg)
+                row.pack(fill="x", pady=(4, 0))
+                tk.Label(row, text="Seller", bg=bg, fg=C["muted"], font=("Segoe UI", 9), width=8, anchor="w").pack(
+                    side="left")
+                st = self.fav_status(f)
+                names = [nm for nm, _v in STATUS_CHOICES]
+                var = tk.StringVar(value=next((nm for nm, val in STATUS_CHOICES if val == st.get("option")), names[0]))
+                cb = ttk.Combobox(row, textvariable=var, values=names, state="readonly")
+                cb.pack(side="left", fill="x", expand=True)
+                cb.bind("<<ComboboxSelected>>", lambda e: (st.__setitem__("option", dict(STATUS_CHOICES)[var.get()]),
+                                                           f.__setitem__("status_own", True), changed()))
+            else:
+                gs = [g for g in gnames if g in groups]
+                if gs:
+                    section(key)
+                    for g in gs:
+                        filter_rows(groups[g])
         btns = tk.Frame(v.left, bg=P2)
         btns.pack(fill="x", pady=(8, 0))
         ttk.Button(btns, text="Search", style="Primary.TButton", command=self.fav_search).pack(
             side="left", fill="x", expand=True)
-        ob = ttk.Button(btns, text="Trade Site", command=self.fav_open_trade)   # P2: under the card
+        ob = trade_icon(ttk.Button(btns, text="Trade Site", command=self.fav_open_trade))   # P2: under the card
         ob.pack(side="left", padx=(8, 0))
         v.open_btn = ob
         v.lcanvas.yview_moveto(0)

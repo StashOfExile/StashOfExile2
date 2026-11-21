@@ -14,7 +14,7 @@ import time
 import tkinter as tk
 
 from . import buglog
-from .style import C
+from .style import C, bind_own_configure
 
 TITLE_ON = ("#34508a", "#1a2a4c")
 UTIL_TITLE = ("#3a3020", "#1e1810")
@@ -194,9 +194,39 @@ class PageBar(GradientBar):
                              tags="pg")
             mod = self.win.shell.modules.get(self.win.key)
             blurb = getattr(mod, "blurb", "") if mod is not None else ""
-            if blurb:
-                self.create_text(24, y_blurb, text=blurb, anchor="w", font=("Segoe UI", 9), fill=mut, tags="pg")
+            if blurb:                                               # (a long line wraps at Drawer width)
+                bid = self.create_text(24, y_blurb, text=blurb, anchor="w", font=("Segoe UI", 9), fill=mut, tags="pg",
+                                       width=max(200, w - 48 - (24 if getattr(mod, "blurb_tip", None) else 0)))
+                if getattr(mod, "blurb_tip", None) is not None:     # Bulk Pricing: ⓘ after the line - more on hover,
+                    bb = self.bbox(bid) or (0, 0, 24, 0)            # a click opens where it's set
+                    self.create_text(bb[2] + 8, y_blurb, text="ⓘ", anchor="w", font=("Segoe UI", 9), fill=mut,
+                                     tags=("pg", "pgtip"))
+                    self._blurb_tip_bind(mod)
         self.tag_lower("grad")
+
+    def _blurb_tip_bind(self, mod):
+        """The ⓘ's hover (its words asked for each time: they follow the settings) and its click - bound once."""
+        if getattr(self, "_blurb_tip", None) is not None:
+            return
+        from .style import TagTip
+
+        class _Tip(TagTip):
+            @property
+            def text(self):
+                try:
+                    return mod.blurb_tip()
+                except Exception:
+                    return ""
+
+            @text.setter
+            def text(self, _v):
+                pass
+        self._blurb_tip = _Tip(self, "pgtip", "")
+        self.tag_bind("pgtip", "<Enter>", lambda e: self.configure(cursor="question_arrow"), add="+")
+        self.tag_bind("pgtip", "<Leave>", lambda e: self.configure(cursor=""), add="+")
+        click = getattr(mod, "blurb_click", None)
+        if click is not None:
+            self.tag_bind("pgtip", "<Button-1>", lambda e: click(), add="+")
 
 
 def win_rect(widget, outer=False):
@@ -560,8 +590,9 @@ class DeskWindow(tk.Frame if EMBED else tk.Toplevel):
         if self.key in OVER and self._g and not EMBED:
             x, y, w, h = self._g
             tk.Place.place_configure(self, in_=self.shell.desk, x=x, y=y, width=w, height=h, relwidth=0, relheight=0)
-        else:
-            tk.Place.place_configure(self, in_=self.shell.desk, x=0, y=0, width=0, height=0, relwidth=1, relheight=1)
+        else:                                            # 3.0.6: the area's size now, not "follow it" (relwidth) -
+            dw, dh = self.shell.desk_size()              # see Shell._pages_fit_soon
+            tk.Place.place_configure(self, in_=self.shell.desk, x=0, y=0, width=dw, height=dh, relwidth=0, relheight=0)
 
     def deiconify(self):
         if not EMBED:
@@ -854,11 +885,11 @@ class Shell:
             self.sidebar = None
             self.dock.pack(side="left", fill="y")
             self.dock_sep.pack(side="left", fill="y")
-        self.desk = tk.Canvas(root, bg="#0a0c12", highlightthickness=0, bd=0)
+        self.desk = tk.Canvas(root, bg=C["bg"], highlightthickness=0, bd=0)
         self.desk.pack(side="left", fill="both", expand=True)
         self._wall_img, self._wall_job, self._wall_size = None, None, None
         self.desk.bind("<Configure>", self._desk_resized)
-        self.root.bind("<Configure>", lambda e: e.widget is self.root and self._follow_soon(), add="+")
+        bind_own_configure(self.root, lambda e: e.widget is self.root and self._follow_soon())
         self.icons = []
         self.orb = self.task                    # 2.49.0: the Toolkit button is on the taskbar canvas (tag "tkbtn")
         if self.sidebar is not None:            # 2.62.0: ... and in the sidebar now
@@ -877,6 +908,7 @@ class Shell:
         for cls in ("Tk", "Toplevel"):
             self.root.bind_class(cls, "<KeyPress>", self._stray_key, add="+")
         self.root.after(1000, self._tick)
+        bind_own_configure(self.root, self._compact_now)
         for seq in ("<Control-k>", "<Control-K>"):                # UI overhaul: Go to anything
             self.root.bind_all(seq, lambda e: (self.goto(), "break")[1], add="+")
 
@@ -958,9 +990,10 @@ class Shell:
 
     # ---- the wallpaper
     def _desk_resized(self, e):
-        if self._wall_job:
-            self.root.after_cancel(self._wall_job)
-        self._wall_job = self.root.after(150, self.paint_wallpaper)
+        if not PAGES:
+            if self._wall_job:
+                self.root.after_cancel(self._wall_job)
+            self._wall_job = self.root.after(150, self.paint_wallpaper)
         self._follow_soon()
 
     # ---- the windows are real windows (2.0 beta 13): keep them on the desktop area when the app moves / resizes
@@ -1103,6 +1136,33 @@ class Shell:
         except Exception:
             buglog.caught()
 
+    def desk_size(self):
+        return max(MIN_W, self.desk.winfo_width()), max(MIN_H, self.desk.winfo_height())
+
+    def _pages_fit_soon(self, _e=None):
+        """3.0.6 (dragging the Drawer lagged everywhere but Dashboard - find what Dashboard does
+        right): Dashboard is one drawing whose size follows the window at once and whose contents are drawn again
+        40 ms after the size stops changing (dashboard_page.later). Every page now does the same: the main area
+        follows the window at once (cheap), and the open pages - hundreds of parts each, every one a window of its
+        own on Windows - are laid out once, 40 ms after the size stops changing, not on every step of a drag."""
+        job = getattr(self, "_fit_job", None)
+        if job is not None:
+            try:
+                self.root.after_cancel(job)
+            except tk.TclError:
+                pass
+        self._fit_job = self.root.after(40, self._pages_fit)
+
+    def _pages_fit(self):
+        self._fit_job = None
+        if getattr(self, "_fit_hold", False):            # (resizetest: a page held at its size on purpose)
+            return
+        for w in list(self.windows.values()):
+            try:
+                w.reposition()
+            except Exception:
+                buglog.caught()
+
     def _follow(self):
         self._follow_job = None
         org = self.desk_origin()
@@ -1110,8 +1170,11 @@ class Shell:
         if (org, size) == getattr(self, "_last_place", None):
             return
         self._last_place = (org, size)
-        for w in self.windows.values():
-            w.reposition()
+        if EMBED:
+            self._pages_fit_soon()                       # (3.0.6: like Dashboard - once the size settles)
+        else:
+            for w in self.windows.values():
+                w.reposition()
         try:
             self.check_owners()
             self.monitor_check()
@@ -1343,6 +1406,14 @@ class Shell:
 
     def paint_wallpaper(self):
         self._wall_job = None
+        if PAGES:                       # 3.0.6 (owner: an old gradient circle background was still used,
+            self.desk.delete("wall")    # and can go): pages cover the area - a plain color
+            self._wall_img = None       # under them, nothing to draw again on each resize
+            try:
+                self.desk.configure(bg=C["bg"])
+            except tk.TclError:
+                pass
+            return
         w, h = max(2, self.desk.winfo_width()), max(2, self.desk.winfo_height())
         if self._wall_size == (w, h, self.cfg.get("wallpaper")):
             return
@@ -1624,9 +1695,8 @@ class Shell:
 
     @staticmethod
     def _round_rect(c, x0, y0, x1, y1, r, **kw):
-        pts = [x0 + r, y0, x1 - r, y0, x1, y0, x1, y0 + r, x1, y1 - r, x1, y1, x1 - r, y1, x0 + r, y1, x0, y1, x0, y1 - r,
-               x0, y0 + r, x0, y0]
-        return c.create_polygon(pts, smooth=True, **kw)
+        from . import themes as _th                 # rule 24: smooth corners (soft.py), one item as before
+        return _th.round_rect(c, x0, y0, x1, y1, r, **kw)
 
     def _dock_item(self, m, cx, y, tile, labels):
         d = self.dock
@@ -1967,8 +2037,7 @@ class Shell:
             self.refresh_dots()
             if self.sidebar is not None:                         # (the utilities' running dots)
                 self.sidebar.redraw()
-                look = getattr(self.app, "drawer_look_on", None)       # the Drawer: always the rail
-                self.sidebar.set_compact(bool(look and look()) or self.root.winfo_width() < 1100)
+                self._compact_now()
         except Exception:
             buglog.caught()
         try:
@@ -1976,6 +2045,19 @@ class Shell:
         except Exception:
             buglog.caught()
         self.root.after(2000, self._tick)
+
+    def _compact_now(self, e=None):
+        """The sidebar's rail or full width for the window's width - 3.0.6 (Price Checks feedback: the listings jumped
+        1-2 s after a resize): at once on a resize, not only on the 2 s tick."""
+        if e is not None and e.widget is not self.root:
+            return
+        if getattr(self, "sidebar", None) is None:
+            return
+        try:
+            look = getattr(self.app, "drawer_look_on", None)       # the Drawer: always the rail
+            self.sidebar.set_compact(bool(look and look()) or self.root.winfo_width() < 1100)
+        except Exception:
+            buglog.caught()
 
     # ---- the Toolkit menu
     def toggle_menu(self):
@@ -2108,7 +2190,7 @@ class Shell:
         foot.pack(fill="x", side="bottom", padx=8, pady=8, before=cols)   # 2.69.1: gets its room before the lists
         # 2.69.1: two rows of even buttons, so none is cut off in a narrow Toolkit
         btns = (("Settings", lambda: self.open("settings")), ("✦ What's new", lambda: self.app.show_whatsnew(True)),
-                ("➜ Quick start", lambda: self.app.show_quickstart(force=True)),
+                ("➜ Run setup again", lambda: self.app.features_picker()),
                 ("⟳ Check for updates", self.app.check_updates), ("✕ Quit", self.app.on_close))
         self.menu_foot_btns = []
         for i, (text, cmd) in enumerate(btns):

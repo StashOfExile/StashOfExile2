@@ -1,8 +1,9 @@
-"""Reading copied items, matching mods to trade-site stats, mod impact rules, tabs.txt / jewels.txt.
+"""Reading copied items, matching mods to trade-site stats, mod impact rules, modlists.json.
 
 Part of StashOfExile2. Split out of the single-file app in 1.37 (see the launcher's VERSION HISTORY)."""
 
 import difflib
+import json
 import math
 import re
 from . import buglog
@@ -254,7 +255,8 @@ def parse_item(text):
     else:
         return None
     rarity = next((l.split(":", 1)[1].strip() for l in lines if l.startswith("Rarity:")), "")
-    if rarity not in ("Magic", "Rare"):
+    # 3.0.6 (tablets must be priceable): white tablets too - priced by their base
+    if rarity not in ("Magic", "Rare") and not (rarity == "Normal" and kind == "Tablet"):
         return None
     start = next(i for i, l in enumerate(lines) if l.startswith("Rarity:")) + 1
     name_block = []
@@ -408,7 +410,7 @@ TIER_ORDER = ("S", "A", "B", "C", "D")
 # that reads rules changes. F_TIP says what it means wherever F appears.
 TIER_F = "F"
 SHOWN_TIERS = TIER_ORDER + (TIER_F,)
-F_TIP = "F = ignore: buyers don't pay for it, so it's left out of searches."
+F_TIP = "F means ignore: buyers don't pay for it, so it's left out of searches."
 TIERS = load_json("mod_tiers.json", {})        # your tiers: rule key -> "S".."D"
 
 
@@ -449,6 +451,30 @@ def migrate_tier_only():
 def tier_rank(t):
     """S = 0 ... D = 4; no tier (ignored) = 9."""
     return TIER_ORDER.index(t) if t in TIER_ORDER else 9
+
+
+ROLL_STEP_DOWN = 4      # 3.0.6 (owner: "a T4 max mana and a T1 max mana have different values"): from this roll tier
+                        # on, a mod counts one letter lower when the search has to leave mods out
+
+
+def roll_tier(m):
+    """A mod's roll tier from the copy ("(Tier: 4)" -> 4), or None when the copy doesn't say."""
+    t = str((m or {}).get("tier") or "").strip()
+    return int(t) if t.isdigit() else None
+
+
+def drop_rank(letter_rank, m):
+    """How soon a mod is left out when too few listings have every mod: its letter's rank (S = 0 ... D = 4), one
+    lower for a roll of tier ROLL_STEP_DOWN or worse, then the worse roll first. Automatic - nothing to set.
+    Owner (Rate Mods, By roll): a roll whose group has its own letter (m["roll_grade"]) counts by that letter instead
+    - and then no automatic step down (the player said what this roll is worth)."""
+    rg = (m or {}).get("roll_grade")
+    if rg in TIER_ORDER:
+        rt = roll_tier(m)
+        return (tier_rank(rg), rt if rt is not None else ROLL_STEP_DOWN - 1)
+    rt = roll_tier(m)
+    eff = letter_rank + (1 if rt is not None and rt >= ROLL_STEP_DOWN and letter_rank < len(TIER_ORDER) - 1 else 0)
+    return (eff, rt if rt is not None else ROLL_STEP_DOWN - 1)
 
 
 DEFAULT_TIERS = {}
@@ -588,158 +614,46 @@ def migrate_scoped_rules(waystone_lines, relic_lines):
     return moved
 
 
-# ---- tabs.txt: every tablet mod, so the Mod rules tab can list them all. From 2.0 beta 12 it is built from RePoE's export
-#      of the game files (tools/build_modlists.py, first line "# RePoE ..."): clean, one mod per line, in the game's own
-#      wording. Older copies (pasted from a website) still load, with the clean-up below.
-_GLUE = re.compile(r"%?\s*(?:reduced Pack Size in Map|increased Quantity of Waystones found in Map)")
-
-
-def _clean_tab_line(line):
-    """Old pasted lists (before 2.0 beta 12) glued a hybrid mod's extra lines onto the next one - split them apart again."""
-    t = re.sub(r"\(-?\d+(?:\.\d+)?\s*[—–-]\s*-?\d+(?:\.\d+)?\)", "#", line.strip())
-    t = re.sub(r"expedition elite pack size.*$", "", t, flags=re.I).strip()
-    if not t or t == "#% increased Quantity of Waystones found in Map":
-        return [t] if t else []
-    if _GLUE.search(t):
-        return [p.strip() for p in _GLUE.sub("|", t).split("|") if p.strip()]
-    return [t]
-
-
-TAB_KINDS = {}      # normalized mod text -> {"Prefix", "Suffix"} as listed in tabs.txt
-
-
-def load_tabs():
-    """tabs.txt -> {normalized mod text: [display text, {tablet types it can roll on}]}"""
-    out, cur, kind = {}, None, None
-    try:
-        with open(P("tabs.txt"), encoding="utf-8-sig") as f:
-            lines = f.read().splitlines()
-    except Exception:
-        return out
-    clean = bool(lines) and lines[0].startswith("#")
-    for raw in lines:
-        line = raw.strip()
-        if line.startswith("#") and not line.startswith("#%"):
-            continue
-        if line in ("Base Prefix", "Base Suffix"):
-            kind = line.split()[1]
-            continue
-        if line == "CurrencyVaalCorrupted":
-            kind = ""
-            continue
-        if not line or line.startswith("Crafting Tag"):
-            continue
-        m = re.fullmatch(r"([A-Z][a-z]+) Tablet", line)
-        if m:
-            cur = m.group(1)
-            continue
-        if cur is None:
-            continue
-        for t in ([re.sub(r"\(-?\d+(?:\.\d+)?\s*[—–-]\s*-?\d+(?:\.\d+)?\)", "#", line)] if clean else _clean_tab_line(line)):
-            out.setdefault(norm(t), [t, set()])[1].add(cur)
-            if kind:
-                TAB_KINDS.setdefault(norm(t), set()).add(kind)
-    return out
-
-
-TABS = load_tabs()
-
-
-# ---- jewels.txt: every jewel mod, so the Jewel mod rules page can list them all (RePoE from 2.0 beta 12, as tabs.txt)
+# ---- modlists.json (replaces tabs.txt + jewels.txt): every tablet and jewel mod, so the Mod rules pages can list them
+#      all. Built from RePoE's export of the game files by tools/build_modlists.py:
+#      {"version", "source", "game_version", "tablets": {"Abyss Tablet": {"Prefix": [...], "Suffix": [...], "Corrupted": [...]}},
+#       "jewels": {"Ruby": {"Prefix", "Suffix", "Corrupted"}}}; mods keep the game's wording with (min—max) ranges.
+#      Prefix / Suffix give a mod's kind; Corrupted mods have none. Any other key (e.g. "Desecrated") is not read:
+#      those mods are always searched as 'Any'.
+_RANGE = re.compile(r"\(-?\d+(?:\.\d+)?\s*[—–-]\s*-?\d+(?:\.\d+)?\)")
 JEWEL_NAMES = ["Ruby", "Emerald", "Sapphire", "Diamond", "Time-Lost Ruby", "Time-Lost Emerald", "Time-Lost Sapphire", "Time-Lost Diamond"]
+TAB_KINDS = {}      # normalized mod text -> {"Prefix", "Suffix"}
+JEWEL_KINDS = {}    # normalized mod text -> {"Prefix", "Suffix"}
 
 
-_JTAGS = ["Energy Shield", "Elemental", "Resistance", "Critical", "Physical", "Lightning", "Damage", "Ailment", "Attack", "Minion",
-          "Speed", "Caster", "Chaos", "Armour", "Evasion", "Charm", "Curse", "Life", "Mana", "Cold", "Fire", "Aura", "Gem", "Block",
-          "Projectile", "Defences", "Presence", "Flask", "Duration", "Attribute"]
-
-
-_JTAG_ALT = "|".join(sorted(map(re.escape, _JTAGS), key=len, reverse=True))
-
-
-_JTAG_RUN = re.compile(r"(?:%s)+" % _JTAG_ALT)
-
-
-_JTAG_ES = re.compile(r"(.*Energy Shield.*?) Energy Shield(?:%s)*" % _JTAG_ALT)
-
-
-_JBAD_END = {"increased", "reduced", "to", "of", "the", "with", "and", "a", "an", "by", "while", "per", "for"}
-
-
-_JRANGE = re.compile(r"\(-?\d+(?:\.\d+)?\s*[—–-]\s*-?\d+(?:\.\d+)?\)")
-
-
-_JSPLIT = re.compile(r"(?<=[a-z])(?=#|\+?\(\d|\+#)|(?<=.)(?=(?:Notable|Small) Passive Skills in Radius)")
-
-
-def _jewel_strip_tags(t):
-    """Old pasted lists (before 2.0 beta 12) glued the mod's tags (DamageElementalFire...) onto the end of its line."""
-    t = t.strip()
-    m = _JTAG_ES.fullmatch(t)
-    if m:
-        return m.group(1)
-    w = t.rsplit(" ", 1)
-    if len(w) == 2 and _JTAG_RUN.fullmatch(w[1]) and w[0].strip().rsplit(" ", 1)[-1].lower() not in _JBAD_END:
-        return w[0].strip()
-    return t
-
-
-def clean_jewel_line(line):
-    out = []
-    for part in _JSPLIT.split(line.strip()):
-        t = _JRANGE.sub("#", _jewel_strip_tags(part)).strip()
-        if t and "local jewel effect" not in t and t not in ("Notable Passive Skills in Radius", "Small Passive Skills in Radius"):
-            out.append(t)
-    return out
-
-
-JEWEL_KINDS = {}      # normalized mod text -> {"Prefix", "Suffix"}
-
-
-def load_jewels():
-    """jewels.txt -> {normalized mod text: [display text, {jewel types it can roll on}]}.  Desecrated pools are skipped
-    (those mods are always searched as 'Any')."""
-    out, cur, kind, skip = {}, None, None, False
+def load_modlists():
+    """modlists.json -> (tablet mods, jewel mods), each {normalized mod text: [display text, {types it can roll on}]}.
+    Tablet types are the first word ("Abyss"); jewel types the jewel's name. Fills TAB_KINDS / JEWEL_KINDS."""
     try:
-        with open(P("jewels.txt"), encoding="utf-8-sig") as f:
-            lines = f.read().splitlines()
+        with open(P("modlists.json"), encoding="utf-8-sig") as f:
+            data = json.load(f)
     except Exception:
+        return {}, {}
+
+    def read(pools, kinds, only, label):
+        out = {}
+        for name, secs in (pools or {}).items():
+            if only is not None and name not in only:
+                continue
+            cur = label(name)
+            for sec, kind in (("Prefix", "Prefix"), ("Suffix", "Suffix"), ("Corrupted", "")):
+                for line in (secs or {}).get(sec) or []:
+                    t = _RANGE.sub("#", line.strip())
+                    if t:
+                        out.setdefault(norm(t), [t, set()])[1].add(cur)
+                        if kind:
+                            kinds.setdefault(norm(t), set()).add(kind)
         return out
-    clean = bool(lines) and lines[0].startswith("#")
-    for raw in lines:
-        line = raw.strip()
-        if line.startswith("#") and not line.startswith("#%"):
-            continue
-        if not line or line.startswith("Crafting Tag") or re.fullmatch(r"\d*Total", line):
-            continue
-        if line in JEWEL_NAMES:
-            cur, kind, skip = line, None, False
-            continue
-        if cur is None:
-            continue
-        if line in ("Base Prefix", "Base Suffix"):
-            kind, skip = line.split()[1], False
-            continue
-        m = re.search(r"Emotions (Prefix|Suffix)$", line)
-        if m:
-            kind, skip = m.group(1), False
-            continue
-        if re.search(r"Desecrated Modifiers (Prefix|Suffix)$", line):
-            skip = True
-            continue
-        if line in ("CurrencyVaalCorrupted", "Orb of Sacrifice"):
-            kind, skip = "", False
-            continue
-        if skip:
-            continue
-        for t in ([_JRANGE.sub("#", line)] if clean else clean_jewel_line(line)):
-            out.setdefault(norm(t), [t, set()])[1].add(cur)
-            if kind:
-                JEWEL_KINDS.setdefault(norm(t), set()).add(kind)
-    return out
+    return (read(data.get("tablets"), TAB_KINDS, None, lambda n: n.rsplit(" ", 1)[0]),
+            read(data.get("jewels"), JEWEL_KINDS, JEWEL_NAMES, lambda n: n))
 
 
-JEWELS = load_jewels()
+TABS, JEWELS = load_modlists()
 
 
 def _canon(k):

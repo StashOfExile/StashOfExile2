@@ -4,7 +4,7 @@
   Linux:   Tesseract - the `tesseract` command on PATH (one run per picture: PNG in on stdin, TSV out), else the
            optional pytesseract module (which runs the same command). Nothing found: problem() says what to install,
            in one line, and every helper that needs OCR shows it on its row; the rest keep working (template and
-           frame matching - the Sekhemas map check, Ritual's counter -, Client.txt helpers, price checks).
+           frame matching - the Sekhemas map check -, Client.txt helpers, price checks).
 
 OCR only ever reads a picture screenread.py already took for one key press - it never takes one itself."""
 import io
@@ -85,9 +85,9 @@ def problem():
 def help_text():
     """The ⓘ tooltip for a helper that needs OCR (Linux): every distro's line."""
     from .linsys import install_all
-    return ("The screen-reading helpers read text with Tesseract (free OCR). Install it, then restart the app: "
+    return ("The screen-reading helpers read text with Tesseract - free OCR. Install it, then restart the app: "
             + install_all("tesseract").replace(" / ", " · ") + ". Helpers that match pictures (the Sekhemas map "
-            "check, Ritual's counter), Client.txt helpers and price checks work without it.")
+            "check, Ritual's Favours prices), Client.txt helpers and price checks work without it.")
 
 
 # ---------------------------------------------------------------- Tesseract
@@ -153,25 +153,28 @@ def _run(args, data, timeout):
     return r.stdout.decode("utf-8", "replace")
 
 
-def tesseract(img, timeout=8.0):
-    """PIL image -> [(line text, (x0, y0, x1, y1))] with the tesseract command (one run)."""
-    pic, scale = prep(img)
+def tesseract(img, timeout=8.0, psm=None, prepped=False):
+    """PIL image -> [(line text, (x0, y0, x1, y1))] with the tesseract command (one run).
+    3.0.6 (reader.py): psm - Tesseract's page layout for this read ("7": one line); prepped - the picture is already
+    made ready (dark text on light, enlarged), so it is read as it is."""
+    pic, scale = (img, 1.0) if prepped else prep(img)
+    psm = str(psm or PSM)
     if engine() == "pytesseract" and RUNNER[0] is None:
         import pytesseract
         try:
-            tsv = pytesseract.image_to_data(pic, lang=LANG, config=f"--psm {PSM}", timeout=timeout)
+            tsv = pytesseract.image_to_data(pic, lang=LANG, config=f"--psm {psm}", timeout=timeout)
         except RuntimeError:
             raise Slow("slow")
         return parse_tsv(tsv, scale)
     buf = io.BytesIO()
     pic.save(buf, "PNG")
-    args = [tesseract_path() or "tesseract", "stdin", "stdout", "-l", LANG, "--psm", PSM, "tsv"]
+    args = [tesseract_path() or "tesseract", "stdin", "stdout", "-l", LANG, "--psm", psm, "tsv"]
     return parse_tsv(_run(args, buf.getvalue(), timeout), scale)
 
 
 # ---------------------------------------------------------------- the helpers' rows (Overlay › Helpers, Linux)
 FULL = ("remnant", "desecrate", "temple")          # read text only: nothing works without OCR
-PART = ("ritual", "sekhemas")                      # match pictures too: their text reads need OCR
+PART = ("sekhemas",)                              # matches pictures too: its text reads need OCR
 
 
 def row_state(key, st, txt):

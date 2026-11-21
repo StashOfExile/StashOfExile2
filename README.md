@@ -14,15 +14,15 @@ A free, open-source Windows companion for **Path of Exile 2**: price checks, bul
 
 *Screenshots: sample data and made-up listings.*
 
-## New in 3.0
+## New in 3.1
 
-![What's new in 3.0: Why 3.0 and How helpers work now](docs/screenshots/whats-new.png)
-
-- **Why 3.0** - to follow Grinding Gear Games' third-party policy: the app reads your screen or clipboard only when you press a key, once per press. Nothing watches your screen by itself.
-- **How helpers work now** - press your **Read Key** (**Ctrl+Shift+R**) where a helper applies. The read mark (👁) shows what was read. A price check reads the clipboard on its key (**Ctrl+D**).
-- **Drawer** - the app over the game's side: suggested for one monitor. **Full window** is suggested for two or more.
-- **Trial of the Sekhemas** (BETA), **Back from a map** (Map profit + Top Up Reminders in one card), **Campaign Bar**, **Broaden Search** on price checks.
-- Gone, because they watched the screen by themselves: the Delirium helper, the Temple Helper's Vaal Beacon read, Map Content reads. The Toolkit row is gone too (Go to anything, Ctrl+K, finds every page).
+- **Made to follow GGG's rules** - the app searches the trade site only when you press a button, no longer reads your stash tabs or keeps an account name, and shows you the steps for the Ritual filter instead of changing game files. The overlay carries a STASH OF EXILE 2 badge, so it never looks like part of the game.
+- **Farming Strategies: New strat** - build your own strategy. Copy your waystone and tablets in from the game, or set them by hand with Min and Max values. Check cost prices it when you ask.
+- **Exchange Rates overlay** - pick up to 10 currencies, drag them into your order, and choose which currency the rates are shown in.
+- **Compare a currency** - pick one currency and see what it's worth in every other, with how each number was worked out.
+- **Rate Mods** - its own Mods section, rating One at a Time or in a Table.
+- **Vaal Lens** - a full step-by-step plan for your temple.
+- **One installer** - it asks first: Full Install or Portable.
 
 A small **NEW** chip marks what's new on its row and on its page's icon, until you open or use it.
 
@@ -32,11 +32,12 @@ GGG's rule for tools: *"Reading from the screen or clipboard may only be perform
 
 - **One read per key press.** Holding a key reads once. Each read shows the read mark (👁) for a second and writes a line in the app's log.
 - **Your screen: only on the Read Key.** **Ctrl+Shift+R** as the app comes (Settings › Keybinds). One picture of the game window; every helper that applies where you are reads its part, then it's dropped. Clear the key and nothing reads the screen.
-- **Your clipboard: only on a copy key.** The price check key (Ctrl+D), Ctrl+Alt+C for Bulk Pricing, the Top Up key: one read, 0.2 s after the press. A chat command key reads it once, to put your text back. Ctrl+V in one of the app's boxes. Nothing watches the clipboard.
-- **The game's log (Client.txt)** is followed all the time: where you are, Breach warnings, rituals started, whispers.
+- **Your clipboard: only on a copy key.** The price check key (Ctrl+D), Ctrl+Alt+C for Bulk Pricing: one read, 0.2 s after the press. A chat command key reads it once, to put your text back. Ctrl+V in one of the app's boxes. Nothing watches the clipboard.
+- **The game's log (Client.txt)** is followed all the time: where you are, Breach warnings, whispers.
 - **Never** the game's memory, files or network traffic. The game client is never changed.
 - **Never a macro.** After your key press the app does at most one thing in the game: the game's own item copy, or one chat command. The mouse is never moved or clicked for you.
 - The trade site is searched only for what you started, well inside its limits, with a User-Agent that says who is asking. Rates come from poe.ninja.
+- **No game art ships with the app.** Item pictures load from poe.ninja and the trade site when needed and stay only on your PC.
 - The full list of every read and its trigger: [TOS.md](TOS.md).
 - **Older versions are gone.** Every release before 3.0.0 was removed from GitHub, because those versions read the screen by themselves. Please don't use them with the game. Details: [docs/REMOVED_VERSIONS.md](docs/REMOVED_VERSIONS.md).
 
@@ -47,12 +48,16 @@ This product isn't affiliated with or endorsed by Grinding Gear Games in any way
 **Trade**
 - **Price Checks** - hover an item, press **Ctrl+D**: price, how sure, and how it was worked out. Too few listings for a base? **Broaden Search** widens it, one step a click.
 - **Bulk Pricing** - **Ctrl+Alt+C** on many items (tablets, waystones, jewels): priced as a list.
-- **Favorites**, **Rate Mods** (your ratings tune your price checks), **Exchange Rates** (poe.ninja, a converter, a flip check), **Market Insights**.
+- **Favorites**, **Exchange Rates** - poe.ninja rates, a converter, and Compare a currency. Pick which ones show over the game.
+
+**Mods**
+- **Rate Mods** - rate mods One at a Time or in a Table; your ratings tune your price checks. A mod that rolls in tiers can have a letter for its top, middle and low rolls (By roll).
+- **Market Insights** - your most valuable items, the top mods and the priciest listings seen.
+- **Craft Helper** (BETA) - each mod of a tablet or jewel rated S to F, and a next step.
 
 **Stash**
 - **Wealth** - what your stash is worth: Scan stash reads one tab per Read Key press.
 - **Regex** - stash search strings for tablets, waystones, relics, jewels and gear.
-- **Craft Helper** (BETA) - each mod of a tablet or jewel rated S to F, and a next step.
 
 **League**
 - **League Plan**, **Map Profit** (BETA), **Farming Strategies** (BETA), **Map Library**, **Leaderboards** (opt-in).
@@ -60,9 +65,9 @@ This product isn't affiliated with or endorsed by Grinding Gear Games in any way
 **Tools**
 - **Game Search** - every skill, item, mod and keyword, from the game's own data, on your PC.
 
-**Overlay** (over the game, Bar or Panel layout)
+**Overlay** (over the game: Bar, Panel or Split layout, in any style)
 - **Session timer**, Notes, Calc, Regex and Rates menus, the **Price check overlay**.
-- Helpers - press your **Read Key** where one applies: **Ritual** (counter, Favours prices, Ritual Identifier), **Expedition** (remnant rewards, Island rumors), **Desecration Helper**, **Temple Helper** (BETA, Vaal Lens), **Trial of the Sekhemas** (BETA), **Back from a map** (Map profit, Top Up Reminders).
+- Helpers - press your **Read Key** where one applies: **Ritual** (Favours prices, and Filter in the Ritual window), **Expedition** (remnant rewards, Island rumors), **Desecration Helper**, **Temple Helper** (BETA, Vaal Lens), **Trial of the Sekhemas** (BETA), **Back from a map** (Map profit, Top Up Reminders).
 - From the game's log: **Breach**, **Campaign Helper** and the **Campaign Bar**, **Trade whispers**, **Break reminders**. Plus **Music Controls**.
 
 ## Window: Drawer or Full window
@@ -73,7 +78,12 @@ This product isn't affiliated with or endorsed by Grinding Gear Games in any way
 
 ## Install and update
 
-Download `StashOfExile2.exe` from [Releases](https://github.com/StashOfExile/StashOfExile2/releases) and run it. It updates itself; your settings stay in `%APPDATA%\StashOfExile2`.
+Download `Setup-StashOfExile2-<version>.exe` from the [latest release](https://github.com/StashOfExile/StashOfExile2/releases/latest). It asks first:
+
+- **Full Install** - puts it in your Start menu and Windows search, and in Settings › Apps to uninstall. Your settings live in `%APPDATA%\StashOfExile2`, and uninstalling never deletes them.
+- **Portable** - one folder you pick. Nothing else on your PC changes. A new player's settings live in that folder too; if you already use the app, your settings stay where they are.
+
+Both install for you only, so no admin prompt, and both update themselves. `StashOfExile2.exe` on the release is the file the app's own updater uses.
 
 The project moved to [github.com/StashOfExile/StashOfExile2](https://github.com/StashOfExile/StashOfExile2). If your 2.x app doesn't offer 3.0 by itself, download it once from Releases - it updates itself from then on, and your settings are kept.
 
@@ -92,7 +102,7 @@ Every release has a Linux download on the same page: `StashOfExile2-<version>-li
 
 ## Privacy
 
-- The usage count (on until you switch it off, Settings › Privacy & community): a random id made on your PC, every 10 minutes, so we know how many people use the app. Not your account, name or PC.
+- The usage count (off until you switch it on, Settings › Privacy & community): a random id made on your PC, every 10 minutes, so we know how many people use the app. Not your account, name or PC.
 - Nothing else leaves your PC unless you turn on Community data sharing - and then only anonymous data, never names or wealth.
 - Error reports: off until you say yes. Only where in the code an error happened and its type - never messages, names, items or files.
 - Logs (`app_log.txt`, `crash_report.txt`) stay on your PC and leave out your names and folders. You see every word before a bug report is sent.
@@ -131,6 +141,6 @@ Thank you!
 
 The code is free software under the **GNU Affero General Public License v3.0** ([LICENSE](LICENSE)): you can use it, change it and share it. Anything made from it has to stay under the same license, with its source - and that includes a changed version people use over a network (a website or an online service), not only one you hand out. Versions up to 2.129.4 were released under the GNU GPL v3.0.
 
-Game data in `regexdata.json`, `searchdata.json`, `tabs.txt`, `jewels.txt` and `tierdata.json` comes from [RePoE](https://github.com/repoe-fork/repoe-fork); `gamedata.json` (base types, mod wordings, trade-site stat ids, pseudo-total rules) is built from [Exiled Exchange 2](https://github.com/Kvan7/Exiled-Exchange-2)'s data files (MIT) (anoint recipes in `anointdata.json`: [Path of Building PoE2](https://github.com/PathOfBuildingCommunity/PathOfBuilding-PoE2)) and belongs to Grinding Gear Games; it isn't covered by this license. Other sources and their licenses are in [THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt).
+Game data in `regexdata.json`, `searchdata.json`, `modlists.json` and `tierdata.json` comes from [RePoE](https://github.com/repoe-fork/repoe-fork); `gamedata.json` (base types, mod wordings, trade-site stat ids, pseudo-total rules) is built from [Exiled Exchange 2](https://github.com/Kvan7/Exiled-Exchange-2)'s data files (MIT) (anoint recipes in `anointdata.json`: [Path of Building PoE2](https://github.com/PathOfBuildingCommunity/PathOfBuilding-PoE2)) and belongs to Grinding Gear Games; it isn't covered by this license. Other sources and their licenses are in [THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt).
 
 This product isn't affiliated with or endorsed by Grinding Gear Games in any way. Path of Exile 2 is a trademark of Grinding Gear Games.

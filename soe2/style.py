@@ -38,6 +38,32 @@ ROLE = {                              # color roles -> which C color plays them
 }
 
 
+TRADE_SITE = "Trade Site"      # 3.0.6 (owner): every Trade Site button carries the same browser (globe) icon
+
+
+def trade_icon(btn, color=None, size=16):
+    """A Trade Site button (ttk.Button or tk.Label) -> the same button with the globe icon after its words. 3.0.6
+    (owner: on the right side, centered alongside the text): the icon is drawn 2 px lower in its picture, so its
+    middle sits on the words' middle, not above it."""
+    try:
+        from . import lineicons
+        from PIL import Image, ImageTk
+        key = ("trade", int(size), str(color or C["text"]).lower())
+        img = _TRADE_IMG.get(key)
+        if img is None:
+            im = lineicons.image("globe", int(size), str(color or C["text"]))
+            pad = Image.new("RGBA", (im.width, im.height + 3), (0, 0, 0, 0))
+            pad.alpha_composite(im, (0, 3))
+            img = _TRADE_IMG[key] = ImageTk.PhotoImage(pad, master=btn)
+        btn.configure(image=img, compound="right")
+    except Exception:
+        buglog.caught()
+    return btn
+
+
+_TRADE_IMG = {}
+
+
 def role(name):
     """The color for a role (follows the theme and accent)."""
     return C[ROLE[name]]
@@ -75,6 +101,32 @@ def contrast(a, b):
 def text_on(bg, light="#fff7ea", dark="#1a1206"):
     """2.34.0: light or dark text, whichever reads better on bg (WCAG AA)."""
     return light if contrast(light, bg) >= contrast(dark, bg) else dark
+
+
+# Rate Mods (owner): one letter palette, here only - S gold, A orange, B / C / D cool to neutral, F muted. Each letter
+# is a theme role (so it follows every theme pack), nudged toward the theme's text until it stands out 3 : 1 from the
+# surface it sits on (tools/check_contrast.py checks it). Always shown with its letter and its word, never alone.
+LETTER_ROLES = {"S": "money", "A": "orange", "B": "link", "C": ("link", "text_muted"), "D": ("text", "text_muted"),
+                "F": "text_muted"}
+LETTER_EDGE = 3.0
+
+
+def letter_color(g, under=None):
+    """The color strip of a letter (S A B C D F; "ignore" = F) on `under` (default: the theme's raised surface)."""
+    from . import themes as TH
+    t = TH.ST.theme
+    g = "F" if g == "ignore" else g
+    role = LETTER_ROLES.get(g, "text_muted")
+    with TH.raw():
+        base = mix(t.c(role[0]), t.c(role[1]), 0.5) if isinstance(role, tuple) else t.c(role)
+        under = under or t.c("surface_raised")
+        ink = t.c("text")
+    c = base
+    for i in range(1, 11):
+        if contrast(c, under) >= LETTER_EDGE:
+            break
+        c = mix(base, ink, i / 10)
+    return c
 
 
 def hotkey_blocked(state, platform=None):
@@ -274,7 +326,7 @@ def switch_look(root, look):
 
 
 def switches(root, s):
-    """2.49.0 (feedback: "anywhere there's a checkbox... a modern slider in its place"): every ttk.Checkbutton
+    """2.49.0 (feedback: a modern slider in place of every checkbox): every ttk.Checkbutton
     (TCheckbutton and its Bar. / Mod. styles) shows a switch instead of a tick box. Same widgets, same variables."""
     name = "Switch2.indicator.%s%s" % ((C["accent"] + C["line"] + C["text"] + C["panel2"]).replace("#", ""),
                                        "" if SWITCH_LOOK[0] == "onoff" else SWITCH_LOOK[0])
@@ -360,8 +412,8 @@ def center_over(win, parent):
 
 
 def over_app(win, parent):
-    """2.114.3 (feedback: the Scan stash check window came up on the wrong screen - "it should always appear over the
-    app"): center a window over `parent` (the app window in front) on its monitor once its content is built."""
+    """2.114.3 (feedback: the Scan stash check window came up on the wrong screen - it should always appear over the
+    app): center a window over `parent` (the app window in front) on its monitor once its content is built."""
     def go():
         try:
             if win.winfo_exists():
@@ -380,6 +432,19 @@ def _place_dialog(w, parent=None):
     par = parent if parent is not None and parent.winfo_ismapped() else w._root()
     center_over(w, par)
     w.wm_deiconify()
+
+
+def bind_own_configure(root, fn):
+    """3.0.6 (owner: dragging the Drawer lagged on every page except Dashboard ): a handler
+    for the app window's own size / place. root.bind("<Configure>") runs for EVERY part inside the window too (each
+    part's events pass its window's tag) - five such handlers meant five Python calls for each of the ~1,800 parts
+    of a page, on every step of a drag. Dashboard is one drawing, so it never had that cost. This tag is the root's
+    alone: the handler runs once a step."""
+    tag = "SoE2Root"
+    tags = root.bindtags()
+    if tag not in tags:
+        root.bindtags((tag,) + tuple(tags))
+    root.bind_class(tag, "<Configure>", fn, add="+")
 
 
 LOOP_LIMIT = 150                  # one widget resized this many times within a second = stuck in a layout loop
@@ -538,7 +603,7 @@ def flowify(row, vgap=6):
                     lines.append(cur)
                     cur, x = [], 0
                 cur.append(k)
-                x += kw
+                x += kw - (k["l"] if lines and len(cur) == 1 else 0)    # (a wrapped line starts at the edge)
             if cur:
                 lines.append(cur)
             y = 0
@@ -550,14 +615,17 @@ def flowify(row, vgap=6):
                 grow = [k for k in ls if k["grow"]]
                 extra = max(0, W - used) // len(grow) if grow else 0
                 x = 0
-                for k in ls:
+                for i, k in enumerate(ls):
                     ww = k["w"].winfo_reqwidth() + (extra if k in grow else 0)
-                    k["w"].place(x=px + x + k["l"], y=py + y + (h - k["w"].winfo_reqheight()) // 2, width=ww)
-                    x += k["l"] + ww + k["r"]
+                    lp = 0 if li and not i else k["l"]  # 3.0.7 (owner): a wrapped line lines up with the first
+                    k["w"].place(x=px + x + lp, y=py + y + (h - k["w"].winfo_reqheight()) // 2,
+                                 width=ww if k in grow else "")      # its own width: new words resize it and the row
+                                                                      # lays out again, never cut off
+                    x += lp + ww + k["r"]
                 rx = max(x, W - sum(width(k) for k in rs))      # right-aligned, in their on-screen order
                 for k in rs:
                     ww = k["w"].winfo_reqwidth()
-                    k["w"].place(x=px + rx + k["l"], y=py + y + (h - k["w"].winfo_reqheight()) // 2, width=ww)
+                    k["w"].place(x=px + rx + k["l"], y=py + y + (h - k["w"].winfo_reqheight()) // 2, width="")
                     rx += k["l"] + ww + k["r"]
                 y += h + (vgap if li < len(lines) - 1 else 0)
             if int(row.cget("height") or 0) != y + 2 * py:
@@ -749,14 +817,23 @@ def _setup_style(root, TH):
     s.map("TSpinbox", bordercolor=[("focus", C["accent"])])
     # ---- buttons: bevelled faces drawn from the pack (gradient, light inner edge, round corners on some packs)
     bh = 34
+    from . import soft                  # rule 24: round faces, laid on the color behind each button (soft.variant)
+    soft.install()
+    soft.tk_cache(root)["ns"] = ns
     for style_name, spec, states in (
             ("TButton", "normal", [("disabled", "d"), ("pressed", "p"), ("active", "h")]),
             ("Primary.TButton", "primary", [("disabled", "d"), ("pressed", "p"), ("active", "h")]),
             ("Danger.TButton", "danger", [("disabled", "d"), ("pressed", "p"), ("active", "h")])):
         el = "%s.%s.face" % (ns, style_name.split(".")[0] if "." in style_name else "Button")
-        TH.make_element(root, s, el, t, spec, bh, states)
-        s.layout(style_name, [(el, {"sticky": "nswe", "children": [("Button.focus", {"sticky": "nswe", "children": [
-            ("Button.padding", {"sticky": "nswe", "children": [("Button.label", {"sticky": "nswe"})]})]})]})])
+
+        def face(under, el=el, spec=spec, states=states):
+            name = "%s.%s" % (el, soft.hexc(under)[1:]) if under else el
+            TH.make_element(root, s, name, t, spec, bh, states, under=under)
+            return soft.button_layout(name)
+        soft.register(root, style_name, face)
+        if style_name == "Primary.TButton":
+            soft.register(root, "Accent.TButton", face)
+        s.layout(style_name, face(soft.rgb(root, C["bg"])))
         s.configure(style_name, focuscolor=C["accent"], focusthickness=1)     # 2.100.0: the focus ring (Tab)
     face = TH.grad_at(t.grad(TH.button_spec(t, "primary")["fill"]), 0.5)
     pri_text = TH.text_of(t, "primary", "text", text_on(face))
@@ -781,13 +858,17 @@ def _setup_style(root, TH):
           foreground=[("active", C["text"]), ("disabled", C["muted"])])
     # 2.126.0: small flat buttons for a header strip (Bulk Pricing's Items strip: Undo, Delete, Clear All) - they fit
     # inside the strip; the delete ones have red words (and a word or icon, never the color alone)
-    for name, fg in (("Strip.TButton", C["steel"]), ("StripDanger.TButton", C["red"])):
+    for name, fg in (("Strip.TButton", C["steel"]), ("StripDanger.TButton", C["red"]), ("StripOn.TButton", C["text"]),
+                     ("StripSel.TButton", C["text"])):
         s.layout(name, [("Button.border", {"sticky": "nswe", "border": "1", "children": [("Button.focus", {
             "sticky": "nswe", "children": [("Button.padding", {"sticky": "nswe", "children": [
                 ("Button.label", {"sticky": "nswe"})]})]})]})])
-        s.configure(name, background=C["panel"], foreground=fg, relief="solid", borderwidth=1, bordercolor=C["line"],
-                    lightcolor=C["panel"], darkcolor=C["panel"], focuscolor=C["accent"], focusthickness=1,
-                    padding=(8, 1), font=("Segoe UI", 9), anchor="center", width=0)   # (as wide as its words)
+        bg_ = C["panel2"] if name == "StripSel.TButton" else C["panel"]     # (Sel: a picked tab, on its box's fill)
+        s.configure(name, background=bg_, foreground=fg, relief="solid", borderwidth=1, bordercolor=C["line"],
+                    lightcolor=bg_, darkcolor=bg_, focuscolor=C["accent"], focusthickness=1,
+                    padding=(8, 1), font=("Segoe UI", 9, "bold" if name in ("StripOn.TButton", "StripSel.TButton")
+                                          else "normal"),
+                    anchor="center", width=0)   # (as wide as its words)
         s.map(name, background=[("pressed", C["odd"]), ("active", C["panel2"])],
               bordercolor=[("active", C["steel"])], lightcolor=[("active", C["panel2"])], darkcolor=[("active", C["panel2"])],
               foreground=[("disabled", C["muted"]), ("active", C["text"] if fg == C["steel"] else fg)])
@@ -799,6 +880,9 @@ def _setup_style(root, TH):
                     darkcolor=t.c("border_dark"))
         s.map(o + ".TScrollbar", background=[("active", TH.grad_at(t.grad(nb["hover"]), 0.5))])
     s.configure("Sash", sashthickness=7, gripcount=0, background=C["line"])
+    # rule 24 (the softer look): round fields and dropdowns, a thin round scroll bar, round Quiet / Strip buttons -
+    # made again for every theme (new element names: ns); corners blend into the color behind each widget
+    soft.setup_ttk(root, s, ns, C)
 
 
 def monitor_rect(root, x, y, full=False):
@@ -885,14 +969,42 @@ class Toast:
             except Exception:
                 buglog.caught()
         w.deiconify()
+        from . import soft
+        soft.round_window(w)                            # rule 24: Windows 11 rounds it (elsewhere: square)
         w.bind("<Button-1>", lambda e: self.hide())
         self.win = w
         self.job = self.root.after(int(secs * 1000), self.hide)
 
 
+MENU_OPEN = [False]                 # 3.0.6: a dropdown menu is open (menu_popup) - no tooltip then
+
+
+def menu_popup(menu, x, y):
+    """A dropdown's menu at x, y, with no tooltip while it's open (and the one showing hides). Windows: tk_popup
+    returns when the menu closes; elsewhere the menu's <Unmap> says so."""
+    import sys
+    Tooltip.hide_all()
+    MENU_OPEN[0] = True
+    if sys.platform != "win32":
+        menu.bind("<Unmap>", lambda e: MENU_OPEN.__setitem__(0, False), add="+")
+    try:
+        menu.tk_popup(x, y)
+    finally:
+        if sys.platform == "win32":
+            MENU_OPEN[0] = False
+    return menu
+
+
 class Tooltip:
     """2.37.0: a small tip under a widget while the mouse rests on it (also the text a screen reader can't get from
-    an icon). Tooltip(widget, text); .text can be changed later."""
+    an icon). Tooltip(widget, text); .text can be changed later. 3.0.6: one at a time - a new one hides the last -
+    and none while a dropdown menu is open."""
+    SHOWN = []
+
+    @classmethod
+    def hide_all(cls):
+        for tip in list(cls.SHOWN):
+            tip._leave()
 
     def __init__(self, widget, text, delay=450):
         self.w, self.text, self.delay, self.win, self.job = widget, text, delay, None, None
@@ -925,8 +1037,16 @@ class Tooltip:
 
     def show(self):
         self.job = None
-        if not self.text or self.win is not None:
+        if not self.text or self.win is not None or MENU_OPEN[0]:
             return
+        try:                                                # (the mouse must still be on it)
+            px, py = self.w.winfo_pointerxy()
+            wx, wy = self.w.winfo_rootx(), self.w.winfo_rooty()
+            if self.at is None and not (wx <= px < wx + self.w.winfo_width() and wy <= py < wy + self.w.winfo_height()):
+                return
+        except tk.TclError:
+            return
+        Tooltip.hide_all()
         try:
             x, y = self.at or self._where()         # (D3: a spot given for one of many - else as master)
         except tk.TclError:
@@ -942,6 +1062,9 @@ class Tooltip:
         tk.Label(self.win, text=self.text, bg=bg, fg=fg, font=("Segoe UI", SMALL), justify="left",
                  wraplength=420, padx=8, pady=4, highlightthickness=1, highlightbackground=edge).pack()
         place_near(self.w.winfo_toplevel(), self.win, x, y)
+        from . import soft
+        soft.round_window(self.win)                    # rule 24: Windows 11 rounds it (elsewhere: square)
+        Tooltip.SHOWN.append(self)
         self.w.after(400, self._watch)
 
     def _watch(self):
@@ -971,6 +1094,8 @@ class Tooltip:
         return C["panel2"], C["text"], C["line"]
 
     def hide(self):
+        if self in Tooltip.SHOWN:
+            Tooltip.SHOWN.remove(self)
         if self.win is not None:
             try:
                 self.win.destroy()
@@ -984,6 +1109,7 @@ class TagTip(Tooltip):
 
     def __init__(self, canvas, tag, text, delay=450):
         self.w, self.text, self.delay, self.win, self.job = canvas, text, delay, None, None
+        self.at = None                                  # (3.0.6, error log: Tooltip.show reads it)
         canvas.tag_bind(tag, "<Enter>", self._enter, add="+")
         canvas.tag_bind(tag, "<Leave>", self._leave, add="+")
         canvas.tag_bind(tag, "<ButtonPress>", self._leave, add="+")
@@ -993,29 +1119,32 @@ class TagTip(Tooltip):
 
 
 class Splitter(tk.Frame):
-    """2.123.4 (feedback: the divider was "janky and slow ... no visible indicator"): a left side you can widen or
+    """2.123.4 (feedback: the divider was janky and slow, with no visible indicator): a left side you can widen or
     narrow by dragging a grip you can see (a line with dots that lights up under the mouse). While dragging only a
     thin guide line moves; the sides are laid out once, when you let go. Splitter(parent, width, lo, keep, on_set);
     .left and .right are the two sides; sashpos(0[, x]) reads or sets the left width."""
 
     GRIP = 9
 
-    def __init__(self, parent, width=420, lo=330, keep=300, on_set=None, bg=None, **kw):
+    def __init__(self, parent, width=420, lo=330, keep=300, on_set=None, bg=None, fixed="left", **kw):
         super().__init__(parent, bg=bg or C["bg"], **kw)
         self.lo, self.keep, self.on_set, self._want = lo, keep, on_set, int(width)
-        self.left = tk.Frame(self, bg=C["panel2"], width=self._want)
-        self.left.pack_propagate(False)
-        self.left.pack(side="left", fill="y")
+        self.fixed_right = fixed == "right"         # Bulk Pricing: the right side (the item) has the width, the
+        self.left = tk.Frame(self, bg=C["panel2"], width=self._want)          # left (the list) takes the rest
         self.grip = tk.Frame(self, bg=C["panel"], width=self.GRIP, cursor="sb_h_double_arrow")
         self.grip.pack_propagate(False)
-        self.grip.pack(side="left", fill="y")
         self._bar = tk.Frame(self.grip, bg=C["gold_dim"], width=1)
         self._bar.place(relx=0.5, rely=0, relheight=1, anchor="n")
         self._dots = tk.Label(self.grip, text="⋮\n⋮", bg=C["panel"], fg=C["muted"], font=("Segoe UI", 9),
                               cursor="sb_h_double_arrow", bd=0, padx=0, pady=0)
         self._dots.place(relx=0.5, rely=0.5, anchor="center")
         self.right = tk.Frame(self, bg=C["panel"])
-        self.right.pack(side="left", fill="both", expand=True)
+        if self.fixed_right:
+            self.left.config(width=1)
+            self.right.config(width=self._want)
+        self.fixed = self.right if self.fixed_right else self.left
+        self.fixed.pack_propagate(False)
+        self._pack_sides()
         self._guide = tk.Frame(self, bg=C["orange"], width=2)
         self._x0 = None
         for w in (self.grip, self._dots, self._bar):
@@ -1041,27 +1170,46 @@ class Splitter(tk.Frame):
         hi = pw - self.keep - self.GRIP if pw > lo + self.keep + self.GRIP else max(lo, x)
         return int(max(lo, min(x, hi)))
 
+    def _pack_sides(self):
+        """Side by side: the fixed side at its width, the grip, the other side taking the rest."""
+        if self.fixed_right:
+            self.right.pack(side="right", fill="y")
+            self.grip.pack(side="right", fill="y")
+            self.left.pack(side="left", fill="both", expand=True)
+        else:
+            self.left.pack(side="left", fill="y")
+            self.grip.pack(side="left", fill="y")
+            self.right.pack(side="left", fill="both", expand=True)
+
     def _clamp_now(self):
         x = self.clamp(self._want)
-        if x != int(self.left.cget("width")):
-            self.left.config(width=x)
+        if x != int(self.fixed.cget("width")):
+            self.fixed.config(width=x)
+
+    def _at(self, x_root):
+        """The fixed side's width for a mouse at x_root."""
+        if self.fixed_right:
+            return self.clamp(self._x0 + self.winfo_width() - x_root)
+        return self.clamp(x_root - self._x0)
+
+    def _guide_x(self, want):
+        return (self.winfo_width() - want - self.GRIP + self.GRIP // 2) if self.fixed_right else want + self.GRIP // 2
 
     def _press(self, e):
         self._x0 = self.winfo_rootx()
         self._lit(True)
-        self._guide.place(x=self._want + self.GRIP // 2, y=0, relheight=1)
+        self._guide.place(x=self._guide_x(self._want), y=0, relheight=1)
         self._guide.lift()
 
     def _drag(self, e):
         if self._x0 is None:
             return
-        x = self.clamp(e.x_root - self._x0)
-        self._guide.place_configure(x=x + self.GRIP // 2)
+        self._guide.place_configure(x=self._guide_x(self._at(e.x_root)))
 
     def _release(self, e):
         if self._x0 is None:
             return
-        x = self.clamp(e.x_root - self._x0)
+        x = self._at(e.x_root)
         self._x0 = None
         self._guide.place_forget()
         self._lit(False)
@@ -1071,68 +1219,49 @@ class Splitter(tk.Frame):
 
     def sashpos(self, _i=0, x=None):
         if x is None:
-            return int(self.left.cget("width"))
+            return int(self.fixed.cget("width"))
         self._want = self.clamp(int(x))
-        self.left.config(width=self._want)
+        self.fixed.config(width=self._want)
         return self._want
 
-    def set_stacked(self, on, top_share=0.56):
-        """The Drawer's look (mockups.html): .left over .right, each the page's whole width, no grip. Off: side by
-        side again (the divider's own place is kept)."""
+    def set_solo(self, on):
+        """Price Checks in a narrow window: .left takes the whole width (one column), .right and the grip are hidden.
+        Off: side by side again (the divider's own place is kept). Nothing is drawn again here."""
         on = bool(on)
-        if on == getattr(self, "_stacked", False):
+        if on == getattr(self, "_solo", False):
             return
-        self._stacked = on
-        self._top_share = top_share
+        self._solo = on
         for w in (self.left, self.grip, self.right):
             w.pack_forget()
-            w.place_forget()
         if on:
-            if not getattr(self, "_stack_bound", False):
-                self._stack_bound = True
-                self.bind("<Configure>", lambda e: self._stack_place(), add="+")
-            self._stack_place()
+            self.left.pack(side="left", fill="both", expand=True)
         else:
-            self.left.pack(side="left", fill="y")
-            self.grip.pack(side="left", fill="y")
-            self.right.pack(side="left", fill="both", expand=True)
-            self.left.config(width=self.clamp(self._want))
+            self._pack_sides()
+            self.fixed.config(width=self.clamp(self._want))
 
-
-    STACK_KEEP = 200                     # px the part under the top keeps, at least (the listings' head and a row)
-
-    def stack_need(self, px):
-        """Round 18 (feedback: the item card scrolled with room to spare): stacked, the top part is as tall as it
-        needs (px) - all of it when the page has the room, else all but STACK_KEEP; it scrolls only then."""
-        px = int(px or 0)
-        if px and abs(px - (getattr(self, "_need", 0) or 0)) < 2:
-            return
-        self._need = px
-        if getattr(self, "_stacked", False):
-            self._stack_place()
-
-    def _stack_place(self):
-        if not getattr(self, "_stacked", False):
-            return
-        try:
-            ph = self.winfo_height()
-            need = getattr(self, "_need", 0) or 0
-            if ph <= 1 or not need:
-                share = getattr(self, "_top_share", 0.56)
-                self.left.place(relx=0, rely=0, relwidth=1, relheight=share, height=0, y=0)
-                self.right.place(relx=0, rely=share, relwidth=1, relheight=1 - share, height=0, y=0)
-                return
-            h = max(160, min(need, ph - self.STACK_KEEP))
-            if self.left.place_info().get("height") == str(h) and self.left.place_info().get("relheight") in ("", "0"):
-                return
-            self.left.place(relx=0, rely=0, relwidth=1, relheight=0, height=h, y=0)
-            self.right.place(relx=0, rely=0, relwidth=1, relheight=1, height=-h, y=h)
-        except tk.TclError:
-            pass
+    def set_layout(self, how):
+        """Bulk Pricing: "side" (side by side, the grip between), "solo" (.left alone, the whole width) or "stack"
+        (.left on top at the height it asks for, .right under it taking the rest - a narrow window). Only packing
+        changes: nothing inside is drawn again. -> True when it changed."""
+        if how == getattr(self, "_how", "side"):
+            return False
+        self._how = how
+        self._solo = how == "solo"
+        for w in (self.left, self.grip, self.right):
+            w.pack_forget()
+        if how == "solo":
+            self.left.pack(side="top", fill="both", expand=True)
+        elif how == "stack":
+            self.left.pack(side="top", fill="x")
+            self.right.pack(side="top", fill="both", expand=True)
+        else:
+            self._pack_sides()
+            self.fixed.config(width=self.clamp(self._want))
+        return True
 
 
 class VSplitter(tk.Frame):
-    """2.125.6 (feedback: the Craft Helper's pairs were "crammed at the bottom"): Splitter's grip turned on its side -
+    """2.125.6 (feedback: the Craft Helper's pairs were crammed at the bottom): Splitter's grip turned on its side -
     a top part you make taller or shorter by dragging a grip you can see (a line with dots that lights up under the
     mouse); a thin guide moves while you drag, the parts are laid out once you let go. .top and .bottom are the two
     parts; sashpos(0[, y]) reads or sets the top's height; on_set(height) when you let go."""
@@ -1217,13 +1346,17 @@ class SegBar(tk.Frame):
     """A row of joined toggle buttons (2.0 beta 7), like  [ Total | Daily ].  One is picked at a time; the picked one is
     lit with an orange line under it. command(value) is called when you pick another."""
 
-    def __init__(self, parent, options, value=None, command=None, bg=None, size=10, pad=(16, 4), badges=None):
+    def __init__(self, parent, options, value=None, command=None, bg=None, size=10, pad=(16, 4), badges=None,
+                 plain=False):
         super().__init__(parent, bg=C["line"], padx=1, pady=1)
         self.command, self.value, self.btns = command, value if value is not None else options[0], {}
         self.size, self.pad = size, pad
+        self.plain = bool(plain)                    # Price Checks: no accent - the picked one says "✓" and its word
         self.badges = dict(badges or {})            # 2.38.0: {"Stash tab": "BETA"} - a small tag inside that button
         for i, opt in enumerate(options):
             self._add(opt, i)
+        from . import soft                          # rule 24: round ends (caps over its 4 corners)
+        soft.round_frame(self, edge=lambda: self.cget("bg"))
         self.paint()
         from . import themes as _th
         _th.subscribe(lambda t: self.paint(), owner=self)    # (its colors are the theme's own: painted again)
@@ -1253,19 +1386,60 @@ class SegBar(tk.Frame):
         lab.bind("<Leave>", lambda e: self.paint())
         self.btns[opt] = (lab, line)
 
+    def looks(self):
+        """{"edge", "off", "off_hover", "off_ink", "on", "on_ink"} as hex: the segments' colors on the page color behind
+        the bar. The outline is at least 3 : 1 against the page, the unpicked ones have a visible fill, the picked one
+        is the theme's selection (a different fill, bold, and its mark - never color alone)."""
+        from . import soft, themes as _th
+        t = _th.ST.theme
+        with _th.raw():
+            try:
+                under = soft.rgb(self, soft.behind(self) or C["bg"])
+            except Exception:
+                under = soft.rgb(self, C["bg"])
+            text = soft.rgb(self, t.c("text_muted"))
+            ink = soft.rgb(self, t.c("text"))
+            lk = soft.secondary_looks(text, under, ink, ink=ink)
+            on, on_ink = soft.segment_picked(soft.rgb(self, t.c("selection")), soft.rgb(self, t.c("selection_text")),
+                                             lk["n"][0])
+            hx = soft.hexc
+            return {"edge": hx(lk["n"][1]), "off": hx(lk["n"][0]), "off_hover": hx(lk["h"][0]),
+                    "off_ink": t.c("text"), "on": hx(on), "on_ink": hx(on_ink)}
+
     def paint(self, hover=None):
         from . import themes as _th
         t = _th.ST.theme
         if t is None:
             return
+        k = self.looks()
         with _th.raw():                             # Round 18: the theme's own tokens (a light theme's picked one
-            for opt, (lab, line) in self.btns.items():     # read white on light blue), in the Drawer and the Full
-                on = opt == self.value                     # window alike: picked = its selection, bold, the accent
-                bg = t.c("selection") if on else (t.c("surface_high") if opt == hover else t.c("surface_sunken"))
-                lab.config(bg=bg, fg=t.c("selection_text") if on else t.c("text") if opt == hover else
-                           t.c("text_muted"))
+            if self.cget("bg") != k["edge"]:        # read white on light blue), in the Drawer and the Full
+                self.config(bg=k["edge"])           # window alike. The outline is the bar's own 1 px frame.
+            for opt, (lab, line) in self.btns.items():
+                on = opt == self.value
+                bg = k["on"] if on else (k["off_hover"] if opt == hover else k["off"])
+                fg = k["on_ink"] if on else k["off_ink"]
+                if self.plain:                      # (a plain toggle: a mark and a word, never the accent)
+                    lab.config(bg=bg, fg=fg, text=("\u2713 " if on else "") + opt)
+                    lab.master.config(bg=bg)
+                    line.config(bg=t.c("text") if on else bg)
+                    continue
+                lab.config(bg=bg, fg=fg)
                 lab.master.config(bg=bg)            # (the row that also holds a badge)
                 line.config(bg=t.c("accent") if on else bg)
+        self._paint_ends()
+
+    def _paint_ends(self):
+        """Rule 24: the round ends take the first / last button's color."""
+        labs = [lab for lab, _l in self.btns.values()]
+        if not labs:
+            return
+        from . import soft
+        try:
+            a, b = labs[0].cget("bg"), labs[-1].cget("bg")
+        except tk.TclError:
+            return
+        soft.paint_caps(self, inside={"tl": a, "bl": a, "tr": b, "br": b})
 
     def pick(self, opt, notify=True):
         if opt not in self.btns:
@@ -1354,6 +1528,31 @@ class SbGuard:
             self.flips = []
 
 
+def overflow_scrollbar(cv, command=None, gap=2, inside=False):
+    """The app's thin round scroll bar for a canvas list (rows drawn by hand): it sits just outside the canvas's right
+    edge (placed, so it never changes the layout; inside: over the canvas's last 12 px, when there is no room outside) and shows only while there is more than fits. command(*args): what
+    a drag does (default: the canvas scrolls); a list that draws only the rows in view repaints there. -> the bar."""
+    sb = ttk.Scrollbar(cv.master, orient="vertical")
+    sb.configure(command=command or cv.yview)
+
+    def set_(a, b):
+        full = float(a) <= 0.0 and float(b) >= 1.0
+        try:
+            if full:
+                if sb.winfo_manager():
+                    sb.place_forget()
+            elif not sb.winfo_manager():
+                sb.place(in_=cv, relx=1.0, x=-gap if inside else gap, rely=0.0, relheight=1.0,
+                         anchor="ne" if inside else "nw")
+                sb.lift()
+            sb.set(a, b)
+        except tk.TclError:
+            pass
+    cv.configure(yscrollcommand=set_)
+    sb.__dict__["_soe2_overflow"] = True
+    return sb
+
+
 WHEEL_EVENTS = ("<MouseWheel>", "<Button-4>", "<Button-5>")
 
 
@@ -1403,20 +1602,29 @@ class ScrollArea(tk.Frame):
     The wheel is caught on the area's own window, so it works over every widget inside and doesn't get in the way of
     other windows' scrolling."""
 
-    def __init__(self, parent, bg, **kw):
+    def __init__(self, parent, bg, min_height=0, **kw):
+        """min_height: the content is at least this tall and fills a taller window (its expanding lists grow with it);
+        a shorter window scrolls it. 0: the content is as tall as it asks for."""
         super().__init__(parent, bg=bg, **kw)
+        self.min_height = int(min_height)
         self.sb = ttk.Scrollbar(self, orient="vertical")
         self.canvas = tk.Canvas(self, bg=bg, highlightthickness=0, yscrollcommand=self._sb_set)
         self.canvas.pack(side="left", fill="both", expand=True)
         self.sb.config(command=self.canvas.yview)
         self.inner = tk.Frame(self.canvas, bg=bg)
         self._win = self.canvas.create_window((0, 0), window=self.inner, anchor="nw")
-        self.canvas.bind("<Configure>", lambda e: self.canvas.itemconfigure(self._win, width=e.width))
+        self.canvas.bind("<Configure>", self._canvas_cfg)
         self.inner.bind("<Configure>", lambda e: self.canvas.configure(scrollregion=(0, 0, e.width, e.height)))
         self._hooked = None
         self._guard = SbGuard()
         self.bind("<Map>", lambda e: self._hook(), add="+")
         self.after_idle(self._hook)
+
+    def _canvas_cfg(self, e):
+        opts = {"width": e.width}
+        if self.min_height:
+            opts["height"] = max(e.height, self.min_height)
+        self.canvas.itemconfigure(self._win, **opts)
 
     def _sb_set(self, a, b):
         """Show the scroll bar only when there is something to scroll (never flipping back and forth - SbGuard)."""
@@ -1723,5 +1931,7 @@ def relook(root, theme):
         _STYLE_LOG["quiet"] = False
     step(f"theme change to {theme}: self-painted parts")
     _themes.notify()
+    from . import soft                          # rule 24: round corners blend into the new colors behind them
+    soft.after_relook(root)
     step(f"theme change to {theme}: done")
     return n, _t.time() - t0

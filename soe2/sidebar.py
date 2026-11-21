@@ -18,9 +18,12 @@ RAIL = 96                              # drawer-look: the Drawer's rail - a bigg
 # Nav phase 1: Overlay sits under Dashboard with no group (was "In Game"); the "Earn" group is gone (Wealth and Craft
 # Helper to Stash, the rest to League); Bulk Pricing, Favorites and Rate Mods are their own rows in Trade (they were
 # children of Price Checks); Regex to Stash; the dead "notes" entry is gone (Notes is an overlay part).
+# Owner (Rate Mods redesign): a Mods group between Trade and Stash - Rate Mods, Insights and Craft Helper all answer
+# one question, which mods are worth money.
 GROUPS = ((None, ("dashboard", "tracker")),
-          ("Trade", ("pricecheck", "checks", "favorites", "ratemods", "rates", "insights")),
-          ("Stash", ("wealth", "regex", "crafthelper")),
+          ("Trade", ("pricecheck", "checks", "favorites", "rates")),
+          ("Mods", ("ratemods", "insights", "crafthelper")),
+          ("Stash", ("wealth", "regex")),
           ("League", ("plan", "mapprofit", "money", "maps", "leaderboards")),
           ("Tools", ("search",)))
 NO_GROUP = ("settings",)               # pages that live outside the groups (Settings sits at the bottom)
@@ -149,8 +152,8 @@ class Sidebar(tk.Canvas):
             mod = self.shell.modules.get(k)
             if k == "_update" and self.update_tag():
                 from .config import pretty_version
-                self.shell.app._say(f"Version {self.update_tag()} is out (you have {pretty_version()}). Click: see "
-                                    "what's new and update (it asks first).", 6)
+                self.shell.app._say(f"Version {self.update_tag()} is out - you have {pretty_version()}. Click to see "
+                                    "what's new and update. It asks first.", 6)
             self._rail_tip(k)
             if k == "_goto":
                 self.shell.app._say("Find any page, setting or helper (Ctrl+K).", 4)
@@ -227,10 +230,10 @@ class Sidebar(tk.Canvas):
             return False
 
     def _redraw_rail(self, t):
-        """drawer-look (mockups.html, owner: "icons on the left bar are too small and difficult to make out what they
-        are"): each page a big line icon with its short name under it - a touch-sized row; Settings at the bottom. The
+        """drawer-look (mockups.html, owner: the icons on the left bar were too small to make out): each page a big
+        line icon with its short name under it - a touch-sized row; Settings at the bottom. The
         rows scroll with the wheel when the window is short. Every row keeps its tip beside it (_rail_tip: "Trade ›
-        Price Checks"). Round 18 (feedback: "everything blends together"): the theme's own sidebar - its surface and
+        Price Checks"). Round 18 (feedback: everything blended together): the theme's own sidebar - its surface and
         texture, the group names (TRADE, STASH ...) in its group color, and the open page on its selection color with
         the marker in its accent at the left edge (a mark, not color alone) and its icon and name lit."""
         from . import lineicons
@@ -256,7 +259,7 @@ class Sidebar(tk.Canvas):
         x0, x1 = 4, w - 5
         font = ("Segoe UI", 9)
 
-        def row(k, y):
+        def row(k, y, mod=None):
             sel = k == active or (k in chain and k != "_goto")
             hov = k == self.hover
             col = sel_txt if sel else txt if hov else mut
@@ -280,6 +283,8 @@ class Sidebar(tk.Canvas):
                 self.create_image((x0 + x1) // 2, y + 17, image=img)
             if newchip.page_new(k):                          # 3.0.0: the NEW chip by the icon's top right
                 newchip.draw(self, x1 - 3, y + 8, acc, ink_on(acc), size=7)
+            elif mod is not None and _beta(mod):             # BETA as on the wide sidebar - a word, by the icon
+                self.create_text(x1 - 3, y + 3, text="BETA", anchor="ne", font=("Segoe UI", 7, "bold"), fill=acc)
             self._rows.append((k, y, y1))
             return y1
         upd = self.update_tag()
@@ -297,7 +302,7 @@ class Sidebar(tk.Canvas):
                 continue
             if "tab" in it or it.get("child"):
                 continue
-            y = row(it["key"], y) + gap
+            y = row(it["key"], y, it.get("mod")) + gap
         need = y + getattr(self, "_rail_top", 0) + len(bottom) * 54 + 16
         self._rail_more = max(0, need - h)                  # (a short window: the rows scroll)
         y = max(y + 8, h - len(bottom) * 54 - 8) if not self._rail_more else y + 8

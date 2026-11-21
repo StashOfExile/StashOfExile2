@@ -1,0 +1,2 @@
+This copy of StashOfExile2 was installed with Setup-StashOfExile2 (uninstall it from Settings > Apps).
+Your data is in %APPDATA%\StashOfExile2 and stays when you uninstall.

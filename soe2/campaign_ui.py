@@ -9,7 +9,7 @@
   * N  Rewards: points, spirit and resistances earned on this character; tick or untick any by hand.
   * O  Vendor search - in town, "Vendor ▾" on the campaign line: this act's searches and your Regex favorites. A click
        copies one; you paste it in the shop's search box (the app never types into the game).
-  * P  A zone the guide doesn't know: added to your route where you went, with a note, Mark optional, or a newer guide.
+  * P  A zone the guide doesn't know: added to your route where you went, with a note, or Mark optional.
   * Q  Act splits - this run against your best (per league).
   * R  Its settings (Overlay › Options › Campaign); S, T: its switches in "On the overlay" and "On the bar".
 
@@ -18,7 +18,7 @@ import re
 import tkinter as tk
 from tkinter import ttk
 
-from . import buglog
+from . import buglog, packcheck
 from . import campaign as CP
 from .overlaywin import CanvasText
 
@@ -27,10 +27,10 @@ PAGES = ("Route", "Rewards", "Act times")
 POP_GOOD, POP_BAD, POP_WARN = "#7fd9a0", "#e05a4f", "#ffb347"
 # The Campaign Helper's switches (Overlay › Options › Campaign Helper and the route card's Options ▾ - one setting each)
 CAMP_OPTS = (("ask_route", "Ask which route when a campaign starts"),          # 2.89.0
-             ("optional", "Optional zones"), ("tips", "Tips (bosses, vendor checks)"),
+             ("optional", "Optional zones"), ("tips", "Tips"),
              ("warn", "Ask about rewards in town (Got it / Not yet)"),
              ("popups", "Pop-ups: boss down, left a fight, too low"),
-             ("off_at_maps", "Hide it in maps (back in campaign zones)"))   # 2.89.2: "Splits" said nothing to most players
+             ("off_at_maps", "Hide it in maps"))   # 2.89.2: "Splits" said nothing to most players
 
 
 _MEASURE = {}
@@ -153,9 +153,21 @@ class CampaignUI:
         self.camp_events()
         if out or CP.line_text() != before:
             self.camp_refresh()
-        if CP.needs_route() and getattr(self, "camp_rq_win", None) is None:
-            self.camp_route_ask_show()                             # 2.89.0: a new campaign - which guide?
+        self.camp_route_check()
         return out
+
+    def camp_route_check(self):
+        """A run with no guide yet: ask which guide, once a session. The answer goes to the run it was asked for;
+        another run in the log after that - a party member leveling, say - takes the same guide without a new
+        question (feedback: the question came back in every new area while carrying). -> "asked", "set" or None"""
+        if not CP.needs_route() or getattr(self, "camp_rq_win", None) is not None:
+            return None
+        done = getattr(self, "camp_route_answer", None)
+        if done:
+            CP.set_route(done)
+            return "set"
+        self.camp_route_ask_show()                                 # 2.89.0: a new campaign - which guide?
+        return "asked"
 
     def campaign_where(self, ev):
         """Round 18: at start, the log's last area (an ("area", ts, data) event, or its data): in a hideout the
@@ -221,6 +233,7 @@ class CampaignUI:
     # ---------------------------------------------------------------- 2.89.0: which guide, when a campaign starts
     def camp_route_ask_show(self):
         self.camp_route_ask_close()
+        self.camp_rq_run = CP.char()                    # the run this is asked for: the answer goes to it
         w, body, P = self._camp_card("New campaign", "🗺", 460, top=0.16,
                                      on_close=lambda: self.camp_route_pick_new(CP.cfg()["route"]))
         bg = P["bg"]
@@ -240,7 +253,7 @@ class CampaignUI:
                      wraplength=self.ov_px(290)).pack(side="left", fill="x", padx=(8, 0))
             self.camp_rq_btns[k] = b
         self.camp_rq_keep = tk.BooleanVar(value=False)
-        tk.Checkbutton(body, text="Use this every time (don't ask again)", variable=self.camp_rq_keep, bg=bg,
+        tk.Checkbutton(body, text="Use this every time", variable=self.camp_rq_keep, bg=bg,
                        fg=P["text"], activebackground=bg, activeforeground=P["text"], selectcolor=P["bg"],
                        font=(P["font"], self.ov_font(9)), anchor="w", highlightthickness=0).pack(anchor="w", pady=(8, 0))
         tk.Label(body, text="Change it any time: Overlay › Options › Campaign › Route.", bg=bg, fg=P["muted"],
@@ -250,7 +263,9 @@ class CampaignUI:
         return w
 
     def camp_route_pick_new(self, route):
-        CP.set_route(route, remember=bool(getattr(self, "camp_rq_keep", None) and self.camp_rq_keep.get()))
+        CP.set_route(route, run=getattr(self, "camp_rq_run", None),
+                     remember=bool(getattr(self, "camp_rq_keep", None) and self.camp_rq_keep.get()))
+        self.camp_route_answer = route                  # once a session: other new runs take it without asking
         if getattr(self, "tk_camp_route", None) is not None:
             try:
                 self.tk_camp_route.pick(dict(CP.ROUTES).get(CP.cfg()["route"]), notify=False)
@@ -272,7 +287,7 @@ class CampaignUI:
     def camp_refresh(self, card=True, line_later=False):
         """The line changed: redraw it on the overlay (in place when it still fits the same rows) and the open
         route card's pages (card=False: a click on the card already changed its own line).
-        2.125.4 (feedback: "the whole campaign card is pretty laggy"): the card's pages are built again only as each
+        2.125.4 (feedback: the whole campaign card was laggy): the card's pages are built again only as each
         is shown (never the whole card), and a click on the card redraws the overlay's line just after, once for a
         quick run of clicks."""
         if card and not line_later:
@@ -347,7 +362,7 @@ class CampaignUI:
     def camp_in_card(self):
         """The Panel layout: the Campaign Bar's line is one card with the rest (never twice); the Bar: over it."""
         try:
-            return self.merged_layout() != "xpbar"
+            return self.merged_layout() == "panel"          # (Split: over its run half, as over the Bar)
         except Exception:
             return False
 
@@ -575,7 +590,7 @@ class CampaignUI:
         return w
 
     def _camp_card_moved(self, _x, _y, w, h):
-        """2.125.4 (feedback: "after resizing it isn't remembering size"): a size you give the card is kept (Campaign
+        """2.125.4 (feedback: the size was not remembered after resizing): a size you give the card is kept (Campaign
         card_size) and used from then on - a longer page scrolls instead of growing it."""
         if (w, h) != tuple(getattr(self, "camp_size", (0, 0))):
             self.camp_size = (w, h)
@@ -624,9 +639,9 @@ class CampaignUI:
             cb.bind("<<ComboboxSelected>>", lambda e: self.root.after(1, lambda: self.camp_route_show(
                 act_key=next((a["key"] for a in CP.acts() if a["name"] == self.camp_act_var.get()), None))))
             self.camp_act_cb = cb
-        # 2.125.3 (feedback: "the option to select which route from that screen itself ... and the options"): Routes ▾
+        # 2.125.3 (feedback: pick the route and the options from that screen itself): Routes ▾
         # and Options ▾, each a small panel inside the card (a window of its own sent the card behind the game)
-        for key, label, tip in (("options", "Options ▾", "The Campaign Helper's options (as on Overlay › Options)"),
+        for key, label, tip in (("options", "Options ▾", "The Campaign Helper's options"),
                                 ("routes", "Routes ▾", "Pick the route: Full, Speedrun or Rush (carry)")):
             b = ttk.Button(top, text=label, style=self.ov_btn("Quiet.TButton"),
                            command=lambda k=key: self.camp_pop_toggle(k), width=len(label) + 1)
@@ -634,7 +649,7 @@ class CampaignUI:
             from .style import Tooltip
             Tooltip(b, tip)
             setattr(self, f"camp_{key}_btn", b)
-        # 2.125.3 (feedback: "the full list doesn't scroll if the window is resized"): the pages scroll
+        # 2.125.3 (feedback: the full list did not scroll when the window was resized): the pages scroll
         from .style import ScrollArea
         self.camp_scroll = ScrollArea(body, bg=bg)
         self.camp_scroll.pack(fill="both", expand=True, pady=(8, 0))
@@ -697,7 +712,7 @@ class CampaignUI:
                        padx=8, pady=8)
         pop.kind = kind
         if kind == "routes":
-            # 2.125.4 (feedback: "visual hierarchy ... for division of selectable options"): each route its own row -
+            # 2.125.4 (feedback: a visual hierarchy to divide the selectable options): each route its own row -
             # a line between them, the one in use on a lighter ground with a bar and "✓ In use", a row lights on hover
             pop.configure(padx=0, pady=0)
             cur = CP.route_of(CP.char())
@@ -794,7 +809,7 @@ class CampaignUI:
         tk.Label(head, text="route: " + dict(CP.ROUTES).get(CP.route_of(), ""), bg=bg, fg=P["muted"],
                  font=(P["font"], self.ov_font(9))).pack(side="right")
         rows = CP.steps(key, run)
-        self.camp_rows = []
+        self.camp_row_frames = []                  # the route page's rows; camp_rows() lays out the overlay line
         self.camp_marks = marks = {"done": ("✓", P["on"]), "here": ("▸", P["head"]), "todo": ("○", P["muted"]),
                  "passed": ("–", P["muted"])}
         state = {}                                             # pack 4: the line has the reward in it - the
@@ -833,7 +848,7 @@ class CampaignUI:
                          font=(P["font"], self.ov_font(9))).pack(side="right")
             for wdg in [f] + list(f.winfo_children()):
                 wdg.bind("<Button-1>", lambda e, i=i: self.camp_here(i))
-            self.camp_rows.append(f)
+            self.camp_row_frames.append(f)
             if here and s.get("tip") and c["tips"]:
                 tk.Label(page, text="ⓘ " + s["tip"], bg=bg, fg=P["muted"], font=(P["font"], self.ov_font(9)),
                          anchor="w", justify="left", wraplength=self.ov_px(480)).pack(fill="x", padx=(24, 0))
@@ -854,7 +869,7 @@ class CampaignUI:
                      justify="left", wraplength=self.ov_px(520)).pack(fill="x", pady=(8, 0))
 
     def _camp_unknown_row(self, page, P, s):
-        """P: a zone the guide doesn't know - a note for it, Mark optional, or check for a newer guide."""
+        """P: a zone the guide doesn't know - a note for it, or Mark optional (a newer guide arrives on its own)."""
         bg = P["bg"]
         f = tk.Frame(page, bg=bg)
         f.pack(fill="x", pady=(2, 8), padx=(24, 0))
@@ -870,8 +885,6 @@ class CampaignUI:
                    command=lambda: self.camp_note(s["zone"])).pack(side="left", padx=(4, 0))
         ttk.Button(row, text="Mark optional", style=self.ov_btn("Quiet.TButton"),
                    command=lambda: self.camp_optional(s["zone"])).pack(side="left", padx=(4, 0))
-        ttk.Button(row, text="Check for a newer guide", style=self.ov_btn("Quiet.TButton"),
-                   command=self.camp_check_pack).pack(side="left", padx=(4, 0))
 
     def _camp_rewards_page(self, page, P):
         bg, run = P["bg"], CP.char()
@@ -919,10 +932,6 @@ class CampaignUI:
 
     def _camp_splits_page(self, page, P):
         bg = P["bg"]
-        if not CP.cfg()["splits"]:
-            tk.Label(page, text="The act timer is off (Overlay › Options › Campaign).", bg=bg, fg=P["muted"],
-                     font=(P["font"], self.ov_font(10))).pack(anchor="w")
-            return
         g = tk.Frame(page, bg=bg)
         g.pack(fill="x")
         for c, h in enumerate(("ACT", "THIS RUN", "BEST", "+/-")):
@@ -961,7 +970,7 @@ class CampaignUI:
     def _camp_rows_restyle(self):
         """The route page's rows take their new state (✓ ▸ ○ –) in place. -> False when the steps changed."""
         rows, P = CP.steps(self.camp_view, CP.char()), self.camp_P
-        frames = getattr(self, "camp_rows", None) or []
+        frames = getattr(self, "camp_row_frames", None) or []
         if len(rows) != len(frames) or any(s.get("learned") for s in rows):
             return False
         bg = P["bg"]
@@ -1028,22 +1037,10 @@ class CampaignUI:
         CP.mark_optional(zone)
         self.camp_refresh()
 
-    def camp_check_pack(self):
-        st, msg = CP.fetch_live()
-        txt = {"new": f"New guide pack: {msg}.", "same": f"You have the newest guide pack ({msg})."}.get(st, msg)
-        self._say(txt, 6)
-        if getattr(self, "tk_camp_pack", None) is not None:
-            try:
-                self.tk_camp_pack.config(text=self.camp_pack_text())
-            except tk.TclError:
-                pass
-        if st == "new":
-            self.camp_refresh()
-        return st
-
     def camp_pack_text(self):
         p = CP.pack()
-        return f"Guide pack: {p.get('name', '?')} (revision {p.get('revision', 0)})"
+        return f"Guide pack: {p.get('name', '?')} (revision {p.get('revision', 0)})" + (
+            f" ({packcheck.state()})" if packcheck.state() else "")
 
     # ---------------------------------------------------------------- the rewards to answer (N)
     def camp_ask_show(self):
@@ -1104,7 +1101,7 @@ class CampaignUI:
         self.camp_vendor_close()
         w, body, P = self._camp_card("Vendor search", "🔎", 420, top=0.14, on_close=lambda: self.camp_vendor_close())
         bg = P["bg"]
-        tk.Label(body, text="Click one = copied · Ctrl+V in the shop search", bg=bg, fg=P["muted"],
+        tk.Label(body, text="Click one to copy it, then paste it into the shop search with Ctrl+V", bg=bg, fg=P["muted"],
                  font=(P["font"], self.ov_font(9)), anchor="w").pack(fill="x")
         self.camp_vendor_btns = {}
 
@@ -1121,7 +1118,8 @@ class CampaignUI:
         if not CP.vendor_searches():
             tk.Label(body, text="No vendor searches for this act.", bg=bg, fg=P["muted"],
                      font=(P["font"], self.ov_font(9)), anchor="w").pack(fill="x", pady=(8, 0))
-        # 2.124.0 (feedback: a click made the card wider to fit "Copied: ..."): two lines kept for it, wrapped to the
+        # 2.124.0 (feedback: a click made the card wider to fit the "Copied: ..." line): two lines kept for it,
+        # wrapped to the
         # card's width, and the card keeps its size
         self.camp_vendor_msg = tk.Label(body, text="", bg=bg, fg=P["on"], font=(P["font"], self.ov_font(9)), anchor="nw",
                                         justify="left", height=2)
@@ -1197,8 +1195,8 @@ class CampaignUI:
         pk.pack(fill="x", pady=(8, 0))
         self.tk_camp_pack = tk.Label(pk, text=self.camp_pack_text(), bg=P2, fg=C["muted"], font=("Segoe UI", 9))
         self.tk_camp_pack.pack(side="top" if into is not None else "left", anchor="w")   # 2.82.0: in a card, own line
-        ttk.Button(pk, text="Check for a newer one", style="Quiet.TButton", command=self.camp_check_pack).pack(
-            side="left", padx=(0 if into is not None else 8, 0), pady=(4 if into is not None else 0, 0))
+        from .style import Tooltip
+        Tooltip(self.tk_camp_pack, packcheck.tip(packcheck.CAMP_TIP))        # (it checks itself once a day: no button)
 
     def camp_route_pick(self, name):
         CP.cfg()["route"] = next((k for k, n in CP.ROUTES if n == name), "full")

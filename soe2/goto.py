@@ -7,6 +7,7 @@ GGG ToS: looks only - nothing here touches the game."""
 import time
 import tkinter as tk
 
+from .inplace import set_cfg
 from . import buglog
 from . import themes as TH
 
@@ -15,7 +16,7 @@ KIND_ORDER = {"Page": 0, "Feature": 1, "Tab": 2, "Part": 3, "Setting": 4}
 OV = ("tracker", "Helpers")          # nav phase 2: Overlay › Helpers (was the Overlay Settings page)
 # where each named feature (names.FEATURES) lives: (page key, its tab or None) - a "settings" key means a Settings tab
 FEATURE_AT = {
-    "Alert card": OV, "Ritual Identifier": OV, "Temple Helper": OV, "Music Controls": OV, "Vaal Lens": OV,
+    "Alert card": OV, "Temple Helper": OV, "Music Controls": OV, "Vaal Lens": OV,
     "Map profit": OV, "Alerts show": OV, "Top Up Reminders": OV, "Break reminders": OV,
     "Campaign Helper": OV, "Desecration Helper": OV, "Exchange Helper": ("rates", "Exchange Helper"), "Mechanic Helper": OV,
     "Favours prices": OV, "Filter in the Ritual window": OV,
@@ -23,7 +24,7 @@ FEATURE_AT = {
     "Trade Whisper Watcher": OV, "Quick settings": OV, "Reset position": ("tracker", "Options"),
     "Layout": ("tracker", "Look"), "Style": ("tracker", "Look"), "Theme": ("settings", "Appearance"),
     "Regex keys": ("regex", None), "Data pack": ("crafthelper", None),
-    "Scan stash": ("wealth", None), "Stash tab": ("pricecheck", None), "Clear All": ("checks", None),
+    "Scan stash": ("wealth", None), "Clear All": ("checks", None), "Manually Add": ("checks", None),
     "Keybinds": ("settings", "Keybinds"), "Read Key": ("settings", "Keybinds"), "Features": ("settings", "General"), "Setup": ("settings", "General"),
     "Data folder": ("settings", "Advanced"), "Search Options": ("settings", "Price checking"),
     "Error reports": ("settings", None), "Community data sharing": ("settings", None),
@@ -323,22 +324,47 @@ class GoTo:
         with TH.raw():
             surf, hov, txt, mut, acc = (t.c("surface_raised"), t.c("hover", t.c("surface_high")), t.c("text_strong"),
                                         t.c("text_muted"), t.c("accent"))
-        for c in self.list.winfo_children():
-            c.destroy()
+        # UI rule 22: typing or moving the pick re-words and re-colors the rows that are there; rows are added or
+        # removed only at the end, when there are more or fewer hits
+        ws = self.__dict__.setdefault("_row_ws", [])
+        if ws and not ws[0][0].winfo_exists():
+            ws.clear()
+        none = getattr(self, "_none_lbl", None)
+        if none is not None and not none.winfo_exists():
+            none = self._none_lbl = None
         if not self.rows:
-            tk.Label(self.list, text="Nothing found. Try another word.", bg=surf, fg=mut, font=("Segoe UI", 10),
-                     anchor="w", padx=12, pady=12).pack(fill="x")
+            if none is None:
+                none = self._none_lbl = tk.Label(self.list, text="Nothing found. Try another word.", bg=surf, fg=mut,
+                                                 font=("Segoe UI", 10), anchor="w", padx=12, pady=12)
+            if not none.winfo_manager():
+                none.pack(fill="x", before=ws[0][0] if ws else None)
+        elif none is not None and none.winfo_manager():
+            none.pack_forget()
+        while len(ws) > len(self.rows):
+            ws.pop()[0].destroy()
         for i, (kind, title, where, _w, _fn) in enumerate(self.rows):
             on = i == self.sel
             bg = hov if on else surf
-            row = tk.Frame(self.list, bg=bg, padx=12, pady=8, cursor="hand2")
-            row.pack(fill="x")
-            tk.Frame(row, bg=acc if on else bg, width=2).pack(side="left", fill="y", padx=(0, 12))
-            tk.Label(row, text=kind, bg=bg, fg=mut, font=("Segoe UI", 9), width=8, anchor="w").pack(side="left")
-            tk.Label(row, text=title, bg=bg, fg=txt, font=("Segoe UI", 10, "bold"), anchor="w").pack(side="left")
-            tk.Label(row, text=where, bg=bg, fg=mut, font=("Segoe UI", 9), anchor="e").pack(side="right")
-            for wdg in (row, *row.winfo_children()):
-                wdg.bind("<Button-1>", lambda e, n=i: self.go(n))
+            if i >= len(ws):
+                row = tk.Frame(self.list, bg=bg, padx=12, pady=8, cursor="hand2")
+                row.pack(fill="x")
+                bar = tk.Frame(row, bg=acc if on else bg, width=2)
+                bar.pack(side="left", fill="y", padx=(0, 12))
+                k = tk.Label(row, bg=bg, fg=mut, font=("Segoe UI", 9), width=8, anchor="w")
+                k.pack(side="left")
+                t_ = tk.Label(row, bg=bg, fg=txt, font=("Segoe UI", 10, "bold"), anchor="w")
+                t_.pack(side="left")
+                w_ = tk.Label(row, bg=bg, fg=mut, font=("Segoe UI", 9), anchor="e")
+                w_.pack(side="right")
+                for wdg in (row, *row.winfo_children()):
+                    wdg.bind("<Button-1>", lambda e, n=i: self.go(n))
+                ws.append((row, bar, k, t_, w_))
+            row, bar, k, t_, w_ = ws[i]
+            set_cfg(row, bg=bg)
+            set_cfg(bar, bg=acc if on else bg)
+            set_cfg(k, text=kind, bg=bg, fg=mut)
+            set_cfg(t_, text=title, bg=bg, fg=txt)
+            set_cfg(w_, text=where, bg=bg, fg=mut)
         try:
             self._place()
         except tk.TclError:

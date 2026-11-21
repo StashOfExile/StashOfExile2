@@ -1,5 +1,5 @@
-"""2.84.0: Favorites - items and trade-site searches you come back to (feedback: "a favorites (bookmark) tracker that
-you can paste a trade link into ... an 'Add to favorites' button" on Price Checks).
+"""2.84.0: Favorites - items and trade-site searches you come back to (feedback: a favorites (bookmark) tracker that
+takes a pasted trade link, with an Add to favorites button on Price Checks).
 
 Two kinds:
   * item  - added from Price Checks: the item with your filters as you left them (it searches the same way).

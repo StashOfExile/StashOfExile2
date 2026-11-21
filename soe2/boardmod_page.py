@@ -1,7 +1,7 @@
-"""2.85.0: the community board's people side (feedback: "only allow author + admin to make edits", "Suggest Edits ->
-change things, publish to community / moderation", "moderation ... opt-in community handled ... protections against
-data poisoning", and "prompt a user once at startup for their chosen username ... permanent ... only be changed every
-7 days").
+"""2.85.0: the community board's people side (feedback: only the author and the admin may edit; Suggest Edits changes
+things and
+publishes to the community through moderation, opt-in, with protection against data poisoning; the user is asked
+once at start-up for a username, which is permanent and can only be changed every 7 days).
 
   * Your community name: asked once at start-up (Money Makers, and anything else on the board, use it). It can change
     once every 7 days (the board checks).
@@ -91,8 +91,8 @@ class BoardModPage:
         self.bn_win = win
         tk.Label(win, text="Pick a new community name" if reset else "Pick your community name", bg=P2, fg=C["accent"],
                  font=("Segoe UI", 12, "bold"), anchor="w").pack(fill="x")
-        tk.Label(win, text=("Your old name isn't allowed on the community board (slurs and hate words aren't), so it "
-                            "was reset. Pick a new one - you can do it now." if reset else
+        tk.Label(win, text=("Your old name isn't allowed on the community board, because slurs and hate words aren't. "
+                            "It was reset. Pick a new one now." if reset else
                             "Used for published Strats and Leaderboards."),
                  bg=P2, fg=C["muted"], wraplength=380, justify="left", anchor="w").pack(fill="x", pady=(4, 4))
         from .privacy import NAME_RULE, NAME_TIP                  # 2.131.1: a made-up name, never yours in game
@@ -196,7 +196,7 @@ class BoardModPage:
         post = (s or {}).get("_post")
         if not post or post.get("mine") or self.mm_need_login("suggest an edit"):
             return None
-        return self.mm_form(dict(s), suggest=True)
+        return self.mm_new_open(dict(s), suggest=True)
 
     def bm_send_suggestion(self, post, data, note):
         ok, d = B.suggest(post["id"], data, note)
@@ -279,7 +279,7 @@ class BoardModPage:
     def bm_rev_act(self, rev, action, after=None, why=""):
         if action == "decline" and not why:
             from tkinter import simpledialog
-            why = simpledialog.askstring("Decline", "Why? (optional - the one who suggested it sees this)",
+            why = simpledialog.askstring("Decline", "Why? Optional. The one who suggested it sees this.",
                                          parent=self.root) or ""
 
         def done(res):
@@ -428,7 +428,7 @@ class BoardModPage:
                 v = p.get("votes") or {}
                 tv.insert(b, "end", iid=f"p{p['id']}", values=(p["data"].get("name", "?"), p["author"]["name"],
                                                                f"⚑{p.get('reports', 0)} hide {v.get('hide', 0)} keep {v.get('keep', 0)}"))
-            msg.config(text="Two reviewers (or an admin) decide each one. Never your own posts or versions. Check the "
+            msg.config(text="Two reviewers or an admin decide each one. Never your own posts or versions. Check the "
                             "numbers and steps: does the change make the strat better and true?", fg=C["muted"])
 
         def picked(_e=None):
@@ -461,7 +461,7 @@ class BoardModPage:
                     t.insert("end", "• " + why + "\n")
                 t.insert("end", "\n" + (r["data"].get("summary") or "") + "\n")
                 t.config(state="disabled")
-                for label, v in (("Hide it", "hide"), ("Keep it (clear the reports)", "keep")):
+                for label, v in (("Hide it", "hide"), ("Keep it, clear the reports", "keep")):
                     ttk.Button(btns, text=label, command=lambda v=v: self._bm_bg(lambda: B.review_post(r["id"], v),
                                                                                 lambda res: (self.bm_vote_said(res), reload()))).pack(
                         side="left", padx=(0, 8))

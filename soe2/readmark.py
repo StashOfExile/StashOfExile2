@@ -2,7 +2,7 @@
 are doing with that data").
 
 Each time the app reads your screen or your clipboard - once, on a key you pressed - it says so over the game.
-Round 18 (feedback: "a small tooltip with too much text"): the same alert card every helper uses (alertcard), with
+Round 18 (feedback: a small tooltip with too much text): the same alert card every helper uses (alertcard), with
 the eye (👁) and a few words - "Reading the screen", "Reading the item"; a press whose picture no helper could use
 says "Read the screen · nothing here" (it was still read, so it still shows); a copy that isn't an item says "Not an item"
 and an empty copy shows nothing (the reason is on Price Checks' status line). A click closes it; it goes by itself
@@ -44,7 +44,7 @@ def card_text(source, what):
         from .screenread import NOTHING
         return READ_NOTHING if NOTHING in parts else READING
     if any(p.lower().startswith("chat command") for p in parts):
-        return None                                   # (owner: F1 /hideout said "Reading the item" - a chat key only
+        return None                                   # (owner: F1 /hideout showed the "Reading the item" card - a chat
                                                       # keeps your clipboard to put it back; the log line stays)
     missed = next((p[len("nothing - "):] for p in parts if p.startswith("nothing - ")), None)
     if missed is None:
@@ -127,7 +127,7 @@ class ReadMarkPage:
     def ev_look_clear(self):
         """Esc while the game is in front: every tag, card and mark the Read Key put over the game goes - Expedition
         prices and Runeshapes, Favours, Island Rumors, Desecration tiers, the Vaal Lens card and its marks, the
-        Ritual Identifier's card, the Trial of the Sekhemas legend and the read mark."""
+        Trial of the Sekhemas legend and the read mark."""
         for fn in self.LOOK_DRAWN:
             try:
                 getattr(self, fn)()
@@ -136,13 +136,11 @@ class ReadMarkPage:
             except Exception:
                 buglog.caught()
         mk = getattr(self, "tm_marks_win", None)
-        for w in (mk, getattr(self, "rid_win", None)):
-            try:
-                if w is not None:
-                    (w.hide if w is mk else w.destroy)()
-            except Exception:
-                buglog.caught()
-        self.rid_win = None
+        try:
+            if mk is not None:
+                mk.hide()
+        except Exception:
+            buglog.caught()
         mark = getattr(self, "read_mark", None)
         if mark is not None:
             mark.hide()

@@ -1,5 +1,5 @@
 """CSV exports for the data-minded (2.2.0): every map run, every session, Wealth's history and items. 2.138.0 (feedback:
-"anywhere that saves player data ... should have that option"): Map profit and your Leaderboard times too.
+anywhere that saves player data should offer that option): Map profit and your Leaderboard times too.
 Plain comma-separated files that open in Excel, Google Sheets or LibreOffice; times are in seconds and as m:ss."""
 import csv
 from datetime import datetime

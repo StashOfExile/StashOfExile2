@@ -12,6 +12,7 @@ from .config import SETTINGS, save_json
 from .style import C, SegBar, Tooltip, autowrap
 
 REFS_SECS = 600                     # Scan stash's pictures are built again at most this often
+ART_GAP = 0.5                       # 3.0.6: seconds between two of poe.ninja's pictures downloaded for Map Profit
 
 
 VIEWS = ("All Time", "Daily", "Hourly")    # 2.132.6 the page's views
@@ -62,13 +63,13 @@ class MapProfitPage:
         self._mp_refs_busy = True
 
         def work():
-            from . import favours as FV
             from .wealth import WPRICES
-            return FV.build_refs(FV.ninja_items(getattr(WPRICES, "parts", None)), exchange=True)
+            return MP.build_refs(getattr(WPRICES, "parts", None))
 
         def done(r):
             self._mp_refs_busy = False
             self.mp_refs_v, self.mp_refs_at = r, time.time()
+            self.mp_art_fetch()
         try:
             self.run_bg(work, done)
         except Exception:
@@ -76,23 +77,94 @@ class MapProfitPage:
             buglog.caught()
         return getattr(self, "mp_refs_v", None)
 
+    def mp_art_fetch(self):
+        """The pictures the screen readers compare with (3.1: no game art ships - GGG ToS 7a): poe.ninja's picture of
+        every exchange item, the ★ uniques (Favours) and the trade site's waystone, those not in the art cache yet -
+        asked once per session (Map Profit, Top Up, Favours, Scan stash), through Exchange Rates' downloader
+        (rates_view.Icons: the game's image server, the app's User-Agent, one at a time with ART_GAP between, it
+        stops after a few failures - offline, items are simply not named by picture). Cached on this PC for good;
+        the pictures are built again on the next Read Key press once some arrive. No screen read: only downloads."""
+        import threading
+        if getattr(self, "_mp_art", None) is not None or getattr(self, "root", None) is None \
+                or threading.current_thread() is not threading.main_thread():
+            return
+        try:
+            from . import favours as FV
+            from . import gameart as GA
+            from .pricecheck_page import WAYSTONE_ICON
+            from .rates_view import Icons
+            from .wealth import WPRICES
+            parts = getattr(WPRICES, "parts", None)
+            if not parts:
+                return                              # (no prices yet: asked again with the next pictures)
+            urls = FV.art_urls(parts) + ([WAYSTONE_ICON] if GA.cache_file(WAYSTONE_ICON) is None else [])
+            self._mp_art = Icons(self.root, self._mp_art_ready)
+            self._mp_art.gap = ART_GAP
+            for u in urls:
+                self._mp_art.get(u)
+        except Exception:
+            buglog.caught()
+
+    def _mp_art_ready(self):
+        self.mp_refs_at = 0                 # (stale: the next Read Key press builds the pictures again)
+        self.tu_refs_v = None
+        self.fv_refs = None
+
     # ---------------------------------------------------------------- reading (from Top Up's clear looks)
     def mp_seen(self, res):
         """A look at the open inventory (topup_seen) in your hideout or a town.
 
-        2.132.2 (feedback: "needs to account for inventory dumps if a player empties inventory and goes back into
-        the map"): a map is counted visit by visit. What you came back with is the most of each item seen while
+        2.132.2 (feedback: account for inventory dumps when a player empties the inventory and goes back into
+        the map): a map is counted visit by visit. What you came back with is the most of each item seen while
         you're home in your first looks (MP.ARRIVE_SECS from the first: stashing or selling only lowers it, and a
         covered look only hides cells - so a covered look counts here too; taking more from your stash later doesn't
         count); what you went back in with is the last clear look before the map. Each visit's loot = came back with
         - went in with, so emptying your inventory between visits isn't a loss."""
         if not self.mp_on() or getattr(self, "br_area", None) not in ("hideout", "town"):
             return None
+        self.mp_restore()
+        try:
+            return self._mp_seen(res)
+        finally:
+            self.mp_save()
+
+    def _mp_seen(self, res):
         from . import topup as TU
-        counts, unknown = MP.identify(res.get("cells") or [], TU.learned(), self.mp_refs())
-        counts = MP.exchange_only(counts, self.mp_price)
+        refs = self.mp_refs()
+        if refs is None:
+            # 3.0.6 (a map showed 2 not known and +0 div): the pictures weren't built yet on the first read after the
+            # app started - built now, once, so this read counts
+            try:
+                from .wealth import WPRICES
+                refs = self.mp_refs_v = MP.build_refs(getattr(WPRICES, "parts", None))
+                self.mp_refs_at = time.time()
+            except Exception:
+                buglog.caught()
+        info = {}
+        counts, unknown = MP.identify(res.get("cells") or [], TU.learned(), refs, price=self.mp_price, info=info)
+        self._mp_unknown = info.get("unknown_cells") or []          # (pictures for the check window - not saved)
+        buglog.debug("Map profit", "read: " + (", ".join(f"{n} {k}" for n, k in sorted(counts.items())) or "nothing")
+                     + f" · {unknown} not known · {info.get('skipped', 0)} without a stack number"
+                     + "".join(f" · can't tell apart: {' / '.join(v)}" for v in (info.get("alike") or {}).values()))
+        ways = {k: n for k, n in counts.items() if MP.is_waystone(k)}    # 3.0.6: shown by tier, no price
+        counts = dict(MP.exchange_only(counts, self.mp_price), **ways)
+        # 3.0.6 (exclude the persistent Top Up supplies): what you keep in your
+        # inventory for Top Up Reminders isn't loot - topping it up from your stash would count as profit
+        # 3.0.6 (picked-up supplies weren't counted): only what you keep is left out - a
+        # supply counts above its Top Up amount (20 Vaal Orbs kept, 22 back: +2), the same before and after
+        keep = {}
+        for i in TU.cfg().get("items") or []:
+            try:
+                k = i.get("keep")
+                keep[str(i.get("name") or "").lower()] = 10 ** 9 if k is None else max(0, int(k))
+            except (TypeError, ValueError):
+                keep[str(i.get("name") or "").lower()] = 10 ** 9      # (no amount: all of it is a supply)
+        counts = {k: n - keep.get(str(k).lower(), 0) for k, n in counts.items()
+                  if n - keep.get(str(k).lower(), 0) > 0}
         snap = {"t": time.time(), "counts": counts, "unknown": unknown}
         pend = getattr(self, "mp_pending", None)
+        if pend is not None:
+            snap["after_map"] = True          # (the read that counts a map - you stash after it: see mp_area)
         if pend is not None:
             t0 = pend.setdefault("visit_t0", snap["t"])
             vis = pend.setdefault("visit", {})
@@ -102,12 +174,16 @@ class MapProfitPage:
             pend["unknown"] = max(pend.get("unknown", 0), unknown)
             self.mp_check_done()
             self.mp_paint()
-        if not res.get("covered"):
-            self.mp_home = snap                             # (what you'd go into the next map with)
+            self.mp_read_card(pend)
+        if not res.get("covered") or pend is not None:
+            # (what you'd go into the next map with. 3.0.6: the read that counts a map is that too, covered or not -
+            # the owner's reads are mostly with the mouse over the inventory, so no clear one came, and covered looks
+            # from maps ago (a Scrap since stashed) were still counted as "went in with")
+            self.mp_home = snap
             self.mp_home_cov = {}
         else:
-            # 2.132.6 (feedback: "counted omen of answered prayers as profit that I had in my inventory that I brought
-            # from my own stash"): moving an item in from the stash puts the mouse over the inventory - a covered
+            # 2.132.6 (feedback: an Omen of Answered Prayers brought from the stash was counted as profit):
+            # moving an item in from the stash puts the mouse over the inventory - a covered
             # look. What a covered look sees after the last clear one counts toward what you went in with.
             cov = getattr(self, "mp_home_cov", None)
             if cov is None:
@@ -116,12 +192,206 @@ class MapProfitPage:
                 cov[k] = max(cov.get(k, 0), n)
         return snap
 
-    def mp_home_base(self):
-        """What you went into the map with: the last clear look, plus anything a later covered look saw more of."""
+    def mp_read_card(self, pend):
+        """3.0.6 (no way to tell whether the profit was counted - it needs a verification): the read back from a map
+        says what it counted - its total and its items, over the game."""
+        if pend is None or getattr(self, "mp_pending", None) is not pend:
+            return None
+        try:
+            from .pricefmt import fmt_div
+            e = self._mp_entry(pend)
+            rows = sorted(e.get("rows") or [], key=lambda r: -(r[2] - r[1]) * r[3])
+            parts = [f"{n} +{a - b}" for n, b, a, _each in rows[:4]]
+            if len(rows) > 4:
+                parts.append(f"+{len(rows) - 4} more")
+            ways = sorted((k, n) for k, n in self._mp_gain(pend).items() if MP.is_waystone(k) and n > 0)
+            if ways:                                        # 3.0.6: read and understood - no price
+                parts.append("Waystones " + ", ".join((f"T{k.split()[-1].rstrip(')')}" if "Tier" in k else "?")
+                                                      + f" +{n}" for k, n in ways) + " (no price)")
+            if e.get("unknown"):
+                parts.append(f"{e['unknown']} not known")
+            title = ("≈ " if pend.get("est") else "") + f"Map counted: {MP.signed(e['div'], fmt_div)}"
+            # 3.0.6 (a confirmation box for the currency and inventory items read, like Scan stash on Wealth): what
+            # it read, to check and fix - not a card that goes away
+            self.mp_review(pend)
+            return title
+        except Exception:
+            buglog.caught()
+            return None
+
+    def mp_review(self, pend):
+        """The check window (like Scan stash's): every item this map gave you - how many, each, worth - and the
+        cells it didn't know, with their pictures. Double-click to fix a number or name a picture (it's known by
+        that picture from then on); Delete drops a row. Save keeps it as this map's count; Close leaves it as read.
+        It stays up (over the game, never taking the keyboard from it) until you close it; a later read on the same
+        visit fills it again, unless you've changed something."""
+        from tkinter import simpledialog
+        from .pricefmt import fmt_div
+        old = getattr(self, "mp_rev", None)
+        if old is not None:
+            try:
+                if old.winfo_exists():
+                    if getattr(old, "mp_edited", False):
+                        return old
+                    old.destroy()
+            except tk.TclError:
+                pass
+        gain = {k: n for k, n in self._mp_gain(pend).items() if n > 0}
+        unknown = []                  # 3.0.6: only currency it knows is listed - no "? not known" rows to name
+        par = self.root
+        dlg = tk.Toplevel(par)
+        dlg.title("Map Profit - check what it counted")
+        dlg.configure(bg=C["panel2"], padx=16, pady=12)
+        dlg.mp_edited = False
+        head = tk.Label(dlg, bg=C["panel2"], fg=C["text"], anchor="w", justify="left", font=("Segoe UI", 12, "bold"))
+        head.pack(fill="x")
+        tk.Label(dlg, text="What this map gave you. Double-click a number to fix it. Delete drops "
+                           "a row.", bg=C["panel2"], fg=C["muted"], justify="left", anchor="w",
+                 wraplength=520).pack(fill="x", pady=(2, 0))
+        f = tk.Frame(dlg, bg=C["panel2"])
+        f.pack(fill="both", expand=True, pady=(8, 0))
+        try:
+            ttk.Style(dlg).configure("MPCheck.Treeview", rowheight=32)   # (room for a cell's picture)
+        except tk.TclError:
+            pass
+        tv = ttk.Treeview(f, columns=("qty", "each", "worth"), show="tree headings", style="MPCheck.Treeview",
+                          height=min(12, max(5, len(gain) + len(unknown))), selectmode="extended")
+        tv.heading("#0", text="Item")
+        tv.column("#0", width=300, anchor="w", stretch=True)
+        for cid, title, wd in (("qty", "Got", 60), ("each", "Each", 90), ("worth", "Worth", 90)):
+            tv.heading(cid, text=title)
+            tv.column(cid, width=wd, anchor="e", stretch=False)
+        sb = ttk.Scrollbar(f, orient="vertical", command=tv.yview)
+        tv.configure(yscrollcommand=sb.set)
+        tv.pack(side="left", fill="both", expand=True)
+        sb.pack(side="left", fill="y")
+        tv.tag_configure("unknown", foreground=C.get("muted", "#9a9a9a"))
+        pics, cells = [], {}
+
+        def each_of(name):
+            return None if MP.is_waystone(name) else self.mp_price(name)
+
+        def put(iid, name, n):
+            ea = each_of(name)
+            tv.item(iid, text=name, values=(f"+{n:,}", "no price" if ea is None else fmt_div(ea),
+                                            "-" if ea is None else fmt_div(ea * n)))
+
+        def total():
+            div, n_items = 0.0, 0
+            for iid in tv.get_children():
+                if iid in cells and not tv.item(iid, "text").strip("? ").strip():
+                    continue
+                name, q = tv.item(iid, "text"), str(tv.item(iid, "values")[0]).lstrip("+").replace(",", "")
+                ea = each_of(name) if q.isdigit() else None
+                if ea is not None:
+                    div += ea * int(q)
+                    n_items += 1
+            head.config(text=("≈ " if pend.get("est") else "") + f"This map: {MP.signed(div, fmt_div)}  "
+                             f"({n_items} item{'s' if n_items != 1 else ''} × poe.ninja's price)")
+
+        for name, n in sorted(gain.items(), key=lambda kv: -((each_of(kv[0]) or 0) * kv[1])):
+            put(tv.insert("", "end", text=name), name, n)
+        for img, n in unknown:
+            try:
+                from PIL import ImageTk
+                ph = ImageTk.PhotoImage(img.resize((28, 28)))
+                pics.append(ph)
+                iid = tv.insert("", "end", text="? not known", image=ph, values=(f"+{n or 1:,}", "", ""),
+                                tags=("unknown",))
+            except Exception:
+                iid = tv.insert("", "end", text="? not known", values=(f"+{n or 1:,}", "", ""), tags=("unknown",))
+            cells[iid] = img
+        dlg.mp_pics = pics                                   # (Tk forgets a picture nobody holds)
+        total()
+        if (pend.get("before") or {}).get("stashed") and not pend.get("est"):
+            tk.Label(dlg, text="Counted from your Top Up supplies: you stashed the rest after the last map's read.",
+                     bg=C["panel2"], fg=C["muted"], justify="left", anchor="w", wraplength=520).pack(fill="x",
+                                                                                                    pady=(8, 0))
+        if pend.get("est"):
+            tk.Label(dlg, text="≈ No read before this map: everything but your Top Up supplies counts as its loot.",
+                     bg=C["panel2"], fg=C["muted"], justify="left", anchor="w", wraplength=520).pack(fill="x",
+                                                                                                    pady=(8, 0))
+
+        def edit(_e=None):
+            iid = tv.focus()
+            if not iid:
+                return
+            name = tv.item(iid, "text")
+            if iid in cells and name.startswith("?"):
+                nm = simpledialog.askstring("Name this item", "What is it? Its name, as the game shows it.",
+                                            parent=dlg)
+                if not nm or not nm.strip():
+                    return
+                name = nm.strip()
+                tv.item(iid, tags=())
+            q = str(tv.item(iid, "values")[0]).lstrip("+").replace(",", "")
+            n = simpledialog.askinteger("How many", f"How many {name} did this map give you?", parent=dlg,
+                                        initialvalue=int(q) if q.isdigit() else 1, minvalue=0)
+            if n is None:
+                return
+            put(iid, name, n)
+            dlg.mp_edited = True
+            total()
+
+        def drop(_e=None):
+            for iid in tv.selection():
+                tv.delete(iid)
+            dlg.mp_edited = True
+            total()
+
+        def save():
+            fix, learn = {}, {}
+            for iid in tv.get_children():
+                name = tv.item(iid, "text")
+                q = str(tv.item(iid, "values")[0]).lstrip("+").replace(",", "")
+                if name.startswith("?") or not q.isdigit() or int(q) <= 0:
+                    continue
+                fix[name] = fix.get(name, 0) + int(q)
+                if iid in cells:
+                    learn[name] = cells[iid]
+            if learn:
+                try:
+                    import numpy as np
+                    from . import favours as FV
+                    FV.learn_many({n: np.asarray(im.convert("RGB"))[:, :, ::-1].copy() for n, im in learn.items()})
+                    self.mp_refs_at = 0                          # (built again with them)
+                except Exception:
+                    buglog.caught()
+            pend["fix"] = fix
+            self.mp_save()
+            dlg.destroy()
+            self.mp_paint()
+
+        tv.bind("<Double-1>", edit)
+        tv.bind("<Delete>", drop)
+        btns = tk.Frame(dlg, bg=C["panel2"])
+        btns.pack(fill="x", pady=(8, 0))
+        ttk.Button(btns, text="Save", style="Primary.TButton", command=save).pack(side="right")
+        ttk.Button(btns, text="Close", command=dlg.destroy).pack(side="right", padx=(0, 8))
+        dlg.bind("<Escape>", lambda _e: dlg.destroy())
+        try:
+            dlg.attributes("-topmost", True)                 # (over the game; the keyboard stays with the game)
+            from .alerts_page import game_rect
+            gx, gy, gw, gh = game_rect()
+            dlg.update_idletasks()
+            dlg.geometry(f"+{int(gx + gw * 0.28)}+{int(gy + gh * 0.18)}")
+        except Exception:
+            buglog.caught()
+        self.mp_rev = dlg
+        return dlg
+
+    def mp_home_base(self, stashed=False):
+        """What you went into the map with: the last clear look, plus anything a later covered look saw more of.
+
+        stashed (a new map): 3.0.6 (owner: yes - the next map counts from your Top Up supplies only - when the
+        last read was the one that counted the map before - the Back card says to stash all but supplies after it):
+        that read's items are taken as stashed, so a Scrap picked up again counts."""
         home = getattr(self, "mp_home", None)
         cov = getattr(self, "mp_home_cov", None) or {}
         if home is None and not cov:
             return None
+        if stashed and home is not None and home.get("after_map"):
+            home = dict(home, counts={}, stashed=True)
         counts = dict((home or {}).get("counts") or {})
         for k, n in cov.items():
             counts[k] = max(counts.get(k, 0), n)
@@ -142,17 +412,70 @@ class MapProfitPage:
                 g[k] = g.get(k, 0) + d                      # used, stashed or not seen - "I didn't actually lose
                 #                                             anything")
 
-    def _mp_entry(self, run):
-        base = run["before"]["counts"]
+    @staticmethod
+    def _mp_gain(run):
+        """What the map gained so far: {name: how many more} - what you saved in the check window, if you did."""
+        if isinstance(run.get("fix"), dict):
+            return dict(run["fix"])
         gain = dict(run.get("gain") or {})
         vis = run.get("visit")
         if vis is not None:                                 # (the visit you're on now, so far)
             went = run.get("seg_before") or {}
             for k in set(vis) | set(went):
                 gain[k] = gain.get(k, 0) + max(0, vis.get(k, 0) - went.get(k, 0))
+        return gain
+
+    def _mp_entry(self, run):
+        base = run["before"]["counts"]
+        gain = self._mp_gain(run)
         after = {k: base.get(k, 0) + gain.get(k, 0) for k in set(base) | set(gain)}
-        return MP.entry(run["map"], run["secs"], base, after, self.mp_price,
-                        unknown=max(run["before"].get("unknown", 0), run.get("unknown", 0)))
+        e = MP.entry(run["map"], run["secs"], base, after, self.mp_price,
+                     unknown=max(run["before"].get("unknown", 0), run.get("unknown", 0)))
+        if run.get("est"):
+            e["est"] = True                                 # (no read before it: see mp_area)
+        return e
+
+    # ---------------------------------------------------------------- 3.0.6: a restart keeps the map going
+    STATE_FILE = "map_profit_state.json"
+    STATE_KEYS = ("mp_run", "mp_pending", "mp_home", "mp_home_cov")
+
+    def mp_save(self):
+        """(restarting the program mid-run broke the profit count for that map): the
+        map you're on, the one you're between visits of, and what you went in with - kept on disk at every change."""
+        try:
+            from .config import save_json
+            d = {k: getattr(self, k, None) for k in self.STATE_KEYS}
+            d["n"], d["saved"] = getattr(self, "_mp_n", 0), time.time()
+            save_json(self.STATE_FILE, d)
+        except Exception:
+            buglog.caught()
+
+    def mp_restore(self):
+        """Once, on the first look or area change after the app starts: what mp_save kept, if recent (MP.BEFORE_SECS)."""
+        if getattr(self, "_mp_restored", False):
+            return False
+        self._mp_restored = True
+        try:
+            from .config import load_json
+            d = load_json(self.STATE_FILE, {}) or {}
+            if not d or time.time() - float(d.get("saved") or 0) > MP.BEFORE_SECS:
+                return False
+            for k in self.STATE_KEYS:
+                v = d.get(k)
+                if isinstance(v, dict):
+                    if isinstance(v.get("where"), list):
+                        v["where"] = tuple(v["where"])          # (JSON keeps a tuple as a list)
+                    if getattr(self, k, None) is None:
+                        setattr(self, k, v)
+            self._mp_n = max(getattr(self, "_mp_n", 0), int(d.get("n") or 0))
+            run = getattr(self, "mp_run", None)
+            if run is not None:
+                run["saved"] = float(d.get("saved") or time.time())
+            buglog.debug("Map profit", "restored the map in progress after a restart")
+            return True
+        except Exception:
+            buglog.caught()
+            return False
 
     def mp_done(self):
         """The map you came back from is done: its line goes in the log (if you looked at your inventory after it)."""
@@ -162,6 +485,7 @@ class MapProfitPage:
         e = self._mp_entry(pend)
         e["run"] = pend["run"]
         MP.log_add(e)
+        self.mp_save()
         self.mp_last = e
         buglog.debug("Map profit", f"a map: {len(e['rows'])} items changed")      # (no names, no amounts)
         self.mp_paint()
@@ -176,6 +500,8 @@ class MapProfitPage:
 
     def mp_so_far(self):
         """The map you're between visits of (a town trip): its profit so far, or None."""
+        if self.mp_on():
+            self.mp_restore()
         pend = getattr(self, "mp_pending", None)
         if pend is None or (pend.get("visit") is None and not pend.get("gain")):
             return None
@@ -186,9 +512,31 @@ class MapProfitPage:
         home adds its loot until it's done. Back into the same map (its portal, a town trip): the same run."""
         if not self.mp_on():
             return
+        self.mp_restore()
+        try:
+            self._mp_area(kind, before, where, left)
+        finally:
+            self.mp_save()
+
+    def _mp_area(self, kind, before, where, left):
         now = time.time()
         self.mp_check_done(now)
         run = getattr(self, "mp_run", None)
+        if kind == "map" and before is None and run is not None:
+            # 3.0.6: the app restarted - Client.txt's first line says where you are. The same map: it goes on (its
+            # time counts on). Another place: the map you were in ended while the app was off.
+            if run.get("where") == where:
+                return
+            run["secs"] += max(0.0, run.get("saved", now) - run["start"])
+            run["left"] = run.get("saved", now)
+            self.mp_pending, self.mp_run = run, None
+            self.mp_done()
+            run = None
+        elif kind in ("hideout", "town") and before is None and run is not None:
+            run["secs"] += max(0.0, run.get("saved", now) - run["start"])     # (out of it while the app was off)
+            run["left"] = run.get("saved", now)
+            self.mp_pending, self.mp_run = run, None
+            return
         if kind == "map" and before != "map":
             pend = getattr(self, "mp_pending", None)
             if pend is not None and pend.get("where") == where:
@@ -200,14 +548,22 @@ class MapProfitPage:
                 self.mp_run, self.mp_pending = pend, None
                 return
             self.mp_done()                                  # (another map: the last one is done)
-            home = self.mp_home_base()
+            home = self.mp_home_base(stashed=True)
+            self.mp_home_cov = {}                           # (used up: a later map starts from its own looks)
             if home is not None and now - home["t"] < MP.BEFORE_SECS:
                 self._mp_n = getattr(self, "_mp_n", 0) + 1
                 self.mp_run = {"before": home, "seg_before": dict(home["counts"]), "gain": {}, "start": now,
                                "secs": 0, "where": where, "map": self.mp_map_name(where),
                                "run": f"{now:.3f}-{self._mp_n}"}
             else:
-                self.mp_run = None                          # (no look at home before it: this map isn't counted)
+                # 3.0.6 (most players forget to read the inventory before a run, especially the first of the day):
+                # no read before it - it still counts. What you went in with is taken as your
+                # Top Up supplies only (they're left out of the loot), so everything else you come back with is
+                # this map's. Marked ≈ with how it was worked out.
+                self._mp_n = getattr(self, "_mp_n", 0) + 1
+                self.mp_run = {"before": {"t": now, "counts": {}, "unknown": 0}, "seg_before": {}, "gain": {},
+                               "start": now, "secs": 0, "where": where, "map": self.mp_map_name(where),
+                               "run": f"{now:.3f}-{self._mp_n}", "est": True}
         elif left and run is not None:
             run["secs"] += now - run["start"]
             run["left"] = now
@@ -231,8 +587,8 @@ class MapProfitPage:
 
     def mp_bar_text(self):
         """The bar's part: the last map's profit, "+3.8 div" - or "Profit –" before one is counted. (2.132.2,
-        feedback: "why is it marking as -div if I didn't actually lose anything ... the arrow up/down can be removed.
-        I just want a total of my profit per map": no arrows, and a map's profit is what it gained.)"""
+        feedback: nothing lost was marked as -div, and the arrows can go - a total of the profit per map is
+        enough: no arrows, and a map's profit is what it gained.)"""
         if not self.mp_on():
             return ""
         from .pricefmt import fmt_div
@@ -240,15 +596,18 @@ class MapProfitPage:
             self.mp_check_done()                            # (the bar redraws each second: a map can be done now)
         except Exception:
             buglog.caught()
-        e = getattr(self, "mp_last", None)
+        # 3.0.6 (someone done running still needs the last map's profit, without opening another map): the map you
+        # just read your inventory after shows at once - it
+        # still adds a second visit (a town trip) and is written down when you start another map or after a while
+        e = self.mp_so_far() or getattr(self, "mp_last", None)
         if e is None:
             last = MP.log_read(time.time() - 12 * 3600)
             e = self.mp_last = last[-1] if last else None
         if e is None:
             return "Profit –"
-        if abs(e.get("div") or 0) < 0.0005:               # 2.139.1 (feedback: "+0.000 div"): nothing gained
+        if abs(e.get("div") or 0) < 0.0005:               # 2.139.1 (feedback: a +0.000 div showed): nothing gained
             return "0 div"
-        return MP.signed(e["div"], fmt_div)        # (2.139.0: its label says LAST MAP'S PROFIT)
+        return ("≈" if e.get("est") else "") + MP.signed(e["div"], fmt_div)   # (2.139.0: LAST MAP'S PROFIT)
 
     def mp_breakdown(self, e=None):
         """How the bar's number was worked out: [line, ...] (the hover)."""
@@ -261,7 +620,7 @@ class MapProfitPage:
         out = []
         if so_far is not None:                              # 2.132.1: a town trip - it counts when you're done
             out.append(f"This map so far: {MP.signed(so_far['div'], fmt_div)}" +
-                       (f"  ·  {so_far['map']}" if so_far.get("map") else "") + "  (counted when you start another)")
+                       (f"  ·  {so_far['map']}" if so_far.get("map") else "") + f"  (final when you start another map, or in {MP.DONE_SECS // 60} min)")
             if e is None:
                 e = so_far
         mins = e.get("secs", 0) // 60
@@ -277,10 +636,13 @@ class MapProfitPage:
         sd, sn = t["session"]
         out.append(f"Session: {MP.signed(sd, fmt_div)} · {sn} map{'s' if sn != 1 else ''}"
                    + (f" · {MP.signed(t['per_hour'], fmt_div)} / hour" if t["per_hour"] is not None else ""))
+        if e.get("est"):
+            out.append("≈ No read before this map: all you came back with counts, except Top Up supplies")
         if e.get("unknown"):
-            out.append(f"{e['unknown']} item{'s' if e['unknown'] != 1 else ''} not known - teach with "
-                       f"{self.topup_key_text()} or Scan stash")
-        out.append("Currency Exchange items only · Exchange Rates prices · on your PC only")
+            # 3.0.6 (the "teach me a currency with ctrl+c" line is removed): Scan stash teaches them by picture
+            out.append(f"{e['unknown']} item{'s' if e['unknown'] != 1 else ''} not known yet - Scan stash on Wealth "
+                       f"learns them")
+        out.append("Currency Exchange items only, not your Top Up supplies · Exchange Rates prices · on your PC only")
         return out
 
     def mp_paint(self):
@@ -332,8 +694,7 @@ class MapProfitPage:
 
     # ---------------------------------------------------------------- 2.132.6 Overlay ↳ Map Profit (a page, was a window)
     def mp_list_open(self):
-        """The Map Profit page (feedback: "Map Profit should be a child under Overlay if you have map profit enabled,
-        rather than a new window")."""
+        """The Map Profit page (feedback: it belongs under Overlay when Map Profit is enabled, not in a new window)."""
         self.shell.open("mapprofit")
         return getattr(self, "mp_tv", None)
 
@@ -345,30 +706,30 @@ class MapProfitPage:
         tk.Label(bar, text="🔍", bg=P1, fg=C["muted"], font=("Segoe UI Symbol", 10)).pack(side="left", padx=(0, 4))
         ent = ttk.Entry(bar, textvariable=self.mp_q, width=22)
         ent.pack(side="left")
-        Tooltip(ent, "Find a map, or every map an item dropped in (Divine Orb, Omen of ...).")
+        Tooltip(ent, "Find a map, or every map an item dropped in. Type an item name, like Divine Orb.")
         self.mp_q.trace_add("write", lambda *_a: self.mp_list_refresh())
         self.mp_view = SegBar(bar, list(VIEWS), command=lambda v: self.mp_list_refresh(), size=10, pad=(12, 4))
         self.mp_view.pack(side="left", padx=(12, 0))
         self.mp_clear_btn = ttk.Button(bar, text="Clear all…", command=self.mp_clear_all)
         self.mp_clear_btn.pack(side="right")
         Tooltip(self.mp_clear_btn, "Hide every map from the list, or delete them - asks first, and offers a CSV")
-        # 2.138.0 (feedback: "On Map profit I want an export csv option")
+        # 2.138.0 (feedback: an Export CSV option on Map profit)
         self.mp_export_btn = ttk.Button(bar, text="Export CSV…", command=self.mp_export)
         self.mp_export_btn.pack(side="right", padx=(0, 8))
         Tooltip(self.mp_export_btn, "Every map in the list, one row per item: before, after, change and value")
         self.mp_del_btn = ttk.Button(bar, text="Delete", command=self.mp_delete_sel)
         self.mp_del_btn.pack(side="right", padx=(0, 8))
-        Tooltip(self.mp_del_btn, "Delete the picked rows (Undo puts them back)")
+        Tooltip(self.mp_del_btn, "Delete the picked rows. Undo puts them back.")
         self.undo_button(bar, "mapprofit", side="right", padx=(0, 8))
         self.mp_sum = tk.Label(body, text="", bg=P1, fg=C["text"], font=("Segoe UI", 10, "bold"), anchor="w", padx=12)
         self.mp_sum.pack(fill="x")
-        self.look_needed(body, P1, "Map profit counts a map only when you press your Read Key - a key just for "
-                                   "that. None is set yet.").pack(fill="x", padx=12)
+        self.look_needed(body, P1, "Map profit counts a map only when you press your Read Key, a key you use "
+                                   "only for that. None is set yet.").pack(fill="x", padx=12)
         # 2.138.0: maps hidden by Clear all › Hide from the list - still kept; one click shows them again
         self.mp_hidden_lbl = tk.Label(body, text="", bg=P1, fg=C["accent"], cursor="hand2", anchor="w", padx=12,
                                       font=("Segoe UI", 9))
         self.mp_hidden_lbl.bind("<Button-1>", lambda _e: self.mp_unhide())
-        # 2.132.6 (feedback: "Map profit didn't count my most recently completed map"): items it doesn't know yet
+        # 2.132.6 (feedback: the most recently completed map was not counted): items it doesn't know yet
         # can't be counted - say so, and how to teach them
         self.mp_hint = tk.Label(body, text="", bg=P1, fg=C["warn"] if "warn" in C else C["muted"], anchor="w", padx=12,
                                 justify="left")
@@ -454,8 +815,9 @@ class MapProfitPage:
         self.mp_after_change()
 
     def mp_clear_all(self, ask=True, how=None):
-        """2.138.0 (feedback: "if you hit clear all, I want it to ask if you want to export the data first ... clear it
-        from the list or clear the data itself"): a small question - Export CSV first, Hide from the list (kept,
+        """2.138.0 (feedback: Clear all should ask whether to export the data first, and whether to clear the list or
+        the
+        data itself): a small question - Export CSV first, Hide from the list (kept,
         one click brings them back), or Delete for good (Undo works until the app closes). how= "hide" / "delete"
         answers it without asking (tests)."""
         runs = self.mp_runs()
@@ -579,24 +941,26 @@ class MapProfitPage:
         from .pricefmt import fmt_div
         view = self.mp_view.get() if getattr(self, "mp_view", None) is not None else "All Time"
         runs = self.mp_runs(self.mp_q.get() if getattr(self, "mp_q", None) else "")
-        tv.delete(*tv.get_children())
         self.mp_rows = {}
+        out = []                                            # (UI rule 22: a typed search changes rows, never the table)
         if view == "All Time":
             cols = (("Map", 260, "w"), ("Time", 70, "e"), ("Profit", 110, "e"), ("When", 160, "w"), ("", 10, "w"))
         else:
             cols = (("Day" if view == "Daily" else "Hour", 160, "w"), ("Maps", 60, "e"), ("Profit", 110, "e"),
                     ("Per map", 100, "e"), ("Per hour", 100, "e"))
-        for c, (title, wd, anc) in zip(("a", "b", "c", "d", "e"), cols):
-            tv.heading(c, text=title)
-            tv.column(c, width=wd, anchor=anc, stretch=c == "a")
+        if getattr(self, "_mp_cols", None) != (view == "All Time", cols):
+            self._mp_cols = (view == "All Time", cols)
+            for c, (title, wd, anc) in zip(("a", "b", "c", "d", "e"), cols):
+                tv.heading(c, text=title)
+                tv.column(c, width=wd, anchor=anc, stretch=c == "a")
         if view == "All Time":
             for i, r in enumerate(runs):
                 iid = f"r{i}"
                 self.mp_rows[iid] = r
                 m, s = divmod(int(r["secs"]), 60)
-                tv.insert("", "end", iid=iid, values=(r["map"] or "a map", f"{m}:{s:02d}" if r["secs"] else "–",
-                                                      MP.signed(r["div"], fmt_div),
-                                                      time.strftime("%a %d %b, %H:%M", time.localtime(r["t"])), ""))
+                out.append((iid, dict(values=(r["map"] or "a map", f"{m}:{s:02d}" if r["secs"] else "–",
+                                              MP.signed(r["div"], fmt_div),
+                                              time.strftime("%a %d %b, %H:%M", time.localtime(r["t"])), ""))))
             self.mp_buckets = MP.buckets(runs, "day")
         else:
             kind = "day" if view == "Daily" else "hour"
@@ -605,8 +969,10 @@ class MapProfitPage:
                 iid = f"b{i}"
                 end = start + (86400 if kind == "day" else 3600)
                 self.mp_rows[iid] = {"runs": [r for r in runs if start <= r["t"] < end], "label": label, "div": div}
-                tv.insert("", "end", iid=iid, values=(label, n, MP.signed(div, fmt_div), MP.signed(div / n, fmt_div),
-                                                      MP.signed(div * 3600 / secs, fmt_div) if secs >= 60 else "–"))
+                out.append((iid, dict(values=(label, n, MP.signed(div, fmt_div), MP.signed(div / n, fmt_div),
+                                              MP.signed(div * 3600 / secs, fmt_div) if secs >= 60 else "–"))))
+        from .inplace import tv_sync
+        tv_sync(tv, out)
         total = sum(r["div"] for r in runs)
         secs = sum(r["secs"] for r in runs)
         t = self.mp_totals()
@@ -626,22 +992,28 @@ class MapProfitPage:
         last = runs[0] if runs else None
         if last and last["unknown"] >= 5 and not last["rows"]:
             self.mp_hint.config(text=f"⚠ Last map: {last['unknown']} items not recognized, so nothing was counted. "
-                                     f"Teach them: hover each in your inventory and press {self.topup_key_text()}.")
+                                     f"Scan stash on Wealth learns them by picture.")
             if not self.mp_hint.winfo_manager():
                 self.mp_hint.pack(fill="x", after=self.mp_sum)
         elif self.mp_hint.winfo_manager():
             self.mp_hint.pack_forget()
         self.mp_chart_draw()
-        for ch in self.mp_empty.winfo_children():
-            ch.destroy()
         self.mp_greys()
         if runs:
             self.mp_empty.place_forget()
             return
+        qtxt = self.mp_q.get() if getattr(self, "mp_q", None) else ""
+        ekey = (bool(nh), bool(nh and not qtxt), self.mp_on(), self.look_key_text())
+        if ekey == getattr(self, "_mp_empty_key", None) and self.mp_empty.winfo_children():
+            self.mp_empty.place(relx=0.5, rely=0.35, anchor="center")           # (UI rule 22: the same words stay)
+            return
+        self._mp_empty_key = ekey
+        for ch in self.mp_empty.winfo_children():
+            ch.destroy()
         P1 = C["panel"]                                     # (UX: empty - what it is + one button)
         self.mp_empty.place(relx=0.5, rely=0.35, anchor="center")
         if nh and not (self.mp_q.get() if getattr(self, "mp_q", None) else ""):
-            tk.Label(self.mp_empty, text=f"Your {nh} map{'s are' if nh != 1 else ' is'} hidden (kept on your PC).",
+            tk.Label(self.mp_empty, text=f"Your {nh} map{'s are' if nh != 1 else ' is'} hidden and kept on your PC.",
                      bg=P1, fg=C["muted"]).pack()
             ttk.Button(self.mp_empty, text="Show hidden maps", style="Primary.TButton", command=self.mp_unhide).pack(
                 pady=(8, 0))
@@ -656,10 +1028,9 @@ class MapProfitPage:
 
     def mp_how_text(self):
         """The line under the list: which maps are in it, how a map's number is worked out, and where it's kept."""
-        return (f"Only maps you counted are listed: back from a map, press {self.look_key_text()} with your inventory "
-                f"open. A map you skip has no entry. A map's loot = what your inventory gained since your last count "
-                f"at home (stashed in between? press it once before the next map too). On your PC only - never "
-                f"uploaded or shared.")
+        return (f"Back from a map, press {self.look_key_text()} with your inventory open. A map's loot = what your "
+                f"inventory gained since your last read at home. No read before a map? It still counts: all you came "
+                f"back with except Top Up supplies (marked ≈). On your PC only - never uploaded or shared.")
 
     def mp_chart_draw(self):
         """Bars: profit per day (All Time, Daily) or per hour (Hourly). Hover a bar for its numbers."""

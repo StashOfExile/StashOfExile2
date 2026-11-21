@@ -53,6 +53,8 @@ class TemplePage:
     def temple_area(self, area_id):
         """Every area change: in the temple -> the notepad shows (when it's on); anywhere else -> it goes."""
         here = str(area_id or "") in TM.TEMPLE_AREAS
+        if str(area_id or "") != getattr(self, "tm_area", ""):   # 3.0.6 audit: a new area - last run's board,
+            self.temple_board_forget()                            # plan and marks are gone (read again)
         self.tm_in_temple = here
         self.tm_area = str(area_id or "")
         if str(area_id or "") == TM.RUN_AREA:                # 2.136.1: a run spends crystals - the number is old now
@@ -68,6 +70,19 @@ class TemplePage:
             self.temple_pad_show()
         elif not here:
             self.temple_pad_close()
+
+    def temple_board_forget(self):
+        """What the last read saw of the Console: forgotten (a new area) - the marks go until the next press."""
+        self.tm_board, self.tm_plan, self.tm_marks, self.tm_pick = None, [], {}, None
+        self._tm_hist, self._tm_plan_shown, self._tm_plan_next = {}, None, None
+        self._tm_prev = None                                # (a new run: a new plan)
+        self._temple_clear_btn(None)
+        mk = getattr(self, "tm_marks_win", None)
+        if mk is not None:
+            try:
+                mk.hide()
+            except Exception:
+                buglog.caught()
 
     def temple_marks_tick(self):
         """Every 2 s in a temple area (nothing is read): Vaal Lens' marks show only while the game is in front."""
@@ -98,6 +113,8 @@ class TemplePage:
         # 2.140.0 Vaal Lens: the board is read while the card shows (GGG policy: each Read Key press).
         # 2.142.0: in the temple too (the console opens there), from one picture of the game; the Medallions panel
         # (V) is read each look while the card shows - its count, and a hovered slot's name with the slot under the mouse
+        if not self.temple_pad_shown() and self.temple_pad_on():
+            self.temple_pad_show()          # 3.0.6 (the helper turned off after the run): a press here brings it back
         lens = self.temple_pad_shown()
         lens_any = lens
         gx, gy, gw, gh = g
@@ -113,9 +130,17 @@ class TemplePage:
                     SR.capture(box, "Temple")
                 if img is None:
                     return None, None, None, None
-                img = img.resize((img.width * 3, img.height * 3))      # small digits read better bigger
-                lines = RM.ocr(img)
+                # 3.0.6 (reader.py): the count is one line - read on its own, made clean (measured: 27 of 27 at
+                # 1440p, the whole box's read 20); the read before stays as the fallback
+                from . import reader as R
+                t, tb, _how = R.read_one(img, (0, 0, img.width, img.height), kind="console",
+                                         want=lambda s: TM.parse_console([(s, None)], most))
+                lines = [(t, tb)] if t else []
                 got = TM.parse_console(lines, most)
+                if not got:
+                    img = img.resize((img.width * 3, img.height * 3))      # small digits read better bigger
+                    lines = lines + list(RM.ocr(img))
+                    got = TM.parse_console(lines, most)
             except Exception as e:
                 buglog.caught()
                 return None, e.__class__.__name__, None, None
@@ -137,8 +162,23 @@ class TemplePage:
                         pic = full.crop((cb[0] - gx, cb[1] - gy, cb[2] - gx, cb[3] - gy))
                         cl = RM.ocr(pic.resize((pic.width * 2, pic.height * 2)))
                         named = V.card_names(cl)
+                        by_row = V.card_rows_read(pic, RM.ocr, cl)
+                        if len(by_row) > len(named):
+                            named = by_row
                         board["cards"] = [n for n, _y in named]
+                        # 3.0.6: each Path card's shape, off its art (where it can go: the game never turns it)
+                        board["card_shapes"] = V.path_shapes(pic, named, 2)
+                        # 3.0.6 (owner: inside the temple, V opens the console only to look - no Room Cards list):
+                        # with no list there's nothing to place, so no plan (the Architect's reward rooms bring it)
+                        board["placing"] = bool(named) or any(
+                            "room cards" in " ".join(str(t).lower().split()) for t, _b in cl or [])
                         board["card_icons"] = V.card_icons(pic, named, 2)
+                        # 3.0.6 (a number on the room card on the left): each card's spot on screen
+                        sc = pic.height / (V.CARD_BOX[3] - V.CARD_BOX[1])
+                        board["card_rows"] = [(n, (cb[0] + (V.DIAMOND_X[1] + 24) * sc, cb[1] + y / 2))
+                                              for n, y in named]
+                        if medal and medal.get("open"):
+                            self._temple_medal_cards(medal, pic, named, sc)
                         if board.get("lit"):
                             board["card"] = V.card_pick(pic, cl, 2)
                 except Exception:
@@ -201,13 +241,16 @@ class TemplePage:
             pass
 
     def temple_pad_line(self):
-        """2.136.2 (feedback: "it shouldn't say that, it should just be reading my crystals"): the count only."""
+        """2.136.2 (feedback: no extra wording, just the crystal count): the count only."""
         return TM.count_text(TM.state())
 
     def _temple_covered(self, g):
         """2.142.2 (feedback: the marks and the card should show in screen shares - so the screen reader sees them
         too): the tiles under our own marks and card right now; their last read is kept."""
         from . import vaallens as V
+        import sys
+        if sys.platform == "win32":                     # 3.0.6: the press's picture sees through our windows
+            return set()                                # (screenread.see_through) - nothing is covered
         out = set()
         mk = getattr(self, "tm_marks_win", None)
         if mk is not None and mk.shown():
@@ -252,15 +295,16 @@ class TemplePage:
             n = V.summary(board)
             if n != getattr(self, "_tm_board_said", None):
                 self._tm_board_said = n
-                buglog.debug("Vaal Lens", "board " + " ".join(f"{k}={v}" for k, v in sorted(n.items())))
+                buglog.debug("Vaal Lens", "board " + " ".join(f"{k}={v}" for k, v in sorted(n.items())) +
+                             " | cards: " + ", ".join(board.get("cards") or []))
         self.temple_marks_sync(board)
         if self.tm_board_open or was:
             self.temple_pad_refresh()
 
-    def _temple_steady(self, board, V, keep=3):
-        """UI overhaul (feedback: "the suggestions alternate between options in a very confusing way"): one read of a
-        tile can be off (a hover, an animation) - each tile shows what most of its last 3 reads said, and a tile read
-        as "unknown" keeps what it was. So the plan only changes when the board really does (a card placed)."""
+    def _temple_steady(self, board, V, keep=1):
+        """UI overhaul (feedback: the suggestions alternated between options confusingly): a tile read
+        as "unknown" keeps what it was. 3.0.6 audit: one read per Read Key press - each press's read counts at once
+        (it took the most of the last 3 reads, from when the board was read on a timer: a card placed took 2 presses)."""
         hist = self.__dict__.setdefault("_tm_hist", {})
         for c in V.CELLS:
             cell = board.get(c)
@@ -283,16 +327,46 @@ class TemplePage:
         marks = {}
         board = board if board is not None else getattr(self, "tm_board", None)
         seen = bool(board and V.seen(board) and self.temple_pad_shown())
-        # 2.142.0: the hand's plan - the room cards in the list and the rooms your medallions add
-        plan = VP.hand_plan(board, self.temple_hand_rooms(board)) if seen else []
-        plan = self._temple_plan_steady(plan, board)
-        self.tm_plan = plan
+        if seen and board.get("placing") is False:
+            seen = False                                # (looking only: medallions are still read, no plan)
+        # 3.0.6 (owner, TEMPLE_RULES.md): the full plan - key room and Atziri, the Architect, then every room in hand
+        # by quadrant; and where the upgrade and the lock medallions go
+        if seen:
+            from . import medallions as M
+            have, _most, medals = self.temple_medal_hand()
+            medals = medals[:have or 0]
+            rooms_ = [M.base(h)[1] for h in medals if h and M.base(h)[1]]
+            from collections import Counter
+            hand = Counter([VP.card(n) for n in board.get("cards") or [] if VP.card(n)] + [("med", f) for f in rooms_])
+            prev = getattr(self, "_tm_prev", None)
+            # 3.0.6 (too many changed decisions with each card placed): while the hand only gets
+            # smaller (cards placed), the last plan's steps stay; new cards are planned after them
+            keep = prev[0] if prev and not (hand - prev[1]) else ()
+            full = VP.full_plan(board, board.get("cards") or [], medals, rooms_, prev=keep)
+            self._tm_prev = (full["plan"], hand)
+        else:
+            full = {"plan": [], "targets": {}, "notes": []}
+        plan = self._temple_plan_steady(full["plan"], board)
+        self.tm_plan, self.tm_targets, self.tm_notes = plan, full["targets"], full["notes"]
+        self.tm_chains, self.tm_path_cards = full.get("chains") or [], full.get("path_cards") or {}
+        if seen and board.get("lit") and VP.card(board.get("card")) == ("path", None):
+            # 3.0.6 (a path was suggested where none can go): a path card's shape decides
+            # where it fits - the game lights those squares; none of the planned ones lit = this card doesn't fit
+            want = [t for t, f, _w in plan if f == "Path"]
+            if want and not set(want) & set(board["lit"]):
+                self.tm_notes = ["This Path card's shape doesn't fit the planned squares: pick your other Path "
+                                 "card."] + list(self.tm_notes)
         if seen and board.get("lit"):
             what = VP.card(board.get("card"))
             marks = VP.marks(board, board["lit"], what)
             marks = VP.with_plan(marks, plan, board["lit"], what, board.get("card"))
         elif seen:
             marks = VP.with_plan({}, plan, (), None)
+        for t, (word, fam) in (self.tm_targets if seen else {}).items():
+            if t not in marks or marks[t][0] == "p":
+                marks[t] = ("do", (word, fam))           # (an upgrade / lock medallion: which room it goes on)
+        if seen and plan:
+            marks.update(self._temple_step_labels(board, plan))
         self.tm_marks = marks
         self.tm_pick = (board or {}).get("card") if marks and board.get("lit") else None
         mk = getattr(self, "tm_marks_win", None)
@@ -306,27 +380,90 @@ class TemplePage:
                 from .overlaywin import pal
                 chain = VP.architect_chain(board) if board and V.seen(board) else None
                 mk.show(g, marks, pal(), getattr(self, "tm_icons", None), chain)
+                self._temple_clear_btn(g)
             elif mk is not None:
                 mk.hide()
+                self._temple_clear_btn(None)
         except Exception:
             buglog.caught()
 
+    def _temple_clear_btn(self, g):
+        """3.0.6 (an option to clear the info and suggestions off the screen: a button in the top left corner above the
+        room cards): one small button over the game while the marks show. A click only hides the
+        marks - it reads nothing; your next Read Key press brings them back."""
+        b = getattr(self, "tm_clear_win", None)
+        if g is None:
+            if b is not None:
+                try:
+                    b.withdraw()
+                except tk.TclError:
+                    pass
+            return
+        from .overlaywin import pal
+        P = pal()
+        if b is None or not b.winfo_exists():
+            b = self.tm_clear_win = tk.Toplevel(self.root)
+            b.overrideredirect(True)
+            b.attributes("-topmost", True)
+            lb = tk.Label(b, text="✕ Clear marks", bg=P["bg"], fg=P["text"], font=(P["font"], 10), padx=8, pady=4,
+                          cursor="hand2", highlightthickness=1, highlightbackground=P.get("line", "#3a3128"))
+            lb.pack()
+            lb.bind("<Button-1>", lambda _e: self.temple_marks_clear())
+            from .style import Tooltip
+            Tooltip(lb, f"Hides the Vaal Lens marks. Press {self.look_key_text()} to show them again.")
+        s = g[3] / 1440
+        b.geometry(f"+{int(g[0] + 14 * s)}+{int(g[1] + 150 * s)}")
+        b.deiconify()
+        b.lift()
+
+    def temple_marks_clear(self):
+        """The Clear marks button: the marks and the button go until the next Read Key press."""
+        mk = getattr(self, "tm_marks_win", None)
+        if mk is not None:
+            mk.hide()
+        self._temple_clear_btn(None)
+        self.tm_marks = {}
+        buglog.debug("Vaal Lens", "marks cleared")
+
+    def _temple_step_labels(self, board, plan):
+        """3.0.6 (a number on the room card on the left and on the square, medallions included): each step's number
+        beside the card (or the medallion) that does it -> {("@", x, y):
+        ("lbl", step)} at screen points. A path step takes one path card per tile."""
+        from . import medallions as M, vaallens_plan as VP
+        rows = [(VP.card(n), xy) for n, xy in (board or {}).get("card_rows") or []]
+        slots = [(M.base(h)[1] if h else None, box) for h, box in getattr(self, "tm_medal_boxes", None) or []]
+        used, out = set(), {}
+        by_card = getattr(self, "tm_path_cards", None) or {}
+        for step, (_t, fam, _w) in zip(VP.steps(plan), plan):
+            k = by_card.get(_t) if fam == "Path" else None
+            if k is not None and k < len(rows) and ("c", k) not in used:
+                # 3.0.6: the Path card whose shape fits that square - not just the next one in the list
+                used.add(("c", k))
+                x, y = rows[k][1]
+                out[("@", int(x), int(y))] = ("lbl", step)
+                continue
+            rw = VP.card(fam) if fam not in ("Path", "Key Room") else None
+            want = ("path", None) if fam == "Path" else ("key", None) if fam == "Key Room" else \
+                rw if rw and rw[0] == "reward" else ("room", fam)
+            k = next((i for i, (w, _xy) in enumerate(rows) if w == want and ("c", i) not in used), None)
+            if k is not None:
+                used.add(("c", k))
+                x, y = rows[k][1]
+                out[("@", int(x), int(y))] = ("lbl", step)
+                continue
+            if want[0] == "room":
+                k = next((i for i, (room, _b) in enumerate(slots) if room == fam and ("m", i) not in used), None)
+                if k is not None:
+                    used.add(("m", k))
+                    b = slots[k][1]
+                    out[("@", int(b[0] + 14), int(b[1] + 14))] = ("lbl", step)
+        return out
+
     def _temple_plan_steady(self, plan, board):
-        """UI overhaul: a new plan shows once two reads in a row agree on it (a card picked shows at once)."""
-        key = repr(plan)
-        if not plan or (board or {}).get("lit"):
-            self._tm_plan_shown, self._tm_plan_next = (key, plan), None
-            return plan
-        shown = getattr(self, "_tm_plan_shown", None)
-        if shown is None or shown[0] == key:
-            self._tm_plan_shown, self._tm_plan_next = (key, plan), None
-            return plan
-        nxt = getattr(self, "_tm_plan_next", None)
-        if nxt == key:
-            self._tm_plan_shown, self._tm_plan_next = (key, plan), None
-            return plan
-        self._tm_plan_next = key
-        return shown[1]
+        """3.0.6 audit: each press's plan shows at once (it waited for two reads in a row to agree - from the timed
+        reads; with one read per press that took two presses)."""
+        self._tm_plan_shown, self._tm_plan_next = (repr(plan), plan), None
+        return plan
 
     def _temple_medal_look(self, full, g, ptr):
         """(a background thread) The game's picture -> what the Medallions panel shows: {"count", "hand" (names by
@@ -335,17 +472,47 @@ class TemplePage:
         gx, gy = g[0], g[1]
         mb = V.side_box(g, V.MEDAL_BOX, right=True)
         pic = full.crop((mb[0] - gx, mb[1] - gy, mb[2] - gx, mb[3] - gy))
-        got = M.parse([(t, (b[0] + mb[0], b[1] + mb[1], b[2] + mb[0], b[3] + mb[1])) for t, b in RM.ocr(pic) if b])
-        if not got["count"] or not got["head"]:
+        lines = [(t, (b[0] + mb[0], b[1] + mb[1], b[2] + mb[0], b[3] + mb[1])) for t, b in RM.ocr(pic) if b]
+        # 3.0.6 (reader.py): the panel's title read on its own line (measured on 90 of the owner's pictures: 89
+        # right, none wrong; the panel's one read: 69 right, 8 wrong - 5/6 and 3/6 read as 1/6). Its count wins
+        # over the panel read's; that read stays for the hovered medallion's name and as the fallback.
+        try:
+            from . import reader as R
+            tb = V.side_box(g, V.MEDAL_TITLE, right=True)
+            t, tbox, _how = R.read_one(full, (tb[0] - gx, tb[1] - gy, tb[2] - gx, tb[3] - gy), kind="medallion-title",
+                                       want=M.head_count)
+            if t and M.head_count(t):
+                lines = [ln for ln in lines if not M.head_count(ln[0])] + [
+                    (t, (tbox[0] + gx, tbox[1] + gy, tbox[2] + gx, tbox[3] + gy))]
+        except (RM.OcrUnavailable, RM.OcrStuck):
+            raise
+        except Exception:
+            buglog.caught()
+        got = M.parse(lines)
+        if not got["head"]:
+            # 3.0.6 (a 6/6 panel read "MEDALLIONS (616)"): the title alone is enough - the slots are counted
+            # from the picture, not the number
+            got["head"] = next((b for t, b in lines if "MEDALLIONS" in M.letters(t) and len(M.letters(t)) <= 14),
+                               None)
+        if not got["head"]:
             return {"open": False, "names": got["names"], "room": got["room"]}
-        have, most = got["count"]
         s = V.placing(g)[0]
         icons = M.known_icons(self._temple_medal_file())
-        hand, learn, pics = [], None, {}
-        for k, sl in enumerate(M.slots(got["head"], s, have)):
+        dx, dy = M.align(lambda b: full.crop((b[0] - gx, b[1] - gy, b[2] - gx, b[3] - gy)), got["head"], icons, s)
+        if dx or dy:                                        # 3.0.6: the title's box was off - the slots follow the
+            h = got["head"]                                 # pictures
+            got["head"] = (h[0] + dx, h[1] + dy, h[2] + dx, h[3] + dy)
+        filled = [sl for sl in M.slots(got["head"], s, 6) if M.slot_filled(
+            full.crop(tuple(int(v) - o for v, o in zip(M.icon_box(sl), (gx, gy, gx, gy)))))]
+        have = len(filled)
+        most = got["count"][1] if got["count"] else max(have, (TM.cfg().get("medals") or {}).get("most") or 0, 3)
+        hand, learn, pics, boxes, vecs = [], None, {}, [], []
+        for k, sl in enumerate(filled):
             ib = M.icon_box(sl)
             vec = M.feat(full.crop((ib[0] - gx, ib[1] - gy, ib[2] - gx, ib[3] - gy)))
-            who = M.identify(vec, icons)
+            boxes.append(sl)
+            vecs.append(vec)
+            who = M.identify_at(lambda b: full.crop((b[0] - gx, b[1] - gy, b[2] - gx, b[3] - gy)), ib, icons, s)
             if who is None:                                 # 2.142.1: a room medallion shows its room's icon
                 room = M.room_from_icon(full, sl, origin=(gx, gy))
                 who = f"Uromoti's Medallion: {room}" if room else None
@@ -357,11 +524,32 @@ class TemplePage:
                 if n == "Uromoti's Medallion" and got["room"]:     # (its picture is its room's: kept by room)
                     n = f"{n}: {got['room']}"
                 learn = (n, vec, k)
-        return {"open": True, "count": (have, most), "hand": hand, "learn": learn, "room": got["room"], "icons": pics}
+        return {"open": True, "count": (have, most), "hand": hand, "learn": learn, "room": got["room"], "icons": pics,
+                "boxes": boxes, "vecs": vecs}
+
+    def _temple_medal_cards(self, medal, pic, named, sc):
+        """(the background thread) A room medallion not known by its room's board picture: its picture against the
+        room cards in the list (3.0.6, owner's 4/6 panel: a Sealed Vault medallion matched its card at 0.86)."""
+        from . import medallions as M, vaallens as V, vaallens_plan as VP
+        cx, r = (V.DIAMOND_X[0] + V.DIAMOND_X[1]) / 2 * sc, 32 * sc
+        feats = []
+        for n, y in named:
+            what = VP.card(n)
+            if what and what[0] == "room":
+                y1 = y / 2
+                feats.append((what[1], M.feat(pic.crop((int(cx - r), int(y1 - r), int(cx + r), int(y1 + r))),
+                                              inner=False)))
+        for k, (who, vec) in enumerate(zip(medal["hand"], medal.get("vecs") or [])):
+            if who is not None or not feats:
+                continue
+            sims = sorted(((float(vec @ f), fam) for fam, f in feats), reverse=True)
+            others = [x for x in sims if x[1] != sims[0][1]]
+            if sims[0][0] >= 0.8 and (not others or sims[0][0] - others[0][0] >= 0.07):
+                medal["hand"][k] = f"Uromoti's Medallion: {sims[0][1]}"
 
     def _temple_medal_file(self):
         from .config import P as data_file
-        return data_file("medallion_icons.json")
+        return data_file("medallion_icons_v2.json")       # (3.0.6: the middle of the icon - the old file is set aside)
 
     def temple_medal_seen(self, medal):
         """The panel read: the hand is kept (names only); a hovered slot teaches its picture."""
@@ -385,6 +573,21 @@ class TemplePage:
             icons.update(medal["icons"])
             self.tm_icons = icons
         have, most = medal["count"]
+        old = c.get("medals") or {}
+        vecs = list(medal.get("vecs") or [])
+        was = getattr(self, "_tm_medal_vecs", None) or []
+        if old.get("have") == have and len(old.get("hand") or []) == len(hand) and (len(was) == len(vecs) or
+                                                                                   medal.get("learn")):
+            # 3.0.6: a slot known stays known (same count) - only while its picture is the same (a
+            # Zantipi's swapped for a Synthflesh Lab at 6/6 was still called "Waystone modifier")
+            # (the hover label covering other slots made them forgotten): a slot under the hover
+            # label keeps its name - a slot whose own picture now names a different medallion takes that one
+            covered = bool(medal.get("learn"))
+            hand = [h or (o if covered or (w is not None and float(v @ w) >= 0.95) else None)
+                    for h, o, v, w in zip(hand, old["hand"], vecs, list(was) + [None] * len(vecs))]
+        self._tm_medal_vecs = vecs
+        buglog.debug("Vaal Lens", f"medallions {have}/{most}: " + ", ".join(h or "?" for h in hand))
+        self.tm_medal_boxes = list(zip(hand, medal.get("boxes") or []))     # 3.0.6: where each slot is (its step)
         new = {"have": have, "most": most, "hand": hand}
         if new != c.get("medals"):
             c["medals"] = new
@@ -399,12 +602,14 @@ class TemplePage:
         """A medallion seen on the ground (the screen reader, in the temple) -> take it or leave it (an alert card,
         once a minute per name)."""
         from . import medallions as M
+        # (3.0.6: further tries to read that medallion did nothing): it was once a minute per
+        # name - from the timed reads; now each Read Key press is asked on purpose, so each one answers
         seen = getattr(self, "_tm_medal_said", {})
-        if time.time() - seen.get(name, 0.0) < 60:
-            return None
         have, most, hand = self.temple_medal_hand()
         st = TM.state()
         got = M.advice(name, hand, have, most, room, st["most"] if st else None)
+        buglog.debug("Vaal Lens", f"on the ground: {name}{' (' + room + ')' if room else ''} -> "
+                                  f"{got[0] if got else 'no advice'} ({have}/{most})")
         if not got:
             return None
         seen[name] = time.time()
@@ -434,11 +639,10 @@ class TemplePage:
         return out
 
     def temple_plan_lines(self):
-        """-> [(mark, text)]: "1  Thaumaturge's Laboratory" ... in the board's order, then upgrade and lock."""
+        """-> [(mark, text)]: the plan's steps in order ("1  Path to the key room (2 tiles)", "2  Thaumaturge's
+        Laboratory" ...), then where the medallions go, then the notes (3.0.6, TEMPLE_RULES.md)."""
         from . import medallions as M, vaallens_plan as VP
         plan = getattr(self, "tm_plan", None) or []
-        if not plan:
-            return []
         board = getattr(self, "tm_board", None) or {}
         cards = {}
         for n in board.get("cards") or []:
@@ -447,19 +651,75 @@ class TemplePage:
                 cards.setdefault(what[1], VP.card_title(n))
         hand = self.temple_medal_hand()[2]
         out = []
-        n_path = sum(1 for _t, f, _w in plan if f == "Path")
-        for step, (_t, fam, _why) in zip(VP.steps(plan), plan):
-            if fam == "Path":                               # 2.143.0: the Architect first - one step
+        for step, (_t, fam, why) in zip(VP.steps(plan), plan):
+            if fam == "Path":
                 if not out or out[-1][0] != str(step):
-                    out.append((str(step), f"Path to the Architect ({n_path} tile{'s' if n_path != 1 else ''}), "
-                                                           "then kill him"))
+                    n = sum(1 for _x, f, w in plan if f == "Path" and w == why)
+                    tail = ", then kill him" if why == "the Architect" else ""
+                    tiles = f"{n} tile{'s' if n != 1 else ''}"
+                    out.append((str(step), f"Spare paths as filler ({tiles}): lost first when rooms destabilize"
+                                if why == "filler" else f"Path to {why} ({tiles}){tail}"))
+                continue
+            if fam == "Key Room":
+                out.append((str(step), "Royal Access Chamber"))
                 continue
             src = cards.get(fam) or (fam + (" (medallion)" if any(M.base(h)[1] == fam for h in hand) else ""))
             out.append((str(step), src))
-        pays = [fam for _t, fam, _w in plan if fam in ("Corruption Chamber", "Sacrificial Chamber", "Alchemy Lab")]
-        if pays:
-            out += [st for st in VP.combo(pays[0], hand) if st[0] != "+"]
+        for _t, (word, fam) in (getattr(self, "tm_targets", None) or {}).items():
+            out.append(("▲" if word == "Upgrade" else "■", f"{word}: {fam}"))
+        # 3.0.6 (a clearer explanation of what is being placed): one line per chain
+        out += [("→", c) for c in (getattr(self, "tm_chains", None) or [])[:3]]
+        if not getattr(self, "tm_targets", None):
+            pays = [fam for _t, fam, _w in plan if fam in ("Corruption Chamber", "Sacrificial Chamber", "Alchemy Lab")]
+            if pays:
+                out += [st for st in VP.combo(pays[0], hand) if st[0] != "+"]
+        # 3.0.6 (most people will not read the plan, so it must be concise): the two
+        # notes that matter most
+        out += [("!", n) for n in (getattr(self, "tm_notes", None) or [])[:2]]
         return out
+
+    def temple_medal_line(self):
+        """The card's medallions line: "Medallions 3/6: Lock, Upgrade, 1 not known" (3.0.6: the medallion card was not
+        seen) - or how to read them."""
+        from . import medallions as M
+        have, most, hand = self.temple_medal_hand()
+        if not most:
+            return f"Medallions: open them (V) and press {self.look_key_text()}."
+        # 3.0.6 (one vertical list of names instead of a wall of text): a room medallion by
+        # its room, the rest by what they do (Lock, Upgrade ...)
+        known = [self._temple_medal_say(h, sum(1 for x in hand[:k] if x == h))
+                 for k, h in enumerate(hand[:have]) if h]
+        unknown = have - len(known)
+        tail = [f"? {unknown} not known yet"] if unknown else []        # (owner: no more asking to teach it)
+        return "\n".join([f"Medallions {have}/{most}"] + known + tail)
+
+    def _temple_medal_say(self, h, k=0):
+        """3.0.6 (plan the medallions in hand together, whether each is used or saved): one
+        medallion -> its name, then use (where) or keep - from this read's plan."""
+        from . import medallions as M, vaallens_plan as VP
+        name, room = M.base(h)
+        word = room or M.MEDALLIONS.get(name, (name,))[0]
+        plan = getattr(self, "tm_plan", None) or []
+        notes = " ".join(getattr(self, "tm_notes", None) or [])
+        if room:
+            # (3.0.6: a room card of that kind is placed first - the medallions take the steps after it)
+            cards = sum(1 for n in (getattr(self, "tm_board", None) or {}).get("cards") or []
+                        if VP.card(n) == ("room", room))
+            sts = [s for s, (_t, f, w) in zip(VP.steps(plan), plan) if f == room][cards:]
+            if k < len(sts):
+                return f"{word} · use: step {sts[k]}"
+            return f"{word} · keep for next run"        # (3.0.6 owner: medallions are saved for the next run)
+        short = M.MEDALLIONS.get(name, (name,))[0]
+        # 3.0.6 (owner's two Upgrades both said "use on Flesh Surgeon" - the board had two marks): the k-th medallion
+        # of a kind -> the k-th target of its kind
+        on = [fam for _t, (w, fam) in (getattr(self, "tm_targets", None) or {}).items() if w == short]
+        if k < len(on):
+            return f"{word} · use on {on[k]}"
+        if short in ("Upgrade", "Lock") and "Corruption Chamber" in notes and f"Keep the {short}" in notes:
+            return f"{word} · keep for the Corruption Chamber"
+        if name == "Puhuarte's Medallion" and "reroll" in notes.lower():
+            return f"{word} · use now"
+        return f"{word} · keep for next run"
 
     def temple_pad_show(self):
         if self.temple_pad_shown():
@@ -494,13 +754,24 @@ class TemplePage:
                  highlightthickness=1, highlightbackground=P["line"], padx=4).pack(side="right")
         # 2.141.0: crystals as pips (one per run's worth, 6 each) under the count
         self.tm_pad_pips = self._temple_pips(body, P)
-        # 2.142.2 (feedback: "all of this filler detail is overwhelming, we're meant to simplify temple"): the plan,
+        # 2.142.2 (feedback: the filler detail was overwhelming, Temple should be simple): the plan,
         # in steps matching the numbers on the board - nothing else
         tk.Frame(body, bg=P["head"], height=2).pack(fill="x", pady=(8, 0))
         hd = tk.Frame(body, bg=P["bg"])
         hd.pack(fill="x", pady=(8, 0))
-        tk.Label(hd, text="THE PLAN", bg=P["bg"], fg=P["muted"], font=(P["font"], self.ov_font(8), "bold"),
-                 anchor="w").pack(side="left")
+        # 3.0.6 (most people will not read the plan, keep it for the few who do - the numbers on the cards
+        # and the board are the plan): the written steps fold away, closed until opened
+        c.setdefault("plan_open", False)
+        pfold = tk.Label(hd, text="THE PLAN ▾" if c["plan_open"] else "THE PLAN ▸", bg=P["bg"], fg=P["muted"],
+                         font=(P["font"], self.ov_font(8), "bold"), anchor="w", cursor="hand2")
+        pfold.pack(side="left")
+
+        def plan_flip(_e=None):
+            c["plan_open"] = not c.get("plan_open")
+            save_json("settings.json", SETTINGS)
+            pfold.config(text="THE PLAN ▾" if c["plan_open"] else "THE PLAN ▸")
+            self.temple_pad_refresh()
+        pfold.bind("<Button-1>", plan_flip)
         tip = tk.Label(hd, text=" ⓘ", bg=P["bg"], fg=P["muted"], font=(P["font"], self.ov_font(8)))
         tip.pack(side="left")
         from .style import Tooltip
@@ -509,7 +780,7 @@ class TemplePage:
         self.tm_plan_tip = tip
         self.tm_lens_box = tk.Frame(body, bg=P["bg"])
         self.tm_lens_box.pack(fill="x")
-        # notes in a fold (feedback: "maybe a dropdown clickable thing if someone wants to add notes to it")
+        # notes in a fold (feedback: a clickable dropdown for anyone who wants the notes)
         fold = tk.Label(body, bg=P["bg"], fg=P["muted"], font=(P["font"], self.ov_font(8), "bold"), anchor="w",
                         cursor="hand2")
         fold.pack(fill="x", pady=(8, 0))
@@ -602,13 +873,20 @@ class TemplePage:
         f10 = (P["font"], self.ov_font(10))
         wrap = max(180, int(TM.cfg().get("pad_w") or 300) - 24)
         if not getattr(self, "tm_board", None):
-            tk.Label(box, text="Open the Temple Console.", bg=P["bg"], fg=P["muted"], font=f10, anchor="w").pack(
-                fill="x")
+            tk.Label(box, text=f"Open the Temple Console, then press {self.look_key_text()}.", bg=P["bg"],
+                     fg=P["muted"], font=f10, anchor="w", wraplength=wrap, justify="left").pack(fill="x")
             return
         plan = self.temple_plan_lines()
-        if not plan:
+        if not TM.cfg().get("plan_open"):
+            plan = []                                      # (folded: the numbers on the board say it)
+        elif not plan and (self.tm_board or {}).get("placing") is False:
+            tk.Label(box, text="No Room Cards open: nothing to place. Your medallions are below.", bg=P["bg"],
+                     fg=P["muted"], font=f10, anchor="w", wraplength=wrap, justify="left").pack(fill="x")
+        elif not plan and TM.cfg().get("plan_open"):
             tk.Label(box, text="Nothing to plan with these cards.", bg=P["bg"], fg=P["muted"], font=f10,
                      anchor="w").pack(fill="x")
+        tk.Label(box, text=self.temple_medal_line(), bg=P["bg"], fg=P["text"], font=f10, anchor="w",
+                 justify="left", wraplength=wrap).pack(fill="x", side="bottom", pady=(4, 0))
         for mark, text in plan:
             tk.Label(box, text=f"{mark}  {text}", bg=P["bg"], fg=P["text"], font=f10, anchor="w", justify="left",
                      wraplength=wrap).pack(fill="x")

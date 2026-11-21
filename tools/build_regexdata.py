@@ -29,8 +29,8 @@ GEAR_TAGS = {"ring": "Ring", "amulet": "Amulet", "belt": "Belt", "gloves": "Glov
              **{t: "Armour" for t in ("armour", "str_armour", "dex_armour", "int_armour", "str_dex_armour",
                                       "str_int_armour", "dex_int_armour", "str_dex_int_armour")}}
 MULTI = {"jewel": (("misc", "desecrated"), JEWEL_TAGS), "gear": (("item", "desecrated"), GEAR_TAGS)}
-# 2.135.1 (feedback: "regex needs the breach tree mods added to it, genesis tree prefix/suffix and otherworldly, also
-# all of the alloy/thruds might+similar items mods"): gear mods that never roll on their own, so their spawn weights
+# 2.135.1 (feedback: regex needs the breach tree mods, the genesis tree prefix / suffix and otherworldly mods,
+# and the alloy / thrud-type item mods): gear mods that never roll on their own, so their spawn weights
 # don't say where they go. Each gets its slot(s) and a source word (shown in the list's Where column, and searchable):
 #   - Genesis Tree (Breach): "GenesisTree..." - Otherworldly rings / amulets / belts; the slot is the one of the three
 #     its weights don't name with 0

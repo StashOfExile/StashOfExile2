@@ -23,13 +23,12 @@ PACE = {
     # cap300: most searches (and most fetches) we allow ourselves per 5 minutes - real 429s came at 10-15 even though
     #         the site reports 30, so this is deliberately lower. Every penalty lowers it by 1 (never below 3).
     #         2.105.0: 15 - half the site's 30 (the trade site in your browser counts against the same limit).
-    # learn_cap: only learn mods in the background while usage is below this
     # 2.119.0 (UX pass): one fixed pace (was Fast / Balanced / Gentle in Settings) - this is the old Balanced
     # 2.123.1 (feedback: penalties at 9-15 searches per 5 min): the site also has a rule it doesn't report (a 429
     #   with Retry-After 600 and no X-Rate-Limit headers, at 15, then 14 and 9 per 5 min after a first penalty).
     #   cap300 12 by default; after such a 429 the app learns a lower cap (what it had sent, minus 3) for a day, and
     #   for 30 minutes after any penalty it allows at most 5 per 5 minutes.
-    "margin": 0.15, "gap": 4.0, "cap300": 12, "learn_cap": 0.40,
+    "margin": 0.15, "gap": 4.0, "cap300": 12,
 }
 COOLDOWN_CAP300 = 5                 # most searches / fetches per 5 minutes while cooling down after a penalty
 
@@ -262,11 +261,6 @@ class Limiter:
     def usage_ratio(self, cls="search"):
         return max((h / mx for h, mx, _ in self.usage(cls)), default=0)
 
-    def learn_ok(self):
-        cap = PACE["learn_cap"]
-        return bool(SETTINGS["learn"] and cap is not None and time.time() >= self.cooldown_until
-                    and self.usage_ratio("search") < cap)
-
     def state(self):
         now = time.time()
         with self.lock:
@@ -288,45 +282,50 @@ def STATUS(s):
     _STATUS_HOOK[0](s)
 
 
+class RateLimited(RuntimeError):
+    """3.0.7 (GGG policy): the trade site said 429. The request is NOT tried again by the app - the person presses
+    Search again after the wait."""
+
+
 def call(method, url, **kw):
     cls = LIMITER.cls_of(method, url)
-    for _ in range(6):
-        LIMITER.acquire(cls)
+    # (one try: a 429 stops here, never an automatic retry)
+    LIMITER.acquire(cls)
+    r = requests.request(method, url, headers=HEADERS, timeout=25, allow_redirects=False, **kw)
+    hops = 0
+    while r.status_code in (301, 302, 303, 307, 308) and r.headers.get("Location") and hops < 3:
+        hops += 1                                   # follow redirects ourselves, KEEPING the method (POST must stay POST)
+        url = requests.compat.urljoin(url, r.headers["Location"])
         r = requests.request(method, url, headers=HEADERS, timeout=25, allow_redirects=False, **kw)
-        hops = 0
-        while r.status_code in (301, 302, 303, 307, 308) and r.headers.get("Location") and hops < 3:
-            hops += 1                                   # follow redirects ourselves, KEEPING the method (POST must stay POST)
-            url = requests.compat.urljoin(url, r.headers["Location"])
-            r = requests.request(method, url, headers=HEADERS, timeout=25, allow_redirects=False, **kw)
-        LIMITER.update(cls, r.headers)
-        try:                                            # 2.116.0: Debug mode - every request, its answer and time
-            from . import buglog
-            buglog.STATS["requests"] += 1
-            ms = int(r.elapsed.total_seconds() * 1000) if getattr(r, "elapsed", None) else 0
-            if ms > 3000:
-                buglog.STATS["slow_requests"] += 1
-            if buglog.debug_on():
-                buglog.debug(f"{method} {cls}", f"{r.status_code} in {ms} ms  {requests.compat.urlparse(url).path}")
+    LIMITER.update(cls, r.headers)
+    try:                                            # 2.116.0: Debug mode - every request, its answer and time
+        from . import buglog
+        buglog.STATS["requests"] += 1
+        ms = int(r.elapsed.total_seconds() * 1000) if getattr(r, "elapsed", None) else 0
+        if ms > 3000:
+            buglog.STATS["slow_requests"] += 1
+        if buglog.debug_on():
+            buglog.debug(f"{method} {cls}", f"{r.status_code} in {ms} ms  {requests.compat.urlparse(url).path}")
+    except Exception:
+        buglog.caught()
+    if r.status_code == 429:
+        try:
+            retry = int(r.headers.get("Retry-After", "60"))
+        except ValueError:
+            retry = 60
+        LIMITER.log_429(cls, url, r.headers, retry, r.text)
+        LIMITER.penalized(retry, cls, hidden=not any(k.lower().endswith("-state") for k in r.headers))
+        msg = f"The trade site asked us to slow down - try again in {retry} s"
+        STATUS(msg)
+        raise RateLimited(msg)
+    if r.status_code >= 400:
+        note = f"{r.status_code} for {method} {url}  | server said: {r.text[:200].strip()!r}"
+        try:
+            from . import buglog                                     # 2.115.0: the one log
+            keep = {k: v for k, v in r.headers.items()          # 2.89.2: only the rate-limit ones - never
+                    if k.lower().startswith("x-rate-limit") or k.lower() == "retry-after"}   # cookies
+            buglog.record("net", f"HTTP {r.status_code}", detail=note + f"  | headers: {keep}")
         except Exception:
             buglog.caught()
-        if r.status_code == 429:
-            try:
-                retry = int(r.headers.get("Retry-After", "60"))
-            except ValueError:
-                retry = 60
-            LIMITER.log_429(cls, url, r.headers, retry, r.text)
-            LIMITER.penalized(retry, cls, hidden=not any(k.lower().endswith("-state") for k in r.headers))
-            STATUS(f"The trade site rate-limited {cls} requests (wait {retry}s) - pausing")
-            continue
-        if r.status_code >= 400:
-            note = f"{r.status_code} for {method} {url}  | server said: {r.text[:200].strip()!r}"
-            try:
-                from . import buglog                                     # 2.115.0: the one log
-                keep = {k: v for k, v in r.headers.items()          # 2.89.2: only the rate-limit ones - never
-                        if k.lower().startswith("x-rate-limit") or k.lower() == "retry-after"}   # cookies
-                buglog.record("net", f"HTTP {r.status_code}", detail=note + f"  | headers: {keep}")
-            except Exception:
-                buglog.caught()
-            raise RuntimeError(note)
-        return r.json()
-    raise RuntimeError("Still rate limited - try again later.")
+        raise RuntimeError(note)
+    return r.json()

@@ -1,7 +1,7 @@
-"""2.132.0 Map profit (feedback: "use the same data from wealth stash scan to read inventory for currency/omens/etc
-and track the profit per map ... using the same mechanism as top-up reminders"; "should only be locally, never
-published or sent to the cloudflare database"; "would not count waystones, only currency exchange items"; "track
-per session/map/hour/day and log somewhere locally that only the user can see").
+"""2.132.0 Map profit (feedback: read the inventory for currency and omens with the same data as Scan stash on
+Wealth, track the profit
+per map with the same mechanism as Top Up Reminders; keep it local, never published or sent to the database; count
+currency exchange items, not waystones; track per session, map, hour and day in a local log only the user sees).
 
 How: Top Up's quick inventory read (the inventory panel only, never the stash side) is taken in your hideout or a
 town, only when you press your Read Key there. Owner decision: back from a map, one card (topup_page.back_card) asks
@@ -10,8 +10,14 @@ entry. The last clear read at home before a map is "before"; the first clear rea
 map's loot. Each cell is named by its picture - the ones you taught with Ctrl+C (Top Up) or the ones Scan stash
 learned - and only items with a Currency Exchange price (poe.ninja's exchange: currency, omens, runes, ...) count;
 waystones and gear never do. Prices: Exchange Rates (poe.ninja, in divines).
+3.0.6 (every item poe.ninja's exchange lists, nothing taught): after those, Scan stash's wildcard pictures and
+poe.ninja's own pictures (from the art cache; Map Profit's page downloads what's missing once, like Exchange Rates
+does) - each only when sure. 3.1 (GGG ToS 7a: no game art ships): poe.ninja's pictures are drawn the way the game
+draws a cell (gameart.Looks) - on the owner's 18 inventory screenshots every stackable was named right, gear never. A cell with no stack number is still tried as a
+lineage or uncut gem (an uncut gem by its white roman level); anything else without one is skipped.
 
 Privacy: map_profit.jsonl in your data folder, on your PC only - never uploaded, shared or sent to the board."""
+import re
 import json
 import os
 import time
@@ -35,34 +41,541 @@ def cfg():
 
 
 # ---------------------------------------------------------------- naming what the inventory holds
-def fv_match(cell, refs):
+GEM_TYPES = ("LineageSupportGems", "UncutGems")
+GEM_MIN, GEM_BY = 0.75, 0.10        # 3.0.6: a cell with no stack number (a lineage or uncut gem - or gear): the gem
+#                                     this sure and this far ahead of the next gem (Uhtred's Constellation 0.78 by
+#                                     0.11 on the owner's inventory; gear and other gems' cells under 0.63)
+STASH_MIN, STASH_BY = 0.80, 0.10    # 3.0.6: Scan stash's wildcard pictures (stashread: 0.75 / 0.05 among one tab's
+#                                     slots) - stricter here, with every exchange item to choose from
+EXCH_TINT_MAX = 25.0                # 3.0.6: an exchange icon's tint this far from the cell's: not that item (with
+#                                     nothing learned, on the owner's inventory: right items 6.8-20.7, a white
+#                                     Perfect Essence named the red one 32.5, an Omen named another 54.5)
+LEVEL = re.compile(r"^(.*) \(Level (\d+)\)$")
+
+
+def gem_names(parts):
+    """poe.ninja's exchange answers -> the names of its gems (lineage support gems, uncut gems) - the names every
+    type lists (Divine, Exalted, Chaos Orb) left out."""
+    gems, other = set(), set()
+    for typ, p in (parts or {}).items():
+        names = set(((p or {}).get("names") or {}).values())
+        (gems if typ in GEM_TYPES else other).update(names)
+    return gems - other
+
+
+LOOSE_TYPES = ("Fragments",)
+LOOSE_NAMES = ("Expedition Logbook",)
+LOOSE_MIN = 0.72                    # 3.0.6: fragments that don't stack show no number (crisis fragments 0.74-0.77, the
+#                                     next item 0.63 or less on the owner's inventory; gear corners under 0.65)
+
+
+def loose_names(parts):
+    """3.0.6: exchange items that may show no stack number - fragments (Crisis Fragments), Expedition Logbooks."""
+    out = set(LOOSE_NAMES)
+    for typ, p in (parts or {}).items():
+        if typ in LOOSE_TYPES:
+            out.update(((p or {}).get("names") or {}).values())
+    return out
+
+
+def build_refs(parts, pic=None):
+    """3.0.6: the pictures Map Profit names cells with, best trusted first: pictures learned on this PC (Top Up,
+    Scan stash's slots), Scan stash's wildcard pictures you named (refs.stash), and poe.ninja's pictures from the art
+    cache - drawn as the game draws a cell (refs.looks, 3.1) and cropped to the art (refs.art, the last fallback).
+    Nothing is downloaded here. pic: url -> a file or pixels (tests)."""
+    from . import favours as FV
+    items = FV.ninja_items(parts)
+    refs = FV.build_refs(items, exchange=True, pic=pic)
+    known = {n for n, _p in items.values()}
+    refs.gems = gem_names(parts)
+    refs.loose = loose_names(parts)
+    try:
+        from . import stashread as SR
+        refs.stash = {n: ic for n, ic in SR.learned_icons().items() if n in known}
+    except Exception:
+        buglog.caught()
+    try:
+        refs.art = FV.art_refs(items, pic=pic)
+    except Exception:
+        buglog.caught()
+    return refs
+
+
+def look_match(bgr, refs, only=None, plain=None):
+    """3.1: a whole cell (BGR) -> the item poe.ninja's picture of it says (favours.look_name: sure, or far better
+    colored than a look-alike), its level or grade read from the cell (one picture, many names) - or None. plain:
+    the same cell with its level letters painted over (what's compared; the letters are read from bgr)."""
+    from . import favours as FV
+    key = FV.look_name(bgr if plain is None else plain, refs, only)
+    if key is None:
+        return None
+    names = refs.looks.names.get(key) or [key]
+    name = _resolve(key, names, bgr)
+    if name is None:
+        return None
+    known = {n for v in refs.looks.names.values() for n in v}
+    return grade([name], tier_letters(bgr, white=True), known)[0]
+
+
+def look_alike(bgr, refs):
+    """3.1: the items poe.ninja's pictures can't tell apart for this cell (each sure, within gameart.BY of the top:
+    two Perfect Essences in one white) -> [names], or [] - shown as "can't tell apart", never a guess."""
+    from . import gameart as GA
+    lk = getattr(refs, "looks", None)
+    if lk is None or not len(lk):
+        return []
+    got = lk.rank(bgr, 3)
+    if len(got) < 2 or got[0][0] < GA.MIN:
+        return []
+    return [k for sc, k in got if sc >= got[0][0] - GA.BY and sc >= GA.MIN]
+
+
+def _base(name):
+    m = LEVEL.match(str(name))
+    return m.group(1) if m else name
+
+
+def _collapsed(got):
+    """refs.ranked(..., refs=True) -> the same, an item's levels as one ("Uncut Support Gem (Level 3)" and
+    "(Level 4)" are one picture): [(score, base name, kind, cell feats, picture feats)], best first."""
+    out, seen = [], set()
+    for sc, name, src, cf, rf in got:
+        b = _base(name)
+        if b not in seen:
+            seen.add(b)
+            out.append((sc, b, src, cf, rf))
+    return out
+
+
+def _other_close(refs, f, names, top=None):
+    """3.0.6: a learned or shipped picture of another item scores close (MAYBE_MIN, or within MATCH_BY of the
+    top), or another item's exchange icon is sure (MATCH_SURE) - then a fallback names nothing."""
+    from . import favours as FV
+    bases = {_base(n) for n in names}
+    for sc, name, src in refs.ranked(f, 8):
+        if name in names or _base(name) in bases:
+            continue
+        if src in ("learned", "shipped", "icon") and sc >= min(FV.MAYBE_MIN, (top if top is not None else 1.0)
+                                                              - FV.MATCH_BY):
+            return True
+        if src == "exchange" and sc >= FV.MATCH_SURE:
+            return True
+    return False
+
+
+def _by_level(base, names, bgr):
+    """One picture, many levels (uncut gems, Thaumaturgic Flux): the white roman level at the cell's bottom right
+    picks one ("V" -> "Uncut Support Gem (Level 5)") - None when it isn't read or isn't one of them."""
+    lv = roman(tier_letters(bgr, white=True))
+    want = f"{base} (Level {lv})" if lv else None
+    return want if want in names else None
+
+
+def _resolve(key, names, bgr):
+    """An entry (one picture) -> the item's name: itself, its level, or (grades) the plain orb - grade() moves it
+    to Greater / Perfect by its II / III. None when the level isn't read."""
+    names = list(names or [key])
+    if len(names) == 1:
+        return names[0]
+    if all(LEVEL.match(n) for n in names):
+        return _by_level(key, names, bgr)
+    return key if key in names else None
+
+
+def stash_match(bgr, f, refs, veto=True):
+    """3.0.6 (owner: reuse what Scan stash knows): a cell (BGR, a whole cell) -> the item one of Scan stash's
+    wildcard pictures (stashread.learned_icons: shipped ones and the ones you named) says it is, or None. Its own
+    picture match (the cell's lower part slid over the slot's), STASH_MIN and STASH_BY ahead; never when another
+    item's learned or shipped picture is close (veto=False: what the picture alone says)."""
+    icons = getattr(refs, "stash", None) or {}
+    if not icons:
+        return None
+    import cv2
+    from . import stashread as SR
+    cell = cv2.resize(bgr, (70, 70), interpolation=cv2.INTER_AREA)
+    ic = SR._icon(cell, (0, 0, 70, 70))
+    if ic is None:
+        return None
+    got = sorted(((float(cv2.matchTemplate(ic, v[3:-3, 4:-4], cv2.TM_CCOEFF_NORMED).max()), n)
+                  for n, v in icons.items() if v is not None), reverse=True)
+    if not got:
+        return None
+    top, name = got[0]
+    nxt = got[1][0] if len(got) > 1 else 0.0
+    if top < STASH_MIN or top - nxt < STASH_BY or (veto and _other_close(refs, f, {name})):
+        return None
+    return name
+
+
+def art_disagrees(f, refs, name):
+    """3.0.6 (on the owner's inventory with nothing learned, an Omen of Putrefaction was named Omen of Light by
+    its exchange icon - 0.68, alone ahead): poe.ninja's art of the item an exchange icon named scores ART_BY or
+    more under another item's art -> True (not known). The right items' own art was the top every time; the wrong
+    one 0.26 under. No art cached for it: False."""
+    from . import favours as FV
+    art = getattr(refs, "art", None)
+    if art is None or not art.items:
+        return False
+    got = art.ranked(f, len(art.items))
+    own = [sc for sc, key, _s in got if name in art.groups.get(key, [key]) or key == name]
+    if not got or not own:
+        return False
+    return got[0][0] - own[0] >= FV.ART_BY
+
+
+def art_match(bgr, f, refs, only=None):
+    """3.0.6 (owner: every item poe.ninja's exchange lists, nothing taught): the last fallback - poe.ninja's art
+    from the art cache (refs.art), compared like the exchange icons (cropped to the art). Only when it's sure
+    (ART_MIN, or ART_SOFT with an ART_LEAD lead), far ahead of the next picture (ART_BY), its colors aren't beaten (hue_veto) and no learned or
+    shipped picture of another item is close. only: the names it may give (the gems, for a cell with no stack
+    number). -> name or None."""
+    from . import favours as FV
+    art = getattr(refs, "art", None)
+    if art is None or not art.items:
+        return None
+    if only is not None:
+        view = FV.Refs()
+        view.items = {k: v for k, v in art.items.items() if any(n in only for n in art.groups.get(k, [k]))}
+    else:
+        view = art
+    got = view.ranked(f, 2)
+    if not got:
+        return None
+    top, key = got[0][0], got[0][1]
+    nxt = got[1][0] if len(got) > 1 else -1.0
+    if top < FV.ART_MIN and not (top >= FV.ART_SOFT and top - nxt >= FV.ART_LEAD):
+        return None
+    if top - nxt < FV.ART_BY or view.hue_veto(f, top):
+        return None
+    names = art.groups.get(key, [key])
+    if _other_close(refs, f, set(names), top):
+        return None
+    return _resolve(key, names, bgr)
+
+
+def unlettered(bgr):
+    """A cell (BGR) with its white level letters (bottom right) painted over from around them - the gem's
+    pictures have none, and the letters change what the art looks like."""
+    import cv2
+    import numpy as np
+    h, w = bgr.shape[:2]
+    b, g, r = (bgr[..., i].astype(int) for i in range(3))
+    lo = np.minimum(np.minimum(r, g), b)
+    m = ((lo > 165) & (np.maximum(np.maximum(r, g), b) - lo < 50)).astype(np.uint8)
+    m[:int(h * 0.55)] = 0
+    m[:, :int(w * 0.6)] = 0
+    if not m.any():
+        return bgr
+    m = cv2.dilate(m, np.ones((3, 3), np.uint8))
+    return cv2.inpaint(np.ascontiguousarray(bgr), m * 255, 3, cv2.INPAINT_TELEA)
+
+
+def gem_match(cell, refs, pool=None, least=None):
+    """3.0.6 (a lineage support gem was missed): a cell with no stack number (PIL) -> the lineage or uncut gem it
+    is, or None (gear, a jewel, an item poe.ninja doesn't list). Only gems' pictures compete: GEM_MIN and GEM_BY
+    ahead of the next gem, the colors not beaten, no other item's learned or shipped picture close; an uncut gem by
+    its level (the white roman number). Then poe.ninja's art (art_match), gems only."""
+    gems = pool if pool is not None else (getattr(refs, "gems", None) or set())
+    least = GEM_MIN if least is None else least
+    if not gems or cell is None or not hasattr(cell, "convert"):
+        return None
+    try:
+        import numpy as np
+        from . import favours as FV
+        bgr = np.asarray(cell.convert("RGB"))[:, :, ::-1].copy()
+        lk = getattr(refs, "looks", None)
+        if lk is not None and len(lk):                    # 3.1: poe.ninja's pictures first, gems only
+            keys = {k for k, ns in lk.names.items() if any(n in gems for n in ns)}
+            plain = unlettered(bgr) if roman(tier_letters(bgr, white=True)) else None
+            hit = look_match(bgr, refs, only=keys, plain=plain) if keys else None
+            if hit:
+                return hit
+        f = {"box": _box_feats(unlettered(bgr) if roman(tier_letters(bgr, white=True)) else bgr)}
+        view = FV.Refs()
+        view.items = {n: v for n, v in refs.items.items() if n in gems}
+        got = _collapsed(view.ranked(f, len(view.items), refs=True)) if view.items else []
+        if got and got[0][0] >= least and got[0][0] - (got[1][0] if len(got) > 1 else -1.0) >= GEM_BY \
+                and not view.hue_veto(f, got[0][0]):
+            key = got[0][1]
+            names = [n for n in view.items if _base(n) == key]
+            if not _other_close(refs, f, set(names), got[0][0]):
+                name = _resolve(key, names, bgr)
+                if name:
+                    return name
+        return art_match(bgr, f, refs, only=gems)
+    except Exception:
+        buglog.caught()
+        return None
+
+
+def fv_match(cell, refs, alike=False):
     """A Top Up cell (PIL) -> the exchange item Scan stash learned it to be, or None (the Favours pictures, cut to
-    the item's art so a stash slot and an inventory cell line up)."""
+    the item's art so a stash slot and an inventory cell line up). alike=True: [names] - the one item, or the
+    look-alikes it could be (Refs.alike), [] for none. 3.0.6: trust in this order - learned and shipped pictures,
+    Scan stash's wildcard pictures (stash_match), the exchange icons, poe.ninja's art (art_match); when Scan
+    stash's picture says another item than an exchange icon, it's not known (never a guess)."""
     try:
         import numpy as np
         from . import favours as FV
         bgr = np.asarray(cell.convert("RGB"))[:, :, ::-1].copy()
         h, w = bgr.shape[:2]
         e = max(1, int(round(FV.EDGE * w / FV.CELL)))
-        name, _score, _margin = refs.best({"box": FV.feats(FV.art_box(bgr[e:h - e, e:w - e]))})
+        f = {"box": FV.feats(FV.art_box(bgr[e:h - e, e:w - e]))}
+        name, _score, _margin = refs.best(f)
+        clash = False
+        if name:
+            top = refs.ranked(f, 1, refs=True)
+            if top and top[0][2] == "exchange":
+                st = stash_match(bgr, f, refs, veto=False) if getattr(refs, "stash", None) else None
+                gap = FV.tint_gap(top[0][3], top[0][4])
+                if (st and st != name) or art_disagrees(f, refs, name) or (gap is not None and gap > EXCH_TINT_MAX):
+                    name, clash = None, True
+        else:
+            name = stash_match(bgr, f, refs)
+        if not name and not clash:
+            name = look_match(bgr, refs)                  # 3.1: poe.ninja's picture, drawn as the game does
+        names = [name] if name else ([] if not alike or clash else (refs.alike(f) or look_alike(bgr, refs)))
+        if not name and not clash and len(names) != 1:
+            hit = by_color(f, refs)
+            if hit:
+                names = [hit]
+        if not names and not clash:
+            hit = art_match(bgr, f, refs)
+            if hit:
+                names = [hit]
+        if names:
+            names = grade(names, tier_letters(bgr, white=True), refs.items)
+        if not alike:
+            return names[0] if names else None
+        return names
+    except Exception:
+        buglog.caught()
+        return [] if alike else None
+
+
+WAYSTONE_MIN = 0.70        # 3.1: the trade site's T15 waystone picture drawn as a cell (gameart.Looks): the owner's
+#                            66 waystone cells 0.83 - 0.99, every other cell with no stack number under 0.41
+_WAY = {}
+
+
+def _waystone_ref(pic=None):
+    """Looks of the trade site's waystone picture (pricecheck_page.WAYSTONE_ICON, from the art cache), or None when
+    it isn't downloaded yet (then the red tier letters alone say it's a waystone)."""
+    from . import gameart as GA
+    try:
+        from .pricecheck_page import WAYSTONE_ICON
+        src = pic(WAYSTONE_ICON) if pic else GA.cache_file(WAYSTONE_ICON)
+    except Exception:
+        buglog.caught()
+        return None
+    if src is None:
+        return None
+    key = src if isinstance(src, str) else id(src)
+    if key not in _WAY:
+        lk = GA.Looks()
+        lk.add("Waystone", GA.drawn(src))
+        _WAY.clear()
+        _WAY[key] = lk if len(lk) else None
+    return _WAY[key]
+
+
+def _box_feats(bgr):
+    from . import favours as FV
+    h, w = bgr.shape[:2]
+    e = max(1, int(round(FV.EDGE * w / FV.CELL)))
+    return FV.feats(FV.art_box(bgr[e:h - e, e:w - e]))
+
+
+def roman(letters):
+    """'XV' -> 15, None when it isn't a roman number."""
+    vals = {"I": 1, "V": 5, "X": 10}
+    if not letters or any(ch not in vals for ch in letters):
+        return None
+    n = 0
+    for i, ch in enumerate(letters):
+        v = vals[ch]
+        n += -v if i + 1 < len(letters) and vals[letters[i + 1]] > v else v
+    return n if 1 <= n <= 30 else None
+
+
+def family(name):
+    """'Perfect Essence of Flames' -> 'Perfect Essence of' (the same crystal in another color), or None."""
+    m = re.match(r"^((?:Lesser |Greater |Perfect )?Essence of)\b", str(name))
+    return m.group(1) if m else None
+
+
+FAMILY_TINT, FAMILY_HUE, FAMILY_BY = 10.0, 0.70, 0.15     # 3.0.6: a red Perfect Essence: the Body 7.6 / 0.82, the
+#                                                            next 18.4 / 0.63 (two white ones stay not known)
+
+
+def by_color(f, refs):
+    """3.0.6 (an essence wasn't counted: its learned look-alikes are other colors): when the closest pictures are
+    all one family (an essence tier), the member whose colors match far better than the rest - any picture of
+    it, the exchange icon too. -> name or None."""
+    from . import favours as FV
+    got = refs.ranked(f, 12, refs=True)
+    if not got or got[0][0] < FV.MATCH_SURE:
+        return None
+    fam = family(got[0][1])
+    if not fam:
+        return None
+    best = {}
+    for sc, name, _src, cf, rf in refs.ranked(f, len(refs.items), refs=True):
+        if family(name) != fam:
+            continue
+        t, h = FV.tint_gap(cf, rf), FV.hue_sim(cf, rf)
+        if t is None or h is None:
+            continue
+        if name not in best or (t, -h) < (best[name][0], -best[name][1]):
+            best[name] = (t, h)
+    order = sorted(best.items(), key=lambda kv: kv[1][0])
+    if not order:
+        return None
+    name, (t, h) = order[0]
+    nxt = order[1][1] if len(order) > 1 else (99.0, 0.0)
+    if t <= FAMILY_TINT and h >= FAMILY_HUE and h - max(v[1] for k, v in best.items() if k != name or len(best) == 1) \
+            >= (FAMILY_BY if len(best) > 1 else 0) and nxt[0] - t >= 8.0:
         return name
+    return None
+
+
+def tier_letters(bgr, white=False):
+    """A waystone cell (BGR) -> its red tier letters ('XV'), or '' - the red roman number at its bottom right. Each
+    letter by shape: I is thin; V narrows to a point at its foot; X is as wide at its foot as at its top."""
+    import cv2
+    import numpy as np
+    h, w = bgr.shape[:2]
+    b, g, r = (bgr[..., i].astype(int) for i in range(3))
+    if white:                                     # (Greater / Perfect currency: a white II / III)
+        lo = np.minimum(np.minimum(r, g), b)
+        m = ((lo > 165) & (np.maximum(np.maximum(r, g), b) - lo < 50)).astype(np.uint8)
+    else:
+        m = ((r > 150) & (g < 90) & (b < 90)).astype(np.uint8)
+    m[:int(h * 0.55)] = 0
+    m[:, :int(w * (0.3 if white else 0.45))] = 0         # (3.0.6: an uncut gem's XVIII starts at 0.37)
+    n, lab, st, _c = cv2.connectedComponentsWithStats(m, 8)
+    out = []
+    keep = [i for i in range(1, n) if 0.12 * w <= st[i][3] <= 0.30 * w and st[i][4] >= 6]
+    if white:                                     # (3.0.6: only the run of letters at the right edge, on one line -
+        keep.sort(key=lambda k: -st[k][0])        # a gem's art has white highlights too)
+        run = []
+        for i in keep:
+            x, y, bw, bh = (int(v) for v in st[i][:4])
+            if not run:
+                if x + bw < 0.85 * w:
+                    break
+                run.append(i)
+                continue
+            if abs((y + bh) - int(st[run[0]][1] + st[run[0]][3])) > 0.05 * w:
+                continue                          # (a highlight above the line)
+            if int(st[run[-1]][0]) - (x + bw) <= 0.09 * w:
+                run.append(i)
+            else:
+                break
+        keep = run
+    for i in sorted(keep, key=lambda k: st[k][0]):
+        x, y, bw, bh, area = (int(v) for v in st[i])
+        if bw < 0.45 * bh:
+            out.append("I")
+            continue
+        g_ = lab[y:y + bh, x:x + bw] == i
+        q = max(1, bh // 4)
+        top = np.ptp(np.where(g_[:q].any(0))[0]) + 1 if g_[:q].any() else 0
+        foot = np.ptp(np.where(g_[-q:].any(0))[0]) + 1 if g_[-q:].any() else 0
+        out.append("V" if foot < 0.6 * top else "X")
+    return "".join(out)
+
+
+GRADES = {"II": "Greater ", "III": "Perfect "}
+
+
+def grade(names, letters, known):
+    """3.0.6 (a Greater Exalted Orb was not read): the white II / III on a currency picture says
+    Greater / Perfect - the same orb otherwise. -> names with that grade (the matched one moved to it when known),
+    or as they were."""
+    def base(n):
+        for g in GRADES.values():
+            if n.startswith(g):
+                return n[len(g):]
+        return n
+    want = GRADES.get(letters)
+    if want is None:                                      # (no mark read: as matched - a missed mark never
+        return names                                      # demotes a Greater one)
+    same = [n for n in names if n.startswith(want)]
+    if same:                                              # (a III: only the Perfect ones it looked like)
+        return same
+    out = []
+    for n in names:
+        cand = want + base(n)
+        out.append(cand if cand in known else n)
+    return list(dict.fromkeys(out))
+
+
+def waystone_tier(cell, pic=None):
+    """3.0.6 (show waystones by tier without a price, to show they were read): a cell
+    (PIL) -> its tier (0 = a waystone, tier not read) or None (not a waystone). 3.1: by the trade site's waystone
+    picture once it's downloaded; until then a cell with red roman tier letters (no other item has them)."""
+    try:
+        import numpy as np
+        bgr = np.asarray(cell.convert("RGB"))[:, :, ::-1].copy()
+        tier = roman(tier_letters(bgr))
+        ref = _waystone_ref(pic)
+        if ref is None:
+            return tier
+        got = ref.rank(bgr, 1)
+        if not got or got[0][0] < WAYSTONE_MIN:
+            return None
+        return tier or 0
     except Exception:
         buglog.caught()
         return None
 
 
-def identify(cells, taught, refs=None):
-    """Top Up's cells -> ({name: count}, how many cells it couldn't name). Taught pictures first, then Scan stash's."""
+def waystone_name(tier):
+    return f"Waystone (Tier {tier})" if tier else "Waystone"
+
+
+def is_waystone(name):
+    return str(name).startswith("Waystone")
+
+
+def identify(cells, taught, refs=None, price=None, info=None):
+    """Top Up's cells -> ({name: count}, how many cells it couldn't name). Taught pictures first, then Scan stash's.
+
+    3.0.6 (things already learned for Scan stash were missing): a cell with no stack number (gear, a jewel,
+    a waystone) is never currency - skipped, not "not known" (a sword's corner was counted as an Idol). Look-alikes
+    it can't tell apart (two Perfect Essences in one white) are not known - never a guess. price: unused (kept for
+    callers). info: a dict that gets "skipped" (no stack number) and "alike" {key: [the look-alikes]}."""
     from . import topup as TU
-    out, unknown = {}, 0
+    out, unknown, skipped, alike, unknown_cells = {}, 0, 0, {}, []
     for c in cells or []:
         name = TU.which(c["sig"], taught) if taught else None
+        if name is None and c.get("shown") is False:
+            t = waystone_tier(c["img"]) if c.get("img") is not None else None
+            if t is None:
+                gem = gem_match(c.get("img"), refs) if refs is not None else None     # 3.0.6: lineage / uncut
+                if gem is None and refs is not None and getattr(refs, "loose", None):  # gems, crisis fragments,
+                    gem = gem_match(c.get("img"), refs, pool=refs.loose, least=LOOSE_MIN)   # logbooks: no number
+                if gem is None:
+                    skipped += 1
+                    continue
+                out[gem] = out.get(gem, 0) + 1
+                continue
+            name = waystone_name(t)
         if name is None and refs is not None and c.get("img") is not None:
-            name = fv_match(c["img"], refs)
+            names = fv_match(c["img"], refs, alike=True)
+            if len(names) > 1:                            # (owner: never a guess - two it can't tell apart are
+                alike["/".join(names[:3])] = names        # "not known", and the log says which)
+            elif names:
+                name = names[0]
         if name is None:
             unknown += 1
+            if c.get("img") is not None:
+                unknown_cells.append((c["img"], c.get("count")))
             continue
         out[name] = out.get(name, 0) + (c["count"] if c.get("count") is not None else 1)
+    if info is not None:
+        info.update(skipped=skipped, alike=alike, unknown_cells=unknown_cells)
     return out, unknown
 
 
@@ -74,7 +587,7 @@ def exchange_only(counts, price):
 # ---------------------------------------------------------------- one map
 def rows(before, after, price):
     """-> [(name, before, after, divines each, worth)] for what a map gained, most worth first. 2.132.2 (feedback:
-    "why is it marking as -div if I didn't actually lose anything"): fewer of an item is never counted - it was used,
+    nothing lost was marked as -div): fewer of an item is never counted - it was used,
     stashed or covered, not lost to the map."""
     out = []
     for name in set(before) | set(after):
@@ -170,7 +683,7 @@ def log_restore(lines):
 
 
 def buckets(runs, kind, now=None):
-    """2.132.6 (feedback: "a log by date ... with graphs and bars ... All Time, Daily, Hourly"): maps -> [(label,
+    """2.132.6 (feedback: a log by date with graphs and bars - All Time, Daily, Hourly): maps -> [(label,
     start time, maps, div, secs)], oldest first. kind: "day" (each day with maps) or "hour" (the last 48 hours, each
     hour)."""
     now = now or time.time()

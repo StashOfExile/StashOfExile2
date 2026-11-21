@@ -1,7 +1,7 @@
-"""2.128.0 Favours prices in the app (the Ritual helper's option): the read on a Read Key press (GGG policy, Nov 2026 -
+"""2.128.0 Favours prices in the app (what the Ritual helper does): the read on a Read Key press (GGG policy, Nov 2026 -
 it was a watcher thread), the price tags over the game, and learning a reward's picture when you price check it. The
 reading itself is in favours.py. (The tribute reminder needed the window watched until it closed: it's gone.)
-Switch: Overlay › Helpers › Ritual › Favours prices (on with the Ritual helper)."""
+Switch: Overlay › Helpers › Ritual (3.0.6: Favours prices is not a switch of its own - the helper on is it on)."""
 import os
 import threading
 import time
@@ -10,7 +10,8 @@ from tkinter import font as tkfont
 
 from . import buglog
 from . import favours as FV
-from .config import P, SETTINGS, save_json
+from . import mapprofit as MP
+from .config import P
 from .pricefmt import fmt_short
 
 LEARN_SECS = 120               # a price check this soon after the last read teaches a reward's picture
@@ -32,20 +33,13 @@ def fv_log(line):
 
 class FavoursPage:
     def favours_on(self):
-        c = self.ritual_cfg()
         from . import features as FEAT
-        return bool(c.get("on") and c.setdefault("favours", True) and FEAT.on("overlay"))
-
-    def favours_changed(self, on):
-        self.ritual_cfg()["favours"] = bool(on)
-        save_json("settings.json", SETTINGS)
-        if not on:
-            self.favours_hide()
+        return bool(self.ritual_cfg().get("on") and FEAT.on("overlay"))
 
     # ---------------------------------------------------------------- the pictures to compare with
     def favours_refs(self, fetch=False):
-        """Build them (a background thread): the Ritual tab's omens that ship with the app, and the pictures learned
-        on this PC - poe.ninja's exchange items only."""
+        """Build them (a background thread): the pictures learned on this PC and poe.ninja's pictures in the art cache
+        (3.1: none ship with the app) - poe.ninja's exchange items only, and the ★ uniques."""
         from .wealth import WPRICES
         items = FV.ninja_items(getattr(WPRICES, "parts", None))
         self.fv_refs = FV.build_refs(items)
@@ -64,19 +58,23 @@ class FavoursPage:
         except Exception:
             ready = False
         if not ready:                                     # (no window title to look for: nothing to read - decided
-            fv_log("favours_title.png is missing from the app")    # before any picture)
+            fv_log("the Favours title isn't learned yet and no text reader (OCR) can find it")    # before any picture)
             return None
+        try:
+            self.mp_art_fetch()                           # (3.1: poe.ninja's pictures into the art cache, once)
+        except Exception:
+            buglog.caught()
         from . import screenread as SR
         g = ctx["g"]
         gx, gy, gw, gh = g
-        w, h = int(gw * GRAB[0]), int(gh * GRAB[1])
+        w, h = min(gw, int(GRAB[0] * gh * 16 / 9)), int(gh * GRAB[1])   # 3.0.6: left-anchored - ultrawide too
 
         def work():
             import cv2
             import numpy as np
             tpl = FV.title_template()
             if tpl is None:
-                fv_log("favours_title.png is missing from the app")
+                fv_log("the Favours title isn't learned yet and no text reader (OCR) can find it")
                 return None
             if getattr(self, "fv_refs", None) is None:
                 try:
@@ -93,12 +91,18 @@ class FavoursPage:
             grid = FV.grid_box(win)
             occ = FV.occupied(img, grid)
             refs = getattr(self, "fv_refs", None) or FV.Refs()
-            rows, left, known_f, unknown_f, seen = [], [], [], [], []
+            rows, left, known_f, unknown_f, seen, maybes = [], [], [], [], [], []
             for r, c in FV.single_cells(occ):
                 f = FV.cell_feats(img, grid, r, c)
                 if f is None:
                     continue
                 name, sc, _m = refs.best(f)
+                if not name:                                  # 3.1: poe.ninja's picture, drawn as the game does
+                    x, y, cw, ch = FV.cell_rect(grid, r, c)
+                    whole = img[max(0, y):y + ch, max(0, x):x + cw]
+                    name = MP.look_match(whole, refs) if whole.size else None
+                    if name:
+                        sc = (refs.looks.rank(whole, 1) or [(0.0, None)])[0][0]
                 if name:
                     rows.append({"r": r, "c": c, "name": name, "score": sc, "box": FV.cell_rect(grid, r, c)})
                     known_f.append((f, name))
@@ -111,13 +115,21 @@ class FavoursPage:
                                  "box": FV.cell_rect(grid, r, c), "twin": True})
                     continue
                 left.append((r, c))
-                top = refs.ranked(f, 2)
+                top = refs.ranked(f, 3)
                 if top and top[0][0] > 0.45:                  # (2.129.0: the log says how close it came)
                     seen.append(f"{r},{c}: " + " / ".join(f"{n} {s_:.2f} {k}" for s_, n, k in top))
+                maybe = FV.maybe_names(top)                  # 3.0.6: close, but not sure - "? up to" its dearest
+                if maybe and not FV.has_stack_number(img, grid, r, c):
+                    maybe = []                               # (owner: junk uniques need no identifying -
+                if maybe:                                    # gear and a big item's pieces show no stack number)
+                    maybes.append({"r": r, "c": c, "name": None, "maybe": maybe, "score": top[0][0],
+                                   "box": FV.cell_rect(grid, r, c)})
             for name, sc, box in FV.find_belts(img, grid, occ, FV.belt_refs()):   # ★ Mageblood / Headhunter
                 rows.append({"name": name, "score": sc, "box": box, "belt": True})
             for name, sc, box in FV.find_stars(img, grid, left, getattr(self, "fv_stars", None) or FV.star_refs()):
                 rows.append({"name": name, "score": sc, "box": box, "belt": True})
+            starred = {tuple(x["box"]) for x in rows if x.get("belt")}
+            rows += [m for m in maybes if tuple(m["box"]) not in starred]
             fv_log(f"window read: {len(occ)} cells hold items, {len(rows)} known ({len(tw)} as a copy of another) - "
                    + ", ".join(f"{x['name']} ({x['score']:.2f})" for x in rows[:16])
                    + (f"; not sure: {'; '.join(seen[:8])}" if seen else ""))
@@ -142,6 +154,11 @@ class FavoursPage:
         from .wealth import WPRICES
         priced = []
         for row in rows:
+            if row.get("maybe"):                          # 3.0.6: not sure - the dearest it could be
+                ps = [p for p in (WPRICES.named(n) for n in row["maybe"]) if p is not None]
+                if ps:
+                    priced.append(dict(row, each=None, upto=max(ps)))
+                continue
             each = None if row.get("belt") else WPRICES.named(row["name"])     # (a belt: a ★ and its name only)
             priced.append(dict(row, each=each))
         best = max((x for x in priced if x["each"] is not None), key=lambda x: x["each"], default=None)
@@ -164,6 +181,8 @@ class FavoursPage:
             x, y, w, h = row["box"]
             if row.get("belt"):                           # 2.129.0: Mageblood / Headhunter - worth a look, no price
                 txt, fg, edge = "★ " + row["name"], WARM, WARM
+            elif row.get("upto") is not None:             # 3.0.6: a look-alike - check it before you defer it
+                txt, fg, edge = "? check · up to " + fmt_short(row["upto"]), WARM, WARM
             elif row["each"] is None:
                 txt, fg, edge = "no price", MUT, EDGE
             else:
@@ -191,7 +210,7 @@ class FavoursPage:
                 force_topmost(t)
             except Exception:
                 buglog.caught()
-            # (2.128.1, feedback: "show up on screenshots / screen share / streaming": not left out of captures)
+            # (2.128.1, feedback: show up in screenshots, screen share and streaming: not left out of captures)
             wins.append(t)
         self.fv_wins = wins or None
 

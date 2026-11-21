@@ -1,0 +1,271 @@
+{
+ "version": 1,
+ "game_version": "0.5.5.9",
+ "source": "RePoE poe2 export (mods, base_items, keywords, world_areas)",
+ "modifiers": [
+  {
+   "id": "UltimatumMapPlayerMaxResistances",
+   "name": "of Exposure",
+   "level": 1,
+   "text": "-(20-30)% maximum Player Resistances",
+   "stats": [
+    "map_additional_player_maximum_resistances_%"
+   ]
+  },
+  {
+   "id": "UltimatumMapMonstersFireDamage",
+   "name": "of Cremation",
+   "level": 1,
+   "text": "Monsters deal (70-100)% of Damage as Extra Fire\nMonster Damage penetrates (10-15)% of Fire Resistance",
+   "stats": [
+    "map_monsters_%_all_damage_to_gain_as_fire",
+    "map_monsters_reduce_enemy_fire_resistance_%"
+   ]
+  },
+  {
+   "id": "UltimatumMapMonstersColdDamage",
+   "name": "of Glaciation",
+   "level": 1,
+   "text": "Monsters deal (70-100)% of Damage as Extra Cold\nMonster Damage penetrates (10-15)% of Cold Resistance",
+   "stats": [
+    "map_monsters_%_all_damage_to_gain_as_cold",
+    "map_monsters_reduce_enemy_cold_resistance_%"
+   ]
+  },
+  {
+   "id": "UltimatumMapMonstersLightningDamage",
+   "name": "of Thunder",
+   "level": 1,
+   "text": "Monsters deal (70-100)% of Damage as Extra Lightning\nMonster Damage penetrates (10-15)% of Lightning Resistance",
+   "stats": [
+    "map_monsters_%_all_damage_to_gain_as_lightning",
+    "map_monsters_reduce_enemy_lightning_resistance_%"
+   ]
+  },
+  {
+   "id": "UltimatumMapPlayerCurses",
+   "name": "of Hexing",
+   "level": 1,
+   "text": "Players are Cursed with Temporal Chains\nPlayers are Cursed with Enfeeble\nPlayers are Cursed with Elemental Weakness",
+   "stats": [
+    "map_player_has_level_X_temporal_chains",
+    "map_player_has_level_X_enfeeble",
+    "map_player_has_level_X_elemental_weakness"
+   ]
+  },
+  {
+   "id": "UltimatumMapMonsterChaosDamage",
+   "name": "of Chaos",
+   "level": 1,
+   "text": "Monsters deal (70-100)% of Damage as Extra Chaos",
+   "stats": [
+    "map_monsters_%_all_damage_to_gain_as_chaos"
+   ]
+  },
+  {
+   "id": "UltimatumMapMonsterSpeed",
+   "name": "of Acceleration",
+   "level": 1,
+   "text": "Monsters have (20-30)% increased Attack, Cast and Movement Speed",
+   "stats": [
+    "map_monster_attack_cast_and_movement_speed_+%"
+   ]
+  },
+  {
+   "id": "UltimatumMapMonsterLifeAndDefences",
+   "name": "of Bolstering",
+   "level": 1,
+   "text": "(40-75)% more Monster Life\nMonsters have (40-75)% increased Armour, Evasion and Energy Shield",
+   "stats": [
+    "map_monsters_life_+%",
+    "map_monster_armour_evasion_energy_shield_+%"
+   ]
+  },
+  {
+   "id": "UltimatumMapPlayerLessLifeAndES",
+   "name": "of Wasting",
+   "level": 1,
+   "text": "Players have (30-40)% less maximum Life and Energy Shield",
+   "stats": [
+    "map_player_maximum_life_and_es_+%_final_from_sanctum_curse"
+   ]
+  },
+  {
+   "id": "UltimatumMapPlayerLessDefences",
+   "name": "of Defencelessness",
+   "level": 1,
+   "text": "Players have (50-75)% less Armour, Evasion and Energy Shield",
+   "stats": [
+    "map_player_global_armour_evasion_energy_shield_+%_final_from_sanctum_boon"
+   ]
+  },
+  {
+   "id": "UltimatumMapPlayerRecovery",
+   "name": "of Suffocation",
+   "level": 1,
+   "text": "Players have (50-75)% less Recovery Rate of Life, Mana and Energy Shield",
+   "stats": [
+    "map_player_status_recovery_speed_+%"
+   ]
+  }
+ ],
+ "wagers": [
+  {
+   "id": "UltimatumWagerCurrencyAddEquipmentSocket",
+   "name": "Artificer's",
+   "level": 1,
+   "text": "Sacrifice up to 20 Artificer's Orbs to receive double on Trial completion",
+   "stats": [
+    "ultimatum_wager_type_hash"
+   ]
+  },
+  {
+   "id": "UltimatumWagerCurrencyUpgradeToRare",
+   "name": "Alchemist's",
+   "level": 1,
+   "text": "Sacrifice up to 10 Orbs of Alchemy to receive double on Trial completion",
+   "stats": [
+    "ultimatum_wager_type_hash"
+   ]
+  },
+  {
+   "id": "UltimatumWagerCurrencyUpgradeMagicToRare2",
+   "name": "Greater Regal",
+   "level": 1,
+   "text": "Sacrifice up to 10 Greater Regal Orbs to receive double on Trial completion",
+   "stats": [
+    "ultimatum_wager_type_hash"
+   ]
+  },
+  {
+   "id": "UltimatumWagerCurrencyAddModToRare2",
+   "name": "Greater Exalted",
+   "level": 1,
+   "text": "Sacrifice up to 10 Greater Exalted Orbs to receive double on Trial completion",
+   "stats": [
+    "ultimatum_wager_type_hash"
+   ]
+  },
+  {
+   "id": "UltimatumWagerCurrencyAddModToRare3",
+   "name": "Perfect Exalted",
+   "level": 1,
+   "text": "Sacrifice up to 3 Perfect Exalted Orbs to receive double on Trial completion",
+   "stats": [
+    "ultimatum_wager_type_hash"
+   ]
+  },
+  {
+   "id": "UltimatumWagerCurrencyRemoveMod",
+   "name": "Null",
+   "level": 1,
+   "text": "Sacrifice up to 3 Orb of Annulments to receive double on Trial completion",
+   "stats": [
+    "ultimatum_wager_type_hash"
+   ]
+  },
+  {
+   "id": "UltimatumWagerCurrencyArmourQuality",
+   "name": "Armourer's",
+   "level": 1,
+   "text": "Sacrifice up to 20 Armourer's Scraps to receive double on Trial completion",
+   "stats": [
+    "ultimatum_wager_type_hash"
+   ]
+  },
+  {
+   "id": "UltimatumWagerCurrencyFlaskQuality",
+   "name": "Glassblower's",
+   "level": 1,
+   "text": "Sacrifice up to 20 Glassblower's Baubles to receive double on Trial completion",
+   "stats": [
+    "ultimatum_wager_type_hash"
+   ]
+  }
+ ],
+ "items": [
+  {
+   "id": "Metadata/Items/Ultimatum/UltimatumKeyNew",
+   "name": "Inscribed Ultimatum",
+   "class": "UltimatumKey",
+   "drop_level": 39,
+   "tags": [
+    "not_for_sale"
+   ],
+   "directions": "",
+   "stack_size": null
+  },
+  {
+   "id": "Metadata/Items/Ultimatum/TrialmasterKey1",
+   "name": "Cowardly Fate",
+   "class": "MapFragment",
+   "drop_level": 1,
+   "tags": [
+    "not_for_sale"
+   ],
+   "directions": "Can be placed in the door at the end of the Trial of Chaos to challenge the Trialmaster.",
+   "stack_size": 1
+  },
+  {
+   "id": "Metadata/Items/Ultimatum/TrialmasterKey2",
+   "name": "Deadly Fate",
+   "class": "MapFragment",
+   "drop_level": 1,
+   "tags": [
+    "not_for_sale"
+   ],
+   "directions": "Can be placed in the door at the end of the Trial of Chaos to challenge the Trialmaster.",
+   "stack_size": 1
+  },
+  {
+   "id": "Metadata/Items/Ultimatum/TrialmasterKey3",
+   "name": "Victorious Fate",
+   "class": "MapFragment",
+   "drop_level": 1,
+   "tags": [
+    "not_for_sale"
+   ],
+   "directions": "Can be placed in the door at the end of the Trial of Chaos to challenge the Trialmaster.",
+   "stack_size": 1
+  },
+  {
+   "id": "Metadata/Items/MapFragments/VaultKeyUltimatum",
+   "name": "The Trialmaster's Reliquary Key",
+   "class": "VaultKey",
+   "drop_level": 35,
+   "tags": [
+    "fake_currency"
+   ],
+   "directions": "",
+   "stack_size": null
+  }
+ ],
+ "keywords": [
+  {
+   "id": "UltimatumRuin",
+   "term": "Ruin",
+   "text": "Ruin is gained if you are hit by a Stalking Shade inside the Trial of Chaos.\n\nFail the Trials on reaching 7 Ruin"
+  }
+ ],
+ "areas": [
+  {
+   "id": "G3_10",
+   "name": "The Trial of Chaos",
+   "level": 38,
+   "act": 3,
+   "waypoint": false,
+   "bosses": 4
+  },
+  {
+   "id": "G3_10_Airlock",
+   "name": "The Temple of Chaos",
+   "level": 38,
+   "act": 3,
+   "waypoint": true,
+   "bosses": 0
+  }
+ ],
+ "left_out": {
+  "wagers_without_item_name": 12
+ }
+}

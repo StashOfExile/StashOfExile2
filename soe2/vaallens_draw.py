@@ -1,5 +1,5 @@
-"""UI overhaul (feedback: "we need a better method of drawing the suggested paths on screen, right now it's very
-janky"): Vaal Lens's marks drawn as one smooth picture with real see-through edges.
+"""UI overhaul (feedback: a better method of drawing the suggested paths on screen is needed, the old one was
+janky): Vaal Lens's marks drawn as one smooth picture with real see-through edges.
 
 Why it looked rough: the marks were Tk canvas shapes on a window with one see-through color. Tk draws lines and
 dashes without smoothing, and a picture's soft edges can't fade into the game - they turn into a dark fringe.
@@ -56,6 +56,8 @@ def render(game, marks, P, icons=None, chain=None):
     bg = _rgb(P.get("bg") or "#15120f", (21, 18, 15))
 
     def at(t):
+        if isinstance(t[0], str):                       # ("@", x, y): a screen point (3.0.6: a card's step number)
+            return t[1], t[2]
         x, y = V.xy(*t)
         return left + x * s, top + y * s
 
@@ -101,12 +103,15 @@ def render(game, marks, P, icons=None, chain=None):
         d.line(line, fill=core + (200,), width=max(2, width // 3), joint="curve")
 
     d = ImageDraw.Draw(img)
-    big = _font(max(14, int(34 * s * k)))
     small = _font(max(10, int(18 * s * k)))
     side = max(16, int(hh * 1.1 * k))
-    badges = []
+    badges, wbadges = [], []
     for t, (m, what) in marks.items():
         c = at(t)
+        if m == "lbl":                                  # a card's / medallion's step: the same badge as its tile's
+            x, y = L(c)
+            badges.append((x, y, str(what)))
+            continue
         if m == "x":                                    # touches a reward room: red, dashed edge and a ✕ (not color
             poly = diamond(c, 0.94)                     # alone)
             d.polygon(poly, fill=RED + (46,))
@@ -122,7 +127,9 @@ def render(game, marks, P, icons=None, chain=None):
                             (a[0] + (b[0] - a[0]) * f1, a[1] + (b[1] - a[1]) * f1)],
                            fill=RED + (235,), width=max(3, int(4 * s * k)))
             x, y = L(c)
-            d.text((x, y), "✕", fill=RED + (255,), font=big, anchor="mm")
+            dd = max(8, int(16 * s * k))                # 3.0.6 (the x turned into a square): two lines, not
+            for a_, b_ in ((-dd, -dd), (-dd, dd)):      # a ✕ in a font that may not have it
+                d.line([(x + a_, y + b_), (x - a_, y - b_)], fill=RED + (255,), width=max(4, int(6 * s * k)))
             continue
         step, room = what
         now = m == "now"
@@ -131,27 +138,28 @@ def render(game, marks, P, icons=None, chain=None):
         d.line(poly + [poly[0]], fill=accent + (255 if now else 200,), width=max(3, int((6 if now else 3) * s * k)),
                joint="curve")
         x, y = L(c)
-        pic = icons.get(room) if room != "path" else None
-        if pic is not None and pic is not False:
-            try:
-                ic = pic.convert("RGBA").resize((side, side), Image.LANCZOS)
-                img.alpha_composite(ic, (int(x - side / 2), int(y - side / 2)))
-            except Exception:
-                buglog.caught()
-                pic = None
-        if pic is None and room not in ("path", None):     # (no picture yet: its name, made to fit the tile)
-            label, room_w = str(room), hw * 1.5 * k
-            words = label.split()
-            lines = [label] if len(words) < 2 else [" ".join(words[:len(words) // 2]),
-                                                    " ".join(words[len(words) // 2:])]
-            px = max(10, int(18 * s * k))
-            f = _font(px)
-            while px > 8 * k and max(d.textlength(ln, font=f) for ln in lines) > room_w:
-                px -= 2
-                f = _font(px)
-            d.multiline_text((x, y), "\n".join(lines), fill=accent + (255,), font=f, anchor="mm", align="center")
-        if step:
-            badges.append((x, y - hh * k * 0.94, str(step)))
+        # 3.0.6 (the drawn icons looked wrong - remove them and overlay a number): no room
+        # pictures - the step's number in the middle, the same number as on its card / medallion
+        if m == "do":                                   # an Upgrade / Lock medallion's room: an arrow / a padlock
+            u = hh * k * 0.42
+            if step == "Upgrade":
+                d.polygon([(x, y - u), (x + u * 0.8, y), (x + u * 0.32, y), (x + u * 0.32, y + u),
+                           (x - u * 0.32, y + u), (x - u * 0.32, y), (x - u * 0.8, y)], fill=accent + (255,),
+                          outline=bg + (255,))
+            else:
+                bw, bh = u * 0.85, u * 0.7
+                d.arc((x - bw * 0.62, y - u * 1.05, x + bw * 0.62, y + u * 0.25), 180, 360, fill=accent + (255,),
+                      width=max(3, int(u * 0.22)))
+                d.line([(x - bw * 0.62 + u * 0.11, y - u * 0.4), (x - bw * 0.62 + u * 0.11, y - u * 0.05)],
+                       fill=accent + (255,), width=max(3, int(u * 0.22)))
+                d.line([(x + bw * 0.62 - u * 0.11, y - u * 0.4), (x + bw * 0.62 - u * 0.11, y - u * 0.05)],
+                       fill=accent + (255,), width=max(3, int(u * 0.22)))
+                d.rounded_rectangle((x - bw, y - u * 0.1, x + bw, y - u * 0.1 + bh * 1.4), radius=max(2, int(u * 0.15)),
+                                    fill=accent + (255,))
+                d.ellipse((x - u * 0.12, y + u * 0.35, x + u * 0.12, y + u * 0.59), fill=bg + (255,))
+            wbadges.append((x, y + hh * k * 0.66, step))
+        elif step:
+            badges.append((x, y, str(step)))
 
     # step numbers last, on top: a dark disc with a soft shadow and the accent ring
     if badges:
@@ -168,6 +176,15 @@ def render(game, marks, P, icons=None, chain=None):
                       width=max(2, int(2.5 * k)))
             d.text((bx, by), n, fill=accent + (255,), font=small, anchor="mm")
 
+    if wbadges:                                         # the medallion words: a dark pill with the accent ring
+        d = ImageDraw.Draw(img)
+        f = _font(max(10, int(16 * s * k)))
+        for bx, by, w_ in wbadges:
+            tw = d.textlength(w_, font=f)
+            ph, pw = max(10, int(14 * s * k)), tw / 2 + max(8, int(10 * s * k))
+            d.rounded_rectangle((bx - pw, by - ph, bx + pw, by + ph), radius=ph, fill=bg + (240,),
+                                outline=accent + (255,), width=max(2, int(2.5 * k)))
+            d.text((bx, by), w_, fill=accent + (255,), font=f, anchor="mm")
     return img.resize((W, H), Image.LANCZOS), (x0, y0)
 
 

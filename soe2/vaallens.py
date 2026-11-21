@@ -2,21 +2,15 @@
 path, room, reward room, Architect, key room, Atziri), a room's family and tier, the tiles the game lights green for
 the picked card. Looks only: a picture of the screen, nothing sent to the game (GGG ToS).
 
-Made from the player's own board pictures (local only); room icons matched to shipped prototypes
-(templates/vaallens_icons.json - board icons only, no names of players). Coordinates are those of a 2560x1440 frame;
+Made from the player's own board pictures (local only); room icons matched to prototypes in vaallens_icons.json in
+the data folder when there is one (3.1, GGG ToS 7a: none ship with the app - without them a room's kind still reads,
+its family doesn't). Coordinates are those of a 2560x1440 frame;
 vaallens.frame(img) maps any game picture (another size, ultrawide) onto it.
 """
 import json, os
 import numpy as np
 from PIL import Image
 
-def _templates():
-    import sys
-    base = getattr(sys, "_MEIPASS", None)                 # (the built app: its files sit under _MEIPASS)
-    return os.path.join(base, "soe2", "templates") if base else os.path.join(os.path.dirname(os.path.abspath(__file__)), "templates")
-
-
-HERE = _templates()
 FULL = (2560, 1440)
 CROP = (0.79, 0.85)                       # the watcher's crop of the frame
 CELLS = [(i, j) for i in range(-4, 5) for j in range(1, 10)] + [(0, 10)]     # i -4..4, j 1..9, plus Atziri (0, 10)
@@ -370,7 +364,12 @@ def icon_feat(q):
 
 # ---------------------------------------------------------------- icon clusters -> names
 
-ICONS = os.path.join(HERE, "vaallens_icons.json")
+def _icons_file():
+    from .config import P
+    return P("vaallens_icons.json")
+
+
+ICONS = None             # the data folder's vaallens_icons.json (_icons_file) - set here in tests
 ICON_MIN = 0.90          # best prototype similarity to accept a cluster (members sit at 0.94-1.0 of their cluster)
 ICON_MARGIN = 0.015      # a cluster with another name this close -> the icon is not sure
 KIND_MIN = 0.82          # 2.142.0: below ICON_MIN (or not sure of the name), the kind still counts when the two
@@ -378,16 +377,17 @@ KIND_MIN = 0.82          # 2.142.0: below ICON_MIN (or not sure of the name), th
 _icons = None
 
 
-def load_icons(path=ICONS):
+def load_icons(path=None):
     global _icons
-    if _icons is None or path != ICONS:
+    path = path or ICONS or _icons_file()
+    if _icons is None or path != (ICONS or _icons_file()):
         with open(path) as fh:
             js = json.load(fh)
         cl = js["clusters"]
         P = np.array([p for c in cl for p in c["protos"]], np.float32)
         owner = np.array([k for k, c in enumerate(cl) for _ in c["protos"]])
         res = (cl, P, owner)
-        if path != ICONS:
+        if path != (ICONS or _icons_file()):
             return res
         _icons = res
     return _icons
@@ -441,7 +441,7 @@ def read(img, icons=None):
     read_tiers = scale_of(*img.size) >= MIN_TIER_SCALE
     a, v = to_canvas(img)
     ov, boxes = overlay_mask(a, v)
-    icons = icons or (load_icons() if os.path.exists(ICONS) else None)
+    icons = icons or (load_icons() if os.path.exists(ICONS or _icons_file()) else None)
     out, lit, bright = {}, [], []
     for c in CELLS:
         cell = dict(kind="unknown", icon=None, name=None, tier=None, powered=False)
@@ -475,10 +475,40 @@ def read(img, icons=None):
         cell["kind"], cell["icon"], cell["name"] = m["kind"], m["id"], m.get("name")
         if m["kind"] == "room" and read_tiers and not hid[HH + 2:HH + 32, HW + 6:HW + 58].any():     # numeral box in view
             cell["tier"] = tier(p)[0]
+    out["player"] = player_at(a, v, ov)
     out["lit"] = lit                  # every green tile the game lights for the picked card
     out["lit_bright"] = bright        # the brightly lit ones (the rest are dim green)
     out["windows"] = boxes
     return out
+
+
+# 3.0.6: the game draws the player as a small yellow-green figure standing on the tile of the room he is in (the
+# Architect's room while his console is open, Atziri's during her run). Measured on 17 of the owner's boards: the
+# figure gives 130-137 such pixels just above the tile's middle and none below it; a tile the game lights green for
+# a picked card gives 40-65 above and 260-315 below; the green reward icons are bluer.
+FIG_MIN, FIG_BELOW = 90, 20
+
+
+def _figure(p):
+    r, g, b = p[..., 0], p[..., 1], p[..., 2]
+    return (g > 90) & (g > r + 25) & (b < 0.5 * g) & (r > 0.6 * g)
+
+
+def player_at(a, v, ov=None):
+    """The canvas (to_canvas) -> the tile the player figure stands on, or None."""
+    best = None
+    for c in CELLS:
+        x, y = (round(t) for t in xy(*c))
+        if x - 40 < 0 or y - 42 < 0 or x + 41 > FULL[0] or y + 40 > FULL[1] or not v[y, x]:
+            continue
+        if ov is not None and ov[y - 42:y + 40, x - 40:x + 41].any():
+            continue
+        up = int(_figure(a[y - 42:y - 4, x - 14:x + 15]).sum())
+        if up < FIG_MIN or int(_figure(a[y + 8:y + 40, x - 40:x + 41]).sum()) >= FIG_BELOW:
+            continue
+        if best is None or up > best[0]:
+            best = (up, c)
+    return best[1] if best else None
 
 
 def frame(img):
@@ -548,9 +578,10 @@ def on_screen(game, x, y):
 
 # 2.142.0: the side panels keep to the game window's edges (the board keeps to the middle 16:9): the card list
 # (Room Cards) on the left, the Medallions panel on the right. Boxes in 2560x1440 frame coordinates.
-CARD_BOX = (40, 200, 480, 1150)
+CARD_BOX = (0, 200, 480, 1150)      # 3.0.6: from the edge - "ROYAL ACCESS CHAMBER" starts at x 14
 MEDAL_BOX = (1700, 560, 2560, 1110)      # the panel and where a hovered medallion's tooltip shows (left of it)
-DIAMOND_X = (250, 440)                   # a card's diamond, from the card list box's left
+MEDAL_TITLE = (2310, 600, 2514, 670)      # 3.0.6: the panel's "Medallions (n/m)" title alone (not its arrow button)
+DIAMOND_X = (290, 480)                   # a card's diamond, from the card list box's left
 
 
 def side_box(game, box, right=False):
@@ -592,6 +623,114 @@ def card_names(lines):
             out.append((t, (b[1] + b[3]) / 2))
         k += 1
     return out
+
+
+ROW_FIRST, ROW_STEP, ROW_HALF, ROW_TEXT_W = 138, 144, 28, 290   # the card list's rows (1440p, in CARD_BOX)
+TITLE_TO_ROW = 101                       # the "ROOM CARDS" title's middle -> the first row's middle (the list moves)
+PATH_FLAT = 34                           # a diamond this flat (gray spread) holds a path's lines, not a room icon
+CARD_PICS = {}                           # {card name: its diamond's picture} seen this session (in memory only)
+READER_ROWS = [True]                     # 3.0.6: rows read with reader.py first (tests: off to check the fallback)
+
+
+def _gold_text(row):
+    """A card row -> its gold name alone, black on white: the game's white Life/Mana numbers can sit on it."""
+    a = np.asarray(row.convert("RGB")).astype(np.int32)
+    gold = (a[..., 0] - a[..., 2] > 45) & (a[..., 0] > 110)
+    return Image.fromarray(np.where(gold, 0, 255).astype("uint8"))
+
+
+def _diamond(img, y, s):
+    """The card's diamond picture at row middle y (gray, 24x24), and whether a card is there (its gold frame)."""
+    cx = (DIAMOND_X[0] + DIAMOND_X[1]) / 2 * s
+    r = 50 * s
+    pic = img.crop((int(cx - r), int(y - r), int(cx + r), int(y + r))).convert("RGB")
+    a = np.asarray(pic).astype(np.int32)
+    framed = float(((a[..., 0] - a[..., 2] > 45) & (a[..., 0] > 110)).mean()) > 0.04
+    inner = pic.crop((int(r * 0.55), int(r * 0.55), int(r * 1.45), int(r * 1.45))).convert("L")
+    flat = float(np.asarray(inner).astype(np.float32).std())  # (a path's art is flat lines; a room's icon isn't)
+    return np.asarray(inner.resize((24, 24))).astype(np.float32), framed, flat
+
+
+def _alike(a, b):
+    a, b = a - a.mean(), b - b.mean()
+    d = float(np.sqrt((a * a).sum() * (b * b).sum()))
+    return float((a * b).sum()) / d if d else 0.0
+
+
+def card_rows_read(img, ocr, lines=None):
+    """3.0.6 (owner's board: 2 of 6 cards read; then the list moved down and none lined up): the card list read row
+    by row from the same picture -> [(name, y middle at twice its size)] like card_names.
+    - Rows are found from the "ROOM CARDS" title (lines: the list's OCR at twice its size), else fixed.
+    - Each row's gold name is read alone (the game's white Life/Ward numbers can cover the bottom card).
+    - Owner: a fallback that identifies it by its icon: a row with a card but no name read is matched to
+      the diamond pictures of the cards read this session; still unknown, it's left out."""
+    from . import vaallens_plan as VP
+    s = img.height / (CARD_BOX[3] - CARD_BOX[1])
+    first = ROW_FIRST * s
+    for t, bx in lines or []:
+        if bx and "room cards" in " ".join(str(t).lower().split()):
+            first = (bx[1] + bx[3]) / 4 + TITLE_TO_ROW * s
+            break
+    out, unread = [], []
+    for k in range(8):
+        y = first + ROW_STEP * s * k
+        if y + ROW_HALF * s > img.height:
+            break
+        row = img.crop((0, int(y - ROW_HALF * s), int(ROW_TEXT_W * s), int(y + ROW_HALF * s)))
+        pic, framed, flat = _diamond(img, y, s)
+        t = ""
+        if READER_ROWS[0]:                       # 3.0.6 (reader.py): the row's name read as one line, made clean
+            from . import reader as R
+            t = R.read_one(img, (0, int(y - ROW_HALF * s), int(ROW_TEXT_W * s), int(y + ROW_HALF * s)),
+                           kind="card-name", want=VP.card, ocr=ocr)[0]
+        if not VP.card(t):                       # (as before: the fallback)
+            for look in (_gold_text(row), row):
+                t = " ".join(" ".join(str(x) for x, _b in ocr(look.resize((look.width * 3, look.height * 3))) or []).split())
+                if VP.card(t):
+                    break
+        if VP.card(t):
+            out.append((t, y * 2))
+            CARD_PICS[VP.card_title(t)] = pic
+        elif framed:
+            unread.append((pic, y, flat))
+    for pic, y, flat in unread:
+        best = max(((_alike(pic, p), n) for n, p in CARD_PICS.items()), default=(0, None))
+        if best[1] and best[0] >= 0.8:
+            out.append((best[1], y * 2))
+        elif flat < PATH_FLAT:                  # (no room icon in it: a path card - their art has 4 shapes)
+            out.append(("Path", y * 2))
+    out.sort(key=lambda r: r[1])
+    return out
+
+
+# 3.0.6 (round 14): a Path card's shape, from its art - the corridor's floor (brown: red well above blue) runs out to
+# each side it opens to; a closed side is the dark tiled backing (red = blue). Measured on 9 Path cards in 6 of the
+# owner's pictures (straight, corner, T; lit and dim): open sides 8-11 apart, closed 0-1, at 70% of the way out.
+CARD_MID_X = 378                         # the card diamond's middle (1440p, from the card list box's left)
+CARD_HALF = (36, 31)                     # center -> the middle of a side (x, y)
+FLOOR_RB = 4
+
+
+def path_shape(img, y, s):
+    """The card list's picture, a Path card's row middle y (in it) and its scale -> frozenset of the sides its
+    corridor opens to ("NE", "SE", "SW", "NW"), or None (fewer than two read: not sure)."""
+    a = np.asarray(img.convert("RGB")).astype(np.float32)
+    out = set()
+    for side, (dx, dy) in (("NE", (1, -1)), ("SE", (1, 1)), ("SW", (-1, 1)), ("NW", (-1, -1))):
+        x0, y0 = (CARD_MID_X + dx * CARD_HALF[0] * 0.7) * s, y + dy * CARD_HALF[1] * 0.7 * s
+        r = max(1, round(2 * s))
+        p = a[max(0, int(y0) - r):int(y0) + r + 1, max(0, int(x0) - r):int(x0) + r + 1].reshape(-1, 3)
+        if p.size and float((p[:, 0] - p[:, 2]).mean()) >= FLOOR_RB:
+            out.add(side)
+    return frozenset(out) if 2 <= len(out) <= 4 else None
+
+
+def path_shapes(img, names, up=1.0):
+    """The card list's picture and its cards [(name, y middle at `up` times)] -> a shape per card (None for a room
+    card, or a Path card not read)."""
+    from . import vaallens_plan as VP
+    s = img.height / (CARD_BOX[3] - CARD_BOX[1])
+    return [path_shape(img, y / up, s) if VP.card(n) == ("path", None) else None for n, y in names]
 
 
 def card_pick(img, lines, up=1.0):
@@ -637,7 +776,7 @@ def card_icons(img, names, up=1.0):
 
 
 def cutout(pic, diff=48):
-    """2.143.0 (feedback: "the crudely cropped images of the cards looks awful"): a card's picture -> the room's art
+    """2.143.0 (feedback: the crudely cropped card images looked bad): a card's picture -> the room's art
     alone (RGBA): the pixels unlike its backing (the median of its edge) kept, the rest see-through, so it sits on the
     tile like the game's own icons instead of in a dark box."""
     a = np.asarray(pic.convert("RGB")).astype(np.float32)

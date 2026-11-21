@@ -17,21 +17,6 @@ from .mods import DUPS, FLIP_PAIRS, impact_of, IMPACTS, merge_dups, norm, plural
 
 # ------------------------------------------------------------------ trade searching
 _search_cache, _fetch_cache = {}, {}
-OWN_SKIPPED = {"n": 0}          # 2.16.0: your own listings left out of prices so far (this run)
-
-
-def own_account():
-    """The account name typed in Price checks > Stash tab (shared with Wealth), or ""."""
-    return str(SETTINGS.get("wealth_account") or "").strip()
-
-
-def is_own(owner, mine=None):
-    """Is this listing's seller you? Compares the name with and without its #1234."""
-    mine = (own_account() if mine is None else mine).lower()
-    owner = str(owner or "").strip().lower()
-    if not mine or not owner:
-        return False
-    return owner == mine or owner.split("#")[0] == mine.split("#")[0]
 
 
 CACHE_SECS = 600          # a repeated identical search within 10 minutes is free; after that listings are re-checked
@@ -90,6 +75,9 @@ def mod_impact(rec, mod):
     ov = (rec.get("ov") or {}).get(ov_key(mod))
     if ov in IMPACTS:
         return ov
+    rg = mod.get("roll_grade")              # owner: By roll in Rate Mods - this roll's group has its own letter
+    if rg:                                  # (a tick on the item still wins)
+        return "ignore" if rg == "ignore" else "high" if rg in ("S", "A") else "normal"
     if mod.get("covered"):                  # gear (1.41): already counted in a total, or an implicit / rune
         return "ignore"
     if (rec.get("item") or {}).get("gear"):  # 2.96.0: your ▲ / ▼ for this gear class (or waystones)
@@ -240,7 +228,7 @@ def apply_opts(query, item=None, opts=None):
     gem = bool((item or {}).get("rarity") == "Gem" or ((item or {}).get("search") or {}).get("gem")
                or "gem_level" in (flt.get("misc_filters") or {}).get("filters", {}))
     for key, group, name in NUM_OPTS:          # 2.79.0: a number (at least) or {"min", "max"}
-        if key == "sockets" and gem:           # 2.130.1 (feedback: "sockets: 5 ... chose augmentable sockets"): a
+        if key == "sockets" and gem:           # 2.130.1 (feedback: 5 gem sockets chose augmentable): a
             group, name = "misc_filters", "gem_sockets"     # gem's sockets are the trade site's Gem Sockets
             put("equipment_filters", "rune_sockets", None)
         if key in o:
@@ -274,7 +262,7 @@ def apply_opts(query, item=None, opts=None):
     return query
 
 
-def search_ids(league, base, filters, count_min, corrupted=None):
+def search_ids(league, base, filters, count_min, corrupted=None, rarity=None):
     """One trade search. Returns (total matches, first listing ids, query id). Same search twice = free.
     corrupted: True / False (corrupted only / uncorrupted only), None (either), or the item's flags (a set: only
     listings with the same flags - owner decision A)."""
@@ -306,6 +294,8 @@ def search_ids(league, base, filters, count_min, corrupted=None):
         flt["misc_filters"] = {"filters": {"corrupted": {"option": "true" if corrupted else "false"}}}
     if api_age:
         flt["trade_filters"] = {"filters": {"indexed": {"option": api_age}}}
+    if rarity:                                        # 3.0.6: a tablet priced by its base - same rarity only
+        flt["type_filters"] = {"filters": {"rarity": {"option": rarity}}}
     if flt:
         query["filters"] = flt
     apply_opts(query)                                 # 2.4.1: this item's own search filters
@@ -351,11 +341,22 @@ def keep_raw(e):
         RAW_LISTINGS.pop(next(iter(RAW_LISTINGS)))
 
 
+def scrub_raw(e):
+    """3.0.7: a fetched listing as it may be saved to session.json: no seller (account name, character), no whisper
+    text or token, no stash - nothing that names a person. A copy; the one in memory is left as it is."""
+    out = dict(e or {})
+    lst = dict(out.get("listing") or {})
+    for k in ("account", "whisper", "whisper_token", "stash", "method", "indexed_by", "seller"):
+        lst.pop(k, None)
+    out["listing"] = lst
+    return out
+
+
 def fetch_rich(qid, ids, max_hours=None):
     """One fetch call for up to 10 listings -> [{id, price, ts, mods}] cheapest first.
     mods = [(normalized text, [numbers])] straight from the listing, or None if the listing didn't say.
     Listings older than max_hours are dropped (the search already filters, this is the double-check)."""
-    key = ("rich", qid, tuple(ids), max_hours, own_account().lower())
+    key = ("rich", qid, tuple(ids), max_hours)
     out = _cached(_fetch_cache, key)
     if out is None:
         out = []
@@ -367,9 +368,6 @@ def fetch_rich(qid, ids, max_hours=None):
                 lst = (e or {}).get("listing") or {}
                 p = lst.get("price")
                 if not p:
-                    continue
-                if is_own((lst.get("account") or {}).get("name")):   # 2.16.0: your own (often overpriced) listings
-                    OWN_SKIPPED["n"] += 1                           # don't count towards your prices
                     continue
                 ts = listed_ts(lst.get("indexed"))
                 if cutoff is not None and ts < cutoff:

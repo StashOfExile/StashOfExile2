@@ -17,7 +17,11 @@ from tkinter import ttk
 from . import buglog
 from . import drawer as D
 from .config import save_json, SETTINGS
+from .style import bind_own_configure
 
+
+
+SHAPE_WORD = {"drawer": "Drawer", "full": "Full window"}      # 3.0.6: the Window toggle's two words (names.py)
 
 class DrawerHost:
     """Mixed into App."""
@@ -99,7 +103,7 @@ class DrawerHost:
         D.SHOWN_DRAWER[0] = self.drawer_st.as_drawer()
         if self._drawer_geom is None:
             self._drawer_geom = "full"
-        self.root.bind("<Configure>", self.drawer_configured, add="+")
+        bind_own_configure(self.root, self.drawer_configured)
         self.root.bind_all("<ButtonPress-1>", lambda e: setattr(self, "_drawer_btn", True), add="+")
         self.root.bind_all("<ButtonRelease-1>", lambda e: setattr(self, "_drawer_btn", False), add="+")
         self.root.after(300, self.drawer_ad.disable_transitions)
@@ -505,8 +509,7 @@ class DrawerHost:
         return st is not None and st.eff == "drawer"
 
     def drawer_look(self):
-        """The Drawer's look (mockups.html): the rail, a tighter page header, the price check stacked (the item over
-        its listings). The Full window keeps its own."""
+        """The Drawer's look (mockups.html): the rail, a tighter page header. The Full window keeps its own."""
         on = self.drawer_look_on()
         sh = getattr(self, "shell", None)
         if sh is None:
@@ -529,13 +532,7 @@ class DrawerHost:
                 sb.redraw()                                # (the rail's own look)
         except tk.TclError:
             pass
-        self.drawer_tabs()
-        pane = getattr(self, "pc_pane", None)
-        try:
-            if pane is not None and pane.winfo_exists():
-                pane.set_stacked(on)
-        except tk.TclError:
-            pass
+        self.drawer_tabs()                                 # (Price Checks lays itself out by its width: pc_layout)
         for fn in getattr(self, "_drawer_look_hooks", []):
             try:
                 fn(on)
@@ -630,7 +627,7 @@ class DrawerHost:
         self.drawer_strip_paint()
 
     def drawer_flip_side(self):
-        """⇄ Move to the other side (remembered)."""
+        """⇄ Move to the other side - remembered."""
         c = self.drawer_cfg()
         c["side"] = D.other_side(self._drawer_side_now or c["side"])     # (from where it is: a price check may
                                                                           # have opened it on the other side)
@@ -702,7 +699,14 @@ class DrawerHost:
             return self._drawer_do(st.unmaximized(), "restore")
         if not self.drawer_shown_as_drawer() or time.time() < self._drawer_showing_until:
             return
-        self._drawer_note_width()
+        # 3.0.6 (dragging and resizing it was very laggy): while the mouse is down nothing is looked
+        # up (the game's window, its size) - each pixel of a drag was a window search; the width is taken once, when
+        # you let go (_drawer_resized). Nothing re-docks meanwhile: the watcher waits for the release and this job.
+        if not self._drawer_mouse_down():
+            self._drawer_note_width()
+        elif (e.width, e.height) != getattr(self, "_drawer_last_wh", (e.width, e.height)):
+            self._drawer_drag_profile(True)               # (a resize, not a move: Debug mode measures it)
+        self._drawer_last_wh = (e.width, e.height)
         job = getattr(self, "_drawer_cfg_job", None)
         if job:
             try:
@@ -710,6 +714,84 @@ class DrawerHost:
             except tk.TclError:
                 pass
         self._drawer_cfg_job = self.root.after(400, self._drawer_resized)
+
+    def _drawer_drag_profile(self, on):
+        """3.0.6 (owner: the Drawer still lags while its edge is dragged - not seen here, only on Windows): with Debug
+        mode on, one drag is measured - the app's own work (Python, by function) against the time the drag took -
+        and written to drawer_drag.txt in the app's data folder. Function names and times only, nothing personal."""
+        if not SETTINGS.get("debug_mode") or getattr(self, "_drawer_prof_done", False):
+            return                                        # (the first drag of a run only - measuring slows it)
+        try:
+            import cProfile
+            if on:
+                if getattr(self, "_drawer_prof", None) is None:
+                    import collections
+                    seen = collections.Counter()           # which parts still change size while you drag
+
+                    def count(e):
+                        try:
+                            parts = str(e.widget).split(".")
+                            seen[".".join(parts[:4])] += 1
+                        except Exception:
+                            pass
+                    self._drawer_cfg_count = (seen, self.root.bind_all("<Configure>", count, add="+"))
+                    self._drawer_prof = (cProfile.Profile(), time.perf_counter(), [0])
+                    self._drawer_prof[0].enable()
+                self._drawer_prof[2][0] += 1
+                return
+            got, self._drawer_prof = getattr(self, "_drawer_prof", None), None
+            if got is None:
+                return
+            prof, t0, n = got
+            prof.disable()
+            import io
+            import os
+            import pstats
+            from .config import DATA_DIR
+            out = io.StringIO()
+            st = pstats.Stats(prof, stream=out)
+            secs = time.perf_counter() - t0
+            tot = sum(v[2] for v in st.stats.values())      # (the time spent in the app's own Python)
+            out.write(f"Drawer drag: {secs:.2f} s, {n[0]} resize events, app's own Python {tot:.2f} s "
+                      f"({tot / secs * 100 if secs else 0:.0f}% - the rest is Tk drawing and Windows)\n"
+                      f"page open: {getattr(getattr(self, 'shell', None), 'active', '?')}\n\n")
+            seen, fid = getattr(self, "_drawer_cfg_count", (None, None))
+            self._drawer_cfg_count = (None, None)
+            if fid:
+                try:
+                    self.root.unbind_all("<Configure>")       # (only the counter's; the app's own are put back)
+                    from .style import _layout_watch
+                    self.root.bind_all("<Configure>", _layout_watch, add="+")
+                except Exception:
+                    buglog.caught()
+            if seen:
+                out.write(f"Parts that changed size while dragging: {sum(seen.values())}\n")
+                for k, v in seen.most_common(25):
+                    out.write(f"  {v:6d}  {k}\n")
+            sh = getattr(self, "shell", None)
+            if sh is not None:
+                out.write("Pages: " + ", ".join(f"{k}={'shown' if getattr(w, '_shown', False) else 'hidden'}"
+                                                 for k, w in getattr(sh, "windows", {}).items()) + "\n")
+            n_map = [0]
+
+            def walk(w):
+                for c in w.winfo_children():
+                    try:
+                        if c.winfo_ismapped():
+                            n_map[0] += 1
+                            walk(c)
+                    except tk.TclError:
+                        pass
+            walk(self.root)
+            out.write(f"Parts on screen while dragging: {n_map[0]}\n\n")
+            st.sort_stats("cumulative").print_stats(30)
+            st.sort_stats("tottime").print_stats(20)
+            with open(os.path.join(DATA_DIR, "drawer_drag.txt"), "w", encoding="utf-8") as f:
+                f.write(out.getvalue())
+            self._drawer_prof_done = True
+        except Exception:
+            self._drawer_prof = None
+            buglog.caught()
 
     def _drawer_maximized(self):
         """The Drawer was maximized: the Full window, as it is (maximized) - nothing re-docks it or puts its size
@@ -765,10 +847,11 @@ class DrawerHost:
     def _drawer_resized(self):
         self._drawer_cfg_job = None
         if not self.drawer_shown_as_drawer():
-            return
+            return self._drawer_drag_profile(False)
         if self._drawer_mouse_down():                     # still dragging: wait for the release
             self._drawer_cfg_job = self.root.after(400, self._drawer_resized)
             return
+        self._drawer_drag_profile(False)
         self._drawer_note_width()
         if getattr(self, "_drawer_share_dirty", False):
             self._drawer_share_dirty = False
@@ -938,43 +1021,36 @@ class DrawerHost:
         lab = dict(bg=P2, fg=C["text"])
         v = self._drawer_vars = {"shape": tk.StringVar(value=self.drawer_st.shape),
                                  "side": tk.StringVar(value=c["side"]),
-                                 "share": tk.IntVar(value=int(round(D.clamp_share(c["share"]) * 100))),
                                  "click": tk.BooleanVar(value=bool(c.get("click_away", True)))}
         r1 = tk.Frame(row, bg=P2)
         r1.pack(fill="x")
         tk.Label(r1, text="Window", **lab).pack(side="left", padx=(0, 8))
         from . import newchip as _NEW                      # 3.0.0: the Drawer is NEW until opened or used
         _NEW.chip(r1, "Drawer").pack(side="left", padx=(0, 8))
-        col = tk.Frame(r1, bg=P2)                           # (one under the other: each says when it suits)
-        col.pack(side="left")
-        self._drawer_rb = ttk.Radiobutton(col, text="Drawer — suggested for one monitor", value="drawer",
-                                          variable=v["shape"], command=self._drawer_shape_pick)
-        self._drawer_rb.pack(anchor="w")
-        ttk.Radiobutton(col, text="Full window — suggested for two or more monitors", value="full",
-                        variable=v["shape"], command=self._drawer_shape_pick).pack(anchor="w", pady=(4, 0))
+        # 3.0.6 (a toggle like the bar / panel one): Drawer | Full window, the same
+        # toggle as the overlay's Layout; one gray line says when each suits
+        from .style import SegBar
+        self._drawer_seg = SegBar(r1, list(SHAPE_WORD.values()), value=SHAPE_WORD.get(v["shape"].get(), "Full window"),
+                                  command=self._drawer_seg_pick, size=10, pad=(16, 4))
+        self._drawer_seg.pack(side="left")
+        tk.Label(r1, text="Suggested: Drawer for one monitor, Full window for two or more", bg=P2, fg=C["muted"],
+                 font=("Segoe UI", 9)).pack(side="left", padx=(8, 0))
         tip = tk.Label(r1, text="ⓘ", bg=P2, fg=C["muted"], font=("Segoe UI", 10), cursor="question_arrow")
         tip.pack(side="left", padx=(8, 0), anchor="n")
         Tooltip(tip, "Drawer: the app over the game's side, from the top of the game to just above the skill bar. "
-                     "The Drawer key (Settings › Keybinds) shows it and puts it away; so do Esc and a click on the "
-                     "game. If Ctrl+Shift+Space switches your keyboard layout, set F3 instead. Full window: a normal "
+                     "The Drawer key shows it and puts it away, and so do Esc and a click on the game. "
+                     "Set the key in Settings › Keybinds. If Ctrl+Shift+Space switches your keyboard layout, set F3 instead. Full window: a normal "
                      "window, where you left it.")
-        self._drawer_rb_tip = Tooltip(self._drawer_rb, "")
+        self._drawer_rb_tip = Tooltip(self._drawer_seg.btns["Drawer"][0], "")
         self._drawer_note = tk.Label(row, text="", bg=P2, fg=C["muted"], font=("Segoe UI", 9), anchor="w")
         self._drawer_note.pack(fill="x", pady=(0, 8))
         r2 = tk.Frame(row, bg=P2)
         r2.pack(fill="x")
         tk.Label(r2, text="Side", **lab).pack(side="left", padx=(0, 8))
-        for val, txt in (("right", "Right"), ("left", "Left")):
-            ttk.Radiobutton(r2, text=txt, value=val, variable=v["side"], command=self._drawer_side_pick).pack(
-                side="left", padx=(0, 12))
-        tk.Label(r2, text="Width", **lab).pack(side="left", padx=(12, 8))
-        sp = ttk.Spinbox(r2, from_=int(D.SHARE_LO * 100), to=int(D.SHARE_HI * 100), increment=5, width=5,
-                         textvariable=v["share"], command=self._drawer_share_pick)
-        sp.pack(side="left")
-        sp.bind("<Return>", lambda e: self._drawer_share_pick())
-        sp.bind("<FocusOut>", lambda e: self._drawer_share_pick())
-        tk.Label(r2, text="% of the game's width (drag its inner edge too)", bg=P2, fg=C["muted"],
-                 font=("Segoe UI", 9)).pack(side="left", padx=(8, 0))
+        self._drawer_side_seg = SegBar(r2, ["Left", "Right"], value=v["side"].get().title(), size=10, pad=(16, 4),
+                                       command=lambda o: (v["side"].set(o.lower()), self._drawer_side_pick()))
+        self._drawer_side_seg.pack(side="left", padx=(0, 12))
+        # (3.0.6: no width input box - drag the Drawer's inner edge)
         r3 = tk.Frame(row, bg=P2)
         r3.pack(fill="x", pady=(8, 0))
         ttk.Checkbutton(r3, text="Put the Drawer away when I click the game", variable=v["click"],
@@ -993,15 +1069,25 @@ class DrawerHost:
         try:
             v["shape"].set(self.drawer_st.shape)
             v["side"].set(self.drawer_cfg()["side"])
-            v["share"].set(int(round(float(self.drawer_cfg().get("share", D.SHARE)) * 100)))   # (a drag shows here)
+            self._drawer_seg.pick(SHAPE_WORD.get(self.drawer_st.shape, "Full window"), notify=False)
+            self._drawer_side_seg.pick(str(self.drawer_cfg()["side"]).title(), notify=False)
             has_key = bool(self.drawer_key_label())
-            self._drawer_rb.state(["!disabled"] if has_key else ["disabled"])
             self._drawer_rb_tip.text = "" if has_key else "Set a Drawer key first (Settings › Keybinds)"
             k = self.drawer_key_label()
-            self._drawer_note.config(text=(f"{k} shows the app and puts it away (Settings › Keybinds)." if k else
+            self._drawer_note.config(text=(f"{k} shows the app and puts it away. Change it in Settings › Keybinds." if k else
                                            "No Drawer key: set one in Settings › Keybinds to use the Drawer."))
         except (tk.TclError, AttributeError):
             pass
+
+    def _drawer_seg_pick(self, word):
+        """The Window toggle: Drawer | Full window. The Drawer needs its key (Settings › Keybinds) - without one the
+        toggle stays on Full window and the line under it says so."""
+        want = next((k for k, w in SHAPE_WORD.items() if w == word), "full")
+        if want == "drawer" and not self.drawer_key_label():
+            self._drawer_seg.pick(SHAPE_WORD["full"], notify=False)
+            return
+        self._drawer_vars["shape"].set(want)
+        self._drawer_shape_pick()
 
     def _drawer_shape_pick(self):
         want = self._drawer_vars["shape"].get()
@@ -1015,20 +1101,6 @@ class DrawerHost:
     def _drawer_side_pick(self):
         if self._drawer_vars["side"].get() != self.drawer_cfg()["side"]:
             self.drawer_flip_side()
-
-    def _drawer_share_pick(self):
-        try:
-            pct = int(float(self._drawer_vars["share"].get()))
-        except (tk.TclError, ValueError):
-            return
-        c = self.drawer_cfg()
-        share = D.clamp_share(pct / 100.0)
-        if pct == int(round(float(c.get("share", D.SHARE)) * 100)):
-            return                                       # (drawer-look: the box only left with the width shown -
-        # a dragged 43.7% is shown as 44, and leaving the box mustn't move the Drawer to 44%: that was a snap back)
-        c["share"], c["share_set"] = share, True
-        save_json("settings.json", SETTINGS)
-        self.drawer_redock(force=True)
 
     def _drawer_click_pick(self):
         on = bool(self._drawer_vars["click"].get())
@@ -1184,11 +1256,11 @@ class DrawerStrip(tk.Frame):
         self.keys = tk.Frame(self, bd=0)                      # the key caps: Ctrl Shift Space or Esc puts it away
         self.keys.pack(side="left", fill="x", expand=True)
         self.btns = {}
-        for key, cmd, tip in (("away", lambda: app.drawer_put_away("strip"), "Put the app away (the Drawer key brings "
+        for key, cmd, tip in (("away", lambda: app.drawer_put_away("strip"), "Put the app away - the Drawer key brings "
                                                                               "it back)"),
                               ("side", app.drawer_flip_side, "The Drawer on the other side of the game"),
-                              ("full", app.drawer_full, "A normal window, where you left it (remembered)"),
-                              ("dock", app.drawer_dock, "The Drawer: the app over the game's side (remembered)")):
+                              ("full", app.drawer_full, "A normal window, where you left it - remembered"),
+                              ("dock", app.drawer_dock, "The Drawer: the app over the game's side - remembered")):
             b = IconButton(self, self.ICONS[key], cmd)
             self.btns[key] = (b, Tooltip(b, tip))
         TH.subscribe(lambda t: self.paint(), owner=self)
@@ -1274,8 +1346,8 @@ class DrawerStrip(tk.Frame):
             show = ("dock", "away")
             self._caps(t, bg, k, "full")
         self.say.config(text=text)
-        tips = {"full": "Full window: a normal window, where you left it (remembered)",
-                "dock": "Drawer: the app over the game's side (remembered)" if k else
+        tips = {"full": "Full window: a normal window, where you left it - remembered",
+                "dock": "Drawer: the app over the game's side - remembered" if k else
                         "Set a Drawer key first (Settings \u203a Keybinds)",
                 "away": "Put away" + (f" ({k} or Esc)" if k else " (Esc)") + ": the app is off screen",
                 "side": "Move to the " + ("right" if side == "left" else "left") + " side of the game"}

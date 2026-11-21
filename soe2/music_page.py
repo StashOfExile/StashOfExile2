@@ -28,6 +28,17 @@ class MusicPage:
         if v is not None and bool(v.get()) != bool(on):
             v.set(bool(on))
 
+    def music_open(self):
+        """Overlay › Helpers' Open: on, and its window in front (3.0.6 audit: when it was on already, Open did nothing)."""
+        self.music_set(True)
+        w = getattr(self, "mu_win", None)
+        try:
+            if w is not None and w.winfo_exists():
+                w.deiconify()
+                w.lift()
+        except (tk.TclError, AttributeError):
+            pass
+
     def music_shown(self):
         w = getattr(self, "mu_win", None)
         try:
@@ -86,7 +97,7 @@ class MusicPage:
         body.pack(fill="both", expand=True)
         self.mu_btns = {}
         for i, (what, icon, name) in enumerate(MU.BUTTONS):
-            b = tk.Label(body, text=icon, bg=P["cell_bg"], fg=txt, font=(P["font"], self.ov_font(13)), width=3,
+            b = tk.Label(body, text=icon, bg=P["cell_bg"], fg=txt, font=(P.get("body") or P["font"], self.ov_font(13)), width=3,
                          pady=2, cursor="hand2", highlightthickness=1,
                          highlightbackground=P.get("cell_line") or P["line"])
             b.grid(row=0, column=i, padx=2)

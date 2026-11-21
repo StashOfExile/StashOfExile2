@@ -278,7 +278,7 @@ UI_DPI_SET = [None]         # what pin_ui_dpi did (for the owner's checklist / b
 
 
 def pin_ui_dpi():
-    """drawer-look (owner: "everything is now scaled strangely"): the window thread's DPI awareness, fixed BEFORE
+    """drawer-look (everything was scaled strangely): the window thread's DPI awareness, fixed BEFORE
     Tk makes its first window, so every window of the app - the main one, Settings, dialogs, tooltips, Go to anything,
     Scan stash's review - is scaled by Windows the same way at 100 / 125 / 150 %.
     Why: the process starts DPI-unaware, then the first screen read's mss call (SetProcessDpiAwareness(2)) switched
@@ -290,7 +290,9 @@ def pin_ui_dpi():
     Screen reading doesn't depend on this thread's DPI: look_page.ev_look reads the game window and the mouse in real
     pixels (screenread.game_real - this thread per-monitor for the two reads, then back), the picture is taken the
     same way (screenread._grab), and a helper's tags are placed in the app's pixels (screenread.to_ui)."""
-    if not WIN or UI_DPI == "off":
+    mode = UI_DPI
+    if not WIN or mode == "off":
+        UI_DPI_SET[0] = "off"
         return None
     try:
         import ctypes
@@ -299,7 +301,7 @@ def pin_ui_dpi():
         if put is None:
             return None
         put.restype, put.argtypes = ctypes.c_void_p, [ctypes.c_void_p]
-        for name, ctx in ((("gdiscaled", -5), ("unaware", -1)) if UI_DPI == "gdiscaled" else (("unaware", -1),)):
+        for name, ctx in ((("gdiscaled", -5), ("unaware", -1)) if mode == "gdiscaled" else (("unaware", -1),)):
             if put(ctypes.c_void_p(ctx)):              # -5 DPI_AWARENESS_CONTEXT_UNAWARE_GDISCALED (1809+), -1 UNAWARE
                 UI_DPI_SET[0] = name
                 return name

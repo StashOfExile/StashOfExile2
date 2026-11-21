@@ -4,7 +4,7 @@
 
 > **Who we build for - read second.** Path of Exile players are utilitarian: they love data and information, problem solving and creative thinking. So every feature shows its numbers *and how they were worked out*, lets you sort, filter, compare and export them (CSV), keeps power-user depth (keys, versions, raw data) one click away instead of hiding it, explains in plain words, and leaves the decision to the player. Pretty is welcome; vague is not.
 
-**Current version: 3.0.5**
+**Current version: 3.1.0**
 
 Versions follow Semantic Versioning 2.0.0, always written in full: 2.10.0 adds features, 2.10.1 only fixes. Each step below is one release; we work through them top to bottom.
 
@@ -226,6 +226,31 @@ Versions follow Semantic Versioning 2.0.0, always written in full: 2.10.0 adds f
 
 ## ▶ Next up
 
+### Rule: prices for currency-type items come from poe.ninja only (owner, 2026-11-18)
+The bulk exchange is not a valid method of checking prices: its data is player set, not supply-and-demand pricing like
+the currency exchange uses. An item poe.ninja doesn't price shows "not found on poe.ninja" and is left out of totals - no
+bulk item exchange price, no guess. **Applies to the planned essence price checker** and anything else that prices
+stackables (Wealth, League Plan, Map Profit, Strat costs).
+
+### Pass: every helper's alerts after the policy changes (owner, 2026-11-18)
+Some on-screen alerts still point at features removed for GGG policy compliance (automatic screen reads, timers that
+read) or removed in the 3.0.x cleanup. One helper at a time (Breach, Ritual, Expedition, Temple, Trial of the Sekhemas,
+Desecration, Campaign, League Plan, Top Up Reminders, Break reminders, Map profit, Trade whispers, Music):
+- list every alert card, status line, tooltip and setting it can show;
+- mark each: still true / points at a removed feature / wording only;
+- remove or reword (removed features through tools/check_removed.py; names via names.py);
+- one checklist artifact per batch for the owner to confirm in game.
+
+### Fix: Vaal Lens room placement (2026-11-17: placements were missing)
+Before 3.0 (2.140-2.143) Vaal Lens watched the Temple Console while it was open, so picking a room card showed where it goes (1 / 2 on the best lit tiles, ✕ near reward rooms) and the gold path to the Architect, live. Since 3.0 (one read per Read Key press) it only updates on a press.
+Found in the owner's log (2026-11-17): the board is still read fine on a press (architect, rooms, paths, reward rooms), crystals read 54/60. But the card's plan said "Nothing to plan with these cards" for a hand of Path, Commander's Chamber, Sealed Vault ×2, Path, Crimson Hall.
+- **Plan every room card in hand**, not only the Thaumaturge combos and the Architect path (`vaallens_plan.hand_plan`): each card gets its best tile (`rank`) and a step number, drawn with the existing marks. "Nothing to plan" only when there truly is no safe tile.
+- **One press, whole plan:** after opening the console, one Read Key press reads the board and every card in the list (`card_names`) and plans them all. Picking a card and pressing again highlights where that one goes. Say so on the card: "Press Ctrl+Shift+R after placing a room to update the plan."
+- **Card list read check:** log the cards read on each press (debug), so a missed card list shows up.
+- **The card didn't come back** after closing the temple (owner had to turn the helper off and on): find why the Vaal Lens card stays hidden on the next console open / temple entry, and fix it.
+- GGG rule stays: nothing is read without a press; no watching.
+
+
 Re-styling the app (e.g. the YouTube Music-style shell) is set aside for later (2.57.0).
 
 Order (decided 2026-11-05): the page passes, then the Privacy & data hub, then the craft helpers, then a stress test of every menu. Linux is player-built.
@@ -318,7 +343,7 @@ Order (decided 2026-11-05): the page passes, then the Privacy & data hub, then t
 | Later | **Debloat pass of the whole program:** every page, menu and setting - remove what isn't used or doesn't earn its place, merge duplicates, shorten text (after the page passes). |
 | 1 | **Polish 7 - Page passes** (one version per pass, below): each page is gone through with the Page standard; I bring a findings list + mockup, you suggest changes, then I build it. |
 | 2 | **Privacy & data hub** (one home - Settings › Privacy & community): every point where data is collected, typed in or shared, and every community vote, listed in one place - what it is, what's sent (if anything), where it goes, why, its on / off switch and "delete mine". Covers Community data sharing (mod prices, Mod book votes, map ranks, campaign zones), Rate mods, the Mod book's unique lines (unique_mods.json, item wording only, never leaves the PC), map rank cards, Leaderboards, Money Makers strats / votes / reports / pictures, the community name, Trade Whisper Watcher (nothing saved), the Strat Tracker, Wealth (never leaves the PC) and anything added later (each new one must join this list). Opting out of anything is final: it's never asked again - not later, not in a few days. |
-| 3 | **Tablet Craft Helper + Jewel Craft Helper** (player feedback: "preload all tablets I have listed and grade them for me - what to reforge, what to regal and what to div"): a Start / Stop button on the helper page listens for Ctrl+Alt+C copies and feeds them only to the helper (not Bulk Pricing) while on; the whole batch is graded Reforge / Regal / Divine / Keep. The Jewel Craft Helper uses the same mechanism for jewels. Windows and Linux (the clipboard path works on both). |
+| 3 | **Tablet Craft Helper + Jewel Craft Helper** (player feedback: preload all listed tablets and grade them - what to reforge, regal or divine): a Start / Stop button on the helper page listens for Ctrl+Alt+C copies and feeds them only to the helper (not Bulk Pricing) while on; the whole batch is graded Reforge / Regal / Divine / Keep. The Jewel Craft Helper uses the same mechanism for jewels. Windows and Linux (the clipboard path works on both). |
 | 4 | **Stress test every menu:** go through each page and menu, try everything, log what breaks, fix it. |
 | - | **Linux:** player-built. `build_linux.sh` stays in the repo; the project builds and tests Windows only (decided 2026-11-04). |
 | Later | **Stash tab reads in stash order** (from the listing-order lab, 2026-11-05): the trade site's order for same-price items is random and reshuffles every read, so nothing to decode - but every listing carries its tab spot (x / y, 0-based; a whisper's "left 12, top 5" = x + 1, y + 1). A tab read lists items down the columns (how you walk a tab) with "left X, top Y" on each; a search returns at most 100 listings, so a tab of 100+ items is read in split searches until every square is covered (and says what's still missing). The Listing order lab's 1x1 round isn't needed. |
@@ -332,7 +357,7 @@ Most-used first; pages that share data go together so their doubles can be merge
 |---|---|
 | P1 | Price Checks (list, item card, Bulk Pricing, Search) |
 | P2 | Price Checks' children: Favorites, Market Insights (Bulk Pricing was in P1) - ✅ 2.104.0 |
-| P2.5 | ✅ 2.107.0 - **Controls refresh** (feedback: "the buttons feel amateur, the UI a bit generic"): one app-wide pass on the controls themselves, in style.py, so every later pass gets them - buttons (shape, depth, hover / press, icon + text), toggle switches, entries, dropdowns, check boxes, tabs, headings. Mockup first (2-3 directions per theme), you pick, then build. |
+| P2.5 | ✅ 2.107.0 - **Controls refresh** (feedback: the buttons felt amateur and the UI a bit generic): one app-wide pass on the controls themselves, in style.py, so every later pass gets them - buttons (shape, depth, hover / press, icon + text), toggle switches, entries, dropdowns, check boxes, tabs, headings. Mockup first (2-3 directions per theme), you pick, then build. |
 | P3 | ✅ 2.106.0 - Wealth - and remove the public stash tabs from Wealth (Stash tabs page, Sync stash tabs, the odd-price setup, synced items, every step / chip / help line about it): Scan stash replaces it. Price Checks › Add items from: Stash tab stays (it still has a use there). |
 | P4 | ✅ 2.108.0 - Overlay hub, Overlay › Settings, the bar itself (Panel and Game bar), helpers' pop-ups (done in 2.107.0: the "In game: Pause / resume" line gone, Overlay ON / OFF switch, one Sound switch); right-click the cog wheel = a small settings pop-up over the game (left click still opens the full Settings in the app). |
 | P5 | ✅ 2.108.0 - Overlay's children: Game Plan, Map library, Leaderboards |
@@ -344,7 +369,7 @@ Most-used first; pages that share data go together so their doubles can be merge
 
 ### Next UI/UX pass - notes (collected as they come)
 
-- Map profit on the overlay bar (feedback 2026-11-12: "the profit tracker on the overlay needs some visual improvements"): "+9.8 exalted" sits tight against Avg with no separator and the word "exalted" is long for the bar.
+- Map profit on the overlay bar (feedback 2026-11-12: the profit tracker on the overlay needs visual improvements): "+9.8 exalted" sits tight against Avg with no separator and the word "exalted" is long for the bar.
 
 ### Page standard (every pass checks the same things, in this order)
 
@@ -430,7 +455,7 @@ One run record for the whole app (area, time, loadout, content, loot, profit) th
 
 - **Community FAQ → Community forum** (expanded 2.85.1; mockups first, when it comes up): the FAQ works like a forum, a hybrid of two popular forums - threads in sections (Questions, Farm strats, Trading, Builds, General), each post under the player's community name (asked once at start-up), replies, and upvotes that count for both farm strats and FAQ answers. The asker marks the answer that solved it, and that answer goes to the searchable FAQ (e.g. "Can Sanctify add a socket, or only corruption?" -> "Corruption only ..."); players who opted in get unanswered questions offered to them. A player profile shows their posts and total upvotes (reputation), as on the trading-style popular forum. Moderation follows admin privileges plus the 2.85.0 reviewers: reports with reasons, hide / lock / pin / move threads, edit history, bans. Runs on the community board server (board/). **To solve first:** how the app gets updates - pulling new threads, replies, votes and moderation changes (when to poll and how often, what to cache on this PC, unread counts, notifications, staying inside the board's free-plan limits).
 
-- **Mod matching, our own** (feedback: "we frequently have missing mods"): the trade site's daily stat list (GGG's public data) becomes the main source, with our own rules from the game's wording to the trade wording - singular / plural ("Has 1 Charm Slot" / "# Charm Slots"), reduced / less = negative increased / more, with or without "+" / "to", local vs global (weapons, armor), hybrid mods split; wordings you fix by hand are learned (on this PC); the Unmatched mods page (from P10) shows what's still missing so each gets a rule. The bundled gamedata.json (Exiled Exchange 2 data, MIT, credited; a snapshot from Oct 24 2026, not refreshed) becomes the backup, then goes. Not reading the game's own files (7.9).
+- **Mod matching, our own** (feedback: mods are frequently missing): the trade site's daily stat list (GGG's public data) becomes the main source, with our own rules from the game's wording to the trade wording - singular / plural ("Has 1 Charm Slot" / "# Charm Slots"), reduced / less = negative increased / more, with or without "+" / "to", local vs global (weapons, armor), hybrid mods split; wordings you fix by hand are learned (on this PC); the Unmatched mods page (from P10) shows what's still missing so each gets a rule. The bundled gamedata.json (Exiled Exchange 2 data, MIT, credited; a snapshot from Oct 24 2026, not refreshed) becomes the backup, then goes. Not reading the game's own files (7.9).
 
 ## 💤 Parked (not planned unless something changes)
 

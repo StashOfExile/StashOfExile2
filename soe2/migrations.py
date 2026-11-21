@@ -247,6 +247,28 @@ def _delirium_gone(S):
             tr["bar"].pop("delirium", None)
 
 
+def _ritual_only_favours_306(S):
+    """3.0.6 (owner: reminders, counting and identifying rituals can't be automated under GGG policy): the Ritual helper
+    keeps Favours prices only. Gone: the counter's readout (ritual_alert.readout), the leave reminder
+    (leave_reminder), the Ritual Identifier (identify) and the helper's alert sound (sound). Favours prices was its
+    own switch (favours): it is the helper now - someone who had the helper on with Favours prices off turns the
+    helper off (it would price again otherwise)."""
+    r = S.get("ritual_alert")
+    if not isinstance(r, dict):
+        return
+    if r.pop("favours", True) is False:
+        r["on"] = False
+    for k in ("readout", "leave_reminder", "identify", "sound"):
+        r.pop(k, None)
+
+
+def _breach_reminder_follows_helper(S):
+    """Hiveblood's leave reminder is part of the helper being on: its own setting (leave_reminder) is gone."""
+    b = S.get("breach_alert")
+    if isinstance(b, dict):
+        b.pop("leave_reminder", None)
+
+
 def _look_key_default(S):
     """GGG policy, owner decision: the Read Key is Ctrl+Shift+R as the app comes. A Read Key that is unset (or was the
     old Tab, cleared by look_key_dedicated) becomes it; a key you picked is kept. A person with an older install is
@@ -273,13 +295,69 @@ def _look_key_dedicated(S):
 
 
 def _read_key_name(S):
-    """3.0.1 (owner: "ctrl + shift + r = Read. R for Read."): the Look key is the Read Key. Its NEW chip went once
+    """3.0.1 (Ctrl+Shift+R = Read, R for Read): the Look key is the Read Key. Its NEW chip went once
     you opened Settings › Keybinds or pressed it (settings.json "new_seen", by the feature's name) - that stays so
     under the new name; the old name is kept too (an older build put back still finds it). The key itself was always
     saved as look_key: nothing to move."""
     seen = S.get("new_seen")
     if isinstance(seen, dict) and seen.get("Look key") and not seen.get("Read Key"):
         seen["Read Key"] = seen["Look key"]
+
+
+def _strats_find_306(S):
+    """3.0.6 Farming Strategies (the approved mockups): one row per strat (the Cards | List switch is gone) and one
+    dropdown per filter (More filters / Fewer filters is gone) - their saved choices go."""
+    S.pop("mm_layout", None)
+    S.pop("mm_more_filters", None)
+
+
+def _split_layout(S):
+    """Owner decision: Split is a Layout, not a style - a saved "flanks" style becomes Layout Split with Style
+    Hairline (the same box-less look; ovlight.retire_look)."""
+    from .ovlight import retire_look
+    t = S.get("tracker")
+    if isinstance(t, dict):
+        retire_look(t)
+
+
+def _topup_key_gone(S):
+    """Owner decision: Top Up no longer learns an item from a key press - you pick items in Top Up Reminders. The
+    saved key goes quietly."""
+    S.pop("topup_key", None)
+    S.pop("topup_key_2131", None)
+
+
+def _no_stash_reading_307(S):
+    """3.0.7 (GGG policy audit): reading a stash tab through the trade site (Bulk Pricing's Add from stash tab, Wealth's
+    synced tabs) is gone, and the app keeps no account name. Deleted: the account name, every stash-tab price and
+    marker price, the tab list's order and the reading's log file. Bulk Pricing's tabs are plain lists now: the
+    Manually Add list is Tab 1, and a stash tab's list that has items (session.json) stays as the next tab."""
+    import os
+    import re
+    from .config import load_json, P
+    for k in ("wealth_account", "own_markers", "stash_order", "wealth_skip_tab"):
+        S.pop(k, None)
+    if isinstance(S.get("notices_closed"), dict):
+        S["notices_closed"].pop("pctab_beta", None)          # (the stash tab reading's BETA notice)
+    pc = S.get("pctab") if isinstance(S.get("pctab"), dict) else {}
+    try:
+        recs = (load_json("session.json", {}) or {}).get("records") or []
+        used = {str(r.get("src")) for r in recs if isinstance(r, dict)}
+    except Exception:
+        used = set()
+    tabs = [{"id": "manual", "name": "Tab 1", "renamed": False}]
+    for t in pc.get("tabs") or []:
+        if not isinstance(t, dict) or not t.get("id") or t["id"] == "manual" or f"tab:{t['id']}" not in used:
+            continue
+        name = str(t.get("name") or "").strip()[:24]
+        renamed = t["renamed"] if "renamed" in t else not re.fullmatch(r"Tab \d+", name)
+        tabs.append({"id": str(t["id"]), "name": name, "renamed": bool(renamed and name)})
+    cur = pc.get("current") if pc.get("mode") == "Stash tab" else "manual"
+    S["pctab"] = {"tabs": tabs, "current": cur if cur in [t["id"] for t in tabs] else "manual"}
+    try:
+        os.remove(P("tab_reader_log.txt"))
+    except OSError:
+        pass
 
 
 STEPS = (
@@ -310,6 +388,12 @@ STEPS = (
     ("delirium_gone", "GGG policy", "settings", _delirium_gone, None),
     ("look_key_default", "GGG policy", "settings", _look_key_default, None),
     ("read_key_name", "3.0.1", "settings", _read_key_name, None),
+    ("strats_find_306", "3.0.6", "settings", _strats_find_306, None),
+    ("ritual_only_favours_306", "3.0.6", "settings", _ritual_only_favours_306, None),
+    ("breach_reminder_follows_helper", "3.0.6", "settings", _breach_reminder_follows_helper, None),
+    ("split_layout", "Split layout", "settings", _split_layout, None),
+    ("topup_key_gone", "3.0.6", "settings", _topup_key_gone, None),
+    ("no_stash_reading_307", "3.0.7", "settings", _no_stash_reading_307, None),
 )
 
 
@@ -358,3 +442,8 @@ def run(S, stage, save=None):
         except Exception:
             buglog.record("error", "migrations: saving settings", exc=True)
     return done_now
+
+
+# 3.0.6 (owner): a strat's Farm type tags are Map type now - City area farm is City; Sacred Bloom farm isn't a real
+# thing (dropped). moneymakers.retag uses this when a strat is read (the shared file, yours, the board, an import).
+STRAT_OLD_TAGS = {"City area farm": "City", "Sacred Bloom farm": None}

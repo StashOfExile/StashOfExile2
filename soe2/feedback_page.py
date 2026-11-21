@@ -26,6 +26,26 @@ REPO = "StashOfExile/StashOfExile2"
 UPDATE_EVERY = 3600                 # 2.79.1 (feedback): every hour (was 6 h)
 
 
+
+def os_line():
+    """3.0.6 (bug reports say the OS and the version): "Windows 11" / "Windows 10", or on Linux the distro
+    family, the desktop and the session ("Linux (arch) · Hyprland · wayland") - never a build number or user name."""
+    import sys
+    if sys.platform == "win32":
+        try:
+            build = int((platform.version() or "0").split(".")[-1])
+        except ValueError:
+            build = 0
+        return "Windows 11" if build >= 22000 else f"Windows {platform.release()}"
+    if sys.platform.startswith("linux"):
+        try:
+            from . import linsys
+            d = linsys.distro() or "?"
+            return f"Linux ({d}) · {linsys.desktop() or '?'} · {linsys.session_type() or '?'}"
+        except Exception:
+            return "Linux"
+    return platform.system() or "?"
+
 class FeedbackPage:
     """Mixed into App."""
 
@@ -68,7 +88,7 @@ class FeedbackPage:
             return False
         self._upd_told = tag
         later = "Later" if not SETTINGS.get("auto_update") else "When I next start the app"
-        self.info_card(f"Version {pretty_version(tag)} is out (you have {pretty_version()}).",
+        self.info_card(f"Version {pretty_version(tag)} is out - you have {pretty_version()}.",
                        [("Install now", lambda: self.check_updates("ask")), (later, lambda: None)], secs=120)
         return True
 
@@ -89,8 +109,8 @@ class FeedbackPage:
             if not self.upd_badge.winfo_ismapped():
                 self.upd_badge.pack(in_=self.shell.task_right, side="left", padx=4, before=self.bug_btn)
             from .style import Tooltip
-            Tooltip(self.upd_badge, f"Version {pretty_version(tag)} is out (you have {pretty_version()}). Click: see "
-                                    "what's new and update (it asks first).")
+            Tooltip(self.upd_badge, f"Version {pretty_version(tag)} is out - you have {pretty_version()}. Click to see "
+                                    "what's new and update. It asks first.")
         else:
             self.upd_latest = None
             self.upd_badge.pack_forget()
@@ -112,7 +132,7 @@ class FeedbackPage:
             parts.append(f"**What I expected**\n{expected.strip()}")
         # 2.89.3: no exact Windows build or screen size (they help pick one person out); a private league's name stays here
         res = "4K" if sh >= 2000 else "1440p" if sh >= 1400 else "1080p" if sh >= 1000 else "under 1080p" if sh else "?"
-        parts.append(f"**App** {APP_VERSION} · {platform.system()} {platform.release()} · {res} · "
+        parts.append(f"**App** {APP_VERSION} · {os_line()} · {res} · "
                      f"league {public_league(SETTINGS.get('league')) or '?'}")
         if with_log:                                 # 2.115.0: the one log - the last crash / freeze / slow report and
             from . import buglog                     # the newest entries of app_log.txt, cleaned, capped
@@ -163,16 +183,16 @@ class FeedbackPage:
                 ttk.Entry(f, textvariable=v).pack(fill="x")
                 v.trace_add("write", lambda *a: self._bug_preview())
                 self.bug_vars[key] = v
-        field("title", "In a few words (the title)")
+        field("title", "The title, in a few words")
         field("what", "What happened?", 3)
-        field("steps", "How can it be made to happen? (steps - optional)", 3)
+        field("steps", "How can it be made to happen? Steps, optional", 3)
         field("expected", "What did you expect? (optional)", 2)
         self.bug_log = tk.BooleanVar(value=True)
         from . import buglog                         # 2.115.0: what the log holds, said plainly
         n = buglog.counts()
         seen = ", ".join(f"{v} {k}{'es' if k == 'crash' and v != 1 else 's' if v != 1 else ''}"
                          for k, v in sorted(n.items()) if v) or "nothing"
-        ttk.Checkbutton(f, text="Add the app's log: errors, crashes, freezes - code locations only (helps a lot)",
+        ttk.Checkbutton(f, text="Add the app's log: errors, crashes, freezes - code locations only. Helps a lot",
                         variable=self.bug_log, command=self._bug_preview).pack(anchor="w", pady=(8, 0))
         tk.Label(f, text=f"In the last week: {seen}.", bg=P1, fg=C["muted"], font=("Segoe UI", 9),
                  anchor="w").pack(fill="x", padx=(24, 0), pady=(0, 4))
@@ -208,9 +228,28 @@ class FeedbackPage:
         v = self.bug_vars[key]
         return v.get("1.0", "end-1c") if isinstance(v, tk.Text) else v.get()
 
+    def _bug_ready(self):
+        """3.0.6 (Send appeared to do nothing - the title or the text was too short and the red line went unseen):
+        Send stays gray, and the line under it says what's still needed, until both are long enough."""
+        need = []
+        if len(self._bug_val("title").strip()) < 4:
+            need.append("a title (4+ letters)")
+        if len(self._bug_val("what").strip()) < 10:
+            need.append("what happened (10+ letters)")
+        try:
+            if getattr(self, "bug_send_btn", None) is not None and str(self.bug_send_btn.cget("text")) == "Send":
+                self.bug_send_btn.config(state="disabled" if need else "normal")
+            if getattr(self, "bug_msg", None) is not None and self.bug_msg.cget("fg") != C["orange"]:
+                self.bug_msg.config(text=("Still needed: " + " and ".join(need) + ".") if need else "",
+                                    fg=C["muted"])
+        except tk.TclError:
+            pass
+        return not need
+
     def _bug_preview(self):
         if getattr(self, "bug_win", None) is None:
             return
+        self._bug_ready()
         text = self.bug_report_text(self._bug_val("what"), self._bug_val("steps"), self._bug_val("expected"), "",
                                     self.bug_log.get())
         self.bug_prev.config(state="normal")

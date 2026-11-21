@@ -14,7 +14,38 @@ from . import buglog
 from .style import C, SegBar, Tooltip
 
 ALL_LEAGUES = "All leagues"
+LEVEL_HEADER = "Area level"
+LEVEL_TIP = "The map's area level when it was run (Waystone tier 1 is area level 65, tier 16 is 80)"
 TOPS = (5, 10, 20, 30, 50, 100)             # 2.104.1 (feedback): how many rows a board shows
+TIMES = ("mine", "best", "time")
+SUB = "   ↳"
+
+
+def cell_key(col, text):
+    """3.1.0: a cell's sort value, like a spreadsheet. Times sort by seconds, numbers as numbers, the rest A to Z.
+    None for an empty cell or "-", which always goes last."""
+    t = str(text).replace("↳", "").replace(" (you)", "").strip()
+    if t in ("", "-"):
+        return None
+    if col in TIMES and ":" in t:
+        try:
+            n = 0.0
+            for part in t.split(":"):
+                n = n * 60 + float(part)
+            return (0, n)
+        except ValueError:
+            pass
+    try:
+        return (0, float(t))
+    except ValueError:
+        return (1, t.lower())
+
+
+def sorted_groups(groups, desc):
+    """[(key, [iids])] -> the iids in order: each group by its key, empty keys last either way."""
+    full = [g for g in groups if g[0] is not None]
+    full.sort(key=lambda g: g[0], reverse=desc)
+    return [i for _k, ids in full + [g for g in groups if g[0] is None] for i in ids]
 
 
 class LeaderboardPage:
@@ -59,10 +90,20 @@ class LeaderboardPage:
         tb.bind("<<ComboboxSelected>>", lambda e: self.lb_top_pick())
         ttk.Button(top2, text="↻ Refresh", style="Quiet.TButton", command=lambda: self.lb_refresh(send=True)).pack(
             side="right")
-        # 2.138.0 (feedback: "anywhere that saves player data ... should have that option")
+        # 2.138.0 (feedback: anywhere that saves player data should offer that option)
         exb = ttk.Button(top2, text="Export my times…", style="Quiet.TButton", command=self.lb_export)
         exb.pack(side="right", padx=(0, 8))
         Tooltip(exb, "Your fastest maps, bosses, trials and acts to a CSV - from this PC, no character names")
+        top3 = tk.Frame(body, bg=P1, padx=8)
+        top3.pack(fill="x", pady=(0, 4))
+        self.lb_rebuild_btn = ttk.Button(top3, text="Rebuild campaign times from the game's log", style="Quiet.TButton",
+                                         command=self.lb_rebuild)
+        self.lb_rebuild_btn.pack(side="left")
+        Tooltip(self.lb_rebuild_btn, "Reads the end of Client.txt, the game's log file, and works out your act and zone "
+                                     "times again. It only reads that file - the game isn't touched. The faster of old and "
+                                     "new is kept.")
+        tk.Label(top3, text="Works out your act and zone times again from the game's log.", bg=P1, fg=C["muted"],
+                 font=("Segoe UI", 9)).pack(side="left", padx=(8, 0))
         self.lb_msg = tk.Label(body, text="", bg=P1, fg=C["muted"], anchor="w", justify="left", padx=12)
         self.lb_msg.pack(fill="x")
         split = tk.Frame(body, bg=P1)
@@ -71,10 +112,10 @@ class LeaderboardPage:
         left.pack(side="left", fill="y")
         left.pack_propagate(False)
         kv = ttk.Treeview(left, columns=("mine", "best", "n"), show="tree headings", selectmode="browse")
-        kv.heading("#0", text="Act / map")
-        kv.heading("mine", text="My best")
-        kv.heading("best", text="Best")
-        kv.heading("n", text="Players")
+        self.lb_sort = {}                                   # 3.1.0: table -> (column, descending), kept across tabs
+        self.lb_titles = {"keys": {"#0": "Act / map", "mine": "My best", "best": "Best", "n": "Players"}}
+        for cid, title in self.lb_titles["keys"].items():
+            kv.heading(cid, text=title, command=lambda c=cid: self.lb_sort_by("keys", c))
         kv.column("#0", width=150)
         for c, w in (("mine", 72), ("best", 64), ("n", 68)):
             kv.column(c, width=w, anchor="e", stretch=False)
@@ -90,26 +131,39 @@ class LeaderboardPage:
         right.pack(side="left", fill="both", expand=True, padx=(8, 0))
         self.lb_title = tk.Label(right, text="", bg=P1, fg=C["accent"], font=("Segoe UI", 12, "bold"), anchor="w")
         self.lb_title.pack(fill="x")
-        cols = (("rank", "#", 40, "e"), ("name", "Player", 150, "w"), ("time", "Time", 80, "e"), ("cls", "Class", 120, "w"),
-                ("lvl", "Level", 60, "e"), ("deaths", "Deaths", 66, "e"), ("league", "League", 120, "w"),
+        cols = (("rank", "#", 40, "e"), ("name", "Player", 170, "w"), ("time", "Time", 80, "e"), ("cls", "Class", 120, "w"),
+                ("lvl", LEVEL_HEADER, 84, "e"), ("deaths", "Deaths", 66, "e"), ("league", "League", 120, "w"),
                 ("when", "When", 100, "w"))
         bv = ttk.Treeview(right, columns=[c[0] for c in cols], show="headings", selectmode="browse")
+        self.lb_titles["board"] = {c[0]: c[1] for c in cols}
         for cid, title, w, a in cols:
-            bv.heading(cid, text=title)
+            bv.heading(cid, text=title, command=lambda c=cid: self.lb_sort_by("board", c))
             bv.column(cid, width=w, anchor=a, stretch=cid in ("name", "cls"))
+        lvl_tip = Tooltip(bv, "")                                # the header's hover (a Treeview heading has no widget)
+
+        def lvl_hover(e, tip=lvl_tip, col="#%d" % (1 + [c[0] for c in cols].index("lvl"))):
+            on = bv.identify_region(e.x, e.y) == "heading" and bv.identify_column(e.x) == col
+            if (LEVEL_TIP if on else "") != tip.text:
+                tip.hide()
+                tip.text = LEVEL_TIP if on else ""
+                if on:
+                    tip._enter()
+            tip.at = (bv.winfo_rootx() + e.x, bv.winfo_rooty() + e.y + 22)
+        bv.bind("<Motion>", lvl_hover, add="+")
         bv.tag_configure("gold", foreground="#ffd25a")
         bv.tag_configure("me", foreground=C["green"])
         bv.tag_configure("hidden", foreground=C["muted"])
+        bv.tag_configure("sub", foreground=C["muted"])          # 3.0.6: a player's other runs (under their best)
         bv.pack(fill="both", expand=True, pady=(4, 0))
         self.lb_board_empty = tk.Label(right, text="Pick a board on the left.", bg=self._lb_field(), fg=C["muted"])
         bv.menu_actions = self.lb_menu_actions
         self.list_register("leaderboards", bv, multi=False)
         self.list_register("leaderboards", kv, multi=False)
         self.lb_tv = bv
-        tk.Label(right, text="Times are self-reported - they come from the game's log (Client.txt), like the overlay's "
-                             "session timer: a map's time is time inside it; a campaign act is its split (away time "
-                             "left out). The board refuses impossible times, and reports, reviewers and admins hide "
-                             "the rest. Your community name shows - never your account or character.",
+        tk.Label(right, text="Times are self-reported. They come from the game's log, Client.txt, like the Session timer. "
+                             "A map's time is time inside it. A campaign act's time is its split, without time away. "
+                             "The board refuses impossible times, and reports, reviewers and admins hide "
+                             "the rest. Your community name shows, never your account or character.",
                  bg=P1, fg=C["muted"], font=("Segoe UI", 9), anchor="w", justify="left", wraplength=760).pack(
             fill="x", pady=(8, 0))
         self.lb_rows = {}                                     # (filled when the page is opened: on_show)
@@ -203,7 +257,7 @@ class LeaderboardPage:
         def done(res):
             ok, d = res
             if ok and getattr(self, "lb_msg", None) is not None and isinstance(d, dict) and d.get("refused"):
-                self.lb_msg.config(text=f"{d['refused']} of your times were refused (faster than anyone can play).",
+                self.lb_msg.config(text=f"{d['refused']} of your times were refused as faster than anyone can play.",
                                    fg=C["muted"])
         self._lb_bg(lambda: B.lb_send(data), done)
         return True
@@ -240,7 +294,7 @@ class LeaderboardPage:
             self.lb_msg.config(text="The community board isn't set up yet - showing yours.", fg=C["muted"])
             return self._lb_keys_fill(None, classes)
         if not LB.sharing_on():
-            self.lb_msg.config(text="Everyone's times show once Community data sharing is on (Settings) - yours are "
+            self.lb_msg.config(text="Everyone's times show once Community data sharing is on in Settings. Yours are "
                                     "added then too.", fg=C["muted"])
         self.lb_msg.config(text="Loading…", fg=C["muted"]) if LB.sharing_on() else None
         self._lb_kgen = kgen = getattr(self, "_lb_kgen", 0) + 1     # (2.125.8: only the newest answer is drawn)
@@ -277,6 +331,7 @@ class LeaderboardPage:
         if self.lb_cat_key() == "campaign":
             order = {k: i for i, (k, _b, _n) in enumerate(LB.keys_of(self.lb_my, "campaign"))}
             keys.sort(key=lambda k: (order.get(k, 999), k))
+        self.lb_key_pos = {k: i for i, k in enumerate(keys)}
         for k in keys:
             mb = self.lb_my_keys.get(k, (None, 0))[0]
             w = world.get(k) or {}
@@ -289,14 +344,15 @@ class LeaderboardPage:
         if keys:
             self.lb_keys_empty.place_forget()
         else:
-            # 2.124.1 (feedback: "no zone times being tracked?"): say when this board gets times
+            # 2.124.1 (feedback: no zone times seemed to be tracked): say when this board gets times
             self.lb_keys_empty.set_text(
                 "No times on this board yet\nA zone is timed from entering it to leaving it, while a character is "
                 "still in the campaign (not visits after it, and at least 10 s)." if self.lb_cat_key() == "zone" else
                 "No times on this board yet\nRun maps with the overlay's timer on, or play the campaign with the "
                 "Campaign Helper.")
             self.lb_keys_empty.place(relx=0.5, rely=0.45, anchor="center")
-        sel = keep[0] if keep and kv.exists(keep[0]) else (keys[0] if keys else None)
+        self.lb_sort_apply("keys")
+        sel = keep[0] if keep and kv.exists(keep[0]) else (kv.get_children()[0] if keys else None)
         if sel:
             kv.selection_set(sel)
         else:
@@ -306,6 +362,7 @@ class LeaderboardPage:
         bv = self.lb_tv
         bv.delete(*bv.get_children())
         self.lb_rows = {}
+        self.lb_at = {}
         sel = self.lb_keys_tv.selection()
         if not sel:
             self.lb_title.config(text="")
@@ -316,17 +373,27 @@ class LeaderboardPage:
         league, cls = self.lb_filters()
         self.lb_title.config(text=f"🏆 {key}" + (f" · {cls}" if cls else "") + (f" · {league}" if league else " · all leagues"))
         if self.lb_who.get() == "Mine":
+            # 3.0.6: all your own runs for this entry, fastest first - kept on this PC; only the 10 fastest per league
+            # and class are shared
             rows = sorted((e for e in self.lb_my if e["cat"] == cat and e["key"] == key
                            and (not league or e["league"] == league) and (not cls or e.get("cls") == cls)),
-                          key=lambda e: e["secs"])[:self.lb_top_n()]
+                          key=lambda e: e["secs"])
             for i, e in enumerate(rows):
-                bv.insert("", "end", iid=f"m{i}", values=(i + 1, e.get("char") or "me", LB.fmt(e["secs"]),
-                                                          e.get("cls") or "", e.get("level") or "", e.get("deaths", 0),
+                sub = i > 0
+                bv.insert("", "end", iid=f"m{i}", values=(i + 1, ("   ↳ " if sub else "") + (e.get("char") or "me")
+                                                          + (f" · run {i + 1}" if sub else ""), LB.fmt(e["secs"]),
+                                                          e.get("cls") or "", LB.level_text(e.get("level")), e.get("deaths", 0),
                                                           e["league"], time.strftime("%b %d", time.localtime(e["at"]))),
-                          tags=("gold",) if i == 0 else ())
+                          tags=("sub",) if sub else ("gold",))
+                self.lb_at[f"m{i}"] = e["at"]
+            self.lb_sort_apply("board")
+            if rows:
+                self.lb_msg.config(text=f"{len(rows)} run{'s' if len(rows) != 1 else ''} on this PC. The "
+                                        f"{LB.PER_PLAYER} fastest per league and class are shared; the rest stay here.",
+                                   fg=C["muted"])
             return
 
-        # 2.125.8 (feedback: "I still don't see anyone else's ... map times"; app_log: "Item b1767 already exists"):
+        # 2.125.8 (feedback: no one else's map times showed; app_log: "Item b1767 already exists"):
         # two looks at one board raced - the slower answer added its rows again and stopped half-way. Only the newest
         # answer is drawn, into a cleared list.
         self._lb_gen = gen = getattr(self, "_lb_gen", 0) + 1
@@ -339,23 +406,125 @@ class LeaderboardPage:
                 return self.lb_msg.config(text=d, fg=C["red"])
             bv.delete(*bv.get_children())
             self.lb_rows = {}
+            self.lb_at = {}
             rows = d.get("rows") or []
             others = sum(1 for r in rows if not r.get("mine"))
             if rows and not others:                       # (say why it's only you - not a fault)
                 self.lb_msg.config(text="Only your time on this board so far. Other players' times show here once "
-                                        "they share theirs (Community data sharing).", fg=C["muted"])
-            for i, r in enumerate(rows):
-                iid = f"b{r['id']}"
-                if bv.exists(iid):
-                    continue
-                self.lb_rows[iid] = r
-                tags = ("hidden",) if r.get("hidden") else ("me",) if r.get("mine") else ("gold",) if i == 0 else ()
-                bv.insert("", "end", iid=iid, values=(i + 1, r["name"] + (" (you)" if r.get("mine") else ""),
-                                                      LB.fmt(r["secs"]), r.get("cls") or "", r.get("level") or "",
-                                                      r.get("deaths", 0), r.get("league", ""),
-                                                      time.strftime("%b %d", time.localtime(r["at"]))), tags=tags)
+                                        "they share theirs through Community data sharing.", fg=C["muted"])
+            top = self.lb_top_n()
+            for place, (_name, runs) in enumerate(self.lb_groups(rows)[:top]):
+                for j, r in enumerate(runs):
+                    iid = f"b{r['id']}"
+                    if bv.exists(iid):
+                        continue
+                    self.lb_rows[iid] = r
+                    sub = j > 0
+                    tags = ("hidden",) if r.get("hidden") else ("sub",) if sub else ("me",) if r.get("mine") \
+                        else ("gold",) if place == 0 else ()
+                    who = r["name"] + (" (you)" if r.get("mine") else "")
+                    bv.insert("", "end", iid=iid, values=(
+                        "" if sub else place + 1, f"   ↳ run {j + 1}" if sub else who, LB.fmt(r["secs"]),
+                        r.get("cls") or "", LB.level_text(r.get("level")), r.get("deaths", 0), r.get("league", ""),
+                        time.strftime("%b %d", time.localtime(r["at"]))), tags=tags)
+                    self.lb_at[iid] = r["at"]
+            self.lb_sort_apply("board")
         top = self.lb_top_n()
-        self._lb_bg(lambda: B.lb_board(cat, key, league, cls, limit=top), done)
+        self._lb_bg(lambda: B.lb_board(cat, key, league, cls, limit=min(200, top * LB.PER_PLAYER), per=LB.PER_PLAYER),
+                    done)
+
+    def lb_sort_by(self, which, col):
+        """3.1.0: a click on a column's header sorts by it, smallest or A first; a second click turns it round."""
+        cur = self.lb_sort.get(which)
+        self.lb_sort[which] = (col, not cur[1] if cur and cur[0] == col else False)
+        self.lb_sort_apply(which)
+
+    def lb_sort_apply(self, which):
+        tv = self.lb_keys_tv if which == "keys" else self.lb_tv
+        col, desc = self.lb_sort.get(which) or (None, False)
+        for cid, title in self.lb_titles[which].items():
+            tv.heading(cid, text=title + ((" ▼" if desc else " ▲") if cid == col else ""))
+        if col is None:
+            return
+        groups = []
+        mine_view = which == "board" and self.lb_who.get() == "Mine"
+        for iid in tv.get_children():
+            vals = tv.item(iid, "values")
+            if which == "board" and not mine_view and groups and str(vals[1]).startswith(SUB):
+                groups[-1][1].append(iid)                 # (a player's other runs stay under their best)
+                continue
+            if col == "#0":
+                pos = getattr(self, "lb_key_pos", {}).get(iid, 0)
+                k = (0, pos) if self.lb_cat_key() == "campaign" else (1, str(iid).lower())
+            elif col == "when":
+                at = getattr(self, "lb_at", {}).get(iid)
+                k = None if at is None else (0, at)
+            else:
+                cols = list(self.lb_titles[which])
+                i = cols.index(col) - (1 if which == "keys" else 0)
+                k = cell_key(col, vals[i]) if i < len(vals) else None
+            groups.append((k, [iid]))
+        for n, iid in enumerate(sorted_groups(groups, desc)):
+            tv.move(iid, "", n)
+
+    @staticmethod
+    def lb_groups(rows):
+        """3.0.6: the board's rows (fastest first, up to 10 per player) -> [(player, [their runs, fastest first])], the
+        players in the order of their best run - so the board isn't ten rows of one name."""
+        order, by = [], {}
+        for r in sorted(rows, key=lambda r: (r.get("rank_in_player") or 1, r["secs"])):
+            who = (r.get("name"), bool(r.get("mine")))
+            if who not in by:
+                by[who] = []
+                order.append(who)
+            by[who].append(r)
+        order.sort(key=lambda w: min(r["secs"] for r in by[w]))
+        return [(w[0], sorted(by[w], key=lambda r: r["secs"])) for w in order]
+
+    # ---------------------------------------------------------------- 3.0.6: campaign times from the game's log
+    def lb_rebuild(self):
+        """Rebuild the campaign's act and zone times from Client.txt (the last 64 MB), in the background. Reads the
+        game's log only. The faster of old and new is kept; then the times are sent (when sharing is on)."""
+        if getattr(self, "_lb_rebuilding", False):
+            return None
+        from .gamelog import find_log
+        path = find_log(self.tracker_cfg().get("log_path")) if hasattr(self, "tracker_cfg") else None
+        if not path:
+            self._say("Couldn't find the game's log (Client.txt). Pick it in the Overlay's Session timer options.", 8)
+            return None
+        self._lb_rebuilding = True
+        self.lb_rebuild_btn.state(["disabled"])
+        self.lb_msg.config(text="Reading the game's log…", fg=C["muted"])
+
+        def done(res):
+            self._lb_rebuilding = False
+            self.lb_rebuild_btn.state(["!disabled"])
+            if res is None:
+                self.lb_msg.config(text="Couldn't read the game's log.", fg=C["red"])
+                return
+            a, z, t = res
+            txt = (f"Rebuilt from the log: {a} act time{'s' if a != 1 else ''} and {z} zone time{'s' if z != 1 else ''} "
+                   "new or faster" + (", and the whole campaign" if t else "") + ".")
+            self.lb_msg.config(text=txt, fg=C["muted"])
+            self._say(txt, 8)
+            self.lb_send(force=True)
+            self.lb_refresh()
+
+        def work():
+            try:
+                runs = LB.rebuild_campaign(path)
+            except Exception:
+                buglog.caught()
+                return None
+            return ("merge", runs)
+
+        def merged(res):
+            if res is None:
+                return done(None)
+            from . import campaign as CP
+            done(CP.merge_rebuilt(res[1]))
+        self._lb_bg(work, merged)
+        return True
 
     # ---------------------------------------------------------------- reports / reviewers
     def lb_menu_actions(self, sel):
@@ -368,7 +537,7 @@ class LeaderboardPage:
             acts.append(("⚑ Report this time…", lambda: self.lb_report(r)))
         if (me.get("reviewer") or me.get("admin")) and not r.get("mine"):
             acts += [("Reviewer: hide it", lambda: self.lb_review(r, "hide")),
-                     ("Reviewer: keep it (clear reports)", lambda: self.lb_review(r, "keep"))]
+                     ("Reviewer: keep it, clear reports", lambda: self.lb_review(r, "keep"))]
         return acts
 
     def lb_report(self, r):

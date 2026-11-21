@@ -30,6 +30,7 @@ is taken the same way (_grab). So the capture regions are the same at 100 / 125 
 (boxes on screen) is in real pixels; to_ui() turns them into the app's pixels to place a tag, to_screen() the other
 way (the mouse, our own windows) - from the press's game window in both (MAP; identical where they agree)."""
 import contextlib
+import os
 import sys
 import threading
 import time
@@ -348,9 +349,64 @@ def _grab(box):
         import mss
         from PIL import Image
         l_, t, r, b = box
-        with mss.mss() as one:
-            shot = one.grab({"left": int(l_), "top": int(t), "width": int(r - l_), "height": int(b - t)})
+        with see_through():                         # 3.0.6: the app's own windows left out of this one picture
+            with (getattr(mss, "MSS", None) or mss.mss)() as one:
+                shot = one.grab({"left": int(l_), "top": int(t), "width": int(r - l_), "height": int(b - t)})
         return Image.frombytes("RGB", shot.size, shot.rgb)
+
+
+class see_through:
+    """3.0.6 (a Ctrl+Shift+R press should always look through the overlay for any on-screen reading):
+    for the press's one picture, every visible window of this app (the overlay bar, Vaal Lens, its marks, alert
+    cards, the app itself) is left out of the capture (WDA_EXCLUDEFROMCAPTURE, Windows 10 2004+) - you still see
+    them; the picture sees the game under them. Each window's own setting is put back right after. Nothing in the
+    game changes; it is the same one picture per press."""
+    WAIT = 0.05                                     # (the compositor takes a frame to apply it)
+
+    def __init__(self):
+        self.done = []
+
+    def __enter__(self):
+        if sys.platform != "win32":
+            return self
+        try:
+            import ctypes
+            from ctypes import wintypes
+            u = ctypes.windll.user32
+            pid = os.getpid()
+            wins = []
+            proc = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+
+            def each(h, _l):
+                p_ = wintypes.DWORD()
+                u.GetWindowThreadProcessId(h, ctypes.byref(p_))
+                if p_.value == pid and u.IsWindowVisible(h):
+                    wins.append(h)
+                return True
+            u.EnumWindows(proc(each), 0)
+            u.GetWindowDisplayAffinity.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
+            u.SetWindowDisplayAffinity.argtypes = [wintypes.HWND, wintypes.DWORD]
+            for h in wins:
+                was = wintypes.DWORD(0)
+                u.GetWindowDisplayAffinity(h, ctypes.byref(was))
+                if was.value != 0x11 and u.SetWindowDisplayAffinity(h, 0x11):
+                    self.done.append((h, was.value))
+            if self.done:
+                time.sleep(self.WAIT)
+        except Exception:
+            self.done = self.done or []
+        return self
+
+    def __exit__(self, *exc):
+        if self.done:
+            try:
+                import ctypes
+                u = ctypes.windll.user32
+                for h, was in self.done:
+                    u.SetWindowDisplayAffinity(h, was)
+            except Exception:
+                pass
+        return False
 
 
 def capture(region, purpose, now=None):
@@ -373,7 +429,7 @@ def capture(region, purpose, now=None):
             COUNT["shots"] += 1
             if g["shot"] is None:                   # (Linux: the capture tool gave nothing - no retry)
                 return None
-        for p in str(purpose or "").split(", "):        # ("Temple, Ritual Identifier": two helpers, one part)
+        for p in str(purpose or "").split(", "):        # ("Temple, Vaal Lens": two helpers, one part)
             if p and p not in g["for"]:
                 g["for"].append(p)
         bx, by, br, bb = g["box"]

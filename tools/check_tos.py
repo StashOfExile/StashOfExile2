@@ -24,8 +24,17 @@ base rule for the whole program:
   - a function that reads the clipboard (clipread take / take_now / app_paste) and puts itself back on a timer
   - a key sender (SendInput, send_copy, type_chat ...) reachable from a timer (.after, after_idle, threading.Timer)
 GGG's developer guidelines (https://www.pathofexile.com/developer/docs/index#guidelines):
+  - the game's own files: nothing opens, reads or writes poe2_production_Config.ini (or anything in the game's folder
+    in Documents, My Games); only soe2/ritual_filter.py names it, to show words and open the folder. Client.txt in the
+    install / log folder is the one game file that is read.
   - the exact notice NOTICE in README.md and on Settings › About (soe2/about_page.py)
-  - the User-Agent (config.APP_UA) says how to reach the project: "(contact: ...)"."""
+  - the User-Agent (config.APP_UA) says how to reach the project: "(contact: ...)".
+GGG ToS 7(a) - no redistributing game content (3.1): no game art is bundled. Item pictures come at runtime from the
+image links poe.ninja / the trade site send (the game's image server), cached on the player's PC (soe2/gameart.py):
+  - no picture file (.png .jpg .jpeg .gif .webp .bmp .dds) anywhere in soe2/ (the bundled package), no soe2/templates
+    folder and no *_icons.json picture fingerprints there
+  - nothing the builds bundle (--add-data in build_exe.bat, build_linux.sh, .github/workflows/release.yml) is a
+    picture or a folder holding one - only the app's own icon (stashofexile2.ico, an original drawing)."""
 import ast
 import glob
 import os
@@ -58,7 +67,6 @@ CLIP_WATCH = (r"\b(GetClipboardSequenceNumber|AddClipboardFormatListener|SetClip
 KEY_WATCHER = {(os.path.join("soe2", "look_page.py"), "look_on_key"),
                (os.path.join("soe2", "utilities_page.py"), "clip_on_key"),
                (os.path.join("soe2", "utilities_page.py"), "pc_hotkey"),
-               (os.path.join("soe2", "utilities_page.py"), "topup_hotkey"),
                (os.path.join("soe2", "overlay.py"), "on_key")}
 SCREEN_GRANT = {"screenread", "SR", "_sr"}
 LOOK_WATCHER = (os.path.join("soe2", "look_page.py"), "look_on_key")     # the only caller of screenread.grant
@@ -222,7 +230,7 @@ def timer_senders(trees):
 
 
 LISTENER_FILE = os.path.join("soe2", "utilities_page.py")
-LISTENER_OK = re.compile(r"CAPTURING|0x4B|pc_hotkey|pc_close_hotkey|rx_key_hit|topup_hotkey|poe2db_key|tracker_on_key|"
+LISTENER_OK = re.compile(r"CAPTURING|0x4B|pc_hotkey|pc_close_hotkey|rx_key_hit|poe2db_key|tracker_on_key|"
                          r"overlay\.on_key|drawer_hotkey|drawer_esc_hotkey")
 # (what the key watcher swallowed before the compliance work; drawer build: the Drawer key and, while the Drawer
 # shows, your close key - both the app's own keys, never the Read Key: Settings › Keybinds keeps them apart)
@@ -230,7 +238,7 @@ READ_KEYS = re.compile(r"look_on_key|clip_on_key|look_key|screenread|clipread|\b
 
 
 def key_blocking(trees, src_of):
-    """The Read Key is only heard - the game still gets it (owner: "must NOT be swallowed"). In the key watcher's
+    """The Read Key is only heard - the game still gets it (owner: it must NOT be swallowed). In the key watcher's
     listener (UtilitiesPage.on_any_key): look_on_key / clip_on_key are called as plain statements (their answer is
     never returned or tested), and every statement that can swallow a key (return True or return of a call) belongs
     to a key the app already took before: the hotkey box, Ctrl+K, the price check / its close key, Regex keys, the Top
@@ -260,6 +268,42 @@ def key_blocking(trees, src_of):
     return bad
 
 
+GAME_DOCS = re.compile(r"poe2_production_Config|production_Config\.ini|\bMy Games\b", re.I)
+GAME_FILE_FILE = os.path.join("soe2", "ritual_filter.py")      # names the file to show words (never opens it)
+FILE_CALLS = {"open", "read_text", "read_bytes", "write_text", "write_bytes", "replace", "rename", "remove", "unlink",
+              "copy", "copy2", "copyfile", "move", "getmtime", "isfile", "exists", "stat", "scandir", "listdir",
+              "ConfigParser", "startfile", "Popen", "run"}
+
+
+def game_files(trees, src_of):
+    """The game's settings file (poe2_production_Config.ini) and anything in Documents\\My Games is never opened, read
+    or written. Only soe2/ritual_filter.py may name them, and there no call may open, read, write, copy or check a
+    file; the folder is opened by the caller (os.startfile of a folder). [(file, line, what)]"""
+    bad = []
+    for rel, tree in trees:
+        text = "\n".join(code_lines(src_of[rel]))
+        lines = text.split("\n")
+        if rel != GAME_FILE_FILE:
+            # (strings inside code - docstrings and comments may tell the history)
+            for no, ln in enumerate(lines, 1):
+                if GAME_DOCS.search(ln):
+                    bad.append((rel, no, "names the game's settings file (Documents, My Games) - only "
+                                         "soe2/ritual_filter.py may, to show words; never open, read or write it"))
+            continue
+        for n in ast.walk(tree):
+            if isinstance(n, ast.Call):
+                f = n.func
+                name = f.attr if isinstance(f, ast.Attribute) else getattr(f, "id", "")
+                if name in FILE_CALLS:
+                    bad.append((rel, n.lineno, f"{name}() in the Ritual filter - the game's settings file is never "
+                                               f"opened, read or written"))
+            if isinstance(n, (ast.Import, ast.ImportFrom)):
+                mods = [a.name for a in n.names] + [getattr(n, "module", None) or ""]
+                if any(m.split(".")[0] in ("shutil", "subprocess", "pathlib", "configparser") for m in mods):
+                    bad.append((rel, n.lineno, "a file or process module in the Ritual filter"))
+    return bad
+
+
 def guidelines():
     """GGG's developer guidelines: the notice, and the User-Agent's contact."""
     bad = []
@@ -275,6 +319,48 @@ def guidelines():
     m = re.search(r"^APP_UA\s*=\s*(.+)$", cfg, re.M)
     if not m or "(contact: " not in m.group(1):
         bad.append("soe2/config.py: APP_UA must say how to reach the project: \"(contact: ...)\"")
+    return bad
+
+
+PICTURES = (".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".dds")
+OWN_ART = {"stashofexile2.ico"}                             # the app's icon: an original drawing (tools/make_icon.py)
+BUILDS = ("build_exe.bat", "build_linux.sh", os.path.join(".github", "workflows", "release.yml"))
+
+
+def _pictures_in(path):
+    if os.path.isfile(path):
+        return [path] if path.lower().endswith(PICTURES) else []
+    out = []
+    for d, _sub, fs in os.walk(path):
+        out += [os.path.join(d, f) for f in fs if f.lower().endswith(PICTURES)]
+    return out
+
+
+def game_art():
+    """GGG ToS 7(a): no game art bundled - pictures are downloaded at runtime (gameart.py)."""
+    bad = []
+    pkg = os.path.join(ROOT, "soe2")
+    for p in _pictures_in(pkg):
+        bad.append(f"{os.path.relpath(p, ROOT)}: a picture in the bundled package (game art must not ship - load it "
+                   f"from the game's image server at runtime, soe2/gameart.py)")
+    if os.path.isdir(os.path.join(pkg, "templates")):
+        bad.append("soe2/templates: game art crops must not ship")
+    for p in glob.glob(os.path.join(pkg, "**", "*_icons.json"), recursive=True):
+        bad.append(f"{os.path.relpath(p, ROOT)}: picture fingerprints of the game must not ship")
+    for rel in BUILDS:
+        try:
+            text = open(os.path.join(ROOT, rel), encoding="utf-8").read()
+        except OSError:
+            continue
+        for src in re.findall(r'--add-data\s+"([^";:]+)[;:]', text):
+            src = src.replace("\\", os.sep).replace("/", os.sep)
+            if os.path.basename(src) in OWN_ART:
+                continue
+            if "templates" in src.split(os.sep):
+                bad.append(f"{rel}: bundles {src} (game art must not ship)")
+                continue
+            for p in _pictures_in(os.path.join(ROOT, src)):
+                bad.append(f"{rel}: bundles {os.path.relpath(p, ROOT)} - a picture (game art must not ship)")
     return bad
 
 
@@ -321,7 +407,9 @@ def check():
     bad += [f"{rel}:{ln}: {what}" for rel, ln, what in grant_callers(trees)]
     bad += [f"{rel}:{ln}: {what}" for rel, ln, what in timer_readers(trees)]
     bad += [f"{rel}:{ln}: {what}" for rel, ln, what in key_blocking(trees, srcs)]
+    bad += [f"{rel}:{ln}: {what}" for rel, ln, what in game_files(trees, srcs)]
     bad += guidelines()
+    bad += game_art()
     return bad
 
 

@@ -66,8 +66,8 @@ def fmt(v):
 class CalcOverlay:
     """Mixed into App (2.74.0): the calculator over the game - a small window of a fixed size, like Notes: dragged
     where you want it, held by the overlay's one lock, in the overlay's look. Opened from Calc on the overlay's bar
-    (Overlay › Options: its own switch, and whether it's on the bar). Feedback: "move the calculator ... into the
-    overlay ... dragged around the screen and locked / unlocked. Keep this at a fixed size."
+    (Overlay › Options: its own switch, and whether it's on the bar). Feedback: move the calculator into the
+    overlay, so it can be dragged around the screen and locked / unlocked, at a fixed size.
     GGG ToS: a window of the app's own - you type into it, nothing is sent to the game."""
 
     W = 248                                              # the window's fixed width (its height follows its keys)
@@ -153,9 +153,10 @@ class CalcOverlay:
         return r[0] + int(r[2] * 0.70), r[1] + int(r[3] * 0.45)
 
     def calc_ov_build(self):
-        from .overlaywin import OverlayWindow, pal
+        from .overlaywin import OverlayWindow, body_font, pal
         P = pal()
         bg, txt, mut = P["bg"], P["text"], P["muted"]
+        body_f = body_font(P)                             # (the style's body font: its display font is for titles)
         locked = bool(self.tracker_cfg().get("mlocked"))
 
         def moved(x, y, _w, _h):
@@ -181,7 +182,7 @@ class CalcOverlay:
         self.calc_out = tk.Label(body, text=fmt(self.calc_last) if self.calc_last is not None else "", bg=bg,   # (2.114.0: blank, not "0")
                                  fg=P["head"], font=(MONO, self.ov_font(16), "bold"), anchor="e")
         self.calc_out.pack(fill="x", pady=(4, 0))
-        self.calc_msg = tk.Label(body, text="12k = 12,000  ·  ans = last", bg=bg, fg=mut, font=(P["font"], self.ov_font(8)),
+        self.calc_msg = tk.Label(body, text="12k = 12,000  ·  ans = last", bg=bg, fg=mut, font=(body_f, self.ov_font(8)),
                                  anchor="e")
         self.calc_msg.pack(fill="x")
         keys = tk.Frame(body, bg=bg)
@@ -192,16 +193,16 @@ class CalcOverlay:
                 keys.columnconfigure(c, weight=1, uniform="k")
                 eq = k == "="
                 b = tk.Label(keys, text=k, bg=P["on_bg"] if eq and P.get("on_bg") else P["cell_bg"],
-                             fg=P["head"] if eq else txt, font=(P["font"], self.ov_font(10), "bold"), pady=4, cursor="hand2",
+                             fg=P["head"] if eq else txt, font=(body_f, self.ov_font(10), "bold"), pady=4, cursor="hand2",
                              highlightthickness=1, highlightbackground=P["on_line"] if eq and P.get("on_line")
                              else P.get("cell_line") or P["line"])
                 b.grid(row=r, column=c, sticky="nsew", padx=1, pady=1)
                 b.bind("<Button-1>", lambda e, kk=k: self.calc_key(kk))
                 self.calc_keys[k] = b
-        tk.Label(body, text="RECENT  ·  click one to use it", bg=bg, fg=P["head"], font=(P["hfont"] or P["font"], self.ov_font(8), "bold"),
+        tk.Label(body, text="RECENT  ·  click one to use it", bg=bg, fg=P["head"], font=(body_f, self.ov_font(8), "bold"),
                  anchor="w").pack(fill="x", pady=(8, 0))
         self.calc_hist = tk.Listbox(body, bg=bg, fg=mut, relief="flat", highlightthickness=0, height=3,
-                                    font=(P["font"], self.ov_font(10)), selectbackground=P["cell_bg"], selectforeground=txt,
+                                    font=(body_f, self.ov_font(10)), selectbackground=P["cell_bg"], selectforeground=txt,
                                     activestyle="none", width=1)
         self.calc_hist.pack(fill="x")
         for line in getattr(self, "_calc_lines", [])[:3]:

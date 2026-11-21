@@ -137,6 +137,12 @@ def pal():
     return theme_palette()
 
 
+def body_font(P):
+    """The style's body font - for every small text over the game (a skin's display font - Cinzel, Marcellus SC... -
+    is for titles only: it blurs small)."""
+    return P.get("body") or P.get("font") or "Segoe UI"
+
+
 def parchment():
     return False
 
@@ -161,7 +167,7 @@ _TEX = {}
 
 
 def texture(root, w, h, seed=7, calm=False):
-    """2.47.0: a grungy parchment (feedback: "too clean") - made here, no image file: the base color, fibers and
+    """2.47.0: a grungy parchment (feedback: too clean) - made here, no image file: the base color, fibers and
     grain, a few stains and darker, burned edges. A Tk PhotoImage (None without Pillow)."""
     key = (w // 16 * 16 + 16, h // 16 * 16 + 16, seed, calm)
     if key in _TEX:
@@ -181,7 +187,7 @@ def texture(root, w, h, seed=7, calm=False):
             r, g, b = px[x, y]
             px[x, y] = (r + n, g + n, b + n - 2)
     d = ImageDraw.Draw(img, "RGBA")
-    # 2.51.0 calm: where text sits (feedback: "barely legible") - lighter grain, faint stains and fibers
+    # 2.51.0 calm: where text sits (feedback: barely legible) - lighter grain, faint stains and fibers
     for _ in range(max(6, W * H // 6000)):                 # stains
         cx, cy, rr = rnd.randint(0, W), rnd.randint(0, H), rnd.randint(8, 40)
         d.ellipse((cx - rr, cy - rr * 0.7, cx + rr, cy + rr * 0.7),
@@ -343,7 +349,7 @@ def foreground_ok():
             if _alive(w) and (u.GetParent(w.winfo_id()) or w.winfo_id()) == fg:
                 LAST_OK[0] = True
                 return True
-        # 2.125.3 (feedback: the route card "disappears to the background until I click on it again and again"): a
+        # 2.125.3 (feedback: the route card disappeared to the background until clicked again and again): a
         # list's dropdown or a tooltip opened from one of these windows is in front now - that counts as the window
         for w in _LIVE:
             if _alive(w) and fg in _child_hwnds(w):
@@ -491,7 +497,7 @@ class OverlayWindow(tk.Toplevel):
                 paint_texture(self.bar, seed=3)
             self._title_items = []
             self.bar_note_item = self.bar.create_text(0, BAR_H // 2, text="", anchor="e", fill=P["muted"],
-                                                      font=(P["font"], 9))
+                                                      font=(P.get("body") or P["font"], 9))
             for i, (txt, cmd, _bg) in enumerate(buttons):     # drawn on the canvas: no flat box on the texture
                 tag = f"btn{i}"
                 if txt == gearicon.GEAR:                      # (UI overhaul: drawn - the ⚙ glyph looked like a flower)
@@ -737,7 +743,7 @@ class OverlayWindow(tk.Toplevel):
             w = max(self.bar.winfo_width(), int(self.bar.cget("width")))
             title_end = 10 + tkfont.Font(root=self.bar, family=self.P["font"], size=self.P["title_size"],
                                          weight="bold").measure(self._title)
-            need = tkfont.Font(root=self.bar, family=self.P["font"], size=9).measure(text)
+            need = tkfont.Font(root=self.bar, family=self.P.get("body") or self.P["font"], size=9).measure(text)
             right = w - 10 - len(self._btns) * 22
         except tk.TclError:
             return False
@@ -844,7 +850,7 @@ class OverlayWindow(tk.Toplevel):
 
 class LinesWindow(tk.Toplevel):
     """Round 18 (owner bug: a black box beside the campaign line over the XP bar, still there with the color key set
-    and read back): the overlay's lines (Campaign, Ritual, NOW) in their own small borderless window, centered over
+    and read back): the overlay's lines (Campaign, NOW) in their own small borderless window, centered over
     the bar and as wide as the lines - so nothing round them needs a see-through color. It goes where the bar goes
     (moved, dragged, locked, a new Layout or spot), shows and hides with it (the game in front or not), keeps its
     opacity, click-through and capture setting, and stays over it (topmost, never takes the keyboard).

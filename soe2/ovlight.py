@@ -1,18 +1,18 @@
-"""Light looks for the overlay (2.101.0, from the mockups - feedback: "a lightweight one is needed desperately").
+"""Light looks for the overlay (2.101.0, from the mockups - feedback: a lightweight one is badly needed).
 
 Four styles drawn with plain canvas lines and text - no Pillow artwork, nothing to re-render when the game window
 changes size - each as a Bar (resting on the XP bar) and a Panel (a card you place anywhere), in a set of colors:
   hairline  no box: outlined text and one thin accent line, on one row
   slate     a flat box with thin dividers; a switch that's on is underlined (a bar on its left in the Panel)
-  flanks    (shown as Split) no box: the numbers beside the life orb, the switches beside the mana orb - the middle stays clear
-  micro     the smallest: the times, the rank and the switches as lettered squares (Ritual shows its count, 2/3)
+  micro     the smallest: the times, the rank and the switches as lettered squares
 "Classic" is the stone-and-bronze look of before (hudart.py). Overlay › Look: Style, then
 Colors ("Exile Gold" is the Bar's own colors; the others are the theme packs'; "Follow the app theme").
 The same parts as Classic: the timer and its ⏸ / ▶, the map's time, where you are, its rank (click to rank), Maps,
 Avg, the clock, the switches, Notes ▾ / Calc ▾ / Regex ▾ / Vendor ▾, the lock and ⚙ - each with its switch in
 Overlay › Options. The goal bar (Focus / Campaign) is drawn in the same style (ovparts.py).
 
-No box (hairline, flanks) needs Windows' see-through color key (-transparentcolor); on other systems they get the
+(Split - two halves by the orbs - is a Layout now, in every style: ovsplit.py; the "flanks" style is gone.)
+No box (hairline) needs Windows' see-through color key (-transparentcolor); on other systems they get the
 color set's box. GGG ToS: looks only - windows of the app's own; nothing here touches the game."""
 import sys
 import tkinter as tk
@@ -22,13 +22,14 @@ from .overlaywin import CanvasText, OverlayWindow, _P
 
 from .ovskins import NAMES as _ORN_NAMES, ORNATE, palette as _ornate_palette
 
-STYLES = {"classic": "Classic (stone and bronze)", "hairline": "Hairline", "slate": "Slate", "flanks": "Split",
-          "micro": "Micro"}
-STYLES.update(_ORN_NAMES)                                    # 2.110.0: Herald, Gilded, Warbanner, Verdant, Gloom
+STYLES = {"classic": "Classic", "hairline": "Hairline", "slate": "Slate", "micro": "Micro"}
+STYLES.update(_ORN_NAMES)                                    # 2.110.0: Herald, Warbanner, Verdant, Gloom
 _FM_CACHE = {}                   # 2.112.3: measuring fonts, kept (see _lt_fm)
-LIGHT = ("hairline", "slate", "flanks", "micro") + ORNATE
-BOXLESS = ("hairline", "flanks")
+LIGHT = ("hairline", "slate", "micro") + ORNATE
+BOXLESS = ("hairline",)
 KEY = "#010101"                    # a box-less look's see-through color (never used for anything that shows)
+BADGE = "STASH OF EXILE 2"         # owner decision (GGG policy audit): the app's name on every overlay layout, in a
+                                   # small badge under the clock (names.py: Name badge) - so it never reads as the game's
 WARN = "#e0a352"
 
 # id: (name, box, line, text, strong, muted, accent) - each theme pack's own surface_sunken, border, text,
@@ -59,6 +60,32 @@ def _keep_colors():
 
 
 _keep_colors()
+
+
+# a style taken out: a saved setting falls back to this one. "flanks" (removed - it is the Split layout now): the
+# same box-less look is Hairline, and its layout becomes Split (RETIRED_LAYOUT, retire_look)
+RETIRED_LOOKS = {"gilded": "herald", "flanks": "hairline"}       # (styles removed)
+RETIRED_LAYOUT = {"flanks": "split"}                             # (removed: the style's layout now)
+
+
+def look_valid(v):
+    """The saved overlay style, or the one that replaces a retired style, or Classic when unknown."""
+    v = RETIRED_LOOKS.get(v, v)
+    return v if v in STYLES else "classic"
+
+
+def retire_look(cfg):
+    """A saved retired style in the overlay's settings (tracker) -> its replacement, and the layout that came with
+    it ("flanks" -> Layout Split, Style Hairline). -> True when something changed."""
+    old = cfg.get("look")
+    if old not in RETIRED_LOOKS:
+        return False
+    cfg["look"] = look_valid(old)
+    if old in RETIRED_LAYOUT:
+        cfg["layout"] = RETIRED_LAYOUT[old]
+    cfg.pop("lt_pos", None)
+    cfg.pop("lt_res", None)
+    return True
 
 
 def can_see_through():
@@ -167,13 +194,15 @@ class LightOverlay:
             self.mg_P = P
             row = tk.Frame(host, bg=scene)
             row.pack(fill="x")
-            panel = self.merged_layout() != "xpbar"          # 2.124.0: the layout picked (the Panel too)
-            pieces = ["left", "right"] if style == "flanks" and not panel else ["all"]
+            layout = self.merged_layout()
+            if layout == "split":                            # the two halves, side by side (swapped as set)
+                canvases += self._split_preview(row, style, scene)
+            panel = layout == "panel"                        # 2.124.0: the layout picked (the Panel too)
             from .merged_page import HUD_SPOTS
             spot_h = max(26, int(HUD_SPOTS["xpbar"][0][3] * 1440 * scale))
             if panel:
                 self._hud_k = hud_k(1440) * 0.8
-            for piece in pieces:
+            for piece in ([] if layout == "split" else ["all"]):
                 if panel and style == "classic":
                     P = hudart.panel_palette(theme_palette())
                     _seed(TH, P)
@@ -187,14 +216,13 @@ class LightOverlay:
                     W, H = getattr(self, f"_lt_{kind}_panel")(f, cv, P, want, (0, 0, width, spot_h), piece)
                 elif style == "classic":
                     W, H = width - 2, spot_h - 2
-                    self._hud_ends = ("crimson", "sapphire")
+                    self._hud_ends = ("gold", "gold")
                     self._hud_row(f, cv, P, want, W, H)
                 else:
                     kind = "ornate" if style in ORNATE else style
                     W, H = getattr(self, f"_lt_{kind}_bar")(f, cv, P, want, (0, 0, width, spot_h), piece)
                 cv.configure(width=W, height=H)
-                side = "right" if piece == "right" else "left"
-                f.pack(side=side, anchor="s", padx=(max(0, (width - W) // 2) if style == "micro" and not panel else 0, 0))
+                f.pack(side="left", anchor="s", padx=(max(0, (width - W) // 2) if style == "micro" and not panel else 0, 0))
                 canvases.append(cv)
             sample = {"session": "1:24:07", "map": "Map: 3:12", "where": "Bluff", "maps": "Maps: 6",
                       "avg": "Avg: 6:01", "rank": "★ A",
@@ -225,8 +253,9 @@ class LightOverlay:
 
     # ---------------------------------------------------------------- settings
     def ov_look(self):
-        v = self.tracker_cfg().get("look", "classic")
-        return v if v in STYLES else "classic"
+        cfg = self.tracker_cfg()
+        retire_look(cfg)                                     # (a retired style saved since the migration ran)
+        return look_valid(cfg.get("look", "classic"))
 
     def ov_look_colors(self):
         """2.111.0: no Colors picker any more - every light style uses its default set (Exile Gold)."""
@@ -263,10 +292,16 @@ class LightOverlay:
     def _u(self, n):
         return max(1, int(round(n * getattr(self, "_hud_k", 1.0))))
 
+    @staticmethod
+    def _lt_family(P, size):
+        """Legibility pass: small text (9 pt and under) is drawn in a skin's body font - its display font (Cinzel,
+        Marcellus SC...) is all-caps / small-caps and blurs at that size (Hellfire's "Regex" read "Reqex")."""
+        return (P.get("body") or P["font"]) if size <= 9 else P["font"]
+
     def _lt_fm(self, cv, P, size, bold=False, family=None):
         """A font to measure with - one per family / size / weight for the whole run (2.112.3: every chip and
         label made a new one each time the overlay was built, and Windows makes fonts slowly)."""
-        key = (family or P["font"], self._hf(size), bool(bold))
+        key = (family or self._lt_family(P, size), self._hf(size), bool(bold))
         cache = _FM_CACHE.get(key)
         if cache is None:
             cache = _FM_CACHE[key] = tkfont.Font(root=cv.winfo_toplevel().nametowidget("."), family=key[0],
@@ -274,7 +309,8 @@ class LightOverlay:
         return cache
 
     def _lt_text(self, cv, P, x, y, text, size, fill, anchor="w", bold=False, key=None, cls=CanvasText, tags=()):
-        f = (P["font"], self._hf(size), "bold") if bold else (P["font"], self._hf(size))
+        fam = self._lt_family(P, size)
+        f = (fam, self._hf(size), "bold") if bold else (fam, self._hf(size))
         it = cv.create_text(x, y, text=text, anchor=anchor, fill=fill, font=f, tags=("mg",) + tuple(tags))
         t = cls(cv, it, P["bg"], halo=P.get("halo"))
         if key:
@@ -322,7 +358,7 @@ class LightOverlay:
                     cv.tag_bind(tag, b, lambda e=None: e is not None and self.ov_quick_toggle(e))
             else:
                 cv.tag_bind(tag, "<Button-1>", lambda e=None, c=cmd: e is not None and c())
-            self.ov_tip(cv, tag, "Quick settings" if tag == "mg_cog" else "Lock / unlock the overlay")
+            self.ov_tip(cv, tag, "Quick settings" if tag == "mg_cog" else "Lock or unlock the overlay")
             bb = cv.bbox(it)
             x = (bb[0] if bb else x - 16) - self._u(6)
         return x
@@ -333,6 +369,70 @@ class LightOverlay:
     def _lt_glyphs_w(self, cv, P):
         f = self._lt_fm(cv, P, 9, family="Segoe UI Symbol")
         return self._lt_gear() + f.measure("🔓") + 2 * self._u(6)
+
+    # ---------------------------------------------------------------- the Name badge (every layout)
+    def _badge_font(self, cv, P):
+        """The badge's font and its measures: Cinzel in Classic (the bar's own lettering), the style's body font
+        elsewhere. -> (font tuple, tkfont.Font)"""
+        from . import fonts
+        fam = fonts.family("Cinzel") if P.get("poe") else self._lt_family(P, 7)
+        size = max(6, round(6.5 * getattr(self, "_hud_k", 1.0)))
+        key = (fam, size, True)
+        fm = _FM_CACHE.get(key)
+        if fm is None:
+            fm = _FM_CACHE[key] = tkfont.Font(root=cv.winfo_toplevel().nametowidget("."), family=fam, size=size,
+                                              weight="bold")
+        return (fam, size, "bold"), fm
+
+    @staticmethod
+    def _caps(fm):
+        """A font's capital height and how far its capitals' middle sits below its line's middle (px)."""
+        asc, desc = fm.metrics("ascent"), fm.metrics("descent")
+        cap = round(asc * 0.72)
+        return cap, (asc - cap - desc) / 2
+
+    def ov_badge_size(self, cv, P):
+        """-> (w, h) of the Name badge."""
+        _f, fm = self._badge_font(cv, P)
+        cap, _off = self._caps(fm)
+        return fm.measure(BADGE) + 2 * self._u(5), cap + 2 * self._u(2) + 2
+
+    def ov_badge(self, cv, P, x, y, anchor="e", tags=()):
+        """The Name badge: STASH OF EXILE 2 in small capitals in a box, its middle at y; x is its right edge (e),
+        left edge (w) or middle (center). -> (w, h)"""
+        f, fm = self._badge_font(cv, P)
+        cap, off = self._caps(fm)
+        w, h = self.ov_badge_size(cv, P)
+        x0 = x - w if anchor == "e" else (x - w // 2 if anchor == "center" else x)
+        y0 = round(y - h / 2)
+        tg = ("mg", "ov_badge") + tuple(tags)
+        edge = "#806a3e" if P.get("poe") else P.get("line", P["muted"])
+        cv.create_rectangle(x0, y0, x0 + w - 1, y0 + h - 1, outline=edge,
+                            fill=P.get("cell_bg") or P.get("field") or P["bg"], tags=tg)
+        cv.create_text(x0 + w / 2, y0 + h / 2 - off, text=BADGE, anchor="center", font=f,
+                       fill=P.get("accent") or P.get("head") or P["text"], tags=tg)
+        return w, h
+
+    def ov_stack_h(self, cv, P, size=9, family=None):
+        """The height the clock (its capitals) with the badge under it takes. -> (total, clock cap, gap, badge h)"""
+        cap, _off = self._caps(self._lt_fm(cv, P, size, family=family))
+        _bw, bh = self.ov_badge_size(cv, P)
+        gap = self._u(4)
+        return cap + gap + bh, cap, gap, bh
+
+    def ov_clock_badge(self, cv, P, x, mid, draw_clock, anchor="e", size=9, family=None, clock=True):
+        """The clock with the Name badge under it, the two centered on mid (only the badge without a clock).
+        draw_clock(x, y) draws the clock's text (anchor e / w, its line's middle at y) and returns its width.
+        -> the width taken."""
+        _bw, bh = self.ov_badge_size(cv, P)
+        if not clock:
+            return self.ov_badge(cv, P, x, mid, anchor=anchor)[0]
+        total, cap, gap, bh = self.ov_stack_h(cv, P, size, family)
+        _c, off = self._caps(self._lt_fm(cv, P, size, family=family))
+        top = mid - total / 2
+        cw = draw_clock(x, round(top + cap / 2 - off))
+        bw = self.ov_badge(cv, P, x, top + cap + gap + bh / 2, anchor=anchor)[0]
+        return max(cw, bw)
 
     def _lt_clock(self, cv, P, x, y, anchor="e"):
         t = self._lt_text(cv, P, x, y, "", 9, P["muted"], anchor=anchor)
@@ -378,8 +478,7 @@ class LightOverlay:
 
     # ---------------------------------------------------------------- the window(s)
     def _mg_light_build(self, want):
-        """The overlay in a light style: one window (two for the Flanks bar - right of the life orb and left of the
-        mana orb). A Bar is fitted to the game's XP bar (drag it while unlocked; picking the style again puts it
+        """The overlay in a light style, Bar or Panel: one window (the Split layout: ovsplit.py). A Bar is fitted to the game's XP bar (drag it while unlocked; picking the style again puts it
         back); a Panel goes where you put it."""
         from . import themes as TH
         from .overlaywin import _seed
@@ -391,10 +490,7 @@ class LightOverlay:
         self.mg_P = P
         spot = self.hud_spots("xpbar")[0]                    # (sizes follow the game window's height)
         self.tk_ov_lbls, self.tk_ov_alerts, self.tk_ov_clock, self.tk_ov_cv = {}, {}, None, None
-        if bar and style == "flanks":
-            pieces = (["left"] if want["timer"] else []) + ["right"]
-        else:
-            pieces = ["all"]
+        pieces = ["all"]
         from .alerts_page import game_rect
         r = game_rect() or (0, 0, self.root.winfo_screenwidth(), self.root.winfo_screenheight())
         saved = (cfg.get("lt_pos") or {}).get(style) or []
@@ -483,15 +579,15 @@ class LightOverlay:
             else:
                 self._lt_text(cv, P, x, mid, "·", 10, P["muted"], anchor="center")
 
-        H = u(34)                                           # 2.139.0: a label over each value (2.139.1: 40 -> 34)
+        H = max(u(34), self.ov_stack_h(cv, P)[0] + u(16))   # 2.139.0: a label over each value (2.139.1: 40 -> 34);
+        # (taller if the clock and the Name badge under it need it - room above, below and between them)
         r2 = (u(5), H - (u(5) if slate else u(7)))
         m2 = (r2[0] + r2[1]) // 2
         # ---- the right end: lock, ⚙, the clock, the menus
         x = self._lt_glyphs(w, cv, P, W - pad, m2)
-        if clock:
-            x -= self._lt_clock(cv, P, x, m2) + u(4)
-            sep(x - sw // 2, *r2, m2)
-            x -= sw
+        x -= self.ov_clock_badge(cv, P, x, m2, lambda cx, cy: self._lt_clock(cv, P, cx, cy), clock=clock) + u(4)
+        sep(x - sw // 2, *r2, m2)                           # (the Name badge is always there, the clock over it)
+        x -= sw
         if menus_w:
             x = self._lt_menus(w, cv, P, x, m2) + 12 - u(4)
             if want["timer"]:
@@ -511,57 +607,16 @@ class LightOverlay:
         return self._lt_row(w, cv, P, want, spot[2], "slate")
 
     def _lt_ornate_bar(self, w, cv, P, want, spot, piece):
-        """2.110.0: Herald, Gilded, Warbanner, Verdant, Gloom - the Slate row in the skin's colors, fonts and tabs
+        """2.110.0: Herald, Warbanner, Verdant, Gloom - the Slate row in the skin's colors, fonts and tabs
         (the frame, its inner line and the corner marks come from the window: overlaywin)."""
         return self._lt_row(w, cv, P, want, spot[2], P["skin"])
-
-    def _lt_flanks_bar(self, w, cv, P, want, spot, piece):
-        """Flanks: "left" = the numbers (right of the life orb), "right" = the switches, menus, clock, lock and ⚙
-        (left of the mana orb). Each piece is as small as its content."""
-        u = self._u
-        cfg, ln = self.tracker_cfg(), self.ov_lines()
-        pad = u(6)
-        rl = u(150)                                          # the accent rule's length
-        if piece == "left":                                 # 2.139.0 Map First (ova8), as wide as it needs
-            H = u(38)
-            mid = u(5) + (H - u(5)) // 2
-            x = self.a8_bar(w, cv, P, want, pad, None, mid,
-                            lambda sx: cv.create_line(sx, mid - u(13), sx, mid + u(13), fill=P["line"], tags=("mg",)),
-                            map_w=u(190))
-            W = max(x, rl) + pad
-            self._lt_rule(cv, P, pad, pad + rl, u(4), strong="l")
-            self.tk_ov_cv = cv
-            return W, H
-        # right
-        y = u(4)
-        rows_w = []
-        gw = self._lt_glyphs_w(cv, P)
-        clock = want["timer"] and cfg.get("clock", True)
-        foot_w = gw + (self._lt_fm(cv, P, 9).measure("00:00 PM") + u(10) if clock else 0)
-        menus_w = self._lt_menus_w(cv, P) if self.bar_buttons_on() else 0
-        rows_w += [foot_w + (menus_w + u(6) if menus_w and foot_w + menus_w < u(320) else 0), rl]
-        W = max(rows_w) + 2 * pad
-        R = W - pad
-        self._lt_rule(cv, P, R - rl, R, y, strong="r")
-        y += u(6)
-        fy = y + u(9)
-        x = self._lt_glyphs(w, cv, P, R, fy)
-        if clock:
-            x -= self._lt_clock(cv, P, x, fy) + u(10)
-        if menus_w:
-            if foot_w + menus_w < u(320):
-                self._lt_menus(w, cv, P, x, fy)
-            else:
-                fy += u(18)
-                self._lt_menus(w, cv, P, R, fy)
-        return W, fy + u(10)
 
     def _lt_micro_bar(self, w, cv, P, want, spot, piece):
         """Micro: chip | the map part | SESSION | profit | menus · clock · lock ⚙ - only as wide as that (2.139.0 Map
         First, ova8)."""
         u = self._u
         cfg = self.tracker_cfg()
-        H = u(34)
+        H = max(u(34), self.ov_stack_h(cv, P)[0] + u(16))  # (room for the clock and the Name badge under it)
         mid = H // 2
         pad = u(8)
 
@@ -574,9 +629,9 @@ class LightOverlay:
             mw = self._lt_menus_w(cv, P)
             self._lt_menus(w, cv, P, x + mw, mid)
             x += mw + u(6)
-        if want["timer"] and cfg.get("clock", True):
-            x = sep(x)
-            x += self._lt_clock(cv, P, x, mid, anchor="w") + u(8)
+        x = sep(x)                                          # the clock with the Name badge under it (the badge always)
+        x += self.ov_clock_badge(cv, P, x, mid, lambda cx, cy: self._lt_clock(cv, P, cx, cy, anchor="w"), anchor="w",
+                                 clock=bool(want["timer"] and cfg.get("clock", True))) + u(8)
         x = sep(x)
         W = x + self._lt_glyphs_w(cv, P) + pad
         self._lt_glyphs(w, cv, P, W - pad, mid)
@@ -595,10 +650,6 @@ class LightOverlay:
         the Panel of every style (Classic draws its stone round it)."""
         PW = self._u(290)
         return PW, self.a8_panel(w, cv, P, want, PW)
-
-    def _lt_flanks_panel(self, w, cv, P, want, spot, piece):
-        """Split Panel: the Map First panel (2.139.0) in Split's colors."""
-        return self._lt_slate_panel(w, cv, P, want, spot, piece)      # 2.139.0: Map First in every style
 
     def _lt_micro_panel(self, w, cv, P, want, spot, piece):
         """Micro Panel: the Map First panel (2.139.0) in Micro's colors."""

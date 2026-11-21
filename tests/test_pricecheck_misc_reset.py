@@ -1,6 +1,7 @@
-"""Miscellaneous starts over on every price check (owner: "switching to another price check causes them to stay at the
-yes/no states, it should always revert back to Any and then depending on the mods on the specific item it can change
-to Yes"): a flag you set on one item never shows on the next - each item shows Any, Yes for its own flags
+"""Miscellaneous starts over on every price check (switching to another price check left the flags at their yes / no
+states - each check
+reverts to Any, then Yes depending on the mods on the item): a flag you set on one item never shows on the next -
+each item shows Any, Yes for its own flags
 (gamedata.copy_flags) and Corrupted as its route searches it (default_opts). The card over the game (pcpop) always
 shows the item it says it shows: a refresh asked for the item before never fills it over the new one.
 

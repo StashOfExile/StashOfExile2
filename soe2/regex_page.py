@@ -88,8 +88,8 @@ class RegexPage:
         info.pack(fill="x", pady=(4, 0))
         self.rx_len = tk.Label(info, text="", bg=P2, fg=C["muted"], font=(MONO, 9), anchor="w")
         self.rx_len.pack(side="left")
-        self.rx_test_out = tk.Label(info, text="Copy (Ctrl+C) a tablet, waystone or relic in game, click here and press "
-                                               "Ctrl+V: it says if this search would light it up.",
+        self.rx_test_out = tk.Label(info, text="Press Ctrl+C on a tablet, waystone or relic in game, click here and press "
+                                               "Ctrl+V. It says if this search would light it up.",
                                     bg=P2, fg=C["muted"], anchor="w", justify="left", font=("Segoe UI", 9),
                                     cursor="xterm", takefocus=1, highlightthickness=1,
                                     highlightbackground=P2, highlightcolor=C["accent"])
@@ -123,9 +123,9 @@ class RegexPage:
         hq = tk.Label(fbar, text=" ? ", bg=P1, fg=C["muted"], cursor="question_arrow", highlightthickness=1,
                       highlightbackground=C["line"])
         hq.pack(side="left", padx=12)
-        Tooltip(hq, "Click a mod to select it (click again to remove it). In \"I want\", click its Value to type: 50 = at "
-                    "least 50, 50-80 = from 50 to 80, <80 = at most 80. \"I don't want\" leaves items with that mod out.\n"
-                    "★ = valuable in your Mod Book (your rules, or learned from prices). Right-click a mod to rate it.")
+        Tooltip(hq, "Click a mod to select it. Click again to remove it. In \"I want\", click its Value to type a number: 50 means at "
+                    "least 50, 50-80 means from 50 to 80, <80 means at most 80. \"I don't want\" leaves items with that mod out.\n"
+                    "★ marks a mod that is valuable in your Mod Book, by your rules or learned from prices. Right-click a mod to rate it.")
         self.rx_info = tk.Label(fbar, text="", bg=P1, fg=C["muted"])
         self.rx_info.pack(side="right")
         flowify(fbar)                                       # 2.109.0: ★ first / Only ★ / Select valuable gone
@@ -293,7 +293,7 @@ class RegexPage:
         if getattr(self, "_rx_last_kind", None) not in (None, self.rx_kind.get()):
             self.rx_test_text = ""                           # a copied tablet says nothing about waystones
             self.rx_pick_btn.pack_forget()
-            self.rx_test_out.config(text="Copy (Ctrl+C) an item in game, click here and press Ctrl+V.", fg=C["muted"])
+            self.rx_test_out.config(text="Press Ctrl+C on an item in game, click here and press Ctrl+V.", fg=C["muted"])
         self._rx_last_kind = self.rx_kind.get()
         self.rx_build_cards()
         self.rx_build_lists()
@@ -356,7 +356,7 @@ class RegexPage:
             rows.append(chips("Type", "type:", R.TABLET_TYPES, set(o.get("types") or [])))
             f = row("Uses remaining")
             number(f, "uses", "At least")
-            check(f, "round10", "Round down to 10 (shorter)")
+            check(f, "round10", "Round down to 10")
             rows.append(f)
         elif kind == "waystone":
             f = chips("Rarity", "rar:", R.RARITIES, rarity)
@@ -371,7 +371,7 @@ class RegexPage:
             f = row("Quantity & yield")
             for key, label, _w in R.WAYSTONE_PROPS:
                 number(f, key, label + " at least")
-            check(f, "round10", "Round down to 10 (shorter)")
+            check(f, "round10", "Round down to 10")
             rows.append(f)
         elif kind == "jewel":
             f = chips("Rarity", "rar:", R.RARITIES, rarity)
@@ -379,18 +379,18 @@ class RegexPage:
             check(f, "cor_not", "Not corrupted", value=o.get("corrupted") == "not")
             rows.append(f)
             f = chips("Type", "type:", R.JEWEL_TYPES, set(o.get("types") or []))
-            check(f, "round10", "Round down to 10 (shorter)")
+            check(f, "round10", "Round down to 10")
             rows.append(f)
         elif kind == "gear":
             f = chips("Rarity", "rar:", R.RARITIES, rarity)
             check(f, "cor_only", "Corrupted", value=o.get("corrupted") == "only")
             check(f, "cor_not", "Not corrupted", value=o.get("corrupted") == "not")
-            check(f, "round10", "Round down to 10 (shorter)")
+            check(f, "round10", "Round down to 10")
             rows.append(f)
             rows.append(chips("Show mods for", "slot:", R.GEAR_SLOTS, set(o.get("slots") or [])))
         else:
             f = chips("Rarity", "rar:", R.RARITIES, rarity)
-            check(f, "round10", "Round down to 10 (shorter)")
+            check(f, "round10", "Round down to 10")
             rows.append(f)
             rows.append(chips("Size", "size:", list(R.RELIC_SIZES), set(o.get("sizes") or []),
                               text=lambda sz: f"{sz}  ({', '.join(R.RELIC_SIZES[sz])})"))
@@ -699,8 +699,8 @@ class RegexPage:
         self.rx_fill_favorites()
 
     def rx_keys(self):
-        """2.132.7 (feedback: "All I wanted was the ability to add keybinds to 1-4 favorite regex buttons that when
-        pressed would copy its regex to clipboard"): up to 4 Regex keys, one favorite each -> [{"key", "fav"}]."""
+        """2.132.7 (feedback: keybinds for 1-4 favorite regex buttons that copy their regex to the clipboard when
+        pressed): up to 4 Regex keys, one favorite each -> [{"key", "fav"}]."""
         out = []
         for k in SETTINGS.get("regex_keys") or []:
             if not isinstance(k, dict):
@@ -800,8 +800,8 @@ class RegexPage:
         ok = save_json(FAV_FILE, data)
         save_json(FAV_BACKUP, data)
         if not ok and hasattr(self, "rx_fav_msg"):
-            self.rx_fav_msg.config(text="⚠ Couldn't save your Favorites to the app's data folder (is another program "
-                                        "using the file?). They're kept while the app is open - Report a bug "
+            self.rx_fav_msg.config(text="⚠ Couldn't save your Favorites to your Data folder. Is another program "
+                                        "using the file? They're kept while the app is open. Report a bug "
                                         "sends the details.", fg=C["red"])
         return ok
 
@@ -828,7 +828,7 @@ class RegexPage:
         P1 = C["panel"]
         bar = tk.Frame(page, bg=P1, padx=8, pady=8)
         bar.pack(fill="x")
-        # 2.132.6 (feedback: "publish their regex to the database ... sorting for Official | Community | Mine"):
+        # 2.132.6 (feedback: publish regexes to the database, with sorting for Official | Community | Mine):
         # search first, the three views, then what you can do with the picked one (gray until there is one)
         self.rx_fav_q = tk.StringVar()
         tk.Label(bar, text="🔍", bg=P1, fg=C["muted"], font=("Segoe UI Symbol", 10)).pack(side="left", padx=(0, 4))
@@ -841,7 +841,7 @@ class RegexPage:
         self.rx_fav_view.pack(side="left", padx=(12, 0))
         self.rx_fav_btns = {}
         for text, fn, accent, tip in (
-                ("📋 Copy", self.rx_fav_copy, True, "Copy the search (or double-click it)"),
+                ("📋 Copy", self.rx_fav_copy, True, "Copy the search, or double-click it"),
                 ("Open in the builder", self.rx_fav_open, False, "Open it in Build a search"),
                 ("⌨ Key…", self.rx_fav_hotkey, False, "Put it on a Regex key: in game, the key types it in the "
                                                      "stash search"),
@@ -918,7 +918,7 @@ class RegexPage:
         if tv is None:
             return
         from .share_page import view_rows
-        tv.delete(*tv.get_children())
+        from .inplace import tv_sync
         view = self.rx_fav_view.get() if hasattr(self, "rx_fav_view") else "Mine"
         q = self.rx_fav_q.get().strip().lower() if hasattr(self, "rx_fav_q") else ""
 
@@ -931,6 +931,7 @@ class RegexPage:
                          key=lambda d: (d.get("for") or d.get("kind"), (d.get("search") or search_of(d)).strip()))
         self.rx_rows = {}
         n = 0
+        out = []
         for r in rows:
             f = r["data"] if r["origin"] == "mine" else self._rx_shared(r["data"])
             s = search_of(f)
@@ -940,12 +941,13 @@ class RegexPage:
             iid = f"m:{r['_i']}" if r["origin"] == "mine" else (f"b:{post['id']}" if post else f"o:{n}")
             self.rx_rows[iid] = dict(f, _origin=r["origin"], _post=post or None, _i=r.get("_i"))
             by = "Me" if r["origin"] == "mine" else (post.get("author", {}) or {}).get("name") or f.get("author", "")
-            tv.insert("", "end", iid=iid, values=("📋 Copy", f["name"], KIND_NAMES[f["kind"]][:-1], s or "(empty)", len(s),
-                                                  ", ".join(f.get("tags") or []),
-                                                  self.rx_key_of(f) if r["origin"] == "mine" else "",
-                                                  post.get("score", "") if post else "", by),
-                      tags=(("odd",) if n % 2 else ()) + (("mine",) if r["origin"] == "mine" else ()))
+            out.append((iid, dict(values=("📋 Copy", f["name"], KIND_NAMES[f["kind"]][:-1], s or "(empty)", len(s),
+                                          ", ".join(f.get("tags") or []),
+                                          self.rx_key_of(f) if r["origin"] == "mine" else "",
+                                          post.get("score", "") if post else "", by),
+                                  tags=(("odd",) if n % 2 else ()) + (("mine",) if r["origin"] == "mine" else ()))))
             n += 1
+        tv_sync(tv, out)                                  # (UI rule 22: a typed search keeps the scroll and the pick)
         if self.rx_rows:
             self.rx_fav_empty.place_forget()
         else:
@@ -1097,7 +1099,7 @@ class RegexPage:
             self.rx_fav_changed()
         self.push_undo("regex", label, restore)
         self.rx_fav_changed()
-        self._say(f"Removed {label}. Ctrl+Z (or Undo) puts them back.", 8)
+        self._say(f"Removed {label}. Ctrl+Z or Undo puts them back.", 8)
 
     def _rx_unique(self, kind, name):
         taken = {f["name"] for f in self.rx_favs if f["kind"] == kind}

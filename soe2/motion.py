@@ -3,7 +3,7 @@ caller, App.__init__):
   * Hover: a list row lights under the mouse (every ttk Treeview); a clickable icon or link (a Label with a hand cursor
     - ✕, ↻, ⋯, "Never show again" ...) brightens. Buttons already had hover / pressed faces (themes.make_element).
   * Focus: Tab to a button, switch, box or list and it shows a ring in the accent color (style._setup_style).
-  * Motion: none. (2.135.1, feedback: "reduce motion ... should have that enabled by default and remove the toggle":
+  * Motion: none. (2.135.1, feedback: reduce motion by default and remove the toggle:
     tooltips, toasts and windows over the game appear at once - the fade and its switch are gone.)
 Nothing here touches the game: it's the app's own windows."""
 import tkinter as tk

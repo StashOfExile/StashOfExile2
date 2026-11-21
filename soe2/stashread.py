@@ -7,8 +7,8 @@ hand), tab by tab.
   * Only looks: no keys, no clicks, nothing sent to the game (like the Expedition and Ritual watchers).
   * The picture stays in memory for the read and is dropped. Nothing is saved, logged or sent - counts stay on this PC
     like every Wealth number.
-  * Layouts: stashlayouts.py (Currency, Abyss, Delirium, Breach › Catalysts, Expedition, Ritual, Essence, Fragments › Fragments). Wildcard slots, shards and the
-    crafting hole are skipped.
+  * Layouts: stashlayouts.py (Currency, Abyss, Delirium, Breach › Catalysts, Expedition, Ritual, Essence, Fragments › Fragments,
+    3.0.6: Socketables' five pages). Wildcard slots, shards and the crafting hole are skipped.
 How it reads:
   1. The panel: the slot frames of each known tab, drawn as boxes, are matched against the picture's edges (left 60%
      of the game, at ~720 px high so every size costs the same). The best tab + spot + size wins.
@@ -18,7 +18,7 @@ How it reads:
 Needs OpenCV + numpy (the app ships both for the Expedition watcher)."""
 import base64
 
-from .stashlayouts import ORDER, PANEL, TABS
+from .stashlayouts import ORDER, PANEL, TABS, tab_title
 
 WORK_H = 720            # match the panel at this height (any game size costs the same)
 SIZES = (0.94, 0.97, 1.0, 1.03, 1.06)      # UI scale wiggle around game height / 1440
@@ -114,7 +114,8 @@ def _outline(tab, k, w):
     cv2, np = _np()
     n = max(8, round(PANEL * k * w))
     t = np.zeros((n, n), np.float32)
-    for _name, (x, y, sw, sh) in TABS[tab]["slots"]:
+    boxes = [r for _name, r in TABS[tab]["slots"]] + list(TABS[tab].get("marks") or ())   # 3.0.6: + page buttons
+    for x, y, sw, sh in boxes:
         cv2.rectangle(t, (round(x * k * w), round(y * k * w)), (round((x + sw) * k * w), round((y + sh) * k * w)),
                       1.0, 1)
     return t
@@ -136,7 +137,8 @@ def locate(bgr, game_h, tabs=None):
     "score" stays the plain edge match (is a stash there at all); "scores" are the weighed ones (which tab)."""
     cv2, np = _np()
     w = WORK_H / float(game_h)
-    left = bgr[:, :max(1, int(bgr.shape[1] * 0.6))]
+    left = bgr[:, :max(1, min(bgr.shape[1], int(game_h * 1.07)))]      # (the panel is at the left edge: 0.6 of a
+    #                                                  16:9 width = 1.07 heights - not of an ultrawide's width)
     e = _edges(left, w)
     k0 = game_h / 1440.0
     per = {}
@@ -179,6 +181,19 @@ def filled(bgr, rect):
     return float(navy.mean()) >= FILLED_SHARE
 
 
+INK_MIN = 40            # 3.0.6: white pixels in a slot's number corner at 1440p - real stacks 46+, empty slots 0-34
+
+
+def number_ink(bgr, rect):
+    """How many white (number) pixels a slot's top-left corner holds - an empty slot's faint picture has none."""
+    _cv2, np = _np()
+    x, y, w, h = rect
+    c = bgr[max(0, y):y + int(h * 0.38), max(0, x):x + int(w * 0.62)].astype(np.int16)
+    if not c.size:
+        return 0
+    return int(((c.min(2) > 175) & ((c.max(2) - c.min(2)) < 45)).sum())
+
+
 def read_number(bgr, rect, k, sure=0.0):
     """The stack number in a slot's top-left corner -> int or None. sure: the run must score at least this (2.114.2:
     for a slot whose backing doesn't show)."""
@@ -191,7 +206,7 @@ def _read_near(bgr, rect, k, sure=0.0):
 
 
 def digit_scale(bgr, rects, k):
-    """3.0.4 (feedback, Hyprland at ~1275 px high: "missing 21 from essence", 668 read as 1): away from 1440p the game
+    """3.0.4 (feedback, Hyprland at ~1275 px high: 21 essences missed, 668 read as 1): away from 1440p the game
     draws stack numbers at a slightly different size than the panel. The digit size that reads this tab's numbers best
     (the sum of each slot's run score, up to 16 filled slots) -> the k to read numbers with."""
     if not rects:
@@ -224,18 +239,27 @@ def _read_run(bgr, rect, k, sure=0.0):
                 cands.append((i, d, float(col[i]), gw, int(ys[i]) + gh))
     cands.sort()
     first = round(14 * k) + (x - x0)
-    run = {}
+    run, step = {}, {}
     for i, (cx, d, s, gw, base) in enumerate(cands):
         here = (s - DIGIT_BASE, d) if cx <= first and _could_be(d) else None
+        here_step = None
         for j in range(i):
             px, _pd, _ps, pw, pb = cands[j]
             near = pw - round(4 * k) <= cx - px <= pw + round(2 * k)
             if j in run and near and abs(pb - base) <= max(1, round(1.5 * k)) and _could_be(run[j][1] + d):
-                v = run[j][0] + s - DIGIT_BASE
+                add = s - DIGIT_BASE
+                # 3.0.6 (owner's scan: 131 Orbs of Annulment read as 13): a digit drawn over white art loses its
+                # outline and matches faintly. One that sits exactly where the next digit goes - the run's own
+                # spacing, on its baseline - doesn't count against the run (it can't make it win alone).
+                if add < 0 and j in step and abs((cx - px) - step[j]) <= max(1, round(k)) and abs(pb - base) <= 1:
+                    add = 0.0
+                v = run[j][0] + add
                 if here is None or v > here[0]:
-                    here = (v, run[j][1] + d)
+                    here, here_step = (v, run[j][1] + d), cx - px
         if here:
             run[i] = here
+            if here_step is not None:
+                step[i] = here_step
     return best_valid(run, sure)
 
 
@@ -280,7 +304,7 @@ def read_tab(bgr, game_h, want):
     mine = spot["scores"].get(want, 0.0)
     if spot["tab"] != want and spot["weighed"] - mine > OTHER_TAB_BY:
         return {"ok": False, "tab": want, "seen": spot["tab"], "items": [], "unread": [],
-                "why": f"That looks like the {TABS[spot['tab']]['label']} tab. Open the {TABS[want]['label']} tab."}
+                "why": f"That looks like the {tab_title(spot['tab'])} tab. Open the {tab_title(want)} tab."}
     if spot["tab"] != want:                       # close call: redo the spot for the tab you named
         spot = locate(bgr, game_h, tabs=(want,))
     k, ox, oy = spot["k"], spot["x"], spot["y"]
@@ -298,10 +322,13 @@ def read_tab(bgr, game_h, want):
         n = read_number(bgr, r, dk)
         if n:
             items.append((name, n))
-        else:
+        elif number_ink(bgr, r) >= INK_MIN * k * k:
             unread.append(name)
+        else:
+            continue                                 # 3.0.6: no number drawn at all - an empty slot's faint picture
+            #                                          (Delirium, Breach, Essence tabs), not a stack to type in
         icons[name] = _icon(bgr, r)
-    # 2.114.3 (feedback: "it didn't count the divs in the wildcard slot, the 1193"): a wildcard slot holds anything -
+    # 2.114.3 (feedback: the 1193 divs in the wildcard slot were not counted): a wildcard slot holds anything -
     # what it holds is told by its picture, matched with the tab's own fixed slots in the same shot (Divine Orb's
     # overflow looks just like the Divine Orb slot); the rest are kept for the end of the scan (match_wild: every
     # tab read). The pictures stay in memory only.
@@ -313,22 +340,34 @@ def read_tab(bgr, game_h, want):
         n = read_number(bgr, r, dk)
         ic = _icon(bgr, r)
         name, _sc = _same_item(ic, icons)
+        slot = bgr[r[1]:r[1] + r[3], r[0]:r[0] + r[2]].copy()
         if n and name is not None:
             items.append((name, n))
         else:
-            wild.append((n, ic))
+            wild.append((n, ic, slot))
     return {"ok": True, "tab": want, "seen": want, "items": items, "unread": unread, "why": "",
             "icons": icons, "wild": wild, "pics": pics}
 
 
-def match_wild(wild, icons, keep=False):
+def match_wild(wild, icons, keep=False, pics=None, by_pic=None):
     """Wildcard slots their own tab didn't match -> ([(name, count)], how many still unknown - or with keep, the
-    unknown [(count, picture)] themselves, to be named), matched with every tab read in the scan."""
+    unknown [(count, picture)] themselves, to be named), matched with every tab read in the scan. pics: filled with
+    {name: the slot's whole picture} for each one matched (3.0.6: so Map Profit knows it in your inventory too).
+    by_pic: slot picture (BGR) -> name or None - 3.0.6 (owner: any exchange item, nothing taught): Map Profit's
+    picture naming (exchange icons, poe.ninja's art), for what no tab's slot looks like."""
     got, unknown = [], []
-    for n, ic in wild:
+    for w in wild:
+        n, ic = w[0], w[1]
         name, _sc = _same_item(ic, icons)
+        if name is None and n and by_pic is not None and len(w) > 2 and w[2] is not None:
+            try:
+                name = by_pic(w[2])
+            except Exception:
+                name = None
         if n and name is not None:
             got.append((name, n))
+            if pics is not None and len(w) > 2 and w[2] is not None:
+                pics.setdefault(name, w[2])
         else:
             unknown.append((n, ic))
     return got, (unknown if keep else len(unknown))
@@ -338,7 +377,9 @@ ICONS_FILE = "stash_icons.json"     # 2.114.3: pictures of items you named in a 
 
 
 def learned_icons():
-    """{name: picture} you've named before (Sacred Bloom ...) - an item's look, nothing about your stash."""
+    """{name: picture} you've named before (Sacred Bloom ...) - an item's look, nothing about your stash. 3.1 (GGG
+    ToS 7a): none ship with the app - a wildcard slot no tab's slot looks like is named by poe.ninja's picture of
+    it (Map Profit's naming, stashscan_page.stash_scan_by_pic), then by you."""
     cv2, np = _np()
     from .config import load_json
     out = {}
@@ -362,6 +403,8 @@ def learn_icon(name, icon):
 
 
 WILD_MATCH = 0.75       # 2.114.3: a wildcard's picture must look this much like a fixed slot's (and clearly most)
+WILD_TINT = 20          # 3.0.6: ... and be colored alike (the largest gap of the B, G, R averages; the owner's
+#                         Vaal Blacksmith's Infuser vs Blacksmith's Whetstone: 31)
 
 
 def _icon(bgr, rect):
@@ -381,9 +424,13 @@ def _same_item(icon, icons):
     if icon is None:
         return None, 0.0
     scores = []
+    tint = icon.reshape(-1, 3).mean(0)
     for name, ic in icons.items():
         if ic is None:
             continue
+        if float(np.abs(ic.reshape(-1, 3).mean(0) - tint).max()) > WILD_TINT:
+            continue                         # 3.0.6: same shape, other colors - a Vaal Blacksmith's Infuser isn't a
+        #                                      Blacksmith's Whetstone (owner's scan: it was counted as one)
         v = float(cv2.matchTemplate(icon, ic[3:-3, 4:-4], cv2.TM_CCOEFF_NORMED).max())
         scores.append((v, name))
     if not scores:

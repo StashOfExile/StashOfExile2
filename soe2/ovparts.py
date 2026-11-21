@@ -3,11 +3,11 @@
   * Map rank - your rank for the map you're in (S A B C D or Avoid; the community's in brackets when you have none)
     was glued onto "where you are". It's its own part now, with its own switch (Overlay › Options › On the overlay).
     Click it to rank the map. "Ask me to rank maps I haven't ranked" (on by default): leaving a map you haven't
-    ranked, a small card asks - S A B C D Avoid, Not now, or Never for this map. Feedback: "isolate the Map
-    Tier/rating piece on the overlay and add an option ... to prompt a user to give unrated maps a rating".
-  * The lines - League Plan's NOW line, the Campaign Helper's (2.77.0) and Ritual's (2.118.0). 2.124.0: drawn at
+    ranked, a small card asks - S A B C D Avoid, Not now, or Never for this map. Feedback: isolate the Map
+    Tier / rating piece on the overlay and add an option to prompt a user to rate unrated maps.
+  * The lines - League Plan's NOW line, and the Campaign Helper's (2.77.0). 2.124.0: drawn at
     the top of the overlay's own window (they had their own small bar), which grows upward by their height - the bar
-    never moves. Feedback: "instead of having it as an isolated separate bar, can we just have it combine".
+    never moves. Feedback: combine it with the bar instead of an isolated separate bar.
 
 GGG ToS: windows and the game's log only - nothing is sent to the game."""
 import tkinter as tk
@@ -83,7 +83,8 @@ class OverlayParts:
         body.pack(fill="both", expand=True)
         tk.Label(body, text=f"How was {name}?", bg=bg, fg=P["text"], font=(P["font"], self.ov_font(11), "bold"), anchor="w").pack(fill="x")
         tk.Label(body, text="Your rank shows on the overlay next time, and counts as your vote for the community's.",
-                 bg=bg, fg=P["muted"], font=(P["font"], self.ov_font(9)), anchor="w", justify="left", wraplength=W - self.ov_px(40)).pack(fill="x")
+                 bg=bg, fg=P["muted"], font=(P.get("body") or P["font"], self.ov_font(9)), anchor="w", justify="left",
+                 wraplength=W - self.ov_px(40)).pack(fill="x")
         row = tk.Frame(body, bg=bg)
         row.pack(fill="x", pady=(8, 0))
         self.maprank_btns = {}
@@ -148,19 +149,13 @@ class OverlayParts:
 
     # ================================================================ the goal bar
     def goalbar_rows(self):
-        """What the goal bar holds, top to bottom: 'campaign' (2.77.0, while you're in the campaign), 'ritual' (2.118.0,
-        in a map with Ritual), 'focus'."""
+        """What the goal bar holds, top to bottom: 'campaign' (2.77.0, while you're in the campaign), 'focus'."""
         rows = []
         try:
             if self.camp_on_bar() and not self.camp_in_card():     # (the Panel: the line is in its card)
                 rows.append("campaign")
         except Exception:
             self.log_error("the campaign line")
-        try:
-            if self.ritual_readout():
-                rows.append("ritual")
-        except Exception:
-            buglog.caught()
         if self.focus_line()[0]:
             rows.append("focus")
         return rows
@@ -248,7 +243,7 @@ class OverlayParts:
             pass
 
     def goalbar_build(self, settled=False):
-        """One build at a time. UI overhaul (feedback: "campaign helper is giving me doubles"): a build flushes
+        """One build at a time. UI overhaul (feedback: the Campaign helper showed doubled lines): a build flushes
         layout (update_idletasks), which runs waiting idle jobs - one of them was another goal bar build, so two
         sets of lines went on the window and only the last one was known (the other never came off). A build asked
         for during a build now runs once, just after it."""
@@ -269,8 +264,8 @@ class OverlayParts:
         return cv
 
     def _goalbar_build_now(self, settled=False):
-        """2.124.0 (feedback: "instead of an isolated separate bar, can we just have it combine"): the Campaign,
-        Ritual and NOW lines are drawn at the top of the overlay's own window, as wide as it, and the window grows
+        """2.124.0 (feedback: combine it with the bar instead of a separate bar): the Campaign
+        and NOW lines are drawn at the top of the overlay's own window, as wide as it, and the window grows
         upward by their height - the bar itself never moves. (Was its own small window, docked or dragged.)
         -> the lines' canvas or None."""
         import tkinter.font as tkfont
@@ -323,10 +318,10 @@ class OverlayParts:
             bg = KEY
         geo = self._gb_geo(main, not settled)
         self._gb_strays(main)
-        # 2.130.1 (feedback: "overlay at top caused the ritual portion of the bar style to be beyond the edge of the
-        # monitor"): with the Bar placed at the top, the lines go under it, and the window grows down
+        # 2.130.1 (feedback: with the overlay at the top, the ritual part of the bar style ran past the edge of the
+        # monitor): with the Bar placed at the top, the lines go under it, and the window grows down
         self._gb_below = bool(hud and self.ov_spot() == "top")
-        # UI overhaul (feedback: "the overlay blocking leveling up information"): over the game's XP bar, the lines
+        # UI overhaul (feedback: the overlay blocked leveling-up information): over the game's XP bar, the lines
         # leave both ends clear - the game's + passive points / weapon set buttons (left) and its counters (right)
         # show there. Round 18: the lines go in their own window, as wide as they are (nothing see-through round
         # them - no black box); elsewhere: full width, on the bar's own window.
@@ -359,7 +354,7 @@ class OverlayParts:
             from . import hudart                              # stone plate and end caps
             ends, self._hud_ends = getattr(self, "_hud_ends", None), ("amber", "amber")
             lft, rgt = self._hud_frame(cv, P, W, H, cap=hudart.cap_width(mh))
-            self._hud_ends = ends or ("crimson", "sapphire")
+            self._hud_ends = ends or ("gold", "gold")
         elif classic:                                         # the Panel's stone and frame (2.124.1: as the Bar)
             from . import hudart
             art = hudart.panel(cv, W, H)
@@ -379,19 +374,6 @@ class OverlayParts:
             cv.create_line(lft, e, rgt, e, fill=P["line"], tags=("mg",))
         if "campaign" in rows:
             self.camp_draw_row(cv, P, lft, rgt, mids[rows.index("campaign")], f, n=camp_n, lh=lh)
-        if "ritual" in rows:                                  # 2.118.0: the Ritual line
-            mid = mids[rows.index("ritual")]
-            fm = tkfont.Font(root=cv, family=P["font"], size=self._hf(10))
-            tag = "▸ " + self.ritual_line_label()             # 2.132.2: RITUAL / TEMPLE / IN MAP
-            cv.create_text(lft, mid, text=tag, anchor="w", fill=P["head"],
-                           font=(P["hfont"], self._hf(9), "bold"), tags=("mg", "rit"))
-            # 2.137.1 (feedback: "it shows HELPERSCrystals"): the gap is measured on the tag itself, in its own font
-            tf = tkfont.Font(root=cv, family=P["hfont"], size=self._hf(9), weight="bold")
-            rt = self._mg_text(cv, P, lft + tf.measure(tag + "  ") + 6, mid, "ritual", f)
-            cv.addtag_withtag("rit", rt.item)
-            rt.config(text=self.ritual_readout())
-            if light:
-                self._lt_halo_tags(cv, P, ("rit",))
         if "focus" not in rows:
             return self._goalbar_show(main, cv, H, geo)
         mid = mids[rows.index("focus")]
@@ -405,11 +387,38 @@ class OverlayParts:
         ft.fnt, ft.px = fm, max(40, rgt - nx - pw - 12)     # 2.123.7: fitted by width, not a count of letters
         ft.config(text=ftext)
         self._focus_click(cv, ft)
-        if fprog is not None:
-            cv.create_rectangle(rgt - pw, mid - 2, rgt, mid + 2, fill=P["cell_bg"], outline=P["line"], tags=("mg",))
-            cv.create_rectangle(rgt - pw, mid - 2, rgt - pw + int(pw * min(1.0, fprog)), mid + 2, fill=P["on"],
-                                outline="", tags=("mg",))
+        self._gb_focus = dict(cv=cv, mid=mid, rgt=rgt, pw=pw, P=P)          # (focus_redraw: the progress bar, in place)
+        self._focus_prog(cv, mid, rgt, pw, P, fprog)
         return self._goalbar_show(main, cv, H, geo)
+
+    @staticmethod
+    def _focus_prog(cv, mid, rgt, pw, P, fprog):
+        if fprog is not None:
+            cv.create_rectangle(rgt - pw, mid - 2, rgt, mid + 2, fill=P["cell_bg"], outline=P["line"],
+                                tags=("mg", "focusprog"))
+            cv.create_rectangle(rgt - pw, mid - 2, rgt - pw + int(pw * min(1.0, fprog)), mid + 2, fill=P["on"],
+                                outline="", tags=("mg", "focusprog"))
+
+    def focus_redraw(self):
+        """UI rule 22: the goal changed (a goal ticked, a new one on top) - the NOW line's words and progress bar
+        change where they are; the overlay is not built again. -> False when the lines themselves change (the line
+        appears or goes, or its progress bar does) and the overlay must be built again."""
+        d, cv = getattr(self, "_gb_focus", None), getattr(self, "gb_cv", None)
+        ft = (getattr(self, "tk_ov_lbls", None) or {}).get("focus")
+        if not d or cv is None or d["cv"] is not cv or ft is None or getattr(self, "mg_win", None) is None:
+            return False
+        try:
+            if "focus" not in (getattr(self, "goal_rows", None) or []) or self.goalbar_rows() != self.goal_rows:
+                return False
+            ftext, fprog = self.focus_line()
+            if (fprog is None) != (d["pw"] == 0):
+                return False
+            ft.config(text=ftext)
+            cv.delete("focusprog")
+            self._focus_prog(cv, d["mid"], d["rgt"], d["pw"], d["P"], fprog)
+        except tk.TclError:
+            return False
+        return True
 
     def _gb_window_setup(self, main, lw):
         """The lines' window takes the bar's click-through and capture setting (overlay_click_through)."""
@@ -434,7 +443,7 @@ class OverlayParts:
         return cv
 
     def _gb_fit_later(self, main):
-        """UI overhaul (feedback: "broken void space under the overlay bar"): growing and shrinking by the lines'
+        """UI overhaul (feedback: an empty gap under the overlay bar): growing and shrinking by the lines'
         height drifts when a size was read before the last change landed - the window kept the old height and an
         empty strip showed under the bar. Once idle, the window is set to exactly what it holds (the bar's edge
         stays where it is: the bottom, or the top when the lines are under the bar)."""

@@ -7,8 +7,8 @@ when that room pays at tier 3 (Corruption Chamber, Sacrificial Chamber, Thaumatu
 
 The hand is learned, not guessed: hover a medallion in the panel and its tooltip's name is read with the slot under
 the mouse; that slot's picture is kept (medallion_icons.json in your data folder: pictures of icons, nothing else),
-so the next time the panel opens each slot is known by its picture. Two are known from the start (the lock and the
-upgrade arrow)."""
+so the next time the panel opens each slot is known by its picture. 3.1 (GGG ToS 7a: no game pictures ship): none
+is known from the start - each medallion is learned the first time you hover it."""
 import json
 import os
 import re
@@ -21,16 +21,26 @@ MEDALLIONS = {
     "Quipolatl's Medallion": ("Upgrade", "Raises a room's tier", 9),
     "Estazunti's Medallion": ("Extra restricted room", "One more restricted room card after the Architect", 8),
     "Uromoti's Medallion": ("Add room", "Adds a room card", 5),
-    "Hayoxi's Medallion": ("Reroll restricted", "Rerolls a restricted room", 5),
-    "Puhuarte's Medallion": ("Reroll cards", "Rerolls the room cards on offer", 4),
+    # 3.0.6 (the advice should say to drop Hayoxi's medallion to pick up the reroll medallion, Puhuarte's):
+    # rerolling the cards on offer is worth more than rerolling a restricted room
+    "Hayoxi's Medallion": ("Reroll restricted", "Rerolls a restricted room", 4),
+    "Puhuarte's Medallion": ("Reroll cards", "Rerolls the room cards on offer", 5),
     "Xopec's Medallion": ("Crystal capacity", "Crystal capacity +6 (up to 60)", 6),
     "Azcapa's Medallion": ("Medallion slot", "Medallion capacity +1 (up to 6)", 7),
     "Zantipi's Medallion": ("Waystone modifier", "Adds a random waystone modifier to the temple", 1),
 }
 HIGH_ROOMS = ("Corruption Chamber", "Sacrificial Chamber", "Thaumaturge", "Alchemy Lab", "Smithy")
+LOW_ROOMS = ("Armoury", "Garrison", "Spymaster")       # rooms that mostly raise others - the first to let go
 _KEYS = {re.sub(r"[^A-Z]", "", n.upper()): n for n in MEDALLIONS}
-_ROOM = re.compile(r"ADD\s*ROOM\s*[:;]?\s*(.+)", re.I)
-_COUNT = re.compile(r"MEDALLIONS?\s*\(?\s*(\d)\s*[/|l]\s*(\d)\s*\)?", re.I)
+_ROOM = re.compile(r"ADD\W{0,2}ROOM\s*[:;]?\s*(.+)", re.I)      # (3.0.6: "ADD, ROOM; ARMOURY" - a comma read inside)
+# 3.0.6 (owner's panels read by Tesseract: "MEDALLIONS 5 (6/6)" - the icon beside the title read as a character -,
+# "MEDALLIONS 66) >]" - the bracket and the slash lost, "WORKSHOP MEDALLIONS (4/6)" - the room card's name on the same
+# line): the count is looked for straight after the word, with up to two stray characters between
+_COUNT = re.compile(r"MEDALLIONS?\s*(?:\S{1,2}\s+)?\(?\s*(\d)\s*[/|l]\s*(\d)\s*\)?(.*)$", re.I)
+_COUNT_NO_SLASH = re.compile(r"MEDALLIONS?\s*(?:\S{1,2}\s+)?\(?\s*(\d)(\d)\s*\)(.*)$", re.I)
+HEAD_BEFORE = 30                 # most letters a title line may carry in front of the word (a neighbor's name)
+HEAD_AFTER = 6                   # ... and after the count (the arrow button: ">!", "|", "Pl") - more is a sentence
+                                 # (the app's own "Medallions 6/6: Lock, Upgrade ..." line)
 
 
 def letters(t):
@@ -39,7 +49,9 @@ def letters(t):
 
 def name_of(text):
     """An OCR line -> the medallion's name in it, or None (letters only, so "Zantipi's Medallion" and
-    "ZANTIPIS MEDALLION" both match; a near miss of one letter too)."""
+    "ZANTIPIS MEDALLION" both match; a near miss of a letter or two too).
+    3.0.6: the best stretch of the line is compared (an icon or a frame piece read as a few letters in front of the
+    name, or a letter doubled in it: "ESTAZUNTI rs MEDALLION"); a name needs a clear lead over every other name."""
     L = letters(text)
     if "MEDALLION" not in L:
         return None
@@ -47,8 +59,34 @@ def name_of(text):
         if k in L:
             return n
     import difflib
-    m = difflib.get_close_matches(L[:len(L)], list(_KEYS), 1, 0.88)
-    return _KEYS[m[0]] if m else None
+    scored = []
+    for k, n in _KEYS.items():
+        best = difflib.SequenceMatcher(None, L, k).ratio()
+        if len(L) > len(k) + 2:
+            for w in (len(k) - 1, len(k), len(k) + 1):
+                for a in range(0, len(L) - w + 1):
+                    best = max(best, difflib.SequenceMatcher(None, L[a:a + w], k).ratio())
+        scored.append((best, n))
+    scored.sort(reverse=True)
+    if scored[0][0] >= 0.88 and scored[0][0] - scored[1][0] >= 0.05:
+        return scored[0][1]
+    return None
+
+
+def head_count(text):
+    """A line -> (have, most, how far into the line the word starts, 0-1) of a "Medallions (n/m)" title, or None."""
+    t = " ".join(str(text).split())
+    for rx in (_COUNT, _COUNT_NO_SLASH):
+        m = rx.search(t)
+        if not m:
+            continue
+        before, after = letters(t[:m.start()]), letters(m.group(3))
+        if len(before) > HEAD_BEFORE or len(after) > HEAD_AFTER:
+            continue
+        have, most = int(m.group(1)), int(m.group(2))
+        if 0 <= have <= most <= 6:
+            return have, most, m.start() / max(1, len(t))
+    return None
 
 
 def parse(lines):
@@ -57,11 +95,12 @@ def parse(lines):
     out = {"names": [], "count": None, "head": None, "room": None}
     for text, box in lines or []:
         t = " ".join(str(text).split())
-        m = _COUNT.search(t)
-        if m and "MEDALLIONS" in letters(t) and len(letters(t)) <= 12:
-            have, most = int(m.group(1)), int(m.group(2))
-            if 0 <= have <= most <= 6:
-                out["count"], out["head"] = (have, most), box
+        hc = head_count(t)
+        if hc:
+            out["count"] = hc[:2]
+            if box and hc[2] > 0.02:       # (a neighbor's name in front: the title's left edge is where the word starts)
+                box = (int(box[0] + (box[2] - box[0]) * hc[2]),) + tuple(box[1:])
+            out["head"] = box
             continue
         n = name_of(t)
         if n:
@@ -91,6 +130,12 @@ def base(name):
     return n, (room or None)
 
 
+def short(name):
+    """A medallion -> the word players use: its room (Armoury) or what it does (Lock, Upgrade)."""
+    n, r = base(name)
+    return r or MEDALLIONS.get(n, (n,))[0]
+
+
 def worth(name, room=None, crystals_most=None, slots_most=None):
     """-> (0-10, why). Capacity ones are 0 once full; Uromoti's follows its room."""
     name, r = base(name)
@@ -103,6 +148,8 @@ def worth(name, room=None, crystals_most=None, slots_most=None):
     if name == "Uromoti's Medallion" and room:
         if room in HIGH_ROOMS:
             return 8, f"adds {room} (pays at tier 3)"
+        if room in LOW_ROOMS:                         # (3.0.6, owner's pick: the Armoury went to make room for a Lock)
+            return 4, f"adds {room}"
         return 5, f"adds {room}"
     return w, short.lower()
 
@@ -119,35 +166,48 @@ def advice(new, hand, have, most, room=None, crystals_most=None):
     if have < most:
         return "take", f"{new}: {why}. {most - have} slot{'s' if most - have != 1 else ''} free."
     known = [h for h in (hand or [])[:have] if h]
-    if len(known) < have:
-        if known and w <= min(worth(h, None, crystals_most, most)[0] for h in known) and w <= 1:
-            return "skip", f"{new}: {why}. Weaker than what you hold."
-        return "learn", f"{new}: {why}. Medallions full: press V and hover each so Vaal Lens knows them."
+    if not known:
+        return "learn", f"{new}: {why}. Medallions full: open them (V) and press the Read Key to see which to drop."
+    # 3.0.6 (players will not read their medallions by hand): a slot not known yet doesn't stop the
+    # advice - the weakest one known is the one to let go
     worst = min(known, key=lambda h: worth(h, None, crystals_most, most)[0])
     ww, wwhy = worth(worst, None, crystals_most, most)
     if w > ww:
-        return "take", f"{new}: {why}. Use or destroy {worst} ({wwhy}) to make room."
+        return "take", f"{new}: {why}. Use or destroy your {short(worst)} medallion to make room."
     return "skip", f"{new}: {why}. Weaker than all you hold."
 
 
 # ---------------------------------------------------------------- the panel (V): where the slots are
 # measured on a 2560x1440 game: the "Medallions (6/6)" title's right end, then 2 columns x 3 rows of 120x125 slots
-HEAD_TO_SLOT = (-232, 38)        # the first slot's top-left from the title's (right, middle)
 SLOT = (120, 125)
 STEP = (144, 144)
 ICON = (32, 22, 88, 82)          # the picture inside the slot's gold diamond (frame and pedestal left out)
 
 
+HEAD_LEFT_TO_COLS = (-63, 81)    # 3.0.6 (owner's 4/6, 5/6, 6/6 panels at 2560x1440): each column's left from the
+HEAD_MID_TO_ROW = 44             # title text's LEFT edge (its right edge moves: OCR may take the > arrow in), and the
+#                                  first row's top from the title's middle
+
+
 def slots(head_screen, scale, n=6):
-    """The title's box on screen (l, t, r, b) and the game's scale (height / 1440) -> n slot boxes on screen."""
-    r, mid = head_screen[2], (head_screen[1] + head_screen[3]) / 2
-    x0, y0 = r + HEAD_TO_SLOT[0] * scale, mid + HEAD_TO_SLOT[1] * scale
+    """The title's box on screen (l, t, r, b) and the game's scale (height / 1440) -> the n filled slots' boxes.
+    3.0.6: the game fills the right column top to bottom first, then the left one (4/6: right 1-3 + left 1)."""
+    l, mid = head_screen[0], (head_screen[1] + head_screen[3]) / 2
+    y0 = mid + HEAD_MID_TO_ROW * scale
+    cells = [(1, 0), (1, 1), (1, 2), (0, 0), (0, 1), (0, 2)]
     out = []
-    for k in range(n):
-        c, row = k % 2, k // 2
-        x, y = x0 + c * STEP[0] * scale, y0 + row * STEP[1] * scale
+    for c, row in sorted(cells[:n], key=lambda cr: (cr[1], cr[0])):        # (read in rows, left to right)
+        x, y = l + HEAD_LEFT_TO_COLS[c] * scale, y0 + row * STEP[1] * scale
         out.append((int(x), int(y), int(x + SLOT[0] * scale), int(y + SLOT[1] * scale)))
     return out
+
+
+def slot_filled(pic):
+    """A slot's icon crop -> True when a medallion is in it (3.0.6: an empty slot is near black: mean ~6, spread ~4;
+    a filled one 65+ / 44+ on the owner's 3/6, 4/6 and 6/6 panels)."""
+    from PIL import ImageStat
+    st = ImageStat.Stat(pic.convert("L"))
+    return st.mean[0] > 25 or st.stddev[0] > 15
 
 
 def icon_box(slot):
@@ -156,9 +216,17 @@ def icon_box(slot):
     return int(l + ICON[0] * sx), int(t + ICON[1] * sy), int(l + ICON[2] * sx), int(t + ICON[3] * sy)
 
 
-def feat(img):
-    """A slot's icon (PIL) -> a unit vector: a 20x20 z-scored gray picture plus a coarse color share."""
+INNER = (0.25, 0.22)             # 3.0.6: the part of the icon box matched - the room's picture, not the gold diamond
+
+
+def feat(img, inner=True):
+    """A slot's icon (PIL) -> a unit vector: a 20x20 z-scored gray picture plus a coarse color share.
+    3.0.6 (owner: a Garrison medallion was named as another room): only the middle of the icon is compared - every
+    room medallion has the same gold diamond, which made two of them look 86% alike; the middle alone, 67% at most."""
     from PIL import Image
+    if inner:
+        w, h = img.size
+        img = img.crop((int(w * INNER[0]), int(h * INNER[1]), w - int(w * INNER[0]), h - int(h * INNER[1])))
     a = np.asarray(img.convert("RGB").resize((20, 20), Image.BILINEAR)).astype(np.float32)
     g = a.mean(axis=2)
     gx, gy = np.abs(np.diff(g, axis=1))[:-1, :], np.abs(np.diff(g, axis=0))[:, :-1]
@@ -170,8 +238,8 @@ def feat(img):
     return v / (np.linalg.norm(v) + 1e-9)
 
 
-SEEDS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "templates", "medallion_icons.json")
-MATCH = 0.93
+MATCH = 0.86
+MARGIN = 0.04
 
 
 def _load(path):
@@ -184,7 +252,8 @@ def _load(path):
 
 
 def known_icons(user_path=None):
-    out = _load(SEEDS)
+    """{name: [pictures]} learned on this PC (user_path) - none ship with the app."""
+    out = {}
     for k, vs in (_load(user_path) if user_path else {}).items():
         out.setdefault(k, []).extend(vs)
     return out
@@ -207,18 +276,75 @@ def learn(user_path, name, vec, keep=4):
         json.dump(data, f)
 
 
-def identify(vec, icons):
-    """-> the name whose icon matches best (MATCH or closer), or None."""
-    best, who = MATCH, None
+SHIFT = 10                       # 3.0.6: how far (px at 1440p) a slot's picture is looked for round where it should be
+SHIFT_STEP = 2
+
+
+def identify_at(crop, box, icons, scale=1.0):
+    """3.0.6 (medallions were still reported as not known despite plenty of learned data): a slot's picture matched
+    only where the slot was worked out to be - 4 px off (the title read a little
+    wider) and nothing matched. Now looked for round that spot: crop(box) -> PIL picture; the best name over every
+    small shift, or None."""
+    best = (None, -1.0)
+    r = max(1, int(round(SHIFT * scale)))
+    st = max(1, int(round(SHIFT_STEP * scale)))
+    for dy in range(-r, r + 1, st):
+        for dx in range(-r, r + 1, st):
+            b = (box[0] + dx, box[1] + dy, box[2] + dx, box[3] + dy)
+            name, score = identify(feat(crop(b)), icons, scored=True)
+            if name is not None and score > best[1]:
+                best = (name, score)
+    return best[0]
+
+
+ALIGN_REACH, ALIGN_STEP = 40, 6   # 3.0.6: px at 1440p
+
+
+def align(crop, head, icons, scale=1.0, n=6):
+    """3.0.6 (medallions still failed to be identified): the title's box as OCR gave it can be a
+    good way off (a 6/6 panel read 1 of 6), and the slots are placed from it. -> (dx, dy): the shift of the slot grid
+    whose pictures match the known medallions best (summed over the slots), or (0, 0)."""
+    if not icons:
+        return 0, 0
+    vecs = [v for vs in icons.values() for v in vs]
+    if not vecs:
+        return 0, 0
+    mat = np.stack(vecs)
+    r, st = int(round(ALIGN_REACH * scale)), max(1, int(round(ALIGN_STEP * scale)))
+    best, at = None, (0, 0)
+    for dy in range(-r, r + 1, st):
+        for dx in range(-r, r + 1, st):
+            h = (head[0] + dx, head[1] + dy, head[2] + dx, head[3] + dy)
+            tot = 0.0
+            for sl in slots(h, scale, n):
+                try:
+                    tot += float((mat @ feat(crop(icon_box(sl)))).max())
+                except Exception:
+                    continue
+            if best is None or tot > best + 1e-6 or (abs(tot - best) <= 1e-6 and abs(dx) + abs(dy) < sum(map(abs, at))):
+                best, at = tot, (dx, dy)
+    return at
+
+
+def identify(vec, icons, scored=False):
+    """-> the name whose icon matches best (MATCH or closer, and clearly ahead of any other name), or None.
+    3.0.6 (owner's panel: a slot learned while hovered - it glows - matched its plain self at 0.90, under the old
+    0.93, so it fell back to "not known"): MATCH 0.86 with a lead of MARGIN over the next name."""
+    best = {}
     for name, vs in icons.items():
         for v in vs:
             s = float(np.dot(vec, v))
-            if s > best:
-                best, who = s, name
-    return who
+            if s > best.get(name, -1.0):
+                best[name] = s
+    order = sorted(best.items(), key=lambda x: -x[1])
+    if not order or order[0][1] < MATCH:
+        return (None, 0.0) if scored else None
+    if len(order) > 1 and order[0][1] - order[1][1] < MARGIN and base(order[0][0])[0] != base(order[1][0])[0]:
+        return (None, 0.0) if scored else None
+    return (order[0][0], order[0][1]) if scored else order[0][0]
 
 
-# 2.142.1 (feedback: "the room card medallions have matching icons to the regular cards and room tiles"): a slot not
+# 2.142.1 (feedback: the room card medallions have the same icons as the regular cards and room tiles): a slot not
 # known by its own picture is matched against the board's room icons - an Uromoti's shows the room it adds
 ROOM_MIN = 0.90
 

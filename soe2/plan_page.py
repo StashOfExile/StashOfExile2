@@ -20,7 +20,7 @@ def _num(text):
 
 
 class GamePlanPage:
-    """Mixed into App. 2.73.4 (feedback: "it all sort of blends together"): one look for every part - what's in it
+    """Mixed into App. 2.73.4 (feedback: it all blends together): one look for every part - what's in it
     first, then a hairline and a small ADD heading over its form, labels in one column, the same + Add button
     everywhere; phase headings with counts, goal details on a quieter second line, a summary strip on top."""
 
@@ -238,8 +238,10 @@ class GamePlanPage:
                 ttk.Button(nr, text="I'm here now", style="Quiet.TButton",
                            command=lambda n=name: self.gp_phase_pick(n)).pack(side="left", padx=(8, 0))
         gs = F.goals_of(key)
+        self._gp_done_lbl, self._gp_now_btns, self._gp_key = None, {}, key
         if gs:
-            self._gp_head(box, f"{sum(1 for g in gs if g['done'])} / {len(gs)} done", top=0)
+            self._gp_done_lbl = self._gp_head(box, f"{sum(1 for g in gs if g['done'])} / {len(gs)} done",
+                                              top=0).winfo_children()[0]
         if not gs:
             self._gp_empty(box, "No goals for this phase yet - add one below.")
         for g in gs:
@@ -248,8 +250,7 @@ class GamePlanPage:
             v = tk.BooleanVar(value=bool(g["done"]))
             self.gp_goal_vars[g["id"]] = v
             ttk.Checkbutton(r, text=g["text"], variable=v, style="Card.TCheckbutton",
-                            command=lambda gid=g["id"], v=v: (F.set_done(gid, v.get()), self.gp_fill(),
-                                                              self.gp_overlay())).pack(side="left")
+                            command=lambda gid=g["id"], v=v: self.gp_goal_tick(gid, v)).pack(side="left")
             x = tk.Label(r, text="✕", bg=P2, fg=C["muted"], cursor="hand2")
             x.pack(side="right")
             x.bind("<Button-1>", lambda e, gid=g["id"]: (F.remove_goal(gid), self.gp_fill(), self.gp_overlay()))
@@ -259,6 +260,7 @@ class GamePlanPage:
                          cursor="hand2", font=("Segoe UI", 9, "bold" if now else "normal"))
             b.pack(side="right", padx=8)
             b.bind("<Button-1>", lambda e, gid=g["id"]: self.gp_set_now(gid))
+            self._gp_now_btns[g["id"]] = b
             Tooltip(b, "Show this one on the overlay's goal line")
             meta = tk.Frame(box, bg=P2)                # the quieter second line: target, then when it pokes
             meta.pack(fill="x", padx=(24, 0), pady=(0, 4))
@@ -285,10 +287,39 @@ class GamePlanPage:
             tk.Label(meta, text="poke: " + trig.get(g["trigger"], g["trigger"]), bg=P2, fg=C["muted"],
                      font=("Segoe UI", 9)).pack(side="right")
 
+    def gp_goal_tick(self, gid, v):
+        """A goal ticked. UI rule 22: only the "x / y done" line, the ▸ marks and the summary change - the goal rows
+        are not built again (nor the stockpile and farm rows)."""
+        F.set_done(gid, v.get())
+        if not self._gp_goal_paint():
+            self.gp_fill()
+        elif hasattr(self, "gp_summary"):
+            self.gp_summary.config(text=self.gp_summary_text())
+        self.gp_overlay()
+
+    def _gp_goal_paint(self):
+        lbl, btns, key = getattr(self, "_gp_done_lbl", None), getattr(self, "_gp_now_btns", None), \
+            getattr(self, "_gp_key", None)
+        gs = F.goals_of(key) if key else []
+        try:
+            if lbl is None or not lbl.winfo_exists() or sorted(btns) != sorted(g["id"] for g in gs) or \
+                    not all(b.winfo_exists() for b in btns.values()):
+                return False
+            lbl.config(text=f"{sum(1 for g in gs if g['done'])} / {len(gs)} done")
+            cur = F.current()
+            for g in gs:
+                now = cur is not None and cur["id"] == g["id"]
+                btns[g["id"]].config(text="▸ on the overlay" if now else "▸", fg=C["accent"] if now else C["muted"],
+                                     font=("Segoe UI", 9, "bold" if now else "normal"))
+        except tk.TclError:
+            return False
+        return True
+
     def gp_set_now(self, gid):
         F.cfg()["now"] = gid
         F.save()
-        self.gp_fill()
+        if not self._gp_goal_paint():                       # (UI rule 22: only the ▸ marks change)
+            self.gp_fill()
         self.gp_overlay()
 
     def gp_phase_pick(self, name):
@@ -316,8 +347,11 @@ class GamePlanPage:
             self.gp_summary.config(text=self.gp_summary_text())
 
     def gp_overlay(self):
-        """Redraw the overlay (its focus line and Focus switch follow the plan)."""
+        """Redraw the overlay (its focus line and Focus switch follow the plan). UI rule 22: when only the goal's
+        words or progress changed, the NOW line changes where it is."""
         try:
+            if self.focus_redraw():
+                return
             self.merged_build()
         except Exception:
             buglog.caught()
@@ -338,9 +372,9 @@ class GamePlanPage:
     # ---------------- B: stockpile
     def _gp_stock(self, parent):
         P2 = C["panel2"]
-        o, box = chrome_section(parent, "Stockpile", "What to buy and sit on. Have = what you type "
-                                                                       "(Enter keeps it); Now = poe.ninja for your "
-                                                                       "league (or the bulk exchange).", wrap=True)
+        o, box = chrome_section(parent, "Stockpile", "What to buy and sit on. Have is what you type, "
+                                                                       "and Enter keeps it. Now is poe.ninja's price for your "
+                                                                       "league.", wrap=True)
         o.pack(fill="x", pady=(0, 12))
         self.gp_stock_box = tk.Frame(box, bg=P2)
         self.gp_stock_box.pack(fill="x")
@@ -420,13 +454,7 @@ class GamePlanPage:
         """Its price in divines - always your league's (2.73.4), or None."""
         try:
             from .wealth import WPRICES
-            from . import bulk
-            each = WPRICES.named(name)
-            if each is None:
-                xid = bulk.exchange_id(name)
-                hit = bulk.cached(SETTINGS.get("league") or "", xid, max_age=6 * 3600) if xid else None
-                each = hit[0] if hit else None
-            return each
+            return WPRICES.named(name)
         except Exception:
             return None
 
@@ -597,8 +625,8 @@ class GamePlanPage:
         nums = tk.Frame(box, bg=P2)
         nums.pack(fill="x")
         for i, (key, lab, lo, hi) in enumerate((("per_hour", "Pokes an hour, at most", 0, 12),
-                                                 ("checkin_min", "Check-in every (min of play)", 0, 240),
-                                                 ("snooze_min", "Snooze for (min)", 5, 480))):
+                                                 ("checkin_min", "Check-in every, minutes of play", 0, 240),
+                                                 ("snooze_min", "Snooze for, minutes", 5, 480))):
             tk.Label(nums, text=lab, bg=P2, fg=C["text"], anchor="w").grid(row=i, column=0, sticky="w", pady=2)
             v = tk.StringVar(value=str(pk[key]))
             ttk.Spinbox(nums, from_=lo, to=hi, textvariable=v, width=5).grid(row=i, column=1, sticky="w", padx=8)

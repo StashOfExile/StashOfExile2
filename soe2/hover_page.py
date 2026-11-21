@@ -1,15 +1,13 @@
-"""2.132.3 One read round the mouse for the helpers that read a tooltip: the Ritual Identifier (a Ritual Altar's type)
-and, in the temple, Vaal Lens (a medallion's name on the ground). One picture and one text read feeds both.
+"""2.132.3 One read round the mouse for the helper that reads a tooltip: in the temple, Vaal Lens (a medallion's name
+on the ground). (3.0.6: the Ritual Identifier is gone - it couldn't be automated under GGG policy.)
 GGG policy (Nov 2026: "Reading from the screen ... may only be performed once per manual key press"): it reads when
 you press your Read Key with the tooltip on screen - the part round the mouse, from the press's one picture
 (screenread.py). It never reads by itself. (Owner decision: the Temple Helper's Vaal Beacon tooltip read and Map
 Content's Temple icon are gone - the Temple Console gives the crystals.)"""
-import time
 
 from . import buglog
-from . import ritualid as RID
 
-AROUND = (0.25, 0.38, 0.06)        # the part looked at: half its width, up and down from the mouse (parts of the game)
+AROUND = (0.444, 0.38, 0.06)       # the part looked at: half its width, up and down from the mouse (game heights)
 # A tooltip is found by its long straight edges (a cheap check), then only it is read, made bigger.
 EDGE_LONG = 0.20                    # a tooltip edge: a straight line at least this long (x the game's height) ...
 EDGE_FILL = 0.85                    # ... unbroken for this much of it ...
@@ -21,7 +19,7 @@ def region(pointer, game):
     """The mouse (x, y) and the game (x, y, w, h) -> (left, top, right, bottom) round the mouse, inside the game."""
     gx, gy, gw, gh = game
     px, py = pointer
-    hw = int(AROUND[0] * gw)
+    hw = int(AROUND[0] * gh)               # (heights, not widths: an ultrawide window doesn't make a tooltip wider)
     left, right = max(gx, px - hw), min(gx + gw, px + hw)
     top, bottom = max(gy, py - int(AROUND[1] * gh)), min(gy + gh, py + int(AROUND[2] * gh))
     return left, top, right, bottom
@@ -66,9 +64,8 @@ def find_tooltip(rgb, game_h, xstep=2):
 
 def read_lines(img, game_h, ocr, want=lambda lines: True):
     """The part round the mouse (one cut of the press's picture) -> its text lines: the tooltip's frame found and read
-    on its own, bigger; Round 18 (feedback: a Ritual Altar hovered and the Read Key pressed showed nothing): when that
-    isn't what's wanted (no tooltip found, or the frame found was another box - an altar's name not in it), the whole
-    part is read too (the same picture - no second screen read)."""
+    on its own, bigger; Round 18: when that isn't what's wanted (no tooltip found, or the frame found was another
+    box), the whole part is read too (the same picture - no second screen read)."""
     import numpy as np
     lines = []
     tip = find_tooltip(np.asarray(img), game_h)
@@ -77,71 +74,132 @@ def read_lines(img, game_h, ocr, want=lambda lines: True):
         k = 2 if cut.height < game_h * 0.25 else 1
         if k > 1:
             cut = cut.resize((cut.width * 2, cut.height * 2))
-        lines = [(t, tuple(int(v / k) for v in b)) for t, b in ocr(cut)]
+        # (3.0.6: the boxes are in the part's own pixels, like those of the whole-part read below)
+        lines = [(t, tuple(int(v / k) + tip[i % 2] for i, v in enumerate(b))) for t, b in ocr(cut)]
     if not lines or not want(lines):
         lines = lines + list(ocr(img))
     return lines
+
+
+def text_by_color(img, ocr):
+    """3.0.6 (a medallion got no read - a label over lava read as noise): the picture's gold text
+    (a medallion's name) and white text (what it does) read on their own, black on white -> more lines."""
+    import numpy as np
+    from PIL import Image
+    a = np.asarray(img.convert("RGB")).astype(np.int16)
+    gold = (a[..., 0] - a[..., 2] > 40) & (a[..., 0] > 120) & (a[..., 1] > 90)
+    white = a.min(axis=-1) > 150
+    out = []
+    for m in (gold, white):
+        g = Image.fromarray(np.where(m, 0, 255).astype("uint8"))
+        out += list(ocr(g.resize((g.width * 2, g.height * 2))))
+    return [(t, tuple(int(v / 2) for v in b) if b else b) for t, b in out]
+
+
+# what a medallion's label says it does -> the medallion (when its name doesn't read). 3.0.6: compared by letters only
+# (a comma or a semicolon read inside the line - "PREVENT THE, NEXT DESTABILISATION", "ADD, ROOM;" - hid it), and the
+# two more tooltips whose name line was lost to the frame (Estazunti's, Hayoxi's) are known by their own words too.
+DOES = (("PREVENTTHENEXTDESTABIL", "Juatalotli's Medallion"), ("USETOADDROOM", "Uromoti's Medallion"),
+        ("ADDITIONALRESTRICTEDROOM", "Estazunti's Medallion"), ("USETOREROLLARESTRICTEDROOM", "Hayoxi's Medallion"))
+
+
+def title_above(img, lines, ocr, game_h):
+    """3.0.6 (a medallion's name line was lost on its own - Estazunti's tooltip read as noise in the one big read):
+    the tooltip's title bar sits just above its first "Use to ..." line - that strip read on its own, bigger, from
+    the same picture. -> the strip's lines ([] when there is no "Use to" line or nothing is read)."""
+    from . import medallions as M
+    anchors = [b for t, b in lines or [] if b and "USETO" in M.letters(t)[:8]]
+    if not anchors:
+        return []
+    b = min(anchors, key=lambda a: a[1])
+    h = game_h
+    band = (max(0, b[0] - int(0.08 * h)), max(0, b[1] - int(0.075 * h)), min(img.width, b[2] + int(0.08 * h)),
+            max(1, b[1] - int(0.004 * h)))
+    if band[2] <= band[0] or band[3] <= band[1]:
+        return []
+    # 3.0.6 (reader.py): the strip read as one line, made clean, until a medallion's name is in it; else as before
+    from . import reader as R
+    t, tb, _how = R.read_one(img, band, kind="tooltip-title", want=M.name_of, ocr=ocr)
+    if t and M.name_of(t):
+        return [(t, tb)]
+    cut = img.crop(band)
+    out = ocr(cut.resize((cut.width * 2, cut.height * 2)))
+    return [(t, tuple(band[i % 2] + int(v / 2) for i, v in enumerate(bb))) for t, bb in out]
+
+
+def read_medals(img, game_h, ocr):
+    """The part round the mouse (one cut of the press's picture) -> its text lines, read as far as a medallion's name
+    needs: the tooltip, the whole part, the gold and white text alone, then the title strip above "Use to ..."."""
+    from . import medallions as M
+    lines = read_lines(img, game_h, ocr)
+    text = " ".join(str(t).upper() for t, _b in lines)
+    if not M.parse(lines)["names"] and any(w in text for w in ("MEDALL", "ROOM:", "SUMMON")):
+        lines = lines + text_by_color(img, ocr)          # (the same picture, gold and white text alone)
+    if not M.parse(lines)["names"]:
+        lines = lines + title_above(img, lines, ocr, game_h)
+    return lines
+
+
+def medal_names(lines):
+    """-> [(name, room)] read on a medallion's label: by its name, else by what it says it does."""
+    from . import medallions as M
+    med = M.parse(lines or [])
+    names = list(dict.fromkeys(n for n, _b in med["names"]))
+    if not names:
+        text = "".join(M.letters(t) for t, _b in lines or [])
+        names = [n for k, n in DOES if k in text][:1]
+    return [(n, med["room"]) for n in names], med
 
 
 class HoverPage:
     """Mixed into App."""
 
     def hover_medals(self):
-        """Vaal Lens in the temple: a medallion's name under the mouse -> take it or leave it."""
+        """Vaal Lens in the temple (and Vaal Ruins): a medallion's name under the mouse -> take it or leave it."""
         return bool(getattr(self, "tm_in_temple", False) and self.temple_pad_on())
 
-    def hover_wanted(self):
-        return self.ritid_on() or self.hover_medals()
-
     def hover_look_job(self, ctx):
-        """A Read Key press in a map: the tooltip round the mouse -> a Ritual Altar's type; in the temple, a
-        medallion's name (Vaal Lens)."""
-        if ctx["area"] not in ("map", None) or not self.hover_wanted():
+        """A Read Key press in the temple (or Vaal Ruins): the tooltip round the mouse -> a medallion's name (Vaal
+        Lens)."""
+        # 3.0.6 audit: Vaal Ruins is a town to the app (a hub) - a medallion there is read too
+        if not self.hover_medals():
             return None
-        from . import screenread as SR
+        if ctx.get("area") in ("hideout", "town"):
+            # 3.0.6 (screen reading after a run took too long): medallions drop in the temple itself - a
+            # press in Vaal Ruins or your hideout (reading your inventory) doesn't read round the mouse too
+            return None
+        from . import screenread as SR, vaallens as V
         g, ptr = ctx["g"], ctx["ptr"]
+        mb = V.side_box(g, V.MEDAL_BOX, right=True)
+        if ptr and mb[0] <= ptr[0] <= mb[2] and mb[1] <= ptr[1] <= mb[3]:
+            return None          # 3.0.6 (owner): a medallion in your panel at the console - no take it / leave it
         box = region(ptr, g)
         if box[2] <= box[0] or box[3] <= box[1]:
             return None
-        names = [n for n, on in (("Ritual Identifier", self.ritid_on()), ("Vaal Lens", self.hover_medals())) if on]
 
         def work():
             from . import remnant as RM
-            img = SR.capture(box, ", ".join(names))
+            img = SR.capture(box, "Vaal Lens")
             if img is None:
                 return []
-            return read_lines(img, g[3], RM.ocr, want=lambda ls: bool(RID.parse(ls)) if self.ritid_on() else True)
+            return read_medals(img, g[3], RM.ocr)
 
         def found(lines):
-            """(the read mark) An altar's type, or a medallion's name."""
+            """(the read mark) A medallion's name."""
             if not lines:
                 return False
-            if self.ritid_on() and RID.parse(lines):
-                return True
-            if self.hover_medals():
-                from . import medallions as M
-                med = M.parse(lines)
-                return bool(med["count"] or med["names"])
-            return False
+            got, med = medal_names(lines)
+            return bool(med["count"] or got)
         work.found = found
 
         def done(lines):
-            lines = lines or []
             # 2.142.0 Vaal Lens: a medallion's name on screen in the temple (its label or tooltip), the
             # Medallions panel closed -> take it or leave it
-            if self.hover_medals():
-                from . import medallions as M
-                med = M.parse(lines)
-                if not med["count"]:
-                    for name in dict.fromkeys(n for n, _b in med["names"]):
-                        self.temple_medal_drop(name, med["room"])
-            if self.ritid_on():
-                key = RID.parse(lines)
-                self.ritid_seen(key)
-                if not key:                                 # 2.138.0: Debug mode - an altar seen but its type not read
-                    seen = [RID.letters(t) for t, _b in lines if "RITUAL" in RID.letters(t)]
-                    seen = [s for s in seen if "REWARD" not in s]
-                    if seen and time.time() - getattr(self, "_rid_said", 0.0) > 30:
-                        self._rid_said = time.time()
-                        buglog.debug("Ritual", "altar seen, type not read: " + " | ".join(s[:40] for s in seen[:3]))
-        return names[0], work, done
+            got, med = medal_names(lines)
+            buglog.debug("Vaal Lens", "under the mouse: " + (", ".join(n for n, _r in got) or
+                                                             f"no medallion name ({len(lines or [])} lines)")
+                         + (f" · room {med['room']}" if med.get("room") else ""))    # (game text only)
+            if not med["count"]:
+                for name, room in got:
+                    self.temple_medal_drop(name, room)
+        return "Vaal Lens", work, done

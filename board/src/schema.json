@@ -22,24 +22,6 @@
    "Simulacrum",
    "Trial of the Sekhemas",
    "Trial of Chaos"
-  ],
-  "Crafting": [
-   "Tablet crafting",
-   "Waystone crafting",
-   "Gear crafting",
-   "Jewel crafting",
-   "Flask & charm crafting"
-  ],
-  "Trading": [
-   "Currency flipping",
-   "Bulk selling",
-   "Buy low, sell high",
-   "Services"
-  ],
-  "Other": [
-   "Vendor recipes",
-   "Gold",
-   "Other"
   ]
  },
  "tags": [
@@ -54,8 +36,7 @@
   "Shrines",
   "Overseer",
   "Temple",
-  "City area farm",
-  "Sacred Bloom farm",
+  "City",
   "Juiced maps",
   "Low-tier maps",
   "Campaign zones",
@@ -99,9 +80,8 @@
    "Overseer",
    "Temple"
   ],
-  "Farm type": [
-   "City area farm",
-   "Sacred Bloom farm",
+  "Map type": [
+   "City",
    "Juiced maps",
    "Low-tier maps",
    "Campaign zones"
@@ -189,6 +169,7 @@
   "author",
   "updated",
   "patch",
+  "league",
   "category",
   "type",
   "summary",
@@ -202,6 +183,7 @@
   "tablets",
   "waystones",
   "atlas",
+  "masters",
   "craft_steps",
   "setup",
   "steps",
@@ -222,5 +204,50 @@
   "category",
   "type",
   "tags"
- ]
+ ],
+ "masters": {
+  "Doryani's Science": [
+   "Evolutionary Pressure",
+   "Stitch the Flesh",
+   "Archaic Corruption",
+   "Disengaged Safeties",
+   "Improved Calibration",
+   "Careful Procurement",
+   "Mechanical Guardians",
+   "Hidden Patterns",
+   "Volatile Connection",
+   "Head of the Snake",
+   "Dam the River",
+   "Remnants of Greatness"
+  ],
+  "Hilda's Hunting": [
+   "Breeding Season",
+   "Mighty Prey",
+   "Scarred Lands",
+   "Soul Eaters",
+   "Dangerous Game",
+   "Will of the Draíocht",
+   "Lethal Adaptation",
+   "Call of the Spirits",
+   "Ancient Inscriptions",
+   "Gutting and Skinning",
+   "Claimed Territories",
+   "Patient Battue"
+  ],
+  "Jado's Spycraft": [
+   "Unexpected Missions",
+   "In the Wrong Hands",
+   "Trove Seekers",
+   "Mysterious Gifts",
+   "Eastern Knowledge",
+   "Unforeseen Threats",
+   "Partial Translations",
+   "Long Days",
+   "Stolen Relics",
+   "Ancient Activations",
+   "Keen Appraisal",
+   "Untold Histories"
+  ]
+ },
+ "master_picks": 4
 }

@@ -150,10 +150,10 @@ class KeyWatch:
         self.combo_time, self.active, self.err = 0.0, False, None
         self.copy_time = 0.0        # 2.80.0: YOUR plain Ctrl+C (no Alt) - Price Checks when that is its key
         self.pc_time = 0.0          # 2.83.1: the price check key (Ctrl+D) was pressed in game
-        self.tu_time = 0.0          # 2.131.1: the Top Up key (F7) was pressed in game
         self.esc_since = 0.0        # 2.24.0: when Esc went down (0 = it's up)
         self.esc_last = 0.0         # 2.25.0: the last fresh Esc press, and when two came quickly (a double tap)
         self.esc_double = 0.0
+        self.space_last, self.space_down = 0.0, False   # 3.0.6: the last fresh Space press (Expedition tags go)
         self.ctrl = self.alt = self.shift = False
         self.listener = None        # 2.0: f(vk, ctrl, alt, shift) -> True to swallow the key (Utilities hotkeys)
         self.up_listener = None     # GGG policy (Nov 2026): f(vk) on a key's release - a held key's repeats aren't
@@ -209,6 +209,10 @@ class KeyWatch:
             self.copy_time = time.time()
         if vk == 0x1B:                                   # Esc: never swallowed, only timed
             self.note_esc(down, up)
+        elif vk == 0x20 and down and not self.space_down:  # 3.0.6: Space - never swallowed, only timed (a held key's
+            self.space_last = time.time()                  # repeats aren't new presses)
+        if vk == 0x20:
+            self.space_down = down or (self.space_down and not up)
         if up and self.up_listener:
             try:
                 self.up_listener(vk)
@@ -246,6 +250,17 @@ class KeyWatch:
             except Exception:
                 buglog.caught()
 
+    def sync_mods(self, user32):
+        """3.0.6 (feedback: Ctrl+Alt+C was heard as Ctrl+C): the modifiers' state comes from key-downs and key-ups the
+        hook saw - one missed (Windows skips a hook that answered too slowly in a busy moment) left Alt "up" for good.
+        On C's key-down, Windows' own state of Ctrl, Alt and Shift is taken instead (GetAsyncKeyState: the keys as they
+        are now - no clipboard, no screen)."""
+        try:
+            down = lambda vk: bool(user32.GetAsyncKeyState(vk) & 0x8000)       # noqa: E731
+            self.ctrl, self.alt, self.shift = down(0x11), down(0x12), down(0x10)
+        except Exception:
+            buglog.caught()
+
     def combo_recent(self, secs=1.5):
         return time.time() - self.combo_time < secs
 
@@ -254,9 +269,6 @@ class KeyWatch:
 
     def pc_recent(self, secs=1.5):
         return time.time() - self.pc_time < secs
-
-    def tu_recent(self, secs=2.0):
-        return time.time() - getattr(self, "tu_time", 0.0) < secs
 
     def _run(self):
         try:
@@ -283,8 +295,11 @@ class KeyWatch:
                         k = ctypes.cast(l, ctypes.POINTER(KBD)).contents
                         if k.flags & 0x10:                          # 0x10 = injected by a program, not your keyboard
                             self.last_inj = time.time()
-                        elif self.feed(k.vkCode, w in (0x100, 0x104), w in (0x101, 0x105)):
-                            return 1                                # the key did something: the game doesn't get it
+                        else:
+                            if k.vkCode == 0x43 and w in (0x100, 0x104):
+                                self.sync_mods(user32)              # (3.0.6: C down - Ctrl / Alt / Shift as they are)
+                            if self.feed(k.vkCode, w in (0x100, 0x104), w in (0x101, 0x105)):
+                                return 1                            # the key did something: the game doesn't get it
                 except Exception:
                     buglog.caught()
                 return user32.CallNextHookEx(None, n, w, l)

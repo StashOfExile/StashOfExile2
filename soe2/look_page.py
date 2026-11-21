@@ -31,7 +31,7 @@ GAME_KEYS = {0x09: "Tab (the game's map key)", 0x0D: "Enter (the game's chat)", 
 AREA_WORDS = {"map": "in a map", "hideout": "in your hideout", "town": "in a town", "other": "in this area",
               "login": "at the character screen"}
 UNSET_STATUS = "No Read Key set: it reads nothing until you set one."
-NEED_LINE = "The screen helpers read only when you press your Read Key - a key just for that. None is set yet."
+NEED_LINE = "The screen helpers read only when you press your Read Key, a key you use only for that. None is set yet."
 
 
 def look_key_problem(text, others=()):
@@ -141,7 +141,7 @@ class LookPage:
             from . import remnant as _RM             # apply (no picture for nothing - their rows say "needs OCR")
             if _RM.ocr_available():
                 skip = (self.hover_look_job, self.temple_console_job)
-        for make in (self.ritual_look_job, self.hover_look_job, self.temple_console_job,
+        for make in (self.hover_look_job, self.temple_console_job,
                      self.remnant_look_job, self.favours_look_job, self.ru_look_job, self.ws_look_job,
                      self.topup_look_job, self.sekhemas_look_job):
             if make in skip:
@@ -177,8 +177,8 @@ class LookPage:
         ctx = {"g": g, "rect": (g[0], g[1], g[0] + g[2], g[1] + g[3]), "ptr": ptr,
                "area": self.look_area(), "key": SR.pressed_key()}
         jobs = self.look_jobs(ctx)
-        if not jobs:                                     # (owner: "if it doesn't have anything to read it shouldn't
-            SR.nothing(AREA_WORDS.get(ctx["area"], "here") + ": no helper applies")   # give the alert"): no picture,
+        if not jobs:                                     # (owner: with nothing to read it gives
+            SR.nothing(AREA_WORDS.get(ctx["area"], "here") + ": no helper applies")   # no alert): no picture,
             return []                                    # no card - one line in the app's log
 
         def work():

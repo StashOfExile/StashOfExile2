@@ -1,5 +1,5 @@
-"""2.131.0 Feature Picker, now Setup (feedback: "ask a person what features they're interested in ... Menu options to
-enable/disable features ... Any disabled features should not listen for their hotkey"): the app's features in a few
+"""2.131.0 Feature Picker, now Setup (feedback: ask the player which features they want, with menu options to
+enable or disable them - a disabled feature does not listen for its hotkey): the app's features in a few
 groups, each one switch. Off: its pages leave the menu and its keys do nothing (the game gets them); its data is
 kept. Setup asks on a new install, one question a screen (features_page.py): closed without choosing, it comes back
 at the next start. The same switches live in Settings › General › Features (one place in Settings). The beta features are a cluster of their own - this replaces the single "Show beta features" switch.
@@ -12,8 +12,8 @@ GROUPS = (
              "Price Checks, Favorites, Rate Mods, Mod Book.",
      "modules": ("pricecheck", "favorites", "modbook", "ratemods", "library")},
     {"key": "bulk", "name": "Bulk Pricing", "keys": "Ctrl+Alt+C",
-     "what": "Copy many items in game, or read a stash tab: they're priced as a list, in the background. Best for "
-             "tablets, waystones and jewels; price expensive gear with Price Checks.",
+     "what": "Add many items in game with Ctrl+Alt+C (Manually Add): they're priced as a list, in the "
+             "background. Best for tablets, waystones and jewels; price expensive gear with Price Checks.",
      "modules": ("checks",)},
     # nav phase 1: named as the sidebar names it (was "Game Overlay"); the Regex page is no longer in it - switching
     # the overlay off hides the overlay's Regex part and the Regex keys, not the Regex page
@@ -27,7 +27,7 @@ GROUPS = (
              "runs).",
      "modules": ("plan", "maps", "leaderboards")},
     {"key": "rates", "name": "Exchange Rates", "keys": "",
-     "what": "What each currency is worth in divines (poe.ninja), a converter, and the Rates menu on the Overlay.",
+     "what": "What each currency is worth in divines, from poe.ninja, a converter, and the Rates menu on the Overlay.",
      "modules": ("rates",)},
     {"key": "wealth", "name": "Wealth",
      "what": "What your stash is worth in divines: Scan stash reads your currency and league tabs from the screen; "
@@ -49,8 +49,8 @@ BETA = (
              "on, reforge or vendor. No prices are shown.",
      "modules": ("crafthelper",)},
 )
-# Features owner feedback ("the overlay related helpers/features should not be in this features menu, they should be
-# grouped with the overlay settings helpers and only there"): these helpers are no features - each has ONE switch,
+# Features owner feedback (the overlay-related helpers do not belong in this features menu: group them with the
+# overlay settings helpers and only there): these helpers are no features - each has ONE switch,
 # its own row in Overlay › Helpers (the helper's own setting below). Their old feature keys are gone
 # (migrations._helpers_one_switch).
 HELPER_SWITCHES = {       # Helpers-table key -> (its settings dict, its on key, its name - names.FEATURES)

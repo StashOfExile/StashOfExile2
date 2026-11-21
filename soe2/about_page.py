@@ -1,7 +1,7 @@
-"""Settings > About (2.10.0) and the first-start quick start guide.
+"""Settings > About (2.10.0).
 
 About: version, what's new in this version, the GitHub page, the Discord (feedback and help), the license and credits.
-Quick start: a few short pages shown once, the first time the app starts (Settings > About brings it back)."""
+(3.0.6: the quick start is gone - the first start's Setup is the guide; About has Run setup again.)"""
 import tkinter as tk
 import webbrowser
 from tkinter import ttk
@@ -27,47 +27,6 @@ def _keep_discord():
 
 
 _keep_discord()
-
-# (title, lines). Plain words: what it's for, then how to start.
-THEME_PAGE = "Pick your look"
-QUICKSTART = [
-    (THEME_PAGE, [
-        "Choose how the app looks - click one and it changes right away. You can change it any time in "
-        "Settings › Appearance.",
-    ]),
-    ("Welcome to StashOfExile2", [
-        "A free toolkit that runs next to Path of Exile 2: it prices your items, keeps track of your maps and warns "
-        "you about things that are easy to miss in game.",
-        "It only reads what's yours: the game's own log file, and your clipboard or screen once per key press (a "
-        "copy key, or your Read Key - a key you set just for the helpers). Each read shows for a second. It never "
-        "touches the game itself, and every key does one thing.",
-    ]),
-    ("Price an item", [
-        "Hover an item in game and press Ctrl+D. Price Checks shows what it's worth, every filter to tweak, and the "
-        "trade site's listings beside it.",
-        "Pricing lots of items? Press Ctrl+Alt+C on each: they're listed in Bulk Pricing with what they're worth and "
-        "what to list them for.",
-        "It works best on tablets, jewels and waystones. Got a whole tab of them? Bulk Pricing › Add items from › "
-        "Stash tab reads it in one go.",
-    ]),
-    ("Find your way around", [
-        "The menu on the left opens every page. Ctrl+K (Go to anything) finds any page, part or setting by name.",
-        "Rate Mods: rate the mods you care about. Regex: build stash searches. Exchange Rates: what currency is "
-        "worth right now.",
-    ]),
-    ("While you map", [
-        "Overlay: over the game. Click ▶ Start session on it to time your maps and count maps and deaths; "
-        "F6 hides or shows the whole overlay.",
-        "Overlay › Helpers can warn you when your Hiveblood is almost full (Breach), when you leave a map "
-        "with rituals left, and more. They work with or without a session.",
-    ]),
-    ("Pick your league and say hi", [
-        "Prices come from your league. The newest one is picked for you; change it here or any time in Settings.",
-        "Questions, ideas or something broken? Join the Discord. Settings › About has the link, this guide and "
-        "what's new.",
-    ]),
-]
-
 
 def open_link(url):
     try:
@@ -146,7 +105,7 @@ class AboutPage:
                  anchor="w").pack(fill="x")                                               # 2.73.2
         tk.Label(head, text=f"Version {pretty_version()}  ·  a toolkit for Path of Exile 2  ·  free and open source "
                             "(AGPL-3.0)", bg=C["panel2"], fg=C["muted"], anchor="w").pack(fill="x")
-        try:                                                     # 2.133.0 (feedback: "An active user count would be nice")
+        try:                                                     # 2.133.0 (feedback: show an active user count)
             from .communitymods import installs
             got = installs()
         except Exception:
@@ -170,8 +129,9 @@ class AboutPage:
         self.about_discord.bind("<Enter>", lambda e: self.about_discord.config(bg=DISCORD_HOVER))
         self.about_discord.bind("<Leave>", lambda e: self.about_discord.config(bg=DISCORD))
         ttk.Button(btns, text="GitHub page", command=lambda: open_link(GITHUB_URL), style="Quiet.TButton").pack(side="left", padx=(8, 0))
-        ttk.Button(btns, text="Quick start guide", command=lambda: self.show_quickstart(force=True)).pack(side="left",
-                                                                                                      padx=(8, 0))
+        rs = ttk.Button(btns, text="Run setup again", command=self.features_picker)   # 3.0.6 (owner: the first-start
+        rs.pack(side="left", padx=(8, 0))                                               # setup, not a quick start)
+        Tooltip(rs, "Setup: your features, the Overlay and its helpers - one question a screen.")
         tk.Label(wrap, text="The Discord is the place for questions, ideas and bug reports. Code, releases and the "
                             "roadmap are on GitHub.", bg=P1, fg=C["muted"], font=("Segoe UI", 9), anchor="w",
                  justify="left", wraplength=620).pack(fill="x", pady=(0, 8))
@@ -184,10 +144,7 @@ class AboutPage:
         for line in notes:
             tk.Label(box, text="•  " + line, bg=P2, fg=C["text"], anchor="w", justify="left", wraplength=600,
                      font=("Segoe UI", 9)).pack(fill="x", pady=(4, 0))
-        more = tk.Label(box, text="Every version's notes", bg=P2, fg=C["accent"], cursor="hand2",
-                        font=("Segoe UI", 9, "underline"), anchor="w")
-        more.pack(fill="x", pady=(8, 0))
-        more.bind("<Button-1>", lambda e: self.show_whatsnew(True))
+        # (3.0.6: the "Every version's notes" line showed only this version's - removed)
 
         box = tk.Frame(wrap, bg=P2, padx=16, pady=8, highlightthickness=1, highlightbackground=C["line"])
         box.pack(fill="x", pady=(0, 8))
@@ -220,84 +177,3 @@ class AboutPage:
             ln.bind("<Button-1>", lambda e, u=url: open_link(u))
             tk.Label(row, text=what, bg=P2, fg=C["text"], anchor="w", justify="left", wraplength=600,
                      font=("Segoe UI", 9)).pack(fill="x")
-
-    # ================================================================ quick start (first start)
-    def show_quickstart(self, force=False):
-        """-> True if it was shown. Once, on a fresh install (no seen_version yet), or when asked."""
-        if not force and (SETTINGS.get("quickstart_done") or SETTINGS.get("seen_version")):
-            return False
-        old = getattr(self, "_whatsnew", None)
-        if old is not None and old.winfo_exists():
-            old.destroy()
-        P1, P2 = C["panel"], C["panel2"]
-        card = tk.Toplevel(self.root, bg=C["accent"], padx=2, pady=2)
-        card.overrideredirect(True)
-        try:
-            card.transient(self.root)
-        except tk.TclError:
-            pass
-        self._wn_notes_card = False             # (closing the quick start brings the lead next)
-        self._whatsnew = card                   # same place / follow / keep-on-top as the what's new card
-        self._wn_h = 420
-        self.whatsnew_follow()
-        inner = tk.Frame(card, bg=P1)
-        inner.pack(fill="both", expand=True)
-        head = tk.Frame(inner, bg=C["panel2"], padx=16, pady=12)
-        head.pack(fill="x")
-        self.qs_title = tk.Label(head, text="", bg=C["panel2"], fg=C["text"], font=(FONT_TITLE, 16, "bold"), anchor="w")
-        self.qs_title.pack(fill="x")
-        self.qs_step = tk.Label(head, text="", bg=C["panel2"], fg=C["muted"], anchor="w")
-        self.qs_step.pack(fill="x")
-        foot = tk.Frame(inner, bg=P1, padx=16, pady=8)
-        foot.pack(fill="x", side="bottom")
-        self.qs_next = ttk.Button(foot, text="Next", style="Primary.TButton", command=lambda: self.quickstart_go(1))
-        self.qs_next.pack(side="right")
-        self.qs_back = ttk.Button(foot, text="Back", command=lambda: self.quickstart_go(-1), style="Quiet.TButton")
-        self.qs_back.pack(side="right", padx=8)
-        ttk.Button(foot, text="Skip", command=self.quickstart_done, style="Quiet.TButton").pack(side="left")
-        self.qs_body = tk.Frame(inner, bg=P2, padx=16, pady=16, highlightthickness=1, highlightbackground=C["line"])
-        self.qs_body.pack(fill="both", expand=True, padx=12, pady=(8, 0))
-        self.qs_i = 0
-        self.quickstart_go(0)
-        card.lift()
-        return True
-
-    def quickstart_go(self, step):
-        n = len(QUICKSTART)
-        if step > 0 and self.qs_i == n - 1:
-            return self.quickstart_done()
-        self.qs_i = max(0, min(n - 1, self.qs_i + step))
-        title, lines = QUICKSTART[self.qs_i]
-        self.qs_title.config(text=title)
-        dots = " ".join("●" if i == self.qs_i else "○" for i in range(n))     # 2.116.0 (P10): where you are, at a glance
-        self.qs_step.config(text=f"Quick start  ·  {dots}  ·  {self.qs_i + 1} of {n}")
-        P2 = C["panel2"]
-        for w in self.qs_body.winfo_children():
-            w.destroy()
-        for line in lines:
-            tk.Label(self.qs_body, text=line, bg=P2, fg=C["text"], anchor="w", justify="left", wraplength=560,
-                     font=("Segoe UI", 10)).pack(fill="x", pady=(0, 8))
-        want_h = 640 if title == THEME_PAGE else 420             # 2.61.0: the theme cards need more room (3.0.2: 23)
-        if getattr(self, "_wn_h", None) != want_h:
-            self._wn_h = want_h
-            self.whatsnew_follow()
-        if title == THEME_PAGE:                                  # 2.61.0: a fresh install starts by picking a theme
-            self.theme_cards(self.qs_body, "quickstart", cols=6, scale=0.5)    # 3.0.2: 23 themes - 6 a row, smaller
-        if self.qs_i == n - 1:
-            row = tk.Frame(self.qs_body, bg=P2)
-            row.pack(fill="x", pady=(8, 0))
-            tk.Label(row, text="League", bg=P2, fg=C["accent"], font=("Segoe UI", 12, "bold")).pack(side="left")
-            self.wn_league = self.league_link(row, P2)          # 2.59.0: set in Settings › General
-            self.wn_league.pack(side="left", padx=8)
-            tk.Label(row, text="(click to change)", bg=P2, fg=C["muted"], font=("Segoe UI", 9)).pack(side="left")
-            d = tk.Label(self.qs_body, text="  💬  Join the Discord  ", bg=DISCORD, fg="#ffffff", cursor="hand2",
-                         font=("Segoe UI", 12, "bold"), pady=8)
-            d.pack(anchor="w", pady=(16, 0))
-            d.bind("<Button-1>", lambda e: open_link(DISCORD_URL))
-        self.qs_back.config(state="normal" if self.qs_i else "disabled")
-        self.qs_next.config(text="Done" if self.qs_i == n - 1 else "Next")
-
-    def quickstart_done(self):
-        SETTINGS["quickstart_done"] = True
-        save_json("settings.json", SETTINGS)
-        self.close_whatsnew()

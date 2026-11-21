@@ -38,15 +38,12 @@ def scrub(text):
 
 # ---------------------------------------------------------------- 2.89.3: names that point at a person
 def known_names():
-    """Your account name and every character name the app has seen (from the game's log) -> {name: placeholder}.
-    Read only from this PC's settings; used to keep them OUT of logs, reports and the community name."""
+    """Every character name the app has seen (from the game's log) -> {name: placeholder}. Read only from this PC's
+    settings; used to keep them OUT of logs, reports and the community name. (3.0.7: the app keeps no account name -
+    anything shaped like one, Name#1234, is taken out by scrub_names.)"""
     out = {}
     try:
         from .config import SETTINGS
-        acct = str(SETTINGS.get("wealth_account") or "").strip()
-        if acct:
-            out[acct] = "<account>"
-            out[acct.split("#")[0]] = "<account>"
         chars = set()
         tr = SETTINGS.get("tracker") or {}
         chars |= {tr.get("character") or "", tr.get("character_guess") or ""}
@@ -65,7 +62,7 @@ ACCOUNT_TAG = re.compile(r"[^\W_][\w]{1,39}#\d{4}\b")
 
 
 def scrub_names(text):
-    """scrub() and also your account / character names and anything shaped like an account name (Name#1234)."""
+    """scrub() and also your character names and anything shaped like an account name (Name#1234)."""
     s = scrub(text)
     if not s:
         return s
@@ -86,30 +83,27 @@ def public_league(league):
     return "Private league" if is_private_league(league) else (league or "")
 
 
-# 2.131.1 (feedback: "encourage users to not use personally identifiable names, and to never use their path of exile
-# account or character names"): the one line every community-name ask shows, and its ⓘ
+# 2.131.1 (feedback: encourage users not to use personally identifiable names, and never their Path of Exile
+# account or character names): the one line every community-name ask shows, and its ⓘ
 NAME_RULE = ("Pick a made-up name - not your real name, and never your Path of Exile account or character names. "
              "Other players see it.")
 NAME_TIP = ("A made-up name keeps the board from pointing at you, or at your characters in game. The app turns down "
-            "names it knows are yours (your account, and characters from the game's log) or that contain one - the "
-            "rest is up to you.")
+            "names it knows are yours (characters from the game's log) or that contain one - the rest is up to "
+            "you.")
 
 
 def name_problem(name):
-    """A community name that is your account or one of your characters - or contains one, or is a big part of one
-    (2.131.1) -> why not (it would tie the board to you in game); else None."""
+    """A community name that is one of your characters - or contains one, or is a big part of one (2.131.1) -> why
+    not (it would tie the board to you in game); else None."""
     n = str(name or "").strip().lower()
     if not n:
         return None
-    for k, kind in known_names().items():
-        for full in {k.lower(), k.split("#")[0].lower()}:
-            if not full:
-                continue
-            what = "account" if kind == "<account>" else "character"
-            if full == n:
-                return (f"That's your {what} name - pick a made-up one, so nobody can find you in game from the "
-                        "board.")
-            if (len(full) >= 4 and full in n) or (len(n) >= 5 and n in full):
-                return (f"That's too close to your {what} name - pick a made-up one, so nobody can find you in game "
-                        "from the board.")
+    for k in known_names():
+        full = k.lower()
+        if full == n:
+            return ("That's your character name - pick a made-up one, so nobody can find you in game from the "
+                    "board.")
+        if (len(full) >= 4 and full in n) or (len(n) >= 5 and n in full):
+            return ("That's too close to your character name - pick a made-up one, so nobody can find you in game "
+                    "from the board.")
     return None

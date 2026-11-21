@@ -58,7 +58,8 @@ def place_texts(n, session, live, camp=False, zone_time=None):
         return "THIS MAP", ("" if where in (None, "-") else str(where)), t
     if not live:
         return "NOW", "Not tracking", ""
-    # 2.139.1 (feedback: "TOWN" in the chip and "NOW · Town" beside it): out of a map the chip says where you are,
+    # 2.139.1 (feedback: "TOWN" in the chip and "NOW · Town" beside it said the same twice): out of a map the chip
+    # says where you are,
     # and the map part shows your last map
     last = None
     for m in reversed(getattr(session, "maps", None) or []):
@@ -144,7 +145,7 @@ class OverlayA8:
         if camp:
             try:
                 from . import campaign as CP
-                # UI overhaul (feedback: "tells me the campaign shit twice"): the step is on the campaign line above
+                # UI overhaul (feedback: the campaign step was shown twice): the step is on the campaign line above
                 # the bar - this part says where you are
                 place = CP.char().get("zone") or "Campaign"
             except Exception:
@@ -188,7 +189,7 @@ class OverlayA8:
     def _a8_chip(self, cv, P, x, mid, h, longest=LONGEST_CHIP):
         """The state chip at x (left edge). -> its width."""
         u = self._u
-        f = (P["font"], self._hf(8), "bold")
+        f = (self._lt_family(P, 8), self._hf(8), "bold")        # (the family it is measured in: the body font)
         fm = self._lt_fm(cv, P, 8, True)
         w = fm.measure(longest) + 2 * u(8)
         y0, y1 = mid - h // 2, mid + h // 2
@@ -198,13 +199,13 @@ class OverlayA8:
                             font=f, tags=("mg", "mg_a8chip"))
         t = _Chip(cv, it, P["bg"], halo=P.get("halo"))
         self.tk_ov_lbls["a8_chip"] = t
-        cv.tag_bind("mg_a8chip", "<Button-1>", lambda e: (self.ov_tip_hide(), self.tracker_play_click()))
+        cv.tag_bind("mg_a8chip", "<Button-1>", lambda e=None: (self.ov_tip_hide(), self.tracker_play_click()))
         self.ov_tip(cv, "mg_a8chip", self.a8_chip_tip)
         return w
 
     def _a8_pin(self, cv, P, x, y):
         """A map pin, drawn (fonts' pins differ from PC to PC): a round head on a point, a hole in it - y is the head's
-        middle. 2.139.1 (feedback: "the gps pin looks like a ... flower"): a filled teardrop, not a ring on a stick.
+        middle. 2.139.1 (feedback: the GPS pin looked like a flower): a filled teardrop, not a ring on a stick.
         -> its width."""
         u = self._u
         r = max(4, u(5))
@@ -406,13 +407,13 @@ class OverlayA8:
         cfg, ln = self.tracker_cfg(), self.ov_lines()
         pad = u(10)
         R = PW - pad
-        hh = u(30)
+        hh = max(u(30), self.ov_stack_h(cv, P)[0] + u(16))  # (room for the clock and the Name badge under it)
         self._a8_chip(cv, P, pad, hh // 2, u(20))
         if not want["timer"]:                               # no session: ▶ START SESSION starts one
             self.tk_ov_lbls.pop("a8_chip").config(text=chip_text("idle"))
         x = self._lt_glyphs(w, cv, P, R, hh // 2)
-        if want["timer"] and cfg.get("clock", True):
-            self._lt_clock(cv, P, x, hh // 2)
+        self.ov_clock_badge(cv, P, x, hh // 2, lambda cx, cy: self._lt_clock(cv, P, cx, cy),    # the clock, the Name
+                            clock=bool(want["timer"] and cfg.get("clock", True)))                # badge under it
         cv.create_line(0, hh, PW, hh, fill=P["line"], tags=("mg",))
         y = hh
         if want["timer"] and self.ov_camp_mode():           # the Campaign Bar as one card (the step once)

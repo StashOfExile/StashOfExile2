@@ -11,7 +11,7 @@ import time
 from . import buglog
 from .config import BASE, load_json, P, save_json, SETTINGS
 from .util import mmss
-from .net import call, STATUS
+from .net import call, STATUS, RateLimited
 from .rates import RATES
 from .mods import DUPS, OPTS, find_stat, norm, pretty, vfilter
 from . import gear, waystone
@@ -23,8 +23,6 @@ from .trade import (cheapest_real,
 from .searchopts_page import default_opts
 from .market import MARKET, Market
 from .pricefmt import confidence, fmt_div, fmt_price
-from .wealth import WealthJobs
-from .tabreader import TabReaderJobs
 from .stratcost import StratCostJobs          # 2.46.0: what a strat costs today
 
 
@@ -57,6 +55,118 @@ def spread_of(stages, league):
 
 # ------------------------------------------------------------------ background engine
 
+
+def fewer_offer(rec, ticked):
+    """3.0.6 (every price check should offer a way to broaden the search, as bases do): an item that found too few ->
+    the Broaden Search step that searches without one mod, or None (fewer
+    than two mods ticked). Which one: the lowest-rated ticked mod (your Rate letter, S best ... D; an unrated mod
+    counts as C), the last on the card on a tie; a total (pseudo, DPS, defences) goes last."""
+    from .ratemods import current, key_for
+    from .mods import TIER_ORDER, tier_rank
+    from .trade import ov_key
+    mods = [m for m in ticked if m.get("sid") and not str(m["sid"]).startswith(("equip:", "map:"))]
+    if len(ticked) < 2 or not mods:
+        return None
+
+    def rank(i_m):
+        i, m = i_m
+        if m.get("group") in ("total", "pseudo") or m.get("kind") == "Total":
+            return (-1, i)
+        k = key_for(rec, m)
+        g = current([k]) if k else None
+        from .mods import drop_rank                    # (the worse roll goes first: drop_rank)
+        return (*drop_rank(tier_rank(g) if g in TIER_ORDER else tier_rank("C"), m), i)
+    _i, worst = max(enumerate(mods), key=rank)
+    shown = re.sub(r"\s+", " ", str(worst.get("shown") or worst.get("text") or "")).strip()
+    return {"next": f"without {shown[:48]}", "drop": ov_key(worst), "text": worst.get("text")}
+
+LOOSEN_STEPS = (10, 20)     # owner: loosen values and ranges first, before removing mods - 10%, then 20%
+
+
+def _loose_val(v, pct, down):
+    """One Min (down) or Max (up) moved pct% looser; whole numbers stay whole (a Min rounds down, a Max up)."""
+    import math
+    d = abs(v) * pct / 100.0
+    out = v - d if down else v + d
+    if float(v).is_integer():
+        return float(math.floor(out) if down else math.ceil(out))
+    return round(out, 2)
+
+
+def loosen_vals(orig, pct):
+    """{"min": .., "max": ..} -> the same, pct% looser (Min lower, Max higher)."""
+    out = {}
+    for k, v in (orig or {}).items():
+        if k in ("min", "max") and v is not None:
+            out[k] = _loose_val(float(v), pct, k == "min")
+    return out
+
+
+def _loosenable(m):
+    """A ticked mod whose values Broaden Search may loosen: it has a number to search (not a choice, not an exact
+    roll like Freedom of Faith's tribute), and you haven't typed your own since (a box you typed is yours)."""
+    from .mods import vfilter
+    if m.get("option") is not None or m.get("exact") or m.get("novalue"):
+        return False
+    if m.get("uval") is not None and m.get("uval") != m.get("loose_uval"):
+        return False
+    if m.get("pre_loose"):
+        return True
+    saved = m.pop("uval", None)
+    try:
+        f = vfilter(m) or {}
+    finally:
+        if saved is not None:
+            m["uval"] = saved
+    return any(f.get(k) not in (None, 0) for k in ("min", "max"))
+
+
+def loosen_offer(rec, ticked):
+    """3.0.6 (owner): Broaden Search's first steps for an item with mods - every ticked mod's values 10% looser, then
+    20% (from your item's own values, not compounded); after that fewer_offer drops a mod. None when done or nothing
+    has a number to loosen."""
+    from .trade import ov_key
+    lvl = int(rec.get("loosen") or 0)
+    nxt = next((p for p in LOOSEN_STEPS if p > lvl), None)
+    mods = [m for m in ticked if m.get("sid") and not str(m["sid"]).startswith(("equip:", "map:")) and _loosenable(m)]
+    if nxt is None or not mods:
+        return None
+    return {"next": f"every value {nxt}% looser (Min lower, Max higher)", "loosen": nxt,
+            "mods": [ov_key(m) for m in mods]}
+
+
+def apply_loosen(rec, offer):
+    """Broaden Search's loosen step: each offered mod's boxes set pct% looser than its own values (they show in Min /
+    Max, so you see what is searched). Returns how many mods changed."""
+    from .mods import vfilter
+    from .trade import ov_key
+    keys, pct, n = set(offer.get("mods") or ()), int(offer["loosen"]), 0
+    for m in (rec.get("item") or {}).get("mods") or []:
+        if ov_key(m) not in keys:
+            continue
+        orig = m.get("pre_loose")
+        if not orig:
+            saved = m.pop("uval", None)
+            try:
+                orig = vfilter(m) or {}
+            finally:
+                if saved is not None:
+                    m["uval"] = saved
+            m["pre_loose"] = orig
+        vals = loosen_vals(orig, pct)
+        if vals:
+            full = {"min": vals.get("min"), "max": vals.get("max")}
+            m["uval"] = m["loose_uval"] = full
+            n += 1
+    rec["loosen"] = pct
+    return n
+
+
+def broaden_step(rec, ticked):
+    """3.0.6: Broaden Search's next step for an item with mods - loosen the values (10%, then 20%), then one mod fewer."""
+    return loosen_offer(rec, ticked) or fewer_offer(rec, ticked)
+
+
 class Superseded(Exception):
     """(2.87.0) A Price Checks item's Search was pressed again: this pricing stops; the newer one runs."""
 
@@ -80,7 +190,7 @@ def _game_data_id(text):
         return None
 
 
-class Engine(TabReaderJobs, WealthJobs, StratCostJobs, threading.Thread):
+class Engine(StratCostJobs, threading.Thread):
     """One background thread does all network work. Lower priority number = sooner."""
 
     def __init__(self, records, ui_q):
@@ -91,6 +201,7 @@ class Engine(TabReaderJobs, WealthJobs, StratCostJobs, threading.Thread):
         self.table = None
         self.logged_unmatched = set()
         self.paused = False
+        self.rate_stopped = False                  # 3.0.7: paused by a 429 (a new Search goes on)
         self.lock = threading.Lock()
 
     def add(self, prio, *job):
@@ -177,16 +288,36 @@ class Engine(TabReaderJobs, WealthJobs, StratCostJobs, threading.Thread):
                 continue
             try:
                 getattr(self, "do_" + job[0])(*job[1:])
+            except RateLimited as e:                       # 3.0.7: stop - the person presses Resume / Search again
+                self.paused = self.rate_stopped = True
+                self.ui_q.put(("error", job[0], str(e), job[1] if len(job) > 1 else None))
+                self.ui_q.put(("rate_stop", str(e)))
             except Exception as e:
                 self.ui_q.put(("error", job[0], str(e), job[1] if len(job) > 1 else None))
             self.ui_q.put(("queue",))
 
     # ---- jobs
-    def do_init(self):
+    def _load_leagues(self):
+        """The trade site's league list: once per start, kept on disk for 6 hours (3.0.7: the one automatic request
+        at the start, like the other lists). Failing: the saved list, else none."""
+        cache = P("trade_leagues.json")
         try:
-            leagues = [l["id"] for l in call("GET", BASE + "/data/leagues")["result"]]
+            if os.path.exists(cache) and time.time() - os.path.getmtime(cache) < 6 * 3600:
+                data = load_json("trade_leagues.json", {})
+                if data.get("result"):
+                    return [l["id"] for l in data["result"]]
+            data = call("GET", BASE + "/data/leagues")
+            save_json("trade_leagues.json", data)
+            return [l["id"] for l in data["result"]]
         except Exception:
-            leagues = []
+            data = load_json("trade_leagues.json", {})
+            try:
+                return [l["id"] for l in data.get("result") or []]
+            except Exception:
+                return []
+
+    def do_init(self):
+        leagues = self._load_leagues()
         self.ui_q.put(("leagues", leagues))
         try:
             self.table = self._load_stats()
@@ -233,9 +364,8 @@ class Engine(TabReaderJobs, WealthJobs, StratCostJobs, threading.Thread):
                 set_trade_filters(load_json("trade_filters.json", {}))
 
     def _load_static(self):
-        """2.16.0: the trade site's list of currencies (ids for every currency a stash tab can be priced in), once a
-        day like the mod list. Never stops the app: without it the built-in currencies stay."""
-        from .wealth import set_trade_currencies
+        """2.16.0: the trade site's static list (waystone tier pictures: pricecheck_page.waystone_tier_icons), once a
+        day like the mod list. Never stops the app."""
         try:
             cache = P("trade_static.json")
             if os.path.exists(cache) and time.time() - os.path.getmtime(cache) < 86400:
@@ -243,8 +373,6 @@ class Engine(TabReaderJobs, WealthJobs, StratCostJobs, threading.Thread):
             else:
                 data = call("GET", BASE + "/data/static")
                 save_json("trade_static.json", data)
-            set_trade_currencies(data)
-            self.ui_q.put(("currencies_loaded",))          # 2.40.0: Stash tab's box can show the saved currency
         except Exception:
             buglog.caught()
 
@@ -336,8 +464,8 @@ class Engine(TabReaderJobs, WealthJobs, StratCostJobs, threading.Thread):
                     buglog.caught()
         rec["resolved"] = True
 
-    # ---- 2.87.0 (feedback: "single price checks should take priority over bulk pricing ... if you change them and
-    # hit search again it should refresh and remove its own single searches ... and start a new search"): between
+    # ---- 2.87.0 (feedback: single price checks take priority over bulk pricing; changing one and hitting search
+    # again refreshes it, removes its own single searches and starts a new one): between
     # searches, a Bulk Pricing item steps aside (back in line) while a Price Checks item waits, and a Price Checks
     # item whose Search was pressed again stops - its newer search runs instead.
     URGENT = ("pc", "fav")
@@ -345,7 +473,7 @@ class Engine(TabReaderJobs, WealthJobs, StratCostJobs, threading.Thread):
     def urgent_waiting(self):
         """A Price Checks / Favorites job really waiting in the queue (first in line, priority 0). 2.88.1: not "any
         such item marked queued" - a favorite that was never opened stays "queued" with no job, and Bulk Pricing then
-        stepped aside forever (feedback: "Ctrl+Alt+C isn't working for bulk pricing")."""
+        stepped aside forever (feedback: Ctrl+Alt+C did not work for bulk pricing)."""
         with self.lock:
             return any(v[0] > 0 and v[1] == 0 and self.records.get(k[1], {}).get("src") in self.URGENT
                        for k, v in self.latest.items())
@@ -427,6 +555,18 @@ class Engine(TabReaderJobs, WealthJobs, StratCostJobs, threading.Thread):
         searchable = [(m, i) for m, i in impacts if i != "ignore" and m.get("sid")]
         unmatched = sum(1 for m, i in impacts if i != "ignore" and not m.get("sid"))
         note = f" · {ignored} low-impact mod{'s' if ignored != 1 else ''} ignored" if ignored else ""
+        if not searchable and item.get("class") == "Tablet":
+            # 3.0.6 (owner): every tablet gets a price - a white one, or one with nothing worth a mod search, is
+            # searched by its base: same rarity, 10+ uses
+            _status, _age, hours = listing_rules()
+            extra, uses_note = uses_filter(self.table, True, item.get("uses"))
+            out = self._price_tablet_base(rec, extra, hours, SETTINGS["min_results"])
+            out.setdefault("model", "")
+            self._scale_for_uses(item, out)
+            label = out.pop("label")
+            rec.update(state="done", label=label + note + uses_note, priced_at=time.time(), skip=False, **out)
+            tell()
+            return
         if not searchable:
             low = bool(ignored) and not unmatched
             rec.update(state="done", total=0, prices=[], est=None, qid=None, partial=False, skip=low, thin=False,
@@ -434,7 +574,7 @@ class Engine(TabReaderJobs, WealthJobs, StratCostJobs, threading.Thread):
                        label="only low-impact mods - not worth a search" if low else "no searchable mods")
             tell()
             return
-        # 2.125.5 (feedback: Skip cheap items "doesn't really add anything/don't work"): 2.96.0's Bulk Pricing floor
+        # 2.125.5 (feedback: Skip cheap items added nothing or did not work): 2.96.0's Bulk Pricing floor
         # is gone - every item with a searchable mod is searched
         rec["skip"] = False
         _status, _age, hours = listing_rules()
@@ -496,7 +636,9 @@ class Engine(TabReaderJobs, WealthJobs, StratCostJobs, threading.Thread):
             allg = suffixes + prefixes
             if len(allg) >= 3:
                 from .mods import tier_key, tier_rank                  # 2.20.0: the lowest tier is left out first
-                order = sorted(reversed(allg), key=lambda g: -min(tier_rank(tier_key(norm(m["text"]))) for m in g["mods"]))
+                from .mods import drop_rank                            # 3.0.6: a worse roll goes sooner
+                order = sorted(reversed(allg), key=lambda g: tuple(-x for x in min(
+                    drop_rank(tier_rank(tier_key(norm(m["text"]))), m) for m in g["mods"])))
                 plan += [(f"without {short(d)}", [g for g in allg if g is not d]) for d in order]
         vals = {m["sid"]: m["value"] for g in groups for m in g["mods"] if m.get("sid")}
         mem = MARKET.lower_bound(item["base"], vals, SETTINGS.get("memory_hours", 24) or 24)
@@ -521,8 +663,9 @@ class Engine(TabReaderJobs, WealthJobs, StratCostJobs, threading.Thread):
         relaxed = None
         if not found and len(plan[0][1]) >= 2:                  # 2.20.0: leave out the lowest-tier mods, then the next
             from .mods import tier_key, tier_rank, TIER_ORDER
-            for g in plan[0][1]:
-                ranks = [tier_rank(tier_key(norm(m["text"]))) for m in g["mods"]]
+            from .mods import drop_rank
+            for g in plan[0][1]:                                # (3.0.6: a roll of T4 or worse counts a letter lower)
+                ranks = [drop_rank(tier_rank(tier_key(norm(m["text"]))), m)[0] for m in g["mods"]]
                 g["tier_rank"] = min(ranks + ([1] if g["impact"] == "high" else []))
             keep = list(plan[0][1])
             for _ in range(2):                                  # at most 2 more searches (the trade site's limits)
@@ -616,6 +759,33 @@ class Engine(TabReaderJobs, WealthJobs, StratCostJobs, threading.Thread):
                     partial=any_roll or bool(relaxed), thin=thin, nomatch=False, stages=stages, wide=wide, manual=wide,
                     conf=conf, conf_why=why, memory=self._mem_text(mem), model=model_txt, spread=ratio)
 
+    def _price_tablet_base(self, rec, extra, hours, need):
+        """3.0.6: a tablet with no mod worth searching (a white one, or only low-impact mods) -> one search for its
+        base, same rarity, 10+ uses. The price is the floor for that base."""
+        item, league = rec["item"], SETTINGS["league"]
+        rar = {"Normal": "normal", "Magic": "magic", "Rare": "rare"}.get(item.get("rarity"))
+        flags = set(item.get("flags") or ()) or None
+        verify_tot = {"bad": 0, "unverifiable": False}
+        self._turn(rec)
+        total, ids, qid = search_ids(league, item["base"], extra, None, flags, rarity=rar)
+        kind = (item.get("rarity") or "").lower() or "any"
+        st = self._stage(item["base"], f"{kind} {item['base']}", [], total, ids, qid, hours, league, verify_tot,
+                         record=False)
+        if not st["n"]:
+            return dict(label=f"no {kind} {item['base']} listed right now - not priced", total=total, prices=[],
+                        est=None, qid=qid, partial=False, thin=False, nomatch=True, stages=[st], conf="-", conf_why=[])
+        ratio = None
+        try:
+            ratio, _lo, _hi = spread_of([st], league)
+        except Exception:
+            buglog.caught()
+        conf, why = confidence(st["n"], False, False, ratio, verify_tot["unverifiable"], verify_tot["bad"],
+                               st.get("age_h"), False, st.get("unk") or ())
+        thin = st["n"] < need
+        label = f"searched the base: {kind} {item['base']}" + (" · few listings" if thin else "")
+        return dict(label=label, total=total, prices=st["prices"], qid=qid, est=st["est"], partial=False, thin=thin,
+                    nomatch=False, stages=[st], conf=conf, conf_why=why, spread=ratio)
+
     FULL_USES = 10
 
     def _scale_for_uses(self, item, out):
@@ -691,8 +861,8 @@ class Engine(TabReaderJobs, WealthJobs, StratCostJobs, threading.Thread):
         base_o = current_opts()                                # ilvl 81, 29% quality - found nothing): white / blue
         if base_steps:                                         # bases: exactly the card's boxes, one search (owner:
             steps = [(name, must, opt, len(opt), values, it_) for name, it_ in base_steps]   # Broaden Search widens)
-            # (2.131.4, feedback: "setting the search to Count but not making that search require a count of 2 makes
-            # the count not function": each ☑ mod must match - it was "at least 0 of them")
+            # (2.131.4, feedback: a Count search that did not require a count of 2 made the count not work): each ☑
+            # mod must match - it was "at least 0 of them")
         for step_ in steps:
             name, must_s, opt_s, k, vals = step_[:5]
             it_ = step_[5] if len(step_) > 5 else item
@@ -718,6 +888,10 @@ class Engine(TabReaderJobs, WealthJobs, StratCostJobs, threading.Thread):
         how = waystone.summary(item) if item.get("waystone") else gear.summary(item)
         widened, broaden = gear.widen_state(item, base_o, default_opts(item), hours, not enough)   # owner: the card's
         # Widened line, and its Broaden Search (the ladder's next step - one search a click) while too few are found
+        if broaden is None and not enough and not base_steps and not item.get("waystone"):
+            broaden = broaden_step(rec, must + opt)           # 3.0.6 (owner): every item - values looser, then a mod out
+        if not widened and rec.get("loosen") and not base_steps:   # (the card says how far the values were loosened)
+            widened = f"values {int(rec['loosen'])}% looser than your item's"
         if not some:
             return dict(blank, label=f"no listings match - not priced ({how.lower()})", widened="", broaden=broaden,
                         qid=stages[0]["qid"] if stages else None, nomatch=True, stages=stages)
@@ -828,6 +1002,9 @@ class Engine(TabReaderJobs, WealthJobs, StratCostJobs, threading.Thread):
         rich = collapse_sellers(rich)                 # 2.113.0 (core): one row per seller, their cheapest
         if len(rich) < MIN_SELLERS and total > len(ids) and more_ids(qid):
             rich = collapse_sellers(rich + fetch_rich(qid, more_ids(qid), hours))   # too few sellers: the next 10
+        lab = getattr(MARKET, "lab", None)            # 3.0.6: the owner's Mod Lab copy (off unless modlab_record)
+        if lab is not None:
+            lab(rich)
         kept, info = verify_listings(rich, mods)
         if not info["unverifiable"]:
             verify_tot["bad"] += info["bad"]
@@ -843,6 +1020,6 @@ class Engine(TabReaderJobs, WealthJobs, StratCostJobs, threading.Thread):
         from .trade import current_opts
         if record and not current_opts():          # 2.4.1: a search narrowed by hand doesn't teach the Mod book
             MARKET.record(base, Market.filters_of(mods), name, total, kept, st["est"])
-        else:                                      # 2.133.0 (feedback: "All items should be pooled, gear included"):
+        else:                                      # 2.133.0 (feedback: pool all items, gear included):
             MARKET.pool(pool_base or base, rich)   # every other search's listings - gear, uniques, waystones, the
         return st                                  # fallbacks - go to the Community pool only, never the Mod book

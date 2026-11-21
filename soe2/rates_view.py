@@ -34,43 +34,71 @@ KIND_LABEL = {"Currency": "Currency", "Fragments": "Fragments", "Abyss": "Abyss"
 
 
 class LocalIcons:
-    """The game's own Currency Exchange pictures, shipped with the app (templates/exchange_icons.png + .json, cut from
-    the user's screenshots of its lists) - no download. {name: PhotoImage}, made on first use."""
+    """Pictures already in the art cache, by item name (3.1, GGG ToS 7a: no game art ships with the app): poe.ninja's
+    pictures - the image links it sends with its prices, from the game's own image server - downloaded once by
+    Icons (Exchange Rates, Top Up, Map Profit ...) and kept only on this PC. Nothing is downloaded here: no picture
+    yet = None, and the item's name stands in. {name: PhotoImage}, made on first use."""
+
+    REFRESH = 60                                 # seconds: the names poe.ninja sent pictures for are looked at again
 
     def __init__(self, root, size=ICON):
-        self.root, self.size, self.cache, self.idx, self.im = root, size, {}, None, None
+        self.root, self.size, self.cache, self._map, self._at = root, size, {}, None, 0.0
 
-    def _load(self):
-        import json
-        import sys
-        from pathlib import Path
-        base = getattr(sys, "_MEIPASS", None)
-        d = Path(base) / "soe2" / "templates" if base else Path(__file__).resolve().parent / "templates"
-        try:
-            names = json.loads((d / "exchange_icons.json").read_text(encoding="utf-8"))
-            from PIL import Image
-            self.im = Image.open(d / "exchange_icons.png").convert("RGB")
-            self.idx = {str(n).lower(): i for i, n in enumerate(names)}
-        except Exception:
-            self.idx, self.im = {}, None
+    def _names(self):
+        """{lower-case name: (name, picture URL)} - every item poe.ninja sent a picture link for."""
+        if self._map is None or time.time() - self._at > self.REFRESH:
+            out = {}
+            try:
+                from .rates import RATES
+                from .wealth import WPRICES
+                for part in (WPRICES.parts or {}).values():
+                    if not isinstance(part, dict):
+                        continue
+                    imgs, names = part.get("images") or {}, part.get("names") or {}
+                    for cid, path in imgs.items():
+                        n, u = names.get(cid), image_url(path)
+                        if n and u:
+                            out.setdefault(str(n).lower(), (str(n), u))
+                rn = getattr(RATES, "names", {}) or {}
+                for cid, path in (getattr(RATES, "images", {}) or {}).items():
+                    n, u = rn.get(cid), image_url(path)
+                    if n and u:
+                        out.setdefault(str(n).lower(), (str(n), u))
+            except Exception:
+                buglog.caught()
+            self._map, self._at = out, time.time()
+        return self._map
+
+    def names(self):
+        """Every item poe.ninja sends a picture for, in the game's spelling."""
+        return sorted(n for n, _u in self._names().values())
+
+    def has(self, name):
+        return str(name or "").lower() in self._names()
 
     def get(self, name):
-        if self.idx is None:
-            self._load()
-        k = str(name or "").lower()
-        if k in self.cache:
-            return self.cache[k]
-        i = self.idx.get(k)
-        ph = None
-        if i is not None and self.im is not None:
-            try:
-                from PIL import ImageTk
-                h = self.im.size[1]
-                tile = self.im.crop((i * h + 3, 3, (i + 1) * h - 3, h - 3)).resize((self.size, self.size))
-                ph = ImageTk.PhotoImage(tile, master=self.root)
-            except Exception:
-                ph = None
-        self.cache[k] = ph
+        got = self._names().get(str(name or "").lower())
+        if not got:
+            return None
+        url = got[1]
+        if url in self.cache:
+            return self.cache[url]
+        from . import gameart as GA
+        p = GA.cache_file(url)
+        if p is None:
+            return None                          # (not downloaded yet: looked for again next time)
+        try:
+            from PIL import Image, ImageTk
+            im = Image.open(p).convert("RGBA")
+            im.thumbnail((self.size, self.size))
+            if im.size != (self.size, self.size):
+                sq = Image.new("RGBA", (self.size, self.size), (0, 0, 0, 0))
+                sq.paste(im, ((self.size - im.size[0]) // 2, (self.size - im.size[1]) // 2), im)
+                im = sq
+            ph = ImageTk.PhotoImage(im, master=self.root)
+        except Exception:
+            ph = None
+        self.cache[url] = ph
         return ph
 
 
@@ -100,7 +128,7 @@ class Icons:
     """Small currency pictures: from the art cache, else fetched in the background by ONE worker, one at a time;
     on_ready() runs (on the window's thread, at most once a second) once new ones arrive. 3.0.3: it was a thread and
     a timer per picture - hundreds at once froze the app; after a few failures in a row (no internet, a blocked
-    certificate) it stops asking until the app restarts, and the shipped pictures stand in."""
+    certificate) it stops asking until the app restarts, and the items' names stand in (3.1: no pictures ship)."""
 
     GIVE_UP = 5                                  # failures in a row before the downloads stop
 
@@ -109,6 +137,7 @@ class Icons:
         self.root, self.on_ready, self.size = root, on_ready, size
         self.cache, self.wait, self.done, self.failed = {}, set(), set(), {}
         self.q, self.worker, self.polling, self.misses = queue.Queue(), None, False, 0
+        self.gap = 0.0                           # 3.0.6: seconds between two downloads (Map Profit asks for many)
 
     @staticmethod
     def path(url):
@@ -162,6 +191,8 @@ class Icons:
                 ok = self._fetch(url, path)
                 self.misses = 0 if ok else self.misses + 1
             self.done = self.done | {url}           # (a new set: read on the window's thread)
+            if self.gap and ok:
+                time.sleep(self.gap)
 
     def _fetch(self, url, path):
         try:
@@ -232,7 +263,6 @@ class RatesList(tk.Frame):
         self.app, self.sort, self.hover, self.kind = app, SORTS[0], None, "All"
         self.icons = Icons(app.root, lambda: self.paint())
         app._drawer_look_hooks = getattr(app, "_drawer_look_hooks", []) + [lambda on: self.paint()]
-        self.local = LocalIcons(app.root)
         self._loading = False
         bar = tk.Frame(self, bg=C["panel"], padx=16, pady=12)
         bar.pack(fill="x")
@@ -266,12 +296,14 @@ class RatesList(tk.Frame):
         self.status.pack(fill="x")
         self.status.bind("<Configure>", self._status_wrap, add="+")     # D3: a long line wraps, it isn't cut off
         head = tk.Canvas(self, height=28, bg=C["panel"], highlightthickness=0, bd=0)
-        head.pack(fill="x", padx=16, pady=(8, 0))
+        head.pack(fill="x", padx=(16, 24), pady=(8, 0))
         self.head = head
         TH.self_painted(head)
         self.cv = tk.Canvas(self, bg=C["panel"], highlightthickness=0, bd=0)
-        self.cv.pack(fill="both", expand=True, padx=16, pady=(0, 12))
+        self.cv.pack(fill="both", expand=True, padx=(16, 24), pady=(0, 12))
         TH.self_painted(self.cv)
+        from .style import overflow_scrollbar          # the thin round bar, only while the list is longer than the page
+        self.sb = overflow_scrollbar(self.cv, lambda *a: (self.cv.yview(*a), self.paint()))
         TH.subscribe(lambda t: self.paint(), owner=self)
         self.cv.bind("<Configure>", lambda e: self.paint())
         self.cv.bind("<Motion>", self._motion)
@@ -391,6 +423,8 @@ class RatesList(tk.Frame):
             mark = acc                                    # rows split by a line); Round 18: the picked chip in the
             for c in (self.sorts, self.head, self.cv):     # theme's accent, the names in its strong text
                 c.configure(bg=bg)
+            from . import soft
+            chip = soft.chip_colors(bg, mut, strong)          # (a soft fill and an outline you can see, on any theme)
             # sort chips
             sc = self.sorts
             sc.delete("all")
@@ -400,8 +434,8 @@ class RatesList(tk.Frame):
                 tid = sc.create_text(0, 0, text=k, font=("Segoe UI", 9, "bold" if on else "normal"))
                 w = sc.bbox(tid)[2] - sc.bbox(tid)[0] + 24
                 sc.delete(tid)
-                TH.round_rect(sc, x, 6, x + w, 30, 10, fill=t.c("surface_high") if on else bg,
-                              outline=mark if on else line)
+                TH.round_rect(sc, x, 6, x + w, 30, 10, fill=chip["on" if on else "off"][0],
+                              outline=mark if on else chip["off"][1], width=2 if on else 1)
                 sc.create_text(x + w / 2, 18, text=k, font=("Segoe UI", 9, "bold" if on else "normal"),
                                fill=strong if on else mut)
                 self._sort_hit.append((x, x + w, k))
@@ -423,8 +457,8 @@ class RatesList(tk.Frame):
                 kc.delete(tid)
                 if x + w > W0:
                     x, y = 0, y + 30
-                TH.round_rect(kc, x, y, x + w, y + 24, 10, fill=t.c("surface_high") if on else bg,
-                              outline=mark if on else line)
+                TH.round_rect(kc, x, y, x + w, y + 24, 10, fill=chip["on" if on else "off"][0],
+                              outline=mark if on else chip["off"][1], width=2 if on else 1)
                 kc.create_text(x + w / 2, y + 12, text=label, font=("Segoe UI", 9, "bold" if on else "normal"),
                                fill=strong if on else mut)
                 self._kind_hit.append((x, x + w, y, y + 24, k))
@@ -464,8 +498,8 @@ class RatesList(tk.Frame):
                     TH.round_rect(cv, 0, y0 + 3, W, y0 + ROW_H - 3, 10,
                                   fill=t.c("hover", t.c("surface_high")) if i == self.hover else raised, outline=line)
                 cy = y0 + ROW_H // 2
-                img = self.icons.get(url) or self.local.get(name)    # poe.ninja's clean picture; the game's own
-                                                                          # (from screenshots) only until it loads
+                img = self.icons.get(url)                  # poe.ninja's picture (art cache); its first letter until
+                #                                            it's downloaded (3.1: no pictures ship with the app)
                 if img is not None:
                     cv.create_image(14 + ICON // 2, cy, image=img)
                 else:
@@ -505,6 +539,6 @@ class RatesList(tk.Frame):
                 else:
                     cv.create_text(W - 12, cy, text=f"{vol:,.0f}", anchor="e", font=("Segoe UI", 9), fill=mut)
         self.status.config(text=RATES.status_text() + (f"  ·  last problem: {RATES.error}" if RATES.error else "")
-                           + f"  ·  {len(rows)} items. 7 days: the price change in divines over the last week "
-                             f"(poe.ninja). Traded: how much poe.ninja saw change hands, in divines; "
-                             f"under {THIN} is marked ! Thin - its price is shaky.")
+                           + f"  ·  {len(rows)} items. 7 days: the price change in divines over the last week, "
+                             f"from poe.ninja. Traded: how much poe.ninja saw change hands, in divines. "
+                             f"Under {THIN} is marked ! Thin, its price is shaky.")

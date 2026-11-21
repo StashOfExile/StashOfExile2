@@ -114,7 +114,7 @@ def move_data(new_dir):
 
 
 DATA_FILES = ["settings.json", "session.json", "modbook.json", "modbook.backup.json", "mod_rules.json", "community_rules.json",
-              "tabs.txt", "jewels.txt", "history.csv", "wealth.json"]
+              "modlists.json", "history.csv", "wealth.json"]
 
 
 MIGRATED = []
@@ -147,10 +147,11 @@ def import_old_data():
 import_old_data()
 
 
-# ---- bundled reference data (1.37): tabs.txt and jewels.txt come inside the app. A newer copy in a new version
+# ---- bundled reference data (1.37): modlists.json (the tablet / jewel mods; was tabs.txt + jewels.txt) comes inside the app. A newer copy in a new version
 # replaces the one in the data folder (the old one is kept as a .bak); your own files (settings, rules, lists) are
 # never touched. Bump a number here when you ship a changed file.
-BUNDLED_DATA = {"tabs.txt": 2, "jewels.txt": 2, "gamedata.json": 1, "regexdata.json": 2, "default_rules.json": 4, "searchdata.json": 1, "anointdata.json": 1, "cxnames.json": 1}   # gamedata 1.38, regexdata 1.44
+BUNDLED_DATA = {"modlists.json": 1, "gamedata.json": 1, "regexdata.json": 3, "default_rules.json": 5, "searchdata.json": 2, "anointdata.json": 1, "cxnames.json": 1,
+                "gamedb.json": 4, "gamedb_hide.json": 2, "atlasmasters.json": 2}   # gamedata 1.38, regexdata 1.44
 DATA_UPDATED = []
 
 
@@ -191,7 +192,6 @@ HEADERS = {"User-Agent": APP_UA, "Content-Type": "application/json"}
 DEFAULTS = {
     "league": "",
     "good_div": 0.5,       # a mod is "good" if the cheapest listings with it cost at least this many divines
-    "learn": True,         # look up every new mod in the background
     "popups": True,
     "sound": True,         # beep when a batch finishes
     "toast_secs": 6,
@@ -220,7 +220,6 @@ DEFAULTS = {
     "bulk_cols_off": [],          # 2.125.3: Bulk Pricing columns turned off in Columns ▾ (all show by default)
     "panel_w": 430,               # remembered width of the side panel
     "uses": "10",                 # tablets: only compare with tablets that have at least this many uses left
-    "wealth_account": "",         # Wealth page: your account name as the trade site shows it, e.g. Name#1234 (1.33)
     "on_top": False,              # keep the window in front of other windows, and undo minimizes you didn't ask for (1.35)
                                   # (2.116.0, feedback: off for new installs - a saved setting is kept)
     "auto_check_updates": False,  # 2.0 beta 7: look for a new version on GitHub when the app starts (tells you, asks first)

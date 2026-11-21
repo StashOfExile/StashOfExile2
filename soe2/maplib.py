@@ -88,11 +88,11 @@ def is_hideout(area_id, name=""):
 
 
 NOT_MAPS = ("Abyss_Hub",)        # The Well of Souls: a level-65+ area that isn't a run
-# 2.136.2 (feedback: "treat vaal ruins as town/hideout ... and treat atziri's temple as the map"): the endgame Vaal
+# 2.136.2 (feedback: treat Vaal Ruins as town / hideout and Atziri's Temple as the map): the endgame Vaal
 # Ruins (level 65, so it looked like a map) is a hub you plan and stash in - a town. Atziri's Temple stays a map.
 HUBS = ("IncursionHubEndgame",)
-# 2.138.2 (feedback: "Lightless Void, Abyssal Depths and Dark Domain should not count as another +1 map ... they're a
-# sub-area within the map itself, their currency should be counted with the map"): an Abyss's depths are part of the
+# 2.138.2 (feedback: Lightless Void, Abyssal Depths and Dark Domain should not count as another map - they are a
+# sub-area of the map itself, so their currency counts with the map): an Abyss's depths are part of the
 # map you opened them from. Known by the area's id (Abyss_Depths1 ...) or, for one the app hasn't seen yet, by the
 # name the game gives it.
 SUBAREA_IDS = ("Abyss_Depths",)
@@ -111,8 +111,8 @@ def area_kind(area_id, seed, level=0):
         return "hideout"
     if a in HUBS:
         return "town"
-    if a in NOT_MAPS:                                    # 2.131.5 (feedback: "showed up after well of souls (not a
-        return "other"                                   # map, just an area)")
+    if a in NOT_MAPS:                                    # 2.131.5 (feedback: it showed up after Well of Souls, which is
+        return "other"                                   # an area, not a map)
     if seed == 1:
         return "town"
     if id_name(a) or a.startswith("Map"):

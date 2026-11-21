@@ -51,7 +51,7 @@ def confidence(n_best, loosened, any_roll, ratio, unverifiable, dropped, age_h, 
     return ("High" if score >= 85 else "Medium" if score >= 55 else "Low"), why
 
 
-PRICE_UNITS = [("auto", "Auto (div / chaos / ex)"), ("divine", "Divine Orbs"), ("exalted", "Exalted Orbs"),
+PRICE_UNITS = [("auto", "Auto"), ("divine", "Divine Orbs"), ("exalted", "Exalted Orbs"),
                ("chaos", "Chaos Orbs"), ("vaal", "Vaal Orbs")]
 UNIT_NAMES = {"divine": "div", "exalted": "ex", "chaos": "chaos", "vaal": "vaal"}
 
@@ -85,7 +85,7 @@ def fmt_div(x):
         r = RATES.value(cur)
         if r and x / r >= 0.95:
             return f"{_num(x / r)} {name}"
-    r = RATES.value("exalted")                   # 2.129.0 (feedback: "0.001d"): worth less than an Exalted Orb -
+    r = RATES.value("exalted")                   # 2.129.0 (feedback: 0.001d): worth less than an Exalted Orb -
     if r and x > 0:                              # said in exalted, not in thousandths of a divine
         return f"{x / r:.2f} exalted"
     return f"{x:.3f} div"
