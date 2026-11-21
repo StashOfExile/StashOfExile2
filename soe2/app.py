@@ -801,9 +801,9 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
             tk.Label(inner, text="The newest league is picked for you. Prices come from this league; click it to "
                                  "change it in Settings › General.", bg=P1, fg=C["muted"], font=("Segoe UI", 9),
                      anchor="w", padx=16).pack(fill="x", pady=(4, 0))
-            tk.Label(inner, text="Stash of Exile 2 is a fan-made tool. It is not affiliated with or endorsed by "
-                                 "Grinding Gear Games.", bg=P1, fg=C["muted"], font=("Segoe UI", 9), anchor="w",
-                     padx=16).pack(fill="x", pady=(4, 0))       # 3.0.7: the non-affiliation line, first run only
+        tk.Label(inner, text="Stash of Exile 2 is a fan-made tool. It is not affiliated with or endorsed by "
+                             "Grinding Gear Games.", bg=P1, fg=C["muted"], font=("Segoe UI", 9), anchor="w",
+                 padx=16).pack(fill="x", pady=(4, 0))           # the non-affiliation line: first start and What's new
         foot = tk.Frame(inner, bg=P1, padx=16, pady=8)
         foot.pack(fill="x", side="bottom")
         ttk.Button(foot, text="Got it", style="Primary.TButton", command=self.close_whatsnew).pack(side="right")
@@ -2183,7 +2183,10 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
             bar_.after_idle(bar_._flow_layout)
         # (2.105.0, feedback: no "Check for new rates every hour" switch - they're always checked hourly)
         # ---- 2.2.0: what to post on the in-game Currency Exchange (2.4.0: its own tab, "Exchange Helper")
-        hp = self.rates_pages["Exchange Helper"]
+        from .style import ScrollArea
+        hsa = ScrollArea(self.rates_pages["Exchange Helper"], bg=C["panel"])    # the page scrolls, so Compare a
+        hsa.pack(fill="both", expand=True)                                       # currency gets its full height
+        hp = hsa.inner
         exo, ex = chrome_section(hp, "Exchange Helper")
         exo.pack(fill="x", padx=16, pady=8)
         # UI overhaul: each currency with its picture; the market rate, then the three ratios to post as cards
@@ -2267,7 +2270,7 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
         self.rates_tv = tv
         self._rates_sig = None                                # (a new table: draw it once)
         self.list_register("rates", tv)
-        self.build_compare(self.rates_pages["Exchange Helper"])   # at the bottom of Exchange Helper
+        self.build_compare(hp)                                 # at the bottom of Exchange Helper
         self.draw_rates()
 
     def rates_show_page(self):
@@ -3580,10 +3583,10 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
         Hidden while there is nothing to say."""
         P2 = C["panel2"]
         fr = tk.Frame(parent, bg=P2)
+        btn = ttk.Button(fr, text="")                  # packed first: a narrow page shortens the words, never
+        btn.pack(side="right", padx=(8, 12), pady=4)   # the button
         lbl = tk.Label(fr, text="", anchor="w", bg=P2, fg=C["text"], font=("Segoe UI", 9), padx=12, pady=4)
-        lbl.pack(side="left")
-        btn = ttk.Button(fr, text="")
-        btn.pack(side="right", padx=(8, 12), pady=4)
+        lbl.pack(side="left", fill="x", expand=True)
         self.note_frames = getattr(self, "note_frames", []) + [(fr, lbl, btn, before)]
         self.notes_paint()
         return fr

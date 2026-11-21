@@ -44,7 +44,7 @@ class ExchangePage:
         self.cmp_note.pack(fill="x", pady=(8, 0))
         box = tk.Frame(cm, bg=P2)
         box.pack(fill="both", expand=True, pady=(8, 0))
-        tv = ttk.Treeview(box, columns=("amt", "cur"), show="headings", height=12)
+        tv = ttk.Treeview(box, columns=("amt", "cur"), show="headings", height=18)
         tv.heading("amt", text="Amount")
         tv.heading("cur", text="Currency")
         tv.column("amt", width=120, anchor="e", stretch=False)

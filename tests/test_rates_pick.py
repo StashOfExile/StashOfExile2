@@ -30,7 +30,7 @@ class Pure(unittest.TestCase):
         SETTINGS.pop("rates_ov", None)
 
     def test_default_is_the_old_list(self):
-        self.assertEqual(PK.picked(), list(OR.COMMON), "nothing changes until you pick")
+        self.assertEqual(PK.picked(), list(OR.COMMON)[:PK.MAX_PICKS], "the old list, up to 10")
 
     def test_moved(self):
         ids = ["a", "b", "c", "d"]
@@ -82,7 +82,7 @@ class Tk(unittest.TestCase):
         a = types.SimpleNamespace(ovr_body=body, ovr_P=PAL, ovr_win=win, root=self.root, ovr_picker=None)
         a.ov_font = lambda n: n
         a.ovr_cfg = lambda: SETTINGS.setdefault("rates_ov", {})
-        for fn in ("ovr_fill", "ovr_refresh", "ovr_pick"):
+        for fn in ("ovr_fill", "ovr_refresh", "ovr_pick", "_ovr_reorder"):
             setattr(a, fn, types.MethodType(getattr(OR.OverlayRates, fn), a))
         return a, body
 
@@ -125,6 +125,7 @@ class Tk(unittest.TestCase):
         rows = d.rows
         last = rows[-1][1]
         below = last.winfo_rooty() + last.winfo_height() + 5
+        kids = list(body.winfo_children())
         d._press(0)
         d._motion(types.SimpleNamespace(y_root=below))
         self.top.update()
@@ -133,8 +134,11 @@ class Tk(unittest.TestCase):
                 mock.patch.object(self.root, "after", lambda *x, **k: None):
             d._release(None)
         self.assertEqual(PK.picked(), ["chaos", "divine", "mirror"], "dropped at the end, and saved")
-        names = [x for x in self.texts(body) if x in ("Mirror of Kalandra", "Chaos Orb", "Divine Orb")]
-        self.assertEqual(names, ["Chaos Orb", "Divine Orb", "Mirror of Kalandra"], "the overlay shows the new order")
+        order = [[c.cget("text") for c in r.pack_slaves() if isinstance(c, tk.Label) and c.cget("text") != PK.GRIP][0]
+                 for r in body.pack_slaves() if isinstance(r, tk.Frame) and r.pack_slaves()]
+        self.assertEqual(order, ["Chaos Orb", "Divine Orb", "Mirror of Kalandra"], "the overlay shows the new order")
+        self.assertEqual([k for k in body.winfo_children() if k is not d.mark], [k for k in kids if k is not d.mark],
+                         "moved, not made again")
 
     def test_picker_search_first_tick_and_remove(self):
         PK.set_picked(["chaos"])
@@ -150,9 +154,37 @@ class Tk(unittest.TestCase):
         self.assertEqual(PK.picked(), ["mirror"])
         p.q.set("regal")
         p.win.update()
-        self.assertIn("Regal Orb", self.texts(p.all_box))
-        self.assertNotIn("Mirror of Kalandra", self.texts(p.all_box))
+        shown = [self.texts(r) for r in p.all_box.pack_slaves()]
+        self.assertTrue(any("Regal Orb" in t for t in shown))
+        self.assertFalse(any("Mirror of Kalandra" in t for t in shown))
         self.assertIn(PK.HELP, self.texts(p.win))
+
+    def test_picker_limit_against_and_no_rebuild(self):
+        PK.set_picked(["chaos"])
+        a, _body = self.app()
+        a.ovr_refresh = lambda: None
+        p = PK.RatesPicker(a)
+        self.addCleanup(p.close)
+        p.win.update()
+        rows = dict(p.all_rows)
+        for cid in TABLE:
+            p.tick(cid, True)
+        self.assertEqual(len(PK.picked()), 5)
+        self.assertEqual(p.all_rows, rows, "ticks change only the ticks")
+        PK.set_picked([f"x{i}" for i in range(10)])
+        self.assertFalse(p.tick("mirror", True), "10 is the most")
+        self.assertEqual(p.note.cget("text"), PK.FULL)
+        self.assertNotIn("mirror", PK.picked())
+        p.vs.set("Exalted Orb")
+        p.pick_against()
+        self.assertEqual(PK.against(), "exalted")
+        self.assertEqual(OR.rate_rows(TABLE, ["divine"], None, "exalted")[0][2], "100 ex each")
+
+    def test_first_use_once(self):
+        SETTINGS["rates_ov"] = {"on": True}
+        self.assertTrue(PK.first_use_due())
+        PK.mark_first_use()
+        self.assertFalse(PK.first_use_due())
 
 
 if __name__ == "__main__":

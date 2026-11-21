@@ -37,19 +37,26 @@ def fmt_worth(v):
 REFRESH_MS = 60 * 1000
 
 
-def rate_text(v):
-    """A worth in divines -> the overlay's words: cheap items "N : 1 div", dear ones "N div each"."""
-    if not v or v <= 0:
+SHORT = {"divine": "div", "exalted": "ex", "chaos": "chaos"}
+
+
+def rate_text(v, base=1.0, unit="div"):
+    """A worth in divines -> the overlay's words in the currency you show rates in (base: its worth in divines):
+    cheap items "N : 1 div", dear ones "N div each"."""
+    if not v or v <= 0 or not base or base <= 0:
         return "no rate yet"
+    v = v / base
     if v < 1:
         per = 1 / v
-        return f"{per:,.0f} : 1 div" if per >= 10 else f"{per:.2f} : 1 div"
-    return f"{v:,.0f} div each" if v >= 10 else f"{v:.2f} div each"
+        return f"{per:,.0f} : 1 {unit}" if per >= 10 else f"{per:.2f} : 1 {unit}"
+    return f"{v:,.0f} {unit} each" if v >= 10 else f"{v:.2f} {unit} each"
 
 
-def rate_rows(table, ids, names=None):
-    """The picked currencies, in your order -> [(id, name, text)]."""
-    return [(cid, cur_name(cid, names), rate_text(table.get(cid))) for cid in ids]
+def rate_rows(table, ids, names=None, against="divine"):
+    """The picked currencies, in your order, in the currency you show rates in -> [(id, name, text)]."""
+    base = 1.0 if against == "divine" else table.get(against)
+    unit = SHORT.get(against) or cur_name(against, names)
+    return [(cid, cur_name(cid, names), rate_text(table.get(cid), base, unit)) for cid in ids]
 
 
 class OverlayRates:
@@ -87,7 +94,6 @@ class OverlayRates:
                 self.root.after_cancel(job)
             except Exception:
                 buglog.caught()
-        self._ovr_built = None
         self.ovr_fill()
 
     def ovr_switch(self, on):
@@ -101,6 +107,18 @@ class OverlayRates:
         if not on:
             self.ovr_close()
         self._ovr_bar()
+        self.ovr_first_pick()
+
+    def ovr_first_pick(self):
+        """The first time Rates is on the overlay, the picker opens by itself, once - for installs from before it
+        existed too."""
+        from .ovrates_pick import first_use_due, mark_first_use
+        if first_use_due(self.ovr_cfg()):
+            mark_first_use(self.ovr_cfg())
+            try:
+                self.root.after(600, self.ovr_pick)
+            except Exception:
+                buglog.caught()
 
     def ovr_shown(self):
         return getattr(self, "ovr_win", None) is not None
@@ -130,6 +148,7 @@ class OverlayRates:
                 self.ovr_build()
             except Exception:
                 self.log_error("showing the exchange rates over the game")
+        self.ovr_first_pick()
 
     def ovr_close(self):
         job, self._ovr_job = getattr(self, "_ovr_job", None), None
@@ -179,26 +198,52 @@ class OverlayRates:
         w.show()
         return w
 
+    def _ovr_reorder(self, ids):
+        """The overlay's rows packed again in your new order; the same widgets."""
+        rowmap = getattr(self, "_ovr_rowmap", {})
+        cells = self._ovr_cells
+        age_lab = cells[1]
+        for row, _a, _b in rowmap.values():
+            row.pack_forget()
+        if age_lab is not None:
+            age_lab.pack_forget()
+        for cid in ids:
+            rowmap[cid][0].pack(fill="x")
+        if age_lab is not None:
+            age_lab.pack(anchor="w", pady=(4, 0))
+        self._ovr_cells = ([(rowmap[c][1], rowmap[c][2]) for c in ids], age_lab)
+        d = getattr(self, "ovr_drag", None)
+        if d is not None:
+            d.set_order(ids)
+
     def ovr_fill(self):
-        from .ovrates_pick import GRIP, DragList, picked, set_picked
+        from .ovrates_pick import GRIP, DragList, against, picked, set_picked
         from .rates import RATES
         body, P = getattr(self, "ovr_body", None), getattr(self, "ovr_P", None)
         if body is None:
             return
         ids = list(picked())
-        rows = rate_rows(RATES.table or {}, ids, getattr(RATES, "names", None))
+        vs = against()
+        rows = rate_rows(RATES.table or {}, ids, getattr(RATES, "names", None), vs)
         age = RATES.age()
         w = getattr(self, "ovr_win", None)
         unlocked = w is not None and not w.locked
         # UI rule 22: the hourly refresh re-words the numbers in place - the rows are built again only when the
         # picks, their order or the lock change
-        key = (body, tuple(ids), age is not None, unlocked)
+        key = (body, tuple(ids), age is not None, unlocked, vs)
         cells = getattr(self, "_ovr_cells", None)
+        built = getattr(self, "_ovr_built", None)
         try:
-            same = cells is not None and getattr(self, "_ovr_built", None) == key and rows and \
-                all(b.winfo_exists() for _a, b in cells[0])
+            alive = cells is not None and rows and all(b.winfo_exists() for _a, b in cells[0])
         except tk.TclError:
-            same = False
+            alive = False
+        same = alive and built == key
+        if alive and not same and built and built[0] is body and built[2:] == key[2:] and \
+                sorted(built[1]) == sorted(key[1]):
+            self._ovr_reorder(ids)                        # a new order only: the rows move, nothing is made again
+            cells = self._ovr_cells
+            self._ovr_built = key
+            same = True
         if same:
             from .inplace import set_cfg
             self.ovr_rows = [(n, t) for _c, n, t in rows]
@@ -215,7 +260,7 @@ class OverlayRates:
             return
         self.ovr_rows = [(n, t) for _c, n, t in rows]
         font = P.get("body") or P["font"]
-        pairs, age_lab, grips, drag_rows = [], None, [], []
+        pairs, age_lab, grips, drag_rows, rowmap = [], None, [], [], {}
         if not ids:                                       # the empty state: what it is, and one button
             tk.Label(body, text="No currencies picked", bg=P["bg"], fg=P["text"],
                      font=(font, self.ov_font(10))).pack(anchor="w")
@@ -241,6 +286,7 @@ class OverlayRates:
                              font=(font, self.ov_font(10), "bold"), anchor="e")
                 b.pack(side="right")
                 pairs.append((a, b))
+                rowmap[cid] = (row, a, b)
             if age is not None:
                 age_lab = tk.Label(body, text=f"poe.ninja · {int(age // 60)} min ago", bg=P["bg"], fg=P["muted"],
                                    font=(font, self.ov_font(8)))
@@ -253,7 +299,7 @@ class OverlayRates:
                 if p is not None:
                     p.after_idle(p.paint_all)
             self.ovr_drag = DragList(body, drag_rows, drop, line=P.get("head", P["text"]))
-        self._ovr_cells, self._ovr_built = (pairs, age_lab), key
+        self._ovr_cells, self._ovr_built, self._ovr_rowmap = (pairs, age_lab), key, rowmap
         if unlocked:                                      # 2.96.1: unlocked, any spot on it drags the window -
             for c in [body] + list(body.winfo_children()):   # except a row's grip, which moves the row
                 for x in [c] + list(c.winfo_children()):
