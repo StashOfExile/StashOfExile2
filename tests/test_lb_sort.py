@@ -167,5 +167,13 @@ class PartyClass(unittest.TestCase):
             self.assertEqual(LB._run_cls("Me", {}, {"Me": "Invoker", "Friend": "Druid"}), "Invoker")
 
 
+    def test_the_campaign_follows_your_typed_name(self):
+        from soe2 import campaign as CP
+        with mock.patch.dict(LB.SETTINGS, {"tracker": {"character": "Me"}}), \
+                mock.patch("soe2.focus.cfg", lambda: {"state": {"last_char": "Friend"}}), \
+                mock.patch.object(CP, "_sandbox", lambda: None):
+            self.assertEqual(CP.current_char(), "Me")
+
+
 if __name__ == "__main__":
     unittest.main()

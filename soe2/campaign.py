@@ -275,8 +275,9 @@ def current_char():
         return sb["char"]
     from . import focus as F
     st = F.cfg().get("state") or {}
-    return (st.get("last_char") or (SETTINGS.get("tracker") or {}).get("character") or cfg().get("last_char")
-            or "")
+    tr = SETTINGS.get("tracker") or {}
+    # 3.1.0: the name you typed comes first - the last one to level up can be a party member
+    return ((tr.get("character") or "").strip() or st.get("last_char") or cfg().get("last_char") or "")
 
 
 def char_level():
