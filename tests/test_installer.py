@@ -117,6 +117,14 @@ class Release(unittest.TestCase):
         self.assertIn('sha256sum StashOfExile2.exe "Setup-StashOfExile2-$V.exe"', y)
         self.assertIn("dist/Setup-StashOfExile2-*.exe", y)
 
+    def test_every_bundled_file_exists(self):
+        """3.1.0: the release once failed on a data file that had been removed."""
+        y = read(".github", "workflows", "release.yml")
+        paths = re.findall(r'--add-data "([^";:]+)[;:]', y)
+        self.assertGreater(len(paths), 10)
+        for p in paths:
+            self.assertTrue(os.path.exists(os.path.join(ROOT, *re.split(r"[\\/]", p))), p)
+
     def test_local_script(self):
         self.assertIn("winget install JRSoftware.InnoSetup", read("build_installer.bat"))
 
