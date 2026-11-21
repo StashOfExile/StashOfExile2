@@ -46,6 +46,10 @@ jobs:
           fi
           echo "version=$APP" >> "$GITHUB_OUTPUT"
 
+      - name: Install the build tools
+        if: steps.ver.outputs.skip == 'false'
+        run: python -m pip install -r requirements-build.txt     # exact versions, see the file. Before the checks: the screen-read check loads the app
+
       - name: GGG policy checks before anything is built
         if: steps.ver.outputs.skip == 'false'
         shell: bash
@@ -55,10 +59,6 @@ jobs:
           python tools/check_tos.py
           python tools/check_screenread.py
           python tools/check_rmt.py
-
-      - name: Install the build tools
-        if: steps.ver.outputs.skip == 'false'
-        run: python -m pip install -r requirements-build.txt     # exact versions (see the file)
 
       - name: Build StashOfExile2.exe
         if: steps.ver.outputs.skip == 'false'
