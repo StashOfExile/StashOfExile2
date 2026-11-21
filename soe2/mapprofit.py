@@ -10,9 +10,10 @@ entry. The last clear read at home before a map is "before"; the first clear rea
 map's loot. Each cell is named by its picture - the ones you taught with Ctrl+C (Top Up) or the ones Scan stash
 learned - and only items with a Currency Exchange price (poe.ninja's exchange: currency, omens, runes, ...) count;
 waystones and gear never do. Prices: Exchange Rates (poe.ninja, in divines).
-3.0.6 (every item poe.ninja's exchange lists, nothing taught): after those, Scan stash's wildcard pictures, the
-Currency Exchange's icons and last poe.ninja's own art (from the art cache; Map Profit's page downloads what's
-missing once, like Exchange Rates does) - each only when sure. A cell with no stack number is still tried as a
+3.0.6 (every item poe.ninja's exchange lists, nothing taught): after those, Scan stash's wildcard pictures and
+poe.ninja's own pictures (from the art cache; Map Profit's page downloads what's missing once, like Exchange Rates
+does) - each only when sure. 3.1 (GGG ToS 7a: no game art ships): poe.ninja's pictures are drawn the way the game
+draws a cell (gameart.Looks) - on the owner's 18 inventory screenshots every stackable was named right, gear never. A cell with no stack number is still tried as a
 lineage or uncut gem (an uncut gem by its white roman level); anything else without one is skipped.
 
 Privacy: map_profit.jsonl in your data folder, on your PC only - never uploaded, shared or sent to the board."""
@@ -77,13 +78,14 @@ def loose_names(parts):
     return out
 
 
-def build_refs(parts):
-    """3.0.6: the pictures Map Profit names cells with, best trusted first: learned and shipped pictures (Scan
-    stash's slots among them), Scan stash's wildcard pictures (refs.stash), the Currency Exchange's icons, and last
-    poe.ninja's art from the art cache (refs.art). Nothing is downloaded here."""
+def build_refs(parts, pic=None):
+    """3.0.6: the pictures Map Profit names cells with, best trusted first: pictures learned on this PC (Top Up,
+    Scan stash's slots), Scan stash's wildcard pictures you named (refs.stash), and poe.ninja's pictures from the art
+    cache - drawn as the game draws a cell (refs.looks, 3.1) and cropped to the art (refs.art, the last fallback).
+    Nothing is downloaded here. pic: url -> a file or pixels (tests)."""
     from . import favours as FV
     items = FV.ninja_items(parts)
-    refs = FV.build_refs(items, exchange=True)
+    refs = FV.build_refs(items, exchange=True, pic=pic)
     known = {n for n, _p in items.values()}
     refs.gems = gem_names(parts)
     refs.loose = loose_names(parts)
@@ -93,10 +95,39 @@ def build_refs(parts):
     except Exception:
         buglog.caught()
     try:
-        refs.art = FV.art_refs(items)
+        refs.art = FV.art_refs(items, pic=pic)
     except Exception:
         buglog.caught()
     return refs
+
+
+def look_match(bgr, refs, only=None, plain=None):
+    """3.1: a whole cell (BGR) -> the item poe.ninja's picture of it says (favours.look_name: sure, or far better
+    colored than a look-alike), its level or grade read from the cell (one picture, many names) - or None. plain:
+    the same cell with its level letters painted over (what's compared; the letters are read from bgr)."""
+    from . import favours as FV
+    key = FV.look_name(bgr if plain is None else plain, refs, only)
+    if key is None:
+        return None
+    names = refs.looks.names.get(key) or [key]
+    name = _resolve(key, names, bgr)
+    if name is None:
+        return None
+    known = {n for v in refs.looks.names.values() for n in v}
+    return grade([name], tier_letters(bgr, white=True), known)[0]
+
+
+def look_alike(bgr, refs):
+    """3.1: the items poe.ninja's pictures can't tell apart for this cell (each sure, within gameart.BY of the top:
+    two Perfect Essences in one white) -> [names], or [] - shown as "can't tell apart", never a guess."""
+    from . import gameart as GA
+    lk = getattr(refs, "looks", None)
+    if lk is None or not len(lk):
+        return []
+    got = lk.rank(bgr, 3)
+    if len(got) < 2 or got[0][0] < GA.MIN:
+        return []
+    return [k for sc, k in got if sc >= got[0][0] - GA.BY and sc >= GA.MIN]
 
 
 def _base(name):
@@ -252,6 +283,13 @@ def gem_match(cell, refs, pool=None, least=None):
         import numpy as np
         from . import favours as FV
         bgr = np.asarray(cell.convert("RGB"))[:, :, ::-1].copy()
+        lk = getattr(refs, "looks", None)
+        if lk is not None and len(lk):                    # 3.1: poe.ninja's pictures first, gems only
+            keys = {k for k, ns in lk.names.items() if any(n in gems for n in ns)}
+            plain = unlettered(bgr) if roman(tier_letters(bgr, white=True)) else None
+            hit = look_match(bgr, refs, only=keys, plain=plain) if keys else None
+            if hit:
+                return hit
         f = {"box": _box_feats(unlettered(bgr) if roman(tier_letters(bgr, white=True)) else bgr)}
         view = FV.Refs()
         view.items = {n: v for n, v in refs.items.items() if n in gems}
@@ -294,7 +332,9 @@ def fv_match(cell, refs, alike=False):
                     name, clash = None, True
         else:
             name = stash_match(bgr, f, refs)
-        names = [name] if name else ([] if not alike or clash else refs.alike(f))
+        if not name and not clash:
+            name = look_match(bgr, refs)                  # 3.1: poe.ninja's picture, drawn as the game does
+        names = [name] if name else ([] if not alike or clash else (refs.alike(f) or look_alike(bgr, refs)))
         if not name and not clash and len(names) != 1:
             hit = by_color(f, refs)
             if hit:
@@ -313,23 +353,30 @@ def fv_match(cell, refs, alike=False):
         return [] if alike else None
 
 
-WAYSTONE_MIN = 0.70        # 3.0.6: T15 waystones 0.77-1.00 to the shipped picture (red or blue backing),
-#                            other items under 0.35
-_WAY = []
+WAYSTONE_MIN = 0.70        # 3.1: the trade site's T15 waystone picture drawn as a cell (gameart.Looks): the owner's
+#                            66 waystone cells 0.83 - 0.99, every other cell with no stack number under 0.41
+_WAY = {}
 
 
-def _waystone_ref():
-    if not _WAY:
-        try:
-            import cv2
-            from . import favours as FV
-            from .topup import _templates
-            img = cv2.imread(str(_templates() / "waystone_cell.png"))
-            _WAY.append(_box_feats(img) if img is not None else None)
-        except Exception:
-            buglog.caught()
-            _WAY.append(None)
-    return _WAY[0]
+def _waystone_ref(pic=None):
+    """Looks of the trade site's waystone picture (pricecheck_page.WAYSTONE_ICON, from the art cache), or None when
+    it isn't downloaded yet (then the red tier letters alone say it's a waystone)."""
+    from . import gameart as GA
+    try:
+        from .pricecheck_page import WAYSTONE_ICON
+        src = pic(WAYSTONE_ICON) if pic else GA.cache_file(WAYSTONE_ICON)
+    except Exception:
+        buglog.caught()
+        return None
+    if src is None:
+        return None
+    key = src if isinstance(src, str) else id(src)
+    if key not in _WAY:
+        lk = GA.Looks()
+        lk.add("Waystone", GA.drawn(src))
+        _WAY.clear()
+        _WAY[key] = lk if len(lk) else None
+    return _WAY[key]
 
 
 def _box_feats(bgr):
@@ -464,19 +511,21 @@ def grade(names, letters, known):
     return list(dict.fromkeys(out))
 
 
-def waystone_tier(cell):
+def waystone_tier(cell, pic=None):
     """3.0.6 (show waystones by tier without a price, to show they were read): a cell
-    (PIL) -> its tier (0 = a waystone, tier not read) or None (not a waystone)."""
+    (PIL) -> its tier (0 = a waystone, tier not read) or None (not a waystone). 3.1: by the trade site's waystone
+    picture once it's downloaded; until then a cell with red roman tier letters (no other item has them)."""
     try:
         import numpy as np
-        from . import favours as FV
-        ref = _waystone_ref()
-        if ref is None:
-            return None
         bgr = np.asarray(cell.convert("RGB"))[:, :, ::-1].copy()
-        if FV.score(_box_feats(bgr), ref) < WAYSTONE_MIN:
+        tier = roman(tier_letters(bgr))
+        ref = _waystone_ref(pic)
+        if ref is None:
+            return tier
+        got = ref.rank(bgr, 1)
+        if not got or got[0][0] < WAYSTONE_MIN:
             return None
-        return roman(tier_letters(bgr)) or 0
+        return tier or 0
     except Exception:
         buglog.caught()
         return None

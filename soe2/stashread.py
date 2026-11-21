@@ -17,7 +17,6 @@ How it reads:
      slot's top edge; the longest run of well-matched digits side by side, on one baseline, is the stack size.
 Needs OpenCV + numpy (the app ships both for the Expedition watcher)."""
 import base64
-import pathlib
 
 from .stashlayouts import ORDER, PANEL, TABS, tab_title
 
@@ -377,21 +376,14 @@ def match_wild(wild, icons, keep=False, pics=None, by_pic=None):
 ICONS_FILE = "stash_icons.json"     # 2.114.3: pictures of items you named in a wildcard slot (40 x 26, on this PC)
 
 
-SHIPPED_ICONS = "stash_icons.json"  # 3.0.6: wildcard pictures shipped with the app (templates/: the Vaal currencies ...)
-
-
 def learned_icons():
-    """{name: picture} you've named before (Sacred Bloom ...) - an item's look, nothing about your stash. 3.0.6
-    (owner: wildcard slots need to be recognized wherever they are): the shipped ones first, yours over them."""
+    """{name: picture} you've named before (Sacred Bloom ...) - an item's look, nothing about your stash. 3.1 (GGG
+    ToS 7a): none ship with the app - a wildcard slot no tab's slot looks like is named by poe.ninja's picture of
+    it (Map Profit's naming, stashscan_page.stash_scan_by_pic), then by you."""
     cv2, np = _np()
-    import json
     from .config import load_json
     out = {}
-    try:
-        shipped = json.loads((pathlib.Path(__file__).parent / "templates" / SHIPPED_ICONS).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        shipped = {}
-    for name, b in list(shipped.items()) + list((load_json(ICONS_FILE, {}) or {}).items()):
+    for name, b in (load_json(ICONS_FILE, {}) or {}).items():
         try:
             out[name] = np.frombuffer(base64.b64decode(b), np.uint8).reshape(26, 40, 3).astype(np.float32)
         except Exception:

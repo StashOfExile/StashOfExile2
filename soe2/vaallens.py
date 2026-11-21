@@ -2,21 +2,15 @@
 path, room, reward room, Architect, key room, Atziri), a room's family and tier, the tiles the game lights green for
 the picked card. Looks only: a picture of the screen, nothing sent to the game (GGG ToS).
 
-Made from the player's own board pictures (local only); room icons matched to shipped prototypes
-(templates/vaallens_icons.json - board icons only, no names of players). Coordinates are those of a 2560x1440 frame;
+Made from the player's own board pictures (local only); room icons matched to prototypes in vaallens_icons.json in
+the data folder when there is one (3.1, GGG ToS 7a: none ship with the app - without them a room's kind still reads,
+its family doesn't). Coordinates are those of a 2560x1440 frame;
 vaallens.frame(img) maps any game picture (another size, ultrawide) onto it.
 """
 import json, os
 import numpy as np
 from PIL import Image
 
-def _templates():
-    import sys
-    base = getattr(sys, "_MEIPASS", None)                 # (the built app: its files sit under _MEIPASS)
-    return os.path.join(base, "soe2", "templates") if base else os.path.join(os.path.dirname(os.path.abspath(__file__)), "templates")
-
-
-HERE = _templates()
 FULL = (2560, 1440)
 CROP = (0.79, 0.85)                       # the watcher's crop of the frame
 CELLS = [(i, j) for i in range(-4, 5) for j in range(1, 10)] + [(0, 10)]     # i -4..4, j 1..9, plus Atziri (0, 10)
@@ -370,7 +364,12 @@ def icon_feat(q):
 
 # ---------------------------------------------------------------- icon clusters -> names
 
-ICONS = os.path.join(HERE, "vaallens_icons.json")
+def _icons_file():
+    from .config import P
+    return P("vaallens_icons.json")
+
+
+ICONS = None             # the data folder's vaallens_icons.json (_icons_file) - set here in tests
 ICON_MIN = 0.90          # best prototype similarity to accept a cluster (members sit at 0.94-1.0 of their cluster)
 ICON_MARGIN = 0.015      # a cluster with another name this close -> the icon is not sure
 KIND_MIN = 0.82          # 2.142.0: below ICON_MIN (or not sure of the name), the kind still counts when the two
@@ -378,16 +377,17 @@ KIND_MIN = 0.82          # 2.142.0: below ICON_MIN (or not sure of the name), th
 _icons = None
 
 
-def load_icons(path=ICONS):
+def load_icons(path=None):
     global _icons
-    if _icons is None or path != ICONS:
+    path = path or ICONS or _icons_file()
+    if _icons is None or path != (ICONS or _icons_file()):
         with open(path) as fh:
             js = json.load(fh)
         cl = js["clusters"]
         P = np.array([p for c in cl for p in c["protos"]], np.float32)
         owner = np.array([k for k, c in enumerate(cl) for _ in c["protos"]])
         res = (cl, P, owner)
-        if path != ICONS:
+        if path != (ICONS or _icons_file()):
             return res
         _icons = res
     return _icons
@@ -441,7 +441,7 @@ def read(img, icons=None):
     read_tiers = scale_of(*img.size) >= MIN_TIER_SCALE
     a, v = to_canvas(img)
     ov, boxes = overlay_mask(a, v)
-    icons = icons or (load_icons() if os.path.exists(ICONS) else None)
+    icons = icons or (load_icons() if os.path.exists(ICONS or _icons_file()) else None)
     out, lit, bright = {}, [], []
     for c in CELLS:
         cell = dict(kind="unknown", icon=None, name=None, tier=None, powered=False)

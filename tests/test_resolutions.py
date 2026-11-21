@@ -21,6 +21,22 @@ except Exception:           # pragma: no cover
     cv2 = None
 
 SHOTS = os.environ.get("SOE2_SHOTS") or "/mnt/user-data/uploads"
+_TMP = []
+
+
+def setUpModule():          # (3.1: titles learned from the shots go to a throwaway data folder, never the real one)
+    import tempfile
+    from unittest import mock
+    from soe2 import config
+    d = tempfile.TemporaryDirectory()
+    p = mock.patch.object(config, "DATA_DIR", d.name)
+    p.start()
+    _TMP.extend([d, p])
+
+
+def tearDownModule():
+    _TMP[1].stop()
+    _TMP[0].cleanup()
 SIZES = [(1920, 1080), (3840, 2160), (3440, 1440), (5120, 1440), (2560, 1080)]
 _CACHE = {}
 

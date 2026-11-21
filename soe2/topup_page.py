@@ -156,8 +156,13 @@ class TopUpPage:
         return False
 
     def tu_refs(self):
-        """The pictures that name a cell (Map profit's, once built; else built here from the shipped ones on a
-        background thread - nothing is downloaded). None until ready."""
+        """The pictures that name a cell (Map profit's, once built; else built here on a background thread from the
+        pictures learned on this PC and poe.ninja's in the art cache - 3.1: none ship; missing ones are downloaded
+        once, mp_art_fetch). None until ready."""
+        try:
+            self.mp_art_fetch()
+        except Exception:
+            buglog.caught()
         r = getattr(self, "mp_refs_v", None) or getattr(self, "tu_refs_v", None)
         if r is not None or getattr(self, "_tu_refs_busy", False):
             return r
@@ -180,8 +185,8 @@ class TopUpPage:
         return None
 
     def tu_name(self, c):
-        """The item a cell of the inventory holds: a picture taught by an older version first, else the app's own
-        Currency Exchange pictures (Map profit's matcher). None: not known. Kept on the cell once pictures are ready."""
+        """The item a cell of the inventory holds: a picture taught by an older version first, else Map profit's
+        matcher (poe.ninja's pictures). None: not known. Kept on the cell once pictures are ready."""
         if "name" in c:
             return c["name"]
         name = TU.which(c["sig"], TU.learned()) if TU.learned() else None
@@ -196,11 +201,12 @@ class TopUpPage:
         return name
 
     def tu_readable(self, name):
-        """True when the app has this item's picture (so a read can count it)."""
+        """True when this item can be named by its picture (so a read can count it): taught here, or poe.ninja sends a
+        picture of it (downloaded into the art cache - 3.1: no pictures ship with the app)."""
         return name in TU.learned() or self.tu_icons_local().has(name)
 
     def tu_icons_local(self, size=ROW_ICON):
-        """The app's own Currency Exchange pictures (rates_view.LocalIcons) at a size - the one picture source."""
+        """Every item poe.ninja sends a picture for, by name, from the art cache (rates_view.LocalIcons) at a size."""
         from .rates_view import LocalIcons
         box = self.__dict__.setdefault("_tu_local", {})
         if size not in box:
@@ -209,13 +215,12 @@ class TopUpPage:
 
     def tu_display(self, size=ROW_ICON):
         """The pictures this window DRAWS: poe.ninja's currency icons from the art cache Exchange Rates fills (the
-        same downloads and rules as there), else the shipped crop. -> get(name) -> PhotoImage or None. Recognition
-        never uses these: it reads cells with tu_refs() (Map Profit's matcher pictures)."""
+        same downloads and rules as there) - none yet: the name stands in. -> get(name) -> PhotoImage or None.
+        Recognition reads cells with tu_refs() (Map Profit's matcher pictures)."""
         from .rates_view import Icons, picture_paths, url_for
         box = self.__dict__.setdefault("_tu_disp", {})
         if size not in box:
             icons = Icons(self.root, lambda: self._tu_icons_ready(), size=size)
-            local = self.tu_icons_local(size)
             st = {"paths": None, "at": 0.0}
 
             def get(name):
@@ -223,7 +228,7 @@ class TopUpPage:
                 if st["paths"] is None or _t.time() - st["at"] > 60:
                     st["paths"], st["at"] = picture_paths(), _t.time()
                 url = url_for(name, st["paths"])
-                return (icons.get(url) if url else None) or local.get(name)
+                return icons.get(url) if url else None
             box[size] = get
         return box[size]
 
@@ -525,7 +530,7 @@ class TopUpPage:
             name = it["name"]
             r = tk.Frame(box, bg=P2)
             r.pack(fill="x", pady=2)
-            img = local(name)                               # poe.ninja's icon, else the shipped crop, else a taught one
+            img = local(name)                               # poe.ninja's icon, else a taught one
             if img is None and TU.icon_b64(name):
                 try:
                     img = tk.PhotoImage(data=TU.icon_b64(name))

@@ -69,8 +69,8 @@ class StashScanPage:
 
     def stash_scan_by_pic(self):
         """3.0.6 (owner's scan: 5 wildcard slots held Vaal currencies no tab has a slot for): a wildcard slot's
-        picture -> the exchange item it is (Map Profit's naming: the exchange icons, then poe.ninja's art from the
-        art cache - nothing downloaded), or None. None when there are no prices yet."""
+        picture -> the exchange item it is (Map Profit's naming: poe.ninja's pictures from the art cache, drawn as
+        the game draws a slot - nothing downloaded here), or None. None when there are no prices yet."""
         try:
             from PIL import Image
             from . import mapprofit as MP

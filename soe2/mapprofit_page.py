@@ -78,19 +78,26 @@ class MapProfitPage:
         return getattr(self, "mp_refs_v", None)
 
     def mp_art_fetch(self):
-        """3.0.6 (every item poe.ninja's exchange lists, nothing taught): poe.ninja's pictures of the exchange items
-        not in the art cache yet, for Map Profit's last fallback (MP.art_match) - asked once per session, through
-        Exchange Rates' downloader (rates_view.Icons: the game's image server, the app's User-Agent, one at a time
-        with ART_GAP between, it stops after a few failures). Cached for good; the pictures are built again on the
-        next Read Key press once some arrive. No screen read: only downloads."""
-        if getattr(self, "_mp_art", None) is not None or getattr(self, "root", None) is None:
+        """The pictures the screen readers compare with (3.1: no game art ships - GGG ToS 7a): poe.ninja's picture of
+        every exchange item, the ★ uniques (Favours) and the trade site's waystone, those not in the art cache yet -
+        asked once per session (Map Profit, Top Up, Favours, Scan stash), through Exchange Rates' downloader
+        (rates_view.Icons: the game's image server, the app's User-Agent, one at a time with ART_GAP between, it
+        stops after a few failures - offline, items are simply not named by picture). Cached on this PC for good;
+        the pictures are built again on the next Read Key press once some arrive. No screen read: only downloads."""
+        import threading
+        if getattr(self, "_mp_art", None) is not None or getattr(self, "root", None) is None \
+                or threading.current_thread() is not threading.main_thread():
             return
         try:
             from . import favours as FV
+            from . import gameart as GA
+            from .pricecheck_page import WAYSTONE_ICON
             from .rates_view import Icons
             from .wealth import WPRICES
-            urls = sorted({u for _n, p in FV.ninja_items(getattr(WPRICES, "parts", None)).values()
-                           for u in [FV.art_url(p)] if u and FV.art_cache_file(u) is None})
+            parts = getattr(WPRICES, "parts", None)
+            if not parts:
+                return                              # (no prices yet: asked again with the next pictures)
+            urls = FV.art_urls(parts) + ([WAYSTONE_ICON] if GA.cache_file(WAYSTONE_ICON) is None else [])
             self._mp_art = Icons(self.root, self._mp_art_ready)
             self._mp_art.gap = ART_GAP
             for u in urls:
@@ -100,6 +107,8 @@ class MapProfitPage:
 
     def _mp_art_ready(self):
         self.mp_refs_at = 0                 # (stale: the next Read Key press builds the pictures again)
+        self.tu_refs_v = None
+        self.fv_refs = None
 
     # ---------------------------------------------------------------- reading (from Top Up's clear looks)
     def mp_seen(self, res):

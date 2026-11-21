@@ -100,6 +100,11 @@ class Base(unittest.TestCase):
 
 class OnPriceChecks(Base):
     def setUp(self):
+        import artfixture                                  # 3.1: the currency's picture comes from the art cache
+        from soe2.wealth import WPRICES                    # (poe.ninja's, downloaded) - none ship with the app
+        was = WPRICES.parts
+        self.addCleanup(setattr, WPRICES, "parts", was)
+        artfixture.install()
         for w in self.root.winfo_children():
             w.destroy()
         self.app = PCL.make_app(self.root)
@@ -131,7 +136,7 @@ class OnPriceChecks(Base):
         self.assertEqual(amt._tip.text, "3 Divine Orb", "the price in words on hover")
         self.assertIn("×", txt)
         pics = [x for x in self.walk(amt.master) if isinstance(x, tk.Label) and str(x.cget("image"))]
-        self.assertEqual(len(pics), 1, "the currency's picture (the app's own)")
+        self.assertEqual(len(pics), 1, "the currency's picture (poe.ninja's, from the art cache)")
         self.assertEqual(pics[0]._tip.text, "3 Divine Orb", "a picture alone says it on hover too")
         self.assertFalse(any(t.startswith("3 ") for t in txt), "not in the title spot")
         meta = next(t for t in txt if t.startswith("item level 82"))

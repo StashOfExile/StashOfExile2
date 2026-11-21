@@ -3,19 +3,20 @@ like the Expedition helper's tags on a remnant's book. Idea and approach looked 
 window is found by a piece of its own art, items by their pictures - this is our own code.
 
 How it reads (pure functions here; the watcher and the tags are in favours_page.py):
-  1. The window: the word FAVOURS on its title plate (templates/favours_title.png, from a 1440p game) is looked for in
-     the top-left of the game, scaled to the game's height. Not there = the window isn't open.
+  1. The window: the word FAVOURS on its title plate. The first time, OCR finds the word in the press's picture and
+     that piece of YOUR screen is kept (gameart.screen_look, only on this PC); later presses match it. Not there =
+     the window isn't open. Nothing of the game ships with the app.
   2. The grid: 12 x 10 cells of 70 px (at 1440p), at a fixed offset from the title. A cell holds an item when its
      blue (or red) backing shows.
   3. Each 1-cell item is compared with the pictures learned on this PC of what poe.ninja's exchange prices (omens,
      currency, runes ...): Scan stash keeps each slot's picture of your Ritual, Currency ... tabs, and your price
      check key on a reward while the window is open keeps that one. Picture, outline and colors are compared, the
      stack number's corner left out (the game dims rewards you can't afford yet); the best one counts only when
-     it's sure and clearly better than the next. 2.129.0: no official art (it was never sure), no uniques - only
-     Mageblood and Headhunter get a ★ (their pictures ship in templates/). Each picture is compared two ways: the
-     cell's top part as it is, and cropped to the item's art (so a stash slot and a Favours cell, which draw it at
-     different sizes, line up). Every omen of the Ritual stash tab ships too (templates/favours_omens.png, slot
-     pictures in the tab's order - favours_omens.json names them), so none has to be in your stash first.
+     it's sure and clearly better than the next. Each picture is compared two ways: the cell's top part as it is,
+     and cropped to the item's art (so a stash slot and a Favours cell, which draw it at different sizes, line up).
+     3.1 (GGG ToS 7a - no game art ships): then poe.ninja's own picture of every exchange item, from the art cache
+     on this PC, drawn the way the game draws a cell (gameart.Looks; the price tag's part left out). Mageblood,
+     Headhunter and Rite of Passage get a ★ by poe.ninja's pictures of them (its unique lists).
 Only looks at the screen: no keys, no clicks, nothing sent to the game. Nothing about you is saved: the pictures are
 of items, and the log (ritual/favours_log.txt) says which item was found where and how sure."""
 import base64
@@ -71,10 +72,10 @@ CLEAR_ITEMS = 10                           # (only among many items - with two, 
 #                                            stash): the right omen 0.74-0.88 (by 0.14-0.34), items it doesn't know up
 #                                            to 0.70 (by 0.06); official art reached 0.64 for the wrong item
 PER_NAME = 6                               # pictures kept per item (a stash slot gives 3: its size varies a little)
-BELTS = {"Mageblood": "favours_mageblood.png", "Headhunter": "favours_headhunter.png"}   # 2.129.0: a ★, no price
+BELTS = ("Mageblood", "Headhunter")       # 2.129.0: a ★, no price (3.1: poe.ninja's pictures of them, 2 x 1 belts)
 BELT_MIN = 0.70
-STARS = {"Rite of Passage": "favours_rite_of_passage.png"}   # 2.129.3 (feedback): one-cell uniques worth a ★ (their
-STAR_MIN = 0.70                            # picture from the game; your Ctrl+C on one in the window teaches it too)
+STARS = ("Rite of Passage",)              # 2.129.3 (feedback): one-cell uniques worth a ★ (poe.ninja's picture; your
+STAR_MIN = 0.70                            # Ctrl+C on one in the window teaches it too)
 LEARN_FILE = "favour_icons_v2.json"
 BOX_FILE = "favour_boxes.json"             # 2.129.0: the same items cropped to their art (art_box)
 ART_DIFF = 40                              # a pixel this far from the cell's own backing color is the item's art           # (2.128.1: the cell's top part - v1 held whole cells)
@@ -88,31 +89,94 @@ def _cv():
     return cv2, np
 
 
+TITLE_KEY = "favours_title"                # gameart.screen_look: the title as this PC's screen showed it
+TITLE_WORDS = ("favours",)
+OCR_GRID = (-350, 163)                     # the grid's top-left from the OCR'd word's top-left (1440p px, about:
+GRID_REACH = 20                            # the grid's own lines then place it - px each way at 1440p)
+
+
 def title_template():
-    cv2, _np = _cv()
-    import sys
-    from pathlib import Path
-    base = getattr(sys, "_MEIPASS", None)
-    d = Path(base) / "soe2" / "templates" if base else Path(__file__).resolve().parent / "templates"
-    return cv2.imread(str(d / "favours_title.png"), cv2.IMREAD_GRAYSCALE)
+    """The Favours window's title as YOUR screen showed it (learned the first time OCR read the word - 3.1: no picture
+    of it ships), "ocr" when not learned yet but a text reader can look for it, None when neither (nothing to look
+    for)."""
+    from . import gameart as GA
+    lk = GA.screen_look(TITLE_KEY)
+    if lk is not None:
+        return lk[0]
+    try:
+        import sys
+        if sys.platform != "win32":
+            from . import ocrengine
+            if ocrengine.problem() and GA.OCR[0] is None:
+                return None
+    except Exception:
+        return None
+    return "ocr"
+
+
+def _lattice(gray, x0, y0, cs):
+    """How strongly the grid's cell borders show with its top-left at (x0, y0): edges on the lines minus edges half a
+    cell off them."""
+    cv2, np = _cv()
+    h, w = gray.shape[:2]
+    xs = [int(round(x0 + c * cs)) for c in range(COLS + 1)]
+    ys = [int(round(y0 + r * cs)) for r in range(ROWS + 1)]
+    if xs[0] < 1 or ys[0] < 1 or xs[-1] >= w - 1 or ys[-1] >= h - 1:
+        return -1e9
+    g = gray.astype(np.float32)
+    on = np.mean([np.abs(g[ys[0]:ys[-1], x + 1] - g[ys[0]:ys[-1], x - 1]).mean() for x in xs]) + \
+        np.mean([np.abs(g[y + 1, xs[0]:xs[-1]] - g[y - 1, xs[0]:xs[-1]]).mean() for y in ys])
+    hc = int(cs / 2)
+    off = np.mean([np.abs(g[ys[0]:ys[-1], x + hc + 1] - g[ys[0]:ys[-1], x + hc - 1]).mean() for x in xs[:-1]]) + \
+        np.mean([np.abs(g[y + hc + 1, xs[0]:xs[-1]] - g[y + hc - 1, xs[0]:xs[-1]]).mean() for y in ys[:-1]])
+    return float(on - off)
+
+
+def place_grid(gray, x, y, s, reach=GRID_REACH):
+    """About where the grid starts -> where its cell borders are (px of gray), searched reach px (1440p) each way."""
+    r = max(1, int(round(reach * s)))
+    best = max((_lattice(gray, x + dx, y + dy, CELL * s), dx, dy) for dx in range(-r, r + 1) for dy in range(-r, r + 1))
+    return x + best[1], y + best[2]
 
 
 def find_window(gray, tpl, game_h=None, game_w=None):
     """The game's picture (grayscale; its top-left part will do - give the whole game's size then) -> (x, y, scale,
-    score) of the title word, or None."""
-    cv2, _np = _cv()
+    score): where the title's anchor is (grid_box() places the grid from it), or None. tpl: title_template() - the
+    title learned on this PC, or "ocr": read the word and learn it now."""
+    cv2, np = _cv()
+    from . import gameart as GA
     h, w = game_h or gray.shape[0], game_w or gray.shape[1]
     s = h / BASE_H
-    t = cv2.resize(tpl, None, fx=s, fy=s, interpolation=cv2.INTER_AREA) if abs(s - 1) > 0.01 else tpl
     x0, y0 = int(w * TITLE_SEARCH[0]), int(h * TITLE_SEARCH[1])
     x1 = min(int(w * TITLE_SEARCH[2]), int(h * 16 / 9 * TITLE_SEARCH[2]))   # 3.0.6: the window is left-anchored -
     area = gray[y0:min(gray.shape[0], int(h * TITLE_SEARCH[3])), x0:min(gray.shape[1], x1)]   # ultrawide: same reach
+    if tpl is None or not area.size:
+        return None
+    if isinstance(tpl, str):                       # 3.1: not learned yet - OCR finds the word, its look is kept
+        from PIL import Image
+        box = GA.find_word(Image.fromarray(np.ascontiguousarray(area)), TITLE_WORDS)
+        if box is None:
+            return None
+        gx, gy = place_grid(gray, x0 + box[0] + OCR_GRID[0] * s, y0 + box[1] + OCR_GRID[1] * s, s)
+        p = max(2, int(round(4 * s)))
+        cx0, cy0 = max(0, box[0] - p), max(0, box[1] - p)
+        crop = area[cy0:box[3] + p, cx0:box[2] + p]
+        GA.keep_screen_look(TITLE_KEY, crop, h, {"gdx": (gx - (x0 + cx0)) / s, "gdy": (gy - (y0 + cy0)) / s})
+        return gx - GRID_DX * s, gy - GRID_DY * s, s, 1.0
+    lk = GA.screen_look(TITLE_KEY)
+    learned = lk is not None and tpl is lk[0]
+    k = h / float(lk[1]) if learned else s
+    t = cv2.resize(tpl, None, fx=k, fy=k, interpolation=cv2.INTER_AREA) if abs(k - 1) > 0.01 else tpl
     if area.shape[0] < t.shape[0] or area.shape[1] < t.shape[1]:
         return None
     r = cv2.matchTemplate(area, t, cv2.TM_CCOEFF_NORMED)
     _mn, mx, _l, loc = cv2.minMaxLoc(r)
     if mx < TITLE_MIN:
         return None
+    ex = GA.look_extra(TITLE_KEY) if learned else {}
+    if "gdx" in ex:                                # (the grid, where it was from the learned title)
+        gx, gy = loc[0] + x0 + ex["gdx"] * s, loc[1] + y0 + ex["gdy"] * s
+        return gx - GRID_DX * s, gy - GRID_DY * s, s, float(mx)
     return loc[0] + x0, loc[1] + y0, s, float(mx)
 
 
@@ -321,6 +385,7 @@ class Refs:
         # show no stack number), Scan stash's wildcard pictures {name: 26 x 40}, poe.ninja's art (Refs, or None)
         # and the names each art entry stands for ({entry: [names]} - one picture, many levels or grades)
         self.gems, self.stash, self.art, self.groups = set(), {}, None, {}
+        self.looks = None          # 3.1: poe.ninja's pictures drawn as the game draws a cell (gameart.Looks)
 
     def add(self, name, bgr, src="art", mode="top"):
         self.items.setdefault(name, []).append((feats(bgr), src, mode))
@@ -528,10 +593,13 @@ def ninja_items(parts):
     return out
 
 
-def build_refs(items, exchange=False):
+def build_refs(items, exchange=False, pic=None):
     """{id: (name, path)} -> Refs from the pictures learned on this PC: Scan stash (each slot of your Ritual,
-    Currency ... tabs) and your price check key on a reward. 2.129.0: poe.ninja's official art is no longer used - on
-    the user's own windows it scored up to 0.64 for the wrong item and never sure for the right one."""
+    Currency ... tabs) and your price check key on a reward. 3.1 (GGG ToS 7a: no game art ships): and poe.ninja's
+    picture of every exchange item already in the art cache, drawn as the game draws a cell (refs.looks) - a whole
+    inventory cell (exchange=True, Map Profit / Top Up) or a Favours cell's top part (its price tag left out).
+    pic: url -> a file or pixels (tests)."""
+    from . import gameart as GA
     refs = Refs()
     known = {name for name, _p in items.values()}
     for name, pics in learned().items():
@@ -544,35 +612,52 @@ def build_refs(items, exchange=False):
             continue
         for p in pics:
             refs.add(name, p, "learned", "box")
-    sl = shipped_learned()                                # 2.130.0: learned on real windows, shipped
-    for mode in ("top", "box"):
-        for name, pics in sl[mode].items():
-            if known and name not in known:
-                continue
-            for p in pics:
-                refs.add(name, p, "learned", mode)
-    for name, bgr in shipped_omens().items():             # every omen of the Ritual tab, from the app itself
-        if known and name not in known:
-            continue
-        for mode, p in slot_sides(bgr):
-            refs.add(name, p, "shipped", mode)
-    for name, bgr in shipped_cells().items():             # 2.129.3: rewards seen in a Favours window (Sacred Bloom)
-        if known and name not in known:
-            continue
-        h, w = bgr.shape[:2]
-        e = max(1, int(round(EDGE * w / CELL)))
-        refs.add(name, bgr[e:int(h * TOP), e:w - e], "shipped", "top")
-        refs.add(name, art_box(bgr[e:h - e, e:w - e]), "shipped", "box")
-    for name, bgr in shipped_icons().items():             # 2.129.3: idols, from the currency exchange's list
-        if known and name not in known:
-            continue
-        refs.add(name, art_box(bgr, corner=False), "icon", "box")
-    if exchange:                                          # 2.142.2: every exchange item, by its exchange icon
-        for name, bgr in shipped_exchange().items():
-            if known and name not in known:
-                continue
-            refs.add(name, art_box(bgr[3:-3, 3:-3], corner=False), "exchange", "box")
+    try:
+        refs.looks = GA.looks(items, art_key, top=1.0 if exchange else TOP, pic=pic)
+    except Exception:
+        buglog.caught()
     return refs
+
+
+LOOK_HUE_BY = 0.25                # 3.1: two pictures alike in shape (Omen of Sinistral Erasure / Resurgence: the same
+#                                   horn ring) - the one whose colors match this much better (owner's window: 0.33
+#                                   vs 0.02); closer than that, neither (never a guess)
+
+
+def look_name(cell, refs, only=None):
+    """3.1: a whole cell of the screen (BGR, its frame included) -> the key of poe.ninja's picture it is (refs.looks:
+    gameart.MIN, gameart.BY ahead of the next picture; within BY, the one whose colors match LOOK_HUE_BY better),
+    or None. only: the keys that may compete."""
+    from . import gameart as GA
+    lk = getattr(refs, "looks", None)
+    if lk is None or not len(lk) or cell is None or not getattr(cell, "size", 0):
+        return None
+    key, top, lead = lk.best(cell, only=only)
+    if key is not None:
+        return key
+    if top < GA.MIN:
+        return None
+    got = [g for g in lk.rank(cell, 4, only) if g[0] >= top - GA.BY]
+    if len(got) < 2:
+        return None
+    cv2, np = _cv()
+    h, w = cell.shape[:2]
+    e = max(1, int(round(GA.EDGE * w)))
+
+    def part(bgr):
+        return hue(bgr[e:int(h * lk.top) if lk.top < 1 else h - e, e:w - e])
+    hc = part(cell)
+    if hc is None:
+        return None
+    sims = []
+    for sc, k in got:
+        ref = lk.pictures.get(k)
+        hr = part(cv2.resize(ref, (w, h), interpolation=cv2.INTER_AREA)) if ref is not None else None
+        sims.append((float(np.minimum(hc, hr).sum()) if hr is not None else -1.0, k, sc))
+    sims.sort(reverse=True)
+    if sims[0][2] >= GA.MIN and sims[0][0] - sims[1][0] >= LOOK_HUE_BY:
+        return sims[0][1]
+    return None
 
 
 ART_MIN, ART_BY = 0.80, 0.10       # 3.0.6: poe.ninja's art, Map Profit's last fallback (official art scored up to
@@ -586,25 +671,15 @@ GRADE_WORDS = ("Greater ", "Perfect ")
 
 
 def art_url(path):
-    """poe.ninja's picture path -> its https URL, or None."""
-    if not path:
-        return None
-    return path if path.startswith("https://") else (CDN + path if path.startswith("/") else None)
+    """poe.ninja's picture path -> its https URL, or None (gameart.url)."""
+    from . import gameart as GA
+    return GA.url(path)
 
 
 def art_cache_file(url):
-    """The art cache's file for this picture (Exchange Rates' or Price Checks' name for it), or None when neither
-    is there. Only looks: nothing is downloaded here."""
-    import hashlib
-    from .config import P
-    if not url:
-        return None
-    h = hashlib.sha1(url.encode()).hexdigest()[:20]
-    for fn in ("cur_" + h + ".png", h + ".png"):
-        p = os.path.join(P("art"), fn)
-        if os.path.exists(p):
-            return p
-    return None
+    """The art cache's file for this picture, or None when it isn't downloaded yet (gameart.cache_file)."""
+    from . import gameart as GA
+    return GA.cache_file(url)
 
 
 def art_cell(pic):
@@ -683,102 +758,51 @@ def art_refs(items, pic=None):
     return refs
 
 
-def shipped_exchange():
-    """2.142.2 (feedback: no Ctrl+C should be needed to teach it): {name: 50 x 50 icon} - every item as the game's
-    Currency Exchange lists it (templates/exchange_icons.png + .json, cut from the user's own screenshots of its
-    "I Want" lists: currency, essences, omens, runes, soul cores, fragments...). Map profit only - an exchange icon
-    isn't drawn like a Favours cell."""
-    return _strip("exchange_icons")
-
-
-def shipped_icons():
-    """{name: 50 x 50 icon} - items as the game's currency exchange lists them (templates/favours_icons.png +
-    .json): the idols. Their art lines up with a Favours cell's once both are cropped to it (Idol of the Pharisee
-    0.82, every other cell under 0.64); omens' exchange icons didn't (under 0.6), so theirs come from the Ritual tab."""
-    return _strip("favours_icons")
-
-
-def shipped_cells():
-    """{name: a whole Favours cell (70 x 70, 1440p)} - rewards not in the Ritual tab (templates/favours_cells.png, a
-    strip in the order favours_cells.json names them)."""
-    return _strip("favours_cells")
-
-
-def _templates():
-    import sys
-    from pathlib import Path
-    base = getattr(sys, "_MEIPASS", None)
-    return Path(base) / "soe2" / "templates" if base else Path(__file__).resolve().parent / "templates"
-
-
-def shipped_learned():
-    """2.130.0: {"top"/"box": {name: [pictures]}} - rewards learned from real Favours windows by price checking them
-    (templates/favours_learned.json: item pictures only, 48 x 48), so nobody has to teach these again."""
-    _cv2, np = _cv()
-    import json
-    out = {"top": {}, "box": {}}
-    try:
-        d = json.loads((_templates() / "favours_learned.json").read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return out
-    for mode in out:
-        for name, pics in (d.get(mode) or {}).items():
-            for b in pics:
-                try:
-                    out[mode].setdefault(name, []).append(
-                        np.frombuffer(base64.b64decode(b), np.uint8).reshape(SIDE, SIDE, 3))
-                except Exception:
-                    continue
-    return out
-
-
-def shipped_omens():
-    """{name: 70 x 70 stash slot picture} - the Ritual tab's omens (templates/favours_omens.png, a strip in the order
-    favours_omens.json names them). Pictures of items only."""
-    return _strip("favours_omens")
-
-
-def _strip(stem):
-    cv2, _np = _cv()
-    import json
-    d = _templates()
-    try:
-        names = json.loads((d / f"{stem}.json").read_text(encoding="utf-8"))
-        strip = cv2.imread(str(d / f"{stem}.png"))
-    except (OSError, ValueError):
-        return {}
-    if strip is None or not names:
-        return {}
-    w = strip.shape[1] // len(names)
-    return {n: strip[:, i * w:(i + 1) * w] for i, n in enumerate(names)}
-
-
-def belt_refs():
-    """{name: feats} of Mageblood and Headhunter (2 x 1 belts; their trade-site pictures, templates/)."""
-    cv2, _np = _cv()
-    import sys
-    from pathlib import Path
-    base = getattr(sys, "_MEIPASS", None)
-    d = Path(base) / "soe2" / "templates" if base else Path(__file__).resolve().parent / "templates"
+def unique_icons(parts=None):
+    """{unique's name: poe.ninja's picture URL} from its unique lists (WPRICES.parts' "icons")."""
+    if parts is None:
+        try:
+            from .wealth import WPRICES
+            parts = getattr(WPRICES, "parts", None)
+        except Exception:
+            parts = None
     out = {}
-    for name, fn in BELTS.items():
-        im = cv2.imread(str(d / fn))
-        if im is not None:
-            h = im.shape[0]
-            out[name] = feats(im[:int(h * TOP)])
+    for typ, p in (parts or {}).items():
+        if str(typ).startswith("Unique") and isinstance((p or {}).get("icons"), dict):
+            out.update(p["icons"])
     return out
 
 
-def star_refs():
-    """Refs of the one-cell uniques that get a ★ (STARS): their shipped picture, and pictures learned on this PC."""
-    cv2, _np = _cv()
+def belt_refs(parts=None, pic=None):
+    """{name: feats} of Mageblood and Headhunter (2 x 1 belts): poe.ninja's pictures from the art cache, drawn on two
+    cells as the game draws them (3.1: none ship). Not downloaded yet: not looked for."""
+    from . import gameart as GA
+    icons = unique_icons(parts)
+    out = {}
+    for name in BELTS:
+        u = GA.url(icons.get(name))
+        src = (pic(u) if pic else GA.cache_file(u)) if u else None
+        if src is None:
+            continue
+        im = GA.drawn(src, 2 * CELL, CELL)
+        if im is not None:
+            e = EDGE
+            out[name] = feats(im[e:int(CELL * TOP), e:2 * CELL - e])
+    return out
+
+
+def star_refs(parts=None, pic=None):
+    """Refs of the one-cell uniques that get a ★ (STARS): poe.ninja's picture of each (art cache), and pictures
+    learned on this PC."""
+    from . import gameart as GA
     refs = Refs()
-    d = _templates()
-    for name, fn in STARS.items():
-        im = cv2.imread(str(d / fn))
+    icons = unique_icons(parts)
+    for name in STARS:
+        u = GA.url(icons.get(name))
+        src = (pic(u) if pic else GA.cache_file(u)) if u else None
+        im = GA.drawn(src) if src is not None else None
         if im is None:
             continue
-        im = cv2.resize(im, (CELL, CELL), interpolation=cv2.INTER_AREA)
         e = EDGE
         refs.add(name, im[e:int(CELL * TOP), e:CELL - e], "star", "top")
         refs.add(name, art_box(im[e:CELL - e, e:CELL - e]), "star", "box")
@@ -791,6 +815,25 @@ def star_refs():
             for p in pics:
                 refs.add(name, p, "star", "box")
     return refs
+
+
+def art_urls(parts=None):
+    """3.1: every picture the Favours reader compares with - poe.ninja's exchange items and the ★ uniques (for the
+    downloader: the art cache)."""
+    from . import gameart as GA
+    if parts is None:
+        try:
+            from .wealth import WPRICES
+            parts = getattr(WPRICES, "parts", None)
+        except Exception:
+            parts = None
+    icons = unique_icons(parts)
+    urls = set(GA.missing(ninja_items(parts)))
+    for n in BELTS + STARS:
+        u = GA.url(icons.get(n))
+        if u and GA.cache_file(u) is None:
+            urls.add(u)
+    return sorted(urls)
 
 
 def find_stars(img, grid, cells, refs):

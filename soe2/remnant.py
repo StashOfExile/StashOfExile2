@@ -330,38 +330,41 @@ PARCHMENT = 0.35                  # share of the area that must look like the bo
 TITLE_MIN = 0.65                  # 2.129.0: the "Runeshape Combinations" title's match (the book 1.0, other screens <0.45)
 TITLE_AREA = (0.05, 0.04, 0.55, 0.22)   # 2.129.1: where the title is looked for (game heights from the top-left) - its
 #                                         own place: a learned reading area may start inside the title (the log)
-_TITLE = [None]
+
+
+TITLE_KEY = "remnant_title"              # gameart.screen_look: the book's title as this PC's screen showed it
 
 
 def has_title(img, game_h):
     """2.129.0 (feedback: a map's sandy ground showed the runeshape list): the book's own title, "Runeshape
-    Combinations" (templates/remnant_title.png, cut from a 1440p game), is in the picture (PIL, TITLE_AREA's grab).
-    No OpenCV or no template: True (as before - the parchment alone decides)."""
+    Combinations", is in the picture (PIL, TITLE_AREA's grab). 3.1 (no game pictures ship): learned on this PC - the
+    first time OCR reads "Runeshape" there, that piece of your screen is kept (gameart.screen_look). No OpenCV: True
+    (as before - the parchment alone decides)."""
     return title_score(img, game_h) >= TITLE_MIN
 
 
 def title_score(img, game_h):
-    """How well the title matches anywhere in the picture (0 .. 1; 1.0 = no OpenCV / no template)."""
+    """How well the learned title matches anywhere in the picture (0 .. 1; 1.0 = no OpenCV). Not learned yet: OCR
+    looks for the word and, found, keeps it (1.0)."""
     try:
         import cv2
         import numpy as np
-        if _TITLE[0] is None:
-            from pathlib import Path
-            base = getattr(sys, "_MEIPASS", None)
-            d = Path(base) / "soe2" / "templates" if base else Path(__file__).resolve().parent / "templates"
-            _TITLE[0] = cv2.imread(str(d / "remnant_title.png"), cv2.IMREAD_GRAYSCALE)
-        tpl = _TITLE[0]
-        if tpl is None:
-            return 1.0
+        from . import gameart as GA
+    except Exception:
+        return 1.0
+    try:
         a = cv2.cvtColor(np.asarray(img.convert("RGB")), cv2.COLOR_RGB2GRAY)
-        s = game_h / 1440.0
-        t = cv2.resize(tpl, None, fx=s, fy=s, interpolation=cv2.INTER_AREA) if abs(s - 1) > 0.01 else tpl
-        if a.shape[0] < t.shape[0] or a.shape[1] < t.shape[1]:
+        if GA.screen_look(TITLE_KEY) is not None:
+            return GA.match_look(a, TITLE_KEY, game_h)[0]
+        box = GA.find_word(img, ("runeshape",))
+        if box is None:
             return 0.0
-        return float(cv2.minMaxLoc(cv2.matchTemplate(a, t, cv2.TM_CCOEFF_NORMED))[1])
+        p = max(2, int(round(4 * game_h / 1440.0)))
+        GA.keep_screen_look(TITLE_KEY, a[max(0, box[1] - p):box[3] + p, max(0, box[0] - p):box[2] + p], game_h)
+        return 1.0
     except Exception:
         buglog.caught()
-        return 1.0
+        return 0.0
 
 
 def reading_area(learned):

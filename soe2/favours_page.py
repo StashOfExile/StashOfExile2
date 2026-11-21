@@ -10,6 +10,7 @@ from tkinter import font as tkfont
 
 from . import buglog
 from . import favours as FV
+from . import mapprofit as MP
 from .config import P
 from .pricefmt import fmt_short
 
@@ -37,8 +38,8 @@ class FavoursPage:
 
     # ---------------------------------------------------------------- the pictures to compare with
     def favours_refs(self, fetch=False):
-        """Build them (a background thread): the Ritual tab's omens that ship with the app, and the pictures learned
-        on this PC - poe.ninja's exchange items only."""
+        """Build them (a background thread): the pictures learned on this PC and poe.ninja's pictures in the art cache
+        (3.1: none ship with the app) - poe.ninja's exchange items only, and the ★ uniques."""
         from .wealth import WPRICES
         items = FV.ninja_items(getattr(WPRICES, "parts", None))
         self.fv_refs = FV.build_refs(items)
@@ -57,8 +58,12 @@ class FavoursPage:
         except Exception:
             ready = False
         if not ready:                                     # (no window title to look for: nothing to read - decided
-            fv_log("favours_title.png is missing from the app")    # before any picture)
+            fv_log("the Favours title isn't learned yet and no text reader (OCR) can find it")    # before any picture)
             return None
+        try:
+            self.mp_art_fetch()                           # (3.1: poe.ninja's pictures into the art cache, once)
+        except Exception:
+            buglog.caught()
         from . import screenread as SR
         g = ctx["g"]
         gx, gy, gw, gh = g
@@ -69,7 +74,7 @@ class FavoursPage:
             import numpy as np
             tpl = FV.title_template()
             if tpl is None:
-                fv_log("favours_title.png is missing from the app")
+                fv_log("the Favours title isn't learned yet and no text reader (OCR) can find it")
                 return None
             if getattr(self, "fv_refs", None) is None:
                 try:
@@ -92,6 +97,12 @@ class FavoursPage:
                 if f is None:
                     continue
                 name, sc, _m = refs.best(f)
+                if not name:                                  # 3.1: poe.ninja's picture, drawn as the game does
+                    x, y, cw, ch = FV.cell_rect(grid, r, c)
+                    whole = img[max(0, y):y + ch, max(0, x):x + cw]
+                    name = MP.look_match(whole, refs) if whole.size else None
+                    if name:
+                        sc = (refs.looks.rank(whole, 1) or [(0.0, None)])[0][0]
                 if name:
                     rows.append({"r": r, "c": c, "name": name, "score": sc, "box": FV.cell_rect(grid, r, c)})
                     known_f.append((f, name))

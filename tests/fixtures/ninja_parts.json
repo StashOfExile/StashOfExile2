@@ -1,0 +1,91 @@
+{
+ "Currency": {
+  "images": {
+   "alch": "/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvQ3VycmVuY3lVcGdyYWRlVG9SYXJlIiwic2NhbGUiOjEsInJlYWxtIjoicG9lMiJ9XQ/9b80b44821/CurrencyUpgradeToRare.png",
+   "annul": "/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvQW5udWxsT3JiIiwic2NhbGUiOjEsInJlYWxtIjoicG9lMiJ9XQ/2daba8ccca/AnnullOrb.png",
+   "chaos": "/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvQ3VycmVuY3lSZXJvbGxSYXJlIiwic2NhbGUiOjEsInJlYWxtIjoicG9lMiJ9XQ/c0ca392a78/CurrencyRerollRare.png",
+   "divine": "/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvQ3VycmVuY3lNb2RWYWx1ZXMiLCJzY2FsZSI6MSwicmVhbG0iOiJwb2UyIn1d/2986e220b3/CurrencyModValues.png",
+   "exalted": "/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvQ3VycmVuY3lBZGRNb2RUb1JhcmUiLCJzY2FsZSI6MSwicmVhbG0iOiJwb2UyIn1d/ad7c366789/CurrencyAddModToRare.png",
+   "greater-jewellers-orb": "/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvQ3VycmVuY3lSZXJvbGxTb2NrZXROdW1iZXJzMDIiLCJzY2FsZSI6MSwicmVhbG0iOiJwb2UyIn1d/7dd6ee75be/CurrencyRerollSocketNumbers02.png",
+   "lesser-jewellers-orb": "/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvQ3VycmVuY3lSZXJvbGxTb2NrZXROdW1iZXJzMDEiLCJzY2FsZSI6MSwicmVhbG0iOiJwb2UyIn1d/b0b9a43ed8/CurrencyRerollSocketNumbers01.png",
+   "regal": "/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvQ3VycmVuY3lVcGdyYWRlTWFnaWNUb1JhcmUiLCJzY2FsZSI6MSwicmVhbG0iOiJwb2UyIn1d/e8fb148e80/CurrencyUpgradeMagicToRare.png",
+   "vaal": "/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvQ3VycmVuY3lWYWFsIiwic2NhbGUiOjEsInJlYWxtIjoicG9lMiJ9XQ/72bc84396c/CurrencyVaal.png",
+   "wisdom": "/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvQ3VycmVuY3lJZGVudGlmaWNhdGlvbiIsInNjYWxlIjoxLCJyZWFsbSI6InBvZTIifV0/884f7bc58b/CurrencyIdentification.png"
+  },
+  "lines": [
+   [
+    "divine",
+    "Divine Orb",
+    1.0,
+    10
+   ],
+   [
+    "exalted",
+    "Exalted Orb",
+    1.0,
+    10
+   ],
+   [
+    "chaos",
+    "Chaos Orb",
+    1.0,
+    10
+   ],
+   [
+    "alch",
+    "Orb of Alchemy",
+    1.0,
+    10
+   ],
+   [
+    "annul",
+    "Orb of Annulment",
+    1.0,
+    10
+   ],
+   [
+    "lesser-jewellers-orb",
+    "Lesser Jeweller's Orb",
+    1.0,
+    10
+   ],
+   [
+    "regal",
+    "Regal Orb",
+    1.0,
+    10
+   ],
+   [
+    "greater-jewellers-orb",
+    "Greater Jeweller's Orb",
+    1.0,
+    10
+   ],
+   [
+    "vaal",
+    "Vaal Orb",
+    1.0,
+    10
+   ],
+   [
+    "wisdom",
+    "Scroll of Wisdom",
+    1.0,
+    10
+   ]
+  ],
+  "names": {
+   "alch": "Orb of Alchemy",
+   "annul": "Orb of Annulment",
+   "chaos": "Chaos Orb",
+   "divine": "Divine Orb",
+   "exalted": "Exalted Orb",
+   "greater-jewellers-orb": "Greater Jeweller's Orb",
+   "lesser-jewellers-orb": "Lesser Jeweller's Orb",
+   "regal": "Regal Orb",
+   "vaal": "Vaal Orb",
+   "wisdom": "Scroll of Wisdom"
+  },
+  "primary": "divine"
+ }
+}

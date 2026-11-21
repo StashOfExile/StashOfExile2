@@ -1,5 +1,5 @@
-"""Top Up Reminders' Items window (3.0.6): plain words, the item picker with the app's own pictures, a read counts items
-by those pictures (nothing is taught - the teach key is gone)."""
+"""Top Up Reminders' Items window (3.0.6): plain words, the item picker with poe.ninja's pictures (3.1: from the art
+cache - none ship with the app), a read counts items by those pictures (nothing is taught - the teach key is gone)."""
 import os
 import sys
 import tempfile
@@ -12,6 +12,8 @@ os.environ["HOME"] = os.environ["APPDATA"] = HOME
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from soe2 import topup as TU  # noqa: E402
 from soe2.config import SETTINGS  # noqa: E402
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import artfixture  # noqa: E402
 
 
 def words(w):
@@ -36,6 +38,7 @@ class ItemsWindow(unittest.TestCase):
         from soe2 import style as S
         from soe2 import themes as TH
         S.apply_look(TH.DEFAULT, cls.root)
+        artfixture.install()                  # poe.ninja's prices for a few items, their pictures downloaded
 
     @classmethod
     def tearDownClass(cls):
@@ -55,11 +58,12 @@ class ItemsWindow(unittest.TestCase):
         self.root.update()
 
     def test_display_icons_are_not_the_recognition_refs(self):
-        """The window DRAWS poe.ninja's icons (fallback: the shipped crop); a read names cells with its own refs."""
+        """The window DRAWS poe.ninja's icons (the art cache); a read names cells with its own refs."""
         import inspect
         from soe2 import mapprofit as MP
         a = self.make([{"name": "Exalted Orb", "keep": 20}])
-        self.assertTrue(a.tu_display(24)("Exalted Orb") is not None)          # (the crop stands in when nothing cached)
+        self.assertTrue(a.tu_display(24)("Exalted Orb") is not None)          # (downloaded: in the art cache)
+        self.assertIsNone(a.tu_display(24)("Not In The Game"), "no picture: the name stands in")
         self.assertIs(a.tu_display(24), a.tu_display(24))
         refs_src = inspect.getsource(a.tu_refs)
         self.assertIn("build_refs", refs_src)
@@ -106,9 +110,9 @@ class ItemsWindow(unittest.TestCase):
         w = a.topup_items()
         self.pump()
         pick = a.tu_add_pick                                  # (empty list: the picker is open already)
-        self.assertGreater(len(pick.names), 500)
+        self.assertEqual(len(pick.names), 10, "every item poe.ninja sends a picture for")
         self.assertIn("Exalted Orb", pick.names)
-        self.assertIsNotNone(pick.icon("Exalted Orb"), "the app's own picture")
+        self.assertIsNotNone(pick.icon("Exalted Orb"), "poe.ninja's picture, from the art cache")
         pick.entry.focus_force()
         pick.var.set("exalt")
         pick.open()

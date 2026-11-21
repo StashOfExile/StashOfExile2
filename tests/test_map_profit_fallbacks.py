@@ -203,9 +203,10 @@ class StashPictures(unittest.TestCase):
         refs.stash = {"Vaal Cultivation Orb": self.icon(a), "Architect's Orb": self.icon(art(34))}
         self.assertIsNone(MP.fv_match(cell_of(a), refs), "two pictures disagree: never a guess")
 
-    def test_shipped_ones_load(self):
+    def test_none_ship(self):
+        # 3.1 (GGG ToS 7a): wildcard pictures are only those you named on this PC
         from soe2 import stashread as SR
-        self.assertIn("Vaal Cultivation Orb", SR.learned_icons())
+        self.assertEqual(SR.learned_icons(), {})
 
 
 class ExchangeIconChecks(unittest.TestCase):
@@ -258,12 +259,15 @@ class ArtDownloads(unittest.TestCase):
         parts = {"Currency": {"names": {"a": "Alpha", "b": "Beta"}, "images": {"a": "/a.png", "b": "/b.png"}}}
         page = MapProfitPage()
         page.root = object()
+        from soe2 import gameart as GA
+        from soe2.pricecheck_page import WAYSTONE_ICON
         with mock.patch.object(rates_view, "Icons", FakeIcons), \
                 mock.patch("soe2.wealth.WPRICES", mock.Mock(parts=parts)), \
-                mock.patch.object(FV, "art_cache_file", lambda u: "x" if u.endswith("/a.png") else None):
+                mock.patch.object(GA, "cache_file", lambda u: "x" if u.endswith("/a.png") else None):
             page.mp_art_fetch()
             page.mp_art_fetch()
-        self.assertEqual(asked, [("https://web.poecdn.com/b.png", ART_GAP)])
+        self.assertEqual(asked, [("https://web.poecdn.com/b.png", ART_GAP), (WAYSTONE_ICON, ART_GAP)],
+                         "every missing picture the readers compare with, once (the waystone too)")
         page.mp_refs_at = 5
         page._mp_art_ready()
         self.assertEqual(page.mp_refs_at, 0, "built again on the next Read Key press")

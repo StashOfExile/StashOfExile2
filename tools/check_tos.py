@@ -28,7 +28,13 @@ GGG's developer guidelines (https://www.pathofexile.com/developer/docs/index#gui
     in Documents, My Games); only soe2/ritual_filter.py names it, to show words and open the folder. Client.txt in the
     install / log folder is the one game file that is read.
   - the exact notice NOTICE in README.md and on Settings › About (soe2/about_page.py)
-  - the User-Agent (config.APP_UA) says how to reach the project: "(contact: ...)"."""
+  - the User-Agent (config.APP_UA) says how to reach the project: "(contact: ...)".
+GGG ToS 7(a) - no redistributing game content (3.1): no game art is bundled. Item pictures come at runtime from the
+image links poe.ninja / the trade site send (the game's image server), cached on the player's PC (soe2/gameart.py):
+  - no picture file (.png .jpg .jpeg .gif .webp .bmp .dds) anywhere in soe2/ (the bundled package), no soe2/templates
+    folder and no *_icons.json picture fingerprints there
+  - nothing the builds bundle (--add-data in build_exe.bat, build_linux.sh, .github/workflows/release.yml) is a
+    picture or a folder holding one - only the app's own icon (stashofexile2.ico, an original drawing)."""
 import ast
 import glob
 import os
@@ -316,6 +322,48 @@ def guidelines():
     return bad
 
 
+PICTURES = (".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".dds")
+OWN_ART = {"stashofexile2.ico"}                             # the app's icon: an original drawing (tools/make_icon.py)
+BUILDS = ("build_exe.bat", "build_linux.sh", os.path.join(".github", "workflows", "release.yml"))
+
+
+def _pictures_in(path):
+    if os.path.isfile(path):
+        return [path] if path.lower().endswith(PICTURES) else []
+    out = []
+    for d, _sub, fs in os.walk(path):
+        out += [os.path.join(d, f) for f in fs if f.lower().endswith(PICTURES)]
+    return out
+
+
+def game_art():
+    """GGG ToS 7(a): no game art bundled - pictures are downloaded at runtime (gameart.py)."""
+    bad = []
+    pkg = os.path.join(ROOT, "soe2")
+    for p in _pictures_in(pkg):
+        bad.append(f"{os.path.relpath(p, ROOT)}: a picture in the bundled package (game art must not ship - load it "
+                   f"from the game's image server at runtime, soe2/gameart.py)")
+    if os.path.isdir(os.path.join(pkg, "templates")):
+        bad.append("soe2/templates: game art crops must not ship")
+    for p in glob.glob(os.path.join(pkg, "**", "*_icons.json"), recursive=True):
+        bad.append(f"{os.path.relpath(p, ROOT)}: picture fingerprints of the game must not ship")
+    for rel in BUILDS:
+        try:
+            text = open(os.path.join(ROOT, rel), encoding="utf-8").read()
+        except OSError:
+            continue
+        for src in re.findall(r'--add-data\s+"([^";:]+)[;:]', text):
+            src = src.replace("\\", os.sep).replace("/", os.sep)
+            if os.path.basename(src) in OWN_ART:
+                continue
+            if "templates" in src.split(os.sep):
+                bad.append(f"{rel}: bundles {src} (game art must not ship)")
+                continue
+            for p in _pictures_in(os.path.join(ROOT, src)):
+                bad.append(f"{rel}: bundles {os.path.relpath(p, ROOT)} - a picture (game art must not ship)")
+    return bad
+
+
 def check():
     bad, trees, srcs = [], [], {}
     for path in files():
@@ -361,6 +409,7 @@ def check():
     bad += [f"{rel}:{ln}: {what}" for rel, ln, what in key_blocking(trees, srcs)]
     bad += [f"{rel}:{ln}: {what}" for rel, ln, what in game_files(trees, srcs)]
     bad += guidelines()
+    bad += game_art()
     return bad
 
 

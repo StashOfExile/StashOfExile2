@@ -3,8 +3,8 @@
 Each listing: the base type's picture in its own column, in the middle of it (a rounded placeholder until it
 arrives); beside it the item's name as the card's title (the unique's or the rare's name, in its rarity color) with the
 base type muted next to it (under it when there's no room), "item level 82 · listed 1 d ago" muted under that; on the
-right the price as the trade site has it - "2000 ×" and the currency's picture (the app's own Currency Exchange
-pictures, rates_view.LocalIcons - nothing fetched; its name in words when there is no picture, and on hover) - with the
+right the price as the trade site has it - "2000 ×" and the currency's picture (poe.ninja's, from the art cache that
+Exchange Rates fills - 3.1: no game pictures ship; its name in words when there is no picture, and on hover) - with the
 "▸ Whole item" toggle under it; then the mods one per line (the tier tags in one column, the text in its mod color)
 and the flags as chips. Whole item opens the item inside that card in the item card's own order and words
 (names.CARD_SECTIONS): BASE AND PROPERTIES, REQUIREMENTS, AUGMENTS, ITEM FLAGS, MODS, PSEUDO FILTERS - only the
@@ -81,10 +81,10 @@ def scale_for(app, v):
 
 
 def cur_icon(app, cur, k=1.0):
-    """The currency's picture: poe.ninja's clean icon from the art cache Exchange Rates fills (the same downloads and
-    rules as there; 3.0.6, owner: the shipped crops looked rough), else the shipped Currency Exchange crop. Or None."""
+    """The currency's picture: poe.ninja's icon from the art cache Exchange Rates fills (the same downloads and rules as
+    there), or None - its name stands in (3.1, GGG ToS 7a: no game pictures ship with the app)."""
     from .pricecheck_page import cur_label
-    from .rates_view import Icons, LocalIcons, picture_paths, url_for
+    from .rates_view import Icons, picture_paths, url_for
     size = max(14, int(round(CUR_PX * k)))
     box = app.__dict__.setdefault("_lc_cur_icons", {})
     if size not in box:
@@ -96,15 +96,15 @@ def cur_icon(app, cur, k=1.0):
                         fn()
                     except Exception:
                         pass
-        box[size] = (Icons(app.root, ready, size=size), LocalIcons(app.root, size=size), {"paths": None, "at": 0.0})
-    icons, local, st = box[size]
+        box[size] = (Icons(app.root, ready, size=size), {"paths": None, "at": 0.0})
+    icons, st = box[size]
     try:
         import time as _t
         if st["paths"] is None or _t.time() - st["at"] > 60:
             st["paths"], st["at"] = picture_paths(), _t.time()
         name = cur_label(cur)
         url = url_for(cur, st["paths"]) or url_for(name, st["paths"])
-        return (icons.get(url) if url else None) or local.get(name)
+        return icons.get(url) if url else None
     except Exception:
         return None
 

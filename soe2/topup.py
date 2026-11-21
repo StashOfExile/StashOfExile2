@@ -1,15 +1,17 @@
 """2.131.0 Top Up Reminders (plan: "tells you what's running low in your inventory - reads only while your inventory is
-open"): you pick an item from the Item list and set how many to keep; the app knows its picture already (the Currency
-Exchange's own pictures, shipped with it). When you read your inventory in your hideout or a town and you
-have fewer, one alert card says so ("Exalted Orb 7 / 20").
+open"): you pick an item from the Item list and set how many to keep; the app knows its picture already (poe.ninja's
+picture of it, downloaded once into the art cache - 3.1: no game pictures ship with the app). When you read your
+inventory in your hideout or a town and you have fewer, one alert card says so ("Exalted Orb 7 / 20").
 
 How it reads (pixels of your screen, like any capture tool):
-- the inventory is open when its "Inventory" title is at the top right (templates/topup_banner.png, cut from a 1440p
-  game; other screens score under 0.25),
+- the inventory is open when its "Inventory" title is at the top right. The first time, OCR reads the word there and
+  that piece of YOUR screen is kept (gameart.screen_look, only on this PC); later reads match it (other screens
+  score under 0.4; owner's 126 screenshots: 18 of 18 inventories found, no other screen),
 - the 12 x 5 grid sits at a fixed place for the game's height (GRID, measured on 1440p),
 - each cell is compared by its picture (a small color thumbnail, the stack count's corner left out, the cell's own
   backing subtracted so a hover's glow doesn't matter) - the same item scores under SAME, others over 25,
-- a stack's count is read from its top-left digits (templates/topup_digit_N.png; Windows' OCR if a digit is unknown).
+- a stack's count is read from its top-left digits: shapes learned on this PC - each time OCR reads a count no learned
+  shape knows, its digits' shapes are kept (topup.json), so OCR is needed less and less.
 Nothing is sent anywhere. GGG ToS: one screenshot per Read Key press - nothing is sent to the game."""
 import base64
 import re
@@ -57,12 +59,6 @@ def _cv():
     return cv2, np
 
 
-def _templates():
-    from pathlib import Path
-    base = getattr(sys, "_MEIPASS", None)
-    return Path(base) / "soe2" / "templates" if base else Path(__file__).resolve().parent / "templates"
-
-
 # ---------------------------------------------------------------- where things are
 def grid_rect(game):
     """Game (x, y, w, h) on screen -> the inventory grid's (left, top, right, bottom) on screen."""
@@ -77,14 +73,8 @@ def banner_rect(game):
     return (int(x + w - BANNER[0] * h), int(y + BANNER[1] * h), int(x + w), int(y + BANNER[2] * h))
 
 
-_TPL = {}
-
-
-def _tpl(name, flag=None):
-    if name not in _TPL:
-        cv2, _np = _cv()
-        _TPL[name] = cv2.imread(str(_templates() / name), cv2.IMREAD_GRAYSCALE if flag is None else flag)
-    return _TPL[name]
+BANNER_KEY = "inventory_title"          # gameart.screen_look: the inventory's title as this PC's screen showed it
+BANNER_WORDS = ("inventory",)
 
 
 def is_open(img, game_h):
@@ -93,17 +83,21 @@ def is_open(img, game_h):
 
 
 def open_score(img, game_h):
+    """How well the inventory's title learned on this PC matches (0 .. 1). Not learned yet: OCR looks for the word
+    and, found, keeps that piece of the picture (1.0) - 3.1, no picture of the game ships with the app."""
     try:
         cv2, np = _cv()
-        tpl = _tpl("topup_banner.png")
-        if tpl is None:
-            return 0.0
+        from . import gameart as GA
         a = cv2.cvtColor(np.asarray(img.convert("RGB")), cv2.COLOR_RGB2GRAY)
-        s = game_h / 1440.0
-        t = cv2.resize(tpl, None, fx=s, fy=s, interpolation=cv2.INTER_AREA) if abs(s - 1) > 0.01 else tpl
-        if a.shape[0] < t.shape[0] or a.shape[1] < t.shape[1]:
+        if GA.screen_look(BANNER_KEY) is not None:
+            return GA.match_look(a, BANNER_KEY, game_h)[0]
+        box = GA.find_word(img, BANNER_WORDS)
+        if box is None:
             return 0.0
-        return float(cv2.minMaxLoc(cv2.matchTemplate(a, t, cv2.TM_CCOEFF_NORMED))[1])
+        p = max(2, int(round(4 * game_h / 1440.0)))
+        crop = a[max(0, box[1] - p):box[3] + p, max(0, box[0] - p):box[2] + p]
+        GA.keep_screen_look(BANNER_KEY, crop, game_h)
+        return 1.0
     except Exception:
         buglog.caught()
         return 0.0
@@ -164,16 +158,13 @@ def _white(cell):
     return (((a.min(2) > 165) & ((a.max(2) - a.min(2)) < 50)) * 255).astype(np.uint8)
 
 
+DIGITS_KEPT = 3                         # learned shapes kept per digit
+
+
 def digit_templates():
-    """{digit: binary picture at 1440p} - shipped ones, plus those learned on this PC."""
-    cv2, np = _cv()
+    """{digit: [binary picture at 1440p]} learned on this PC (3.1: none ship - OCR teaches them, keep_digits)."""
+    _cv2, np = _cv()
     out = {}
-    for d in "0123456789":
-        for name in (f"topup_digit_{d}.png", f"topup_digit_{d}b.png"):     # (3.0.6: a second, thinner drawing
-            if (_templates() / name).exists():                              # where one picture missed: a 3 read
-                t = _tpl(name)                                              # as 5)
-                if t is not None:
-                    out.setdefault(d, []).append(t)
     for d, pics in ((load_json(LEARN_FILE, {}) or {}).get("digits") or {}).items():
         for p in pics:
             try:
@@ -182,6 +173,36 @@ def digit_templates():
             except Exception:
                 continue
     return out
+
+
+def keep_digits(cell, count):
+    """A cell whose count OCR read -> its digits' shapes kept (topup.json "digits", at 1440p, DIGITS_KEPT each), so the
+    next read knows them without OCR. Only when the count's digits stand apart (one shape a digit). -> how many."""
+    cv2, np = _cv()
+    text = str(int(count)) if count is not None and int(count) > 0 else ""
+    if not text or len(text) > 4:
+        return 0
+    n = cell.width
+    run, m = digit_run(cell)
+    if len(run) != len(text):
+        return 0
+    band = (m * 255).astype(np.uint8)
+    k = 70.2 / n
+    d = load_json(LEARN_FILE, {}) or {}
+    digs = d.setdefault("digits", {})
+    added = 0
+    for ch, (x, y, w, h) in zip(text, run):
+        pic = np.zeros((h + 2, w + 2), np.uint8)
+        pic[1:-1, 1:-1] = band[y:y + h, x:x + w]
+        if abs(k - 1) > 0.02:
+            pic = ((cv2.resize(pic, None, fx=k, fy=k, interpolation=cv2.INTER_AREA) > 127) * 255).astype(np.uint8)
+        b = base64.b64encode(np.ascontiguousarray(pic).tobytes()).decode()
+        lst = [x_ for x_ in digs.get(ch, []) if x_[2] != b]
+        digs[ch] = (lst + [[int(pic.shape[0]), int(pic.shape[1]), b]])[-DIGITS_KEPT:]
+        added += 1
+    if added:
+        save_json(LEARN_FILE, d)
+    return added
 
 
 def _band(cell):
@@ -214,7 +235,7 @@ def _read(cell, tpls=None):
     tpls = digit_templates() if tpls is None else tpls
     k = n / 70.2
     hits = []                                      # (score, x, y, w, digit)
-    # away from 1440p the game's digits are a little thinner than the shipped ones scaled (1080p: a 7 scores 0.58 at
+    # away from 1440p the game's digits are a little thinner than 1440p ones scaled (1080p: a 7 scores 0.58 at
     # the plain scale, 0.68 at 0.9 of it): a second, slightly smaller size is tried there too
     for f in ((1.0,) if abs(k - 1) <= 0.02 else (1.0, 0.9)):
         for d, pics in tpls.items():
@@ -250,19 +271,52 @@ def _read(cell, tpls=None):
     return int("".join(p[4] for p in run)), True, True
 
 
+def digit_run(cell):
+    """The count's digits alone: the digit-sized white shapes on one line from the count's place (the item's own
+    white highlights left out) -> [(x, y, w, h)] left to right, and the band's mask of only them."""
+    cv2, np = _cv()
+    band, _x0, _y0 = _band(cell)
+    n = cell.width
+    k, lab, st, _c = cv2.connectedComponentsWithStats((band > 0).astype(np.uint8), 8)
+    keep = sorted((i for i in range(1, k) if 0.15 * n <= st[i][3] <= 0.27 * n and 0.02 * n <= st[i][2] <= 0.2 * n),
+                  key=lambda i: st[i][0])
+    if not keep or st[keep[0]][0] > 0.22 * n:
+        return [], None
+    run = [keep[0]]
+    for i in keep[1:]:
+        if abs(st[i][1] - st[run[0]][1]) <= max(2, 0.06 * n) and \
+                st[i][0] - (st[run[-1]][0] + st[run[-1]][2]) <= 0.06 * n:
+            run.append(i)
+    return [tuple(int(v) for v in st[i][:4]) for i in run], np.isin(lab, run)
+
+
 def ocr_count(cell):
-    """Windows' OCR on the count's corner (a digit no template knows) -> count or None."""
+    """OCR on the count's digits alone (a digit no learned shape knows) -> count, or None. 3.1: only when it reads as
+    many digits as there are shapes (a "17" read as "7" is no count - and never teaches a wrong shape)."""
     try:
+        import sys
         from PIL import Image
-        from . import remnant as _R
-        band, _x, _y = _band(cell)
-        img = Image.fromarray(255 - band).resize((band.shape[1] * 3, band.shape[0] * 3))
+        _cv2, np = _cv()
+        run, m = digit_run(cell)
+        if not run:
+            return None
+        img = Image.fromarray(np.where(m, 0, 255).astype(np.uint8))
+        img = img.resize((img.width * 3, img.height * 3), Image.LANCZOS)
         canvas = Image.new("L", (img.width + 40, img.height + 40), 255)
         canvas.paste(img, (20, 20))
-        for text, _box in _R.ocr(canvas.convert("RGB")):
-            m = re.fullmatch(r"\s*(\d{1,4})\s*", text.replace("O", "0").replace("o", "0").replace("l", "1"))
-            if m:
-                return int(m.group(1))
+        if sys.platform == "win32":
+            from . import remnant as _R
+            lines = _R.ocr(canvas.convert("RGB"))
+        else:
+            from . import ocrengine
+            if ocrengine.problem():
+                return None
+            lines = ocrengine.tesseract(canvas, prepped=True, psm="7")
+        for text, _box in lines:
+            t = text.replace("O", "0").replace("o", "0").replace("l", "1").replace("I", "1")
+            mm = re.fullmatch(r"\s*(\d{1,4})\s*", t)
+            if mm and len(mm.group(1)) == len(run):
+                return int(mm.group(1))
     except Exception:
         return None
     return None
@@ -282,6 +336,11 @@ def scan(grid_img, tpls=None, ocr=None):
             n2 = (ocr or ocr_count)(cell)
             if n2 is not None:
                 n, sure = n2, True
+                try:
+                    if keep_digits(cell, n2):
+                        tpls = digit_templates()           # (the next cells know these digits)
+                except Exception:
+                    buglog.caught()
         out.append({"cell": rc, "sig": sig(cell), "count": n, "sure": sure, "shown": shown, "img": cell})
     return out
 

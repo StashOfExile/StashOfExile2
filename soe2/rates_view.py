@@ -34,55 +34,71 @@ KIND_LABEL = {"Currency": "Currency", "Fragments": "Fragments", "Abyss": "Abyss"
 
 
 class LocalIcons:
-    """The game's own Currency Exchange pictures, shipped with the app (templates/exchange_icons.png + .json, cut from
-    the user's screenshots of its lists) - no download. {name: PhotoImage}, made on first use."""
+    """Pictures already in the art cache, by item name (3.1, GGG ToS 7a: no game art ships with the app): poe.ninja's
+    pictures - the image links it sends with its prices, from the game's own image server - downloaded once by
+    Icons (Exchange Rates, Top Up, Map Profit ...) and kept only on this PC. Nothing is downloaded here: no picture
+    yet = None, and the item's name stands in. {name: PhotoImage}, made on first use."""
+
+    REFRESH = 60                                 # seconds: the names poe.ninja sent pictures for are looked at again
 
     def __init__(self, root, size=ICON):
-        self.root, self.size, self.cache, self.idx, self.im, self._names = root, size, {}, None, None, []
+        self.root, self.size, self.cache, self._map, self._at = root, size, {}, None, 0.0
 
-    def _load(self):
-        import json
-        import sys
-        from pathlib import Path
-        base = getattr(sys, "_MEIPASS", None)
-        d = Path(base) / "soe2" / "templates" if base else Path(__file__).resolve().parent / "templates"
-        try:
-            names = json.loads((d / "exchange_icons.json").read_text(encoding="utf-8"))
-            from PIL import Image
-            self.im = Image.open(d / "exchange_icons.png").convert("RGB")
-            self.idx = {str(n).lower(): i for i, n in enumerate(names)}
-            self._names = [str(n) for n in names]
-        except Exception:
-            self.idx, self.im, self._names = {}, None, []
+    def _names(self):
+        """{lower-case name: (name, picture URL)} - every item poe.ninja sent a picture link for."""
+        if self._map is None or time.time() - self._at > self.REFRESH:
+            out = {}
+            try:
+                from .rates import RATES
+                from .wealth import WPRICES
+                for part in (WPRICES.parts or {}).values():
+                    if not isinstance(part, dict):
+                        continue
+                    imgs, names = part.get("images") or {}, part.get("names") or {}
+                    for cid, path in imgs.items():
+                        n, u = names.get(cid), image_url(path)
+                        if n and u:
+                            out.setdefault(str(n).lower(), (str(n), u))
+                rn = getattr(RATES, "names", {}) or {}
+                for cid, path in (getattr(RATES, "images", {}) or {}).items():
+                    n, u = rn.get(cid), image_url(path)
+                    if n and u:
+                        out.setdefault(str(n).lower(), (str(n), u))
+            except Exception:
+                buglog.caught()
+            self._map, self._at = out, time.time()
+        return self._map
 
     def names(self):
-        """Every item the app has a picture for, in the game's spelling."""
-        if self.idx is None:
-            self._load()
-        return list(self._names)
+        """Every item poe.ninja sends a picture for, in the game's spelling."""
+        return sorted(n for n, _u in self._names().values())
 
     def has(self, name):
-        if self.idx is None:
-            self._load()
-        return str(name or "").lower() in self.idx
+        return str(name or "").lower() in self._names()
 
     def get(self, name):
-        if self.idx is None:
-            self._load()
-        k = str(name or "").lower()
-        if k in self.cache:
-            return self.cache[k]
-        i = self.idx.get(k)
-        ph = None
-        if i is not None and self.im is not None:
-            try:
-                from PIL import ImageTk
-                h = self.im.size[1]
-                tile = self.im.crop((i * h + 3, 3, (i + 1) * h - 3, h - 3)).resize((self.size, self.size))
-                ph = ImageTk.PhotoImage(tile, master=self.root)
-            except Exception:
-                ph = None
-        self.cache[k] = ph
+        got = self._names().get(str(name or "").lower())
+        if not got:
+            return None
+        url = got[1]
+        if url in self.cache:
+            return self.cache[url]
+        from . import gameart as GA
+        p = GA.cache_file(url)
+        if p is None:
+            return None                          # (not downloaded yet: looked for again next time)
+        try:
+            from PIL import Image, ImageTk
+            im = Image.open(p).convert("RGBA")
+            im.thumbnail((self.size, self.size))
+            if im.size != (self.size, self.size):
+                sq = Image.new("RGBA", (self.size, self.size), (0, 0, 0, 0))
+                sq.paste(im, ((self.size - im.size[0]) // 2, (self.size - im.size[1]) // 2), im)
+                im = sq
+            ph = ImageTk.PhotoImage(im, master=self.root)
+        except Exception:
+            ph = None
+        self.cache[url] = ph
         return ph
 
 
@@ -112,7 +128,7 @@ class Icons:
     """Small currency pictures: from the art cache, else fetched in the background by ONE worker, one at a time;
     on_ready() runs (on the window's thread, at most once a second) once new ones arrive. 3.0.3: it was a thread and
     a timer per picture - hundreds at once froze the app; after a few failures in a row (no internet, a blocked
-    certificate) it stops asking until the app restarts, and the shipped pictures stand in."""
+    certificate) it stops asking until the app restarts, and the items' names stand in (3.1: no pictures ship)."""
 
     GIVE_UP = 5                                  # failures in a row before the downloads stop
 
@@ -247,7 +263,6 @@ class RatesList(tk.Frame):
         self.app, self.sort, self.hover, self.kind = app, SORTS[0], None, "All"
         self.icons = Icons(app.root, lambda: self.paint())
         app._drawer_look_hooks = getattr(app, "_drawer_look_hooks", []) + [lambda on: self.paint()]
-        self.local = LocalIcons(app.root)
         self._loading = False
         bar = tk.Frame(self, bg=C["panel"], padx=16, pady=12)
         bar.pack(fill="x")
@@ -483,8 +498,8 @@ class RatesList(tk.Frame):
                     TH.round_rect(cv, 0, y0 + 3, W, y0 + ROW_H - 3, 10,
                                   fill=t.c("hover", t.c("surface_high")) if i == self.hover else raised, outline=line)
                 cy = y0 + ROW_H // 2
-                img = self.icons.get(url) or self.local.get(name)    # poe.ninja's clean picture; the game's own
-                                                                          # (from screenshots) only until it loads
+                img = self.icons.get(url)                  # poe.ninja's picture (art cache); its first letter until
+                #                                            it's downloaded (3.1: no pictures ship with the app)
                 if img is not None:
                     cv.create_image(14 + ICON // 2, cy, image=img)
                 else:

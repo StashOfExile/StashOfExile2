@@ -77,8 +77,14 @@ class MedallionAlign(unittest.TestCase):
         self.assertLessEqual(abs(dx + 24), M.ALIGN_STEP)   # (identify_at looks round it)
         self.assertLessEqual(abs(dy - 18), M.ALIGN_STEP)
 
-    def test_new_seeds_ship(self):
+    def test_no_seeds_ship(self):
+        # 3.1 (GGG ToS 7a): no medallion pictures ship - each is learned on this PC the first time it's hovered
+        import json
+        import tempfile
         from soe2 import medallions as M
-        icons = M.known_icons()
-        self.assertIn("Uromoti's Medallion: Alchemy Lab", icons)
-        self.assertIn("Zantipi's Medallion", icons)
+        self.assertEqual(M.known_icons(), {})
+        with tempfile.TemporaryDirectory() as d:
+            p = os.path.join(d, "medallion_icons_v2.json")
+            M.learn(p, "Zantipi's Medallion", [0.5, 0.5])
+            self.assertIn("Zantipi's Medallion", M.known_icons(p))
+            self.assertEqual(list(json.load(open(p))), ["Zantipi's Medallion"])

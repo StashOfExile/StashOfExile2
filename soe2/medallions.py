@@ -7,8 +7,8 @@ when that room pays at tier 3 (Corruption Chamber, Sacrificial Chamber, Thaumatu
 
 The hand is learned, not guessed: hover a medallion in the panel and its tooltip's name is read with the slot under
 the mouse; that slot's picture is kept (medallion_icons.json in your data folder: pictures of icons, nothing else),
-so the next time the panel opens each slot is known by its picture. Two are known from the start (the lock and the
-upgrade arrow)."""
+so the next time the panel opens each slot is known by its picture. 3.1 (GGG ToS 7a: no game pictures ship): none
+is known from the start - each medallion is learned the first time you hover it."""
 import json
 import os
 import re
@@ -238,7 +238,6 @@ def feat(img, inner=True):
     return v / (np.linalg.norm(v) + 1e-9)
 
 
-SEEDS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "templates", "medallion_icons.json")
 MATCH = 0.86
 MARGIN = 0.04
 
@@ -253,7 +252,8 @@ def _load(path):
 
 
 def known_icons(user_path=None):
-    out = _load(SEEDS)
+    """{name: [pictures]} learned on this PC (user_path) - none ship with the app."""
+    out = {}
     for k, vs in (_load(user_path) if user_path else {}).items():
         out.setdefault(k, []).extend(vs)
     return out

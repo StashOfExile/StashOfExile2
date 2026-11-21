@@ -28,6 +28,35 @@ def tearDownModule():
 
 
 PRICES = {"Exalted Orb": 0.002, "Divine Orb": 1.0, "Vaal Orb": 0.001}
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import artfixture  # noqa: E402
+WAYSTONE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "waystone_cell.png")
+
+
+def digit_cell(text, size=70):
+    """An inventory cell (PIL) with a stack number drawn white with a dark outline at its top left, like the game."""
+    from PIL import Image, ImageDraw, ImageFont
+    im = Image.new("RGB", (size, size), (14, 10, 30))
+    d = ImageDraw.Draw(im)
+    d.ellipse((22, 22, 60, 60), fill=(150, 90, 40))
+    if text:
+        try:
+            f = ImageFont.truetype("DejaVuSans-Bold.ttf", 17)
+        except OSError:
+            f = ImageFont.load_default()
+        x = 4
+        for ch in text:                                   # (one shape a digit, as the game spaces them)
+            d.text((x, 3), ch, font=f, fill=(240, 240, 240), stroke_width=1, stroke_fill=(0, 0, 0))
+            x += 11
+    return im
+
+
+def grid_of(cell):
+    """A 12 x 5 grid (PIL) whose top-left cell is this one, the rest empty."""
+    from PIL import Image
+    g = Image.new("RGB", (cell.width * TU.COLS, cell.height * TU.ROWS), (0, 0, 0))
+    g.paste(cell, (0, 0))
+    return g
 
 
 class App(MapProfitPage):
@@ -131,15 +160,11 @@ class LearnedItems(unittest.TestCase):
         self.assertEqual(MP.grade(["Greater Orb of Augmentation", "Perfect Regal Orb"], "III", known),
                          ["Perfect Regal Orb"])
 
-    def test_six_is_read(self):
+    def test_no_digit_ships(self):
+        # 3.1 (GGG ToS 7a): the digits' shapes are learned on this PC (OCR teaches them), none ship
         from soe2 import topup as TU
-        self.assertIn("6", TU.digit_templates())
-
-    def test_every_digit_ships(self):
-        # (a stack of 5 was read as 3: there was no picture of a 5)
-        from soe2 import topup as TU
-        TU._TPL.clear()
-        self.assertEqual(sorted(TU.digit_templates()), list("0123456789"))
+        self.assertEqual(TU.digit_templates(), {})
+        self.assertFalse(os.path.exists(os.path.join(os.path.dirname(TU.__file__), "templates")))
 
 
 class Restart(unittest.TestCase):
@@ -191,15 +216,21 @@ class Waystones(unittest.TestCase):
     def test_roman(self):
         self.assertEqual([MP.roman(x) for x in ("XV", "XIV", "IX", "XVI", "", "Q")], [15, 14, 9, 16, None, None])
 
-    def test_the_shipped_waystone_is_tier_15(self):
+    def test_a_waystone_is_tier_15(self):
+        # (a real T15 cell; first by its red tier letters alone, then by the trade site's picture once downloaded)
         from PIL import Image
-        from soe2.topup import _templates
-        self.assertEqual(MP.waystone_tier(Image.open(_templates() / "waystone_cell.png")), 15)
+        from soe2 import config
+        MP._WAY.clear()
+        self.assertEqual(MP.waystone_tier(Image.open(WAYSTONE)), 15)
+        artfixture.download_waystone(config.P("art"))
+        MP._WAY.clear()
+        self.assertIsNotNone(MP._waystone_ref())
+        self.assertEqual(MP.waystone_tier(Image.open(WAYSTONE)), 15)
+        self.assertIsNone(MP.waystone_tier(digit_cell("")), "not a waystone")
 
     def test_counted_by_tier_with_no_number(self):
         from PIL import Image
-        from soe2.topup import _templates
-        cell = {"sig": None, "count": 1, "shown": False, "img": Image.open(_templates() / "waystone_cell.png")}
+        cell = {"sig": None, "count": 1, "shown": False, "img": Image.open(WAYSTONE)}
         self.assertEqual(MP.identify([cell], {}, refs=None)[0], {"Waystone (Tier 15)": 1})
 
 
@@ -213,11 +244,11 @@ class FavoursLookAlikes(unittest.TestCase):
         self.assertEqual(FV.maybe_names(top), ["Omen of Resurgence", "Omen of Sinistral Erasure"])
         self.assertEqual(FV.maybe_names([(0.5, "X", "learned")]), [])
 
-    def test_sinistral_erasure_ships(self):
+    def test_no_pictures_ship(self):
+        # 3.1 (GGG ToS 7a): Favours reads with pictures learned on this PC and poe.ninja's (art cache) only
         from soe2 import favours as FV
-        sl = FV.shipped_learned()
-        self.assertIn("Omen of Sinistral Erasure", sl["top"])
-        self.assertIn("Omen of Light", sl["box"])
+        for n in ("shipped_learned", "shipped_omens", "shipped_cells", "shipped_icons", "shipped_exchange"):
+            self.assertFalse(hasattr(FV, n), n)
 
 
 class SuppliesAboveKeep(unittest.TestCase):
@@ -273,8 +304,7 @@ class FavoursJunk(unittest.TestCase):
         import numpy as np
         from PIL import Image
         from soe2 import favours as FV
-        from soe2.topup import _templates
-        way = np.asarray(Image.open(_templates() / "waystone_cell.png").convert("RGB"))[:, :, ::-1].copy()
+        way = np.asarray(Image.open(WAYSTONE).convert("RGB"))[:, :, ::-1].copy()
         img = np.zeros((200, 200, 3), np.uint8)
         img[10:80, 10:80] = way
         grid = (10, 10, 70, 70)
@@ -326,9 +356,20 @@ class EssenceAndTopUp(unittest.TestCase):
         self.assertEqual(MP.family("Essence of the Body"), "Essence of")
         self.assertIsNone(MP.family("Divine Orb"))
 
-    def test_a_three_ships_twice(self):
-        TU._TPL.clear()
-        self.assertEqual(len(TU.digit_templates()["3"]), 2)
+    def test_ocr_teaches_the_digits(self):
+        """A count OCR read keeps its digits' shapes: the next read of it needs no OCR."""
+        from soe2.config import P
+        self.addCleanup(lambda: os.path.exists(P(TU.LEARN_FILE)) and os.remove(P(TU.LEARN_FILE)))
+        cell = digit_cell("38")
+        self.assertEqual(TU.read_count(cell, {}), (None, False), "no shapes yet: not sure")
+        calls = []
+        got = TU.scan(grid_of(cell), ocr=lambda c: calls.append(1) or 38)
+        self.assertEqual([(g["count"], g["sure"]) for g in got], [(38, True)])
+        self.assertEqual(sorted(TU.digit_templates()), ["3", "8"])
+        self.assertEqual(TU.read_count(cell), (38, True), "learned: read without OCR")
+        got = TU.scan(grid_of(digit_cell("83")), ocr=lambda c: calls.append(1) or None)
+        self.assertEqual([(g["count"], g["sure"]) for g in got], [(83, True)])
+        self.assertEqual(len(calls), 1, "OCR only for the first")
 
     def test_covered_look_reminds_about_seen_stacks_only(self):
         from soe2.topup_page import TopUpPage
