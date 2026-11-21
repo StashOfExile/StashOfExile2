@@ -141,14 +141,19 @@ def map_entries(sessions, current=None, now=None):
 
 
 def _run_cls(ch, run, cls):
-    """The class of a campaign run: its character's (as the log said at a level-up). 3.0.6: a run that never learned
-    its character's name takes the newest class the log gave."""
+    """The class of a campaign run: its character's, as the log said at a level-up. A run that never learned its
+    character's name takes your character's class, never the last one to level up: in a party that can be a party
+    member's. Your character is the name typed in Options, else the one the Session timer worked out from deaths,
+    else the only character the log has shown. Otherwise the class stays empty."""
     c = cls.get(run.get("char") or ch, "")
     if c or ch or run.get("char"):
         return c
-    from . import focus as F
-    last = (F.cfg().get("state") or {}).get("last_char")
-    return cls.get(last, "") or (list(cls.values())[-1] if cls else "")
+    tr = SETTINGS.get("tracker") or {}
+    low = {k.lower(): v for k, v in cls.items()}
+    for who in (tr.get("character"), tr.get("character_guess")):
+        if (who or "").strip().lower() in low:
+            return low[who.strip().lower()]
+    return list(cls.values())[0] if len(cls) == 1 else ""
 
 
 def _stamp(run):

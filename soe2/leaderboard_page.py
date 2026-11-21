@@ -17,6 +17,35 @@ ALL_LEAGUES = "All leagues"
 LEVEL_HEADER = "Area level"
 LEVEL_TIP = "The map's area level when it was run (Waystone tier 1 is area level 65, tier 16 is 80)"
 TOPS = (5, 10, 20, 30, 50, 100)             # 2.104.1 (feedback): how many rows a board shows
+TIMES = ("mine", "best", "time")
+SUB = "   ↳"
+
+
+def cell_key(col, text):
+    """3.1.0: a cell's sort value, like a spreadsheet. Times sort by seconds, numbers as numbers, the rest A to Z.
+    None for an empty cell or "-", which always goes last."""
+    t = str(text).replace("↳", "").replace(" (you)", "").strip()
+    if t in ("", "-"):
+        return None
+    if col in TIMES and ":" in t:
+        try:
+            n = 0.0
+            for part in t.split(":"):
+                n = n * 60 + float(part)
+            return (0, n)
+        except ValueError:
+            pass
+    try:
+        return (0, float(t))
+    except ValueError:
+        return (1, t.lower())
+
+
+def sorted_groups(groups, desc):
+    """[(key, [iids])] -> the iids in order: each group by its key, empty keys last either way."""
+    full = [g for g in groups if g[0] is not None]
+    full.sort(key=lambda g: g[0], reverse=desc)
+    return [i for _k, ids in full + [g for g in groups if g[0] is None] for i in ids]
 
 
 class LeaderboardPage:
@@ -83,10 +112,10 @@ class LeaderboardPage:
         left.pack(side="left", fill="y")
         left.pack_propagate(False)
         kv = ttk.Treeview(left, columns=("mine", "best", "n"), show="tree headings", selectmode="browse")
-        kv.heading("#0", text="Act / map")
-        kv.heading("mine", text="My best")
-        kv.heading("best", text="Best")
-        kv.heading("n", text="Players")
+        self.lb_sort = {}                                   # 3.1.0: table -> (column, descending), kept across tabs
+        self.lb_titles = {"keys": {"#0": "Act / map", "mine": "My best", "best": "Best", "n": "Players"}}
+        for cid, title in self.lb_titles["keys"].items():
+            kv.heading(cid, text=title, command=lambda c=cid: self.lb_sort_by("keys", c))
         kv.column("#0", width=150)
         for c, w in (("mine", 72), ("best", 64), ("n", 68)):
             kv.column(c, width=w, anchor="e", stretch=False)
@@ -106,8 +135,9 @@ class LeaderboardPage:
                 ("lvl", LEVEL_HEADER, 84, "e"), ("deaths", "Deaths", 66, "e"), ("league", "League", 120, "w"),
                 ("when", "When", 100, "w"))
         bv = ttk.Treeview(right, columns=[c[0] for c in cols], show="headings", selectmode="browse")
+        self.lb_titles["board"] = {c[0]: c[1] for c in cols}
         for cid, title, w, a in cols:
-            bv.heading(cid, text=title)
+            bv.heading(cid, text=title, command=lambda c=cid: self.lb_sort_by("board", c))
             bv.column(cid, width=w, anchor=a, stretch=cid in ("name", "cls"))
         lvl_tip = Tooltip(bv, "")                                # the header's hover (a Treeview heading has no widget)
 
@@ -301,6 +331,7 @@ class LeaderboardPage:
         if self.lb_cat_key() == "campaign":
             order = {k: i for i, (k, _b, _n) in enumerate(LB.keys_of(self.lb_my, "campaign"))}
             keys.sort(key=lambda k: (order.get(k, 999), k))
+        self.lb_key_pos = {k: i for i, k in enumerate(keys)}
         for k in keys:
             mb = self.lb_my_keys.get(k, (None, 0))[0]
             w = world.get(k) or {}
@@ -320,7 +351,8 @@ class LeaderboardPage:
                 "No times on this board yet\nRun maps with the overlay's timer on, or play the campaign with the "
                 "Campaign Helper.")
             self.lb_keys_empty.place(relx=0.5, rely=0.45, anchor="center")
-        sel = keep[0] if keep and kv.exists(keep[0]) else (keys[0] if keys else None)
+        self.lb_sort_apply("keys")
+        sel = keep[0] if keep and kv.exists(keep[0]) else (kv.get_children()[0] if keys else None)
         if sel:
             kv.selection_set(sel)
         else:
@@ -330,6 +362,7 @@ class LeaderboardPage:
         bv = self.lb_tv
         bv.delete(*bv.get_children())
         self.lb_rows = {}
+        self.lb_at = {}
         sel = self.lb_keys_tv.selection()
         if not sel:
             self.lb_title.config(text="")
@@ -352,6 +385,8 @@ class LeaderboardPage:
                                                           e.get("cls") or "", LB.level_text(e.get("level")), e.get("deaths", 0),
                                                           e["league"], time.strftime("%b %d", time.localtime(e["at"]))),
                           tags=("sub",) if sub else ("gold",))
+                self.lb_at[f"m{i}"] = e["at"]
+            self.lb_sort_apply("board")
             if rows:
                 self.lb_msg.config(text=f"{len(rows)} run{'s' if len(rows) != 1 else ''} on this PC. The "
                                         f"{LB.PER_PLAYER} fastest per league and class are shared; the rest stay here.",
@@ -371,6 +406,7 @@ class LeaderboardPage:
                 return self.lb_msg.config(text=d, fg=C["red"])
             bv.delete(*bv.get_children())
             self.lb_rows = {}
+            self.lb_at = {}
             rows = d.get("rows") or []
             others = sum(1 for r in rows if not r.get("mine"))
             if rows and not others:                       # (say why it's only you - not a fault)
@@ -391,9 +427,45 @@ class LeaderboardPage:
                         "" if sub else place + 1, f"   ↳ run {j + 1}" if sub else who, LB.fmt(r["secs"]),
                         r.get("cls") or "", LB.level_text(r.get("level")), r.get("deaths", 0), r.get("league", ""),
                         time.strftime("%b %d", time.localtime(r["at"]))), tags=tags)
+                    self.lb_at[iid] = r["at"]
+            self.lb_sort_apply("board")
         top = self.lb_top_n()
         self._lb_bg(lambda: B.lb_board(cat, key, league, cls, limit=min(200, top * LB.PER_PLAYER), per=LB.PER_PLAYER),
                     done)
+
+    def lb_sort_by(self, which, col):
+        """3.1.0: a click on a column's header sorts by it, smallest or A first; a second click turns it round."""
+        cur = self.lb_sort.get(which)
+        self.lb_sort[which] = (col, not cur[1] if cur and cur[0] == col else False)
+        self.lb_sort_apply(which)
+
+    def lb_sort_apply(self, which):
+        tv = self.lb_keys_tv if which == "keys" else self.lb_tv
+        col, desc = self.lb_sort.get(which) or (None, False)
+        for cid, title in self.lb_titles[which].items():
+            tv.heading(cid, text=title + ((" ▼" if desc else " ▲") if cid == col else ""))
+        if col is None:
+            return
+        groups = []
+        mine_view = which == "board" and self.lb_who.get() == "Mine"
+        for iid in tv.get_children():
+            vals = tv.item(iid, "values")
+            if which == "board" and not mine_view and groups and str(vals[1]).startswith(SUB):
+                groups[-1][1].append(iid)                 # (a player's other runs stay under their best)
+                continue
+            if col == "#0":
+                pos = getattr(self, "lb_key_pos", {}).get(iid, 0)
+                k = (0, pos) if self.lb_cat_key() == "campaign" else (1, str(iid).lower())
+            elif col == "when":
+                at = getattr(self, "lb_at", {}).get(iid)
+                k = None if at is None else (0, at)
+            else:
+                cols = list(self.lb_titles[which])
+                i = cols.index(col) - (1 if which == "keys" else 0)
+                k = cell_key(col, vals[i]) if i < len(vals) else None
+            groups.append((k, [iid]))
+        for n, iid in enumerate(sorted_groups(groups, desc)):
+            tv.move(iid, "", n)
 
     @staticmethod
     def lb_groups(rows):
