@@ -348,8 +348,14 @@ class Layout(unittest.TestCase):
         for i in texts:                                    # (a 10 pt row: 9 at 0.9 - the normal small size, not less)
             self.assertGreaterEqual(abs(int(tkf.Font(font=cv.itemcget(i, "font")).actual("size"))), cardscale.MIN_PT)
         foot = self.app.bk_foot_row                        # Search again | Trade Site | Add to favorites: one row
-        ys = {b.winfo_y() for b in (self.app.bk_search_btn, self.app.bk_trade_btn, self.app.bk_fav_btn)}
-        self.assertEqual(len(ys), 1, "the footer's buttons on one row")
+        btns = (self.app.bk_search_btn, self.app.bk_trade_btn, self.app.bk_fav_btn)
+        ys = {b.winfo_y() for b in btns}
+        need = sum(b.winfo_reqwidth() for b in btns)
+        if need + 40 <= foot.winfo_width():                # (on one row whenever they fit; wider fonts may wrap)
+            self.assertEqual(len(ys), 1, "the footer's buttons on one row")
+        for b in btns:
+            self.assertTrue(b.winfo_ismapped())
+            self.assertLessEqual(b.winfo_x() + b.winfo_width(), foot.winfo_width() + 1, "never cut off")
         self.assertTrue(foot.winfo_ismapped())
 
     def test_side_width_migration(self):

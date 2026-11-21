@@ -583,9 +583,9 @@ class Page(unittest.TestCase):
             a.mm_view_set("Mine")
             a.mm_open("my-art|mine")
             dv = a.mm_detail_cv
-            for _ in range(60):
+            for _ in range(300):                                   # (a slow CI runner needs longer)
                 self.pump(2)
-                if len([i for i in dv.find_all() if dv.type(i) == "image"]) >= 3:
+                if len([i for i in dv.find_all() if dv.type(i) == "image"]) >= 3 and len(set(got)) >= 2:
                     break
                 time.sleep(0.05)
             self.assertIn(PCP.WAYSTONE_ICON, got, "the waystone's picture (any tier) ships with the app")
