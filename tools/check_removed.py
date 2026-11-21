@@ -327,6 +327,11 @@ REMOVED = [
       "wealth_add_pc_tab", "wealth_pc_tab", "wealth_pc_refresh", "_wealth_add", "wealth_toggle_tab",
       "wealth_remove_tab", "wealth_open_trade", "wealth_buttons", "_w_tab_row", "_w_by_tab", "wealth_show_tab_result",
       "wealth_setup_layout", "wealth_save_account", "wealth_skip_tab")),
+    ("3.0.7", "Exchange Helper's Check a flip you see in game: two typed prices, the gain per item and the ratios to post "
+              "(owner: replaced by Compare a currency - one currency's worth in every other, no flip or profit wording)",
+     ("Check a flip", "flip you see in game", "How many I'd flip", "Flipping only works", "No gain: buying costs"),
+     ("build_flip", "flip_draw", "flip_names", "flip_filter", "flip_buy", "flip_sell", "flip_qty", "flip_item",
+      "flip_cur", "flip_box", "flip_out", "CXN.flip")),
 ]
 ABSENT = re.compile(r"\bnot\b|\bgone\b|\bremoved\b|\bno longer\b|\.pop\(|\bdel\b|None\)", re.I)
 

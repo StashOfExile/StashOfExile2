@@ -31,10 +31,3 @@ def item_name(cid):
                 continue
         _NAMES.setdefault("_loaded", "1")
     return _NAMES.get(cid)
-
-
-def flip(buy, sell):
-    """You can buy 1 X for `buy` Y and sell 1 X for `sell` Y. -> (Y gained per X, margin as a fraction)."""
-    if not buy or buy <= 0 or sell is None:
-        return None, None
-    return sell - buy, (sell - buy) / buy

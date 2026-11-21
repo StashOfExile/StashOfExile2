@@ -2267,7 +2267,7 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
         self.rates_tv = tv
         self._rates_sig = None                                # (a new table: draw it once)
         self.list_register("rates", tv)
-        self.build_flip(self.rates_pages["Exchange Helper"])   # 2.92.0: at the bottom of Exchange Helper
+        self.build_compare(self.rates_pages["Exchange Helper"])   # at the bottom of Exchange Helper
         self.draw_rates()
 
     def rates_show_page(self):
