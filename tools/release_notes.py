@@ -62,7 +62,7 @@ if SHA:                                             # 2.132.8: checksums and the
     if VT:
         print(f"- VirusTotal scan: {VT}")
     print("- Check: `certutil -hashfile StashOfExile2.exe SHA256` (Windows). Same text = same file.\n")
-print(f"**Download (Windows):** Setup-StashOfExile2-{v}.exe installs it (Start menu, Windows search, uninstall from "
-      "Settings › Apps; no admin needed). Or StashOfExile2.exe - the portable one, run it from any folder. Both keep "
-      "your data in %APPDATA%\\StashOfExile2, so updating never touches it.\n\nThis product isn't affiliated with or "
+print(f"**Download (Windows):** Setup-StashOfExile2-{v}.exe. It asks first: Full Install, with the Start menu, "
+      "Windows search and an uninstaller, or Portable, one folder you pick. No admin needed. StashOfExile2.exe is the "
+      "file the app's own updater uses.\n\nThis product isn't affiliated with or "
       "endorsed by Grinding Gear Games in any way.")

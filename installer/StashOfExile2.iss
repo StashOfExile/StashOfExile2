@@ -9,6 +9,13 @@
 ; - The file "installed.txt" next to the exe tells the app it was installed (updates then also update the version
 ;   shown in Settings > Apps).
 ;
+; 3.1.0 (owner: "one installer that first prompts for 'Full Install' or 'Portable'"): the first page asks.
+; - Full Install: all of the above.
+; - Portable: one folder you pick, Desktop\StashOfExile2 by default. No shortcuts, no uninstaller, nothing in
+;   Settings > Apps, no installed.txt, so it updates like the portable exe. A new player's data goes in that
+;   folder's "data" folder, through data_location.txt. Someone who already has data in %APPDATA% keeps using it.
+; - StashOfExile2.exe stays on every release: older apps' updater looks for that name.
+;
 ; Built by .github/workflows/release.yml (and build_installer.bat on your own PC) with Inno Setup 6:
 ;   ISCC /DAppVersion=3.0.6 installer\StashOfExile2.iss      (paths in here are from this folder: ..\dist)
 ; -> dist\Setup-StashOfExile2-<version>.exe  (the name does NOT start with "StashOfExile2": older apps' updater takes
@@ -46,7 +53,7 @@ AppPublisherURL=https://github.com/StashOfExile/StashOfExile2
 AppSupportURL=https://github.com/StashOfExile/StashOfExile2/issues
 AppUpdatesURL=https://github.com/StashOfExile/StashOfExile2/releases
 DefaultDirName={localappdata}\Programs\{#Dir}
-DisableDirPage=auto
+DisableDirPage=no
 DefaultGroupName={#Name}
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
@@ -55,6 +62,8 @@ OutputBaseFilename=Setup-{#Dir}-{#AppVersion}
 SetupIconFile=..\stashofexile2.ico
 UninstallDisplayIcon={app}\StashOfExile2.exe
 UninstallDisplayName={#Name}
+Uninstallable=not IsPortable
+CreateUninstallRegKey=not IsPortable
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
@@ -66,18 +75,18 @@ ArchitecturesInstallIn64BitMode=x64compatible
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
-Name: "desktopicon"; Description: "Make a desktop shortcut"; GroupDescription: "Shortcuts:"; Flags: unchecked
+Name: "desktopicon"; Description: "Make a desktop shortcut"; GroupDescription: "Shortcuts:"; Flags: unchecked; Check: not IsPortable
 
 [Files]
 Source: "{#SrcExe}"; DestDir: "{app}"; DestName: "StashOfExile2.exe"; Flags: ignoreversion
-Source: "installed.txt"; DestDir: "{app}"; Flags: ignoreversion
+Source: "installed.txt"; DestDir: "{app}"; Flags: ignoreversion; Check: not IsPortable
 #ifdef Test
 Source: "{#DataPointer}"; DestDir: "{app}"; DestName: "data_location.txt"; Flags: ignoreversion
 #endif
 
 [Icons]
-Name: "{autoprograms}\{#Name}"; Filename: "{app}\StashOfExile2.exe"
-Name: "{autodesktop}\{#Name}"; Filename: "{app}\StashOfExile2.exe"; Tasks: desktopicon
+Name: "{autoprograms}\{#Name}"; Filename: "{app}\StashOfExile2.exe"; Check: not IsPortable
+Name: "{autodesktop}\{#Name}"; Filename: "{app}\StashOfExile2.exe"; Tasks: desktopicon; Check: not IsPortable
 
 [Run]
 Filename: "{app}\StashOfExile2.exe"; Description: "Start {#Name}"; Flags: nowait postinstall skipifsilent
@@ -86,3 +95,60 @@ Filename: "{app}\StashOfExile2.exe"; Description: "Start {#Name}"; Flags: nowait
 ; what an update leaves next to the exe (the app deletes it itself; this is in case it couldn't)
 Type: files; Name: "{app}\StashOfExile2_update.exe"
 Type: files; Name: "{app}\update_log.txt"
+
+[Code]
+var
+  ModePage: TInputOptionWizardPage;
+  FullDir: String;
+
+// The first page: Full Install or Portable. A silent install is a Full Install.
+procedure InitializeWizard;
+begin
+  ModePage := CreateInputOptionPage(wpWelcome, 'How do you want it?',
+    'Pick one. Run Setup again any time to change it.',
+    'Full Install adds it to your Start menu, Windows search and Settings > Apps, with an uninstaller.' + #13#10 + #13#10 +
+    'Portable puts everything in one folder you pick. Nothing else on your PC changes. Move or delete the folder ' +
+    'any time.', True, False);
+  ModePage.Add('Full Install, recommended');
+  ModePage.Add('Portable');
+  ModePage.Values[0] := True;
+end;
+
+function IsPortable: Boolean;
+begin
+  Result := (ModePage <> nil) and ModePage.Values[1];
+end;
+
+function NextButtonClick(CurPageID: Integer): Boolean;
+begin
+  Result := True;
+  if CurPageID = ModePage.ID then
+  begin
+    if FullDir = '' then
+      FullDir := WizardForm.DirEdit.Text;
+    if IsPortable then
+      WizardForm.DirEdit.Text := ExpandConstant('{userdesktop}\{#Dir}')
+    else
+      WizardForm.DirEdit.Text := FullDir;
+  end;
+end;
+
+// Full Install goes to its usual folder without asking; Portable asks where.
+function ShouldSkipPage(PageID: Integer): Boolean;
+begin
+  Result := (PageID = wpSelectDir) and not IsPortable;
+end;
+
+// Portable: a new player's data lives next to the app. Someone who already uses the app keeps their data where it
+// is, and a portable copy that already has its pointer keeps it.
+procedure CurStepChanged(CurStep: TSetupStep);
+var
+  PointerFile: String;
+begin
+  if (CurStep = ssPostInstall) and IsPortable then
+  begin
+    PointerFile := ExpandConstant('{app}\data_location.txt');
+    if not FileExists(PointerFile) and not DirExists(ExpandConstant('{userappdata}\StashOfExile2')) then
+      SaveStringToFile(PointerFile, ExpandConstant('{app}\data'), False);
+  end;
+end;

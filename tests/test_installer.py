@@ -72,6 +72,44 @@ class Script(unittest.TestCase):
         self.assertIn("OutputBaseFilename=Setup-{#Dir}-{#AppVersion}", self.iss)
 
 
+class FullOrPortable(unittest.TestCase):
+    """3.1.0 (owner: one installer that first asks Full Install or Portable)."""
+
+    def setUp(self):
+        self.iss = read("installer", "StashOfExile2.iss")
+        self.code = self.iss.split("[Code]")[1]
+
+    def test_first_page_asks(self):
+        self.assertIn("CreateInputOptionPage(wpWelcome, 'How do you want it?'", self.code)
+        self.assertIn("ModePage.Add('Full Install, recommended')", self.code)
+        self.assertIn("ModePage.Add('Portable')", self.code)
+        self.assertIn("ModePage.Values[0] := True", self.code, "Full Install is picked to start with")
+
+    def test_portable_leaves_no_trace(self):
+        self.assertIn("Uninstallable=not IsPortable", self.iss)
+        self.assertIn("CreateUninstallRegKey=not IsPortable", self.iss)
+        for line in self.iss.splitlines():
+            if line.startswith(("Name: \"{auto", 'Source: "installed.txt"', 'Name: "desktopicon"')):
+                self.assertIn("Check: not IsPortable", line, line)
+
+    def test_portable_picks_its_folder(self):
+        self.assertIn("DisableDirPage=no", self.iss)
+        self.assertIn("(PageID = wpSelectDir) and not IsPortable", self.code)
+        self.assertIn("{userdesktop}\\{#Dir}", self.code)
+
+    def test_portable_data_never_moves_someone_elses(self):
+        self.assertIn("not FileExists(PointerFile) and not DirExists(ExpandConstant('{userappdata}\\StashOfExile2'))",
+                      self.code)
+        self.assertIn("SaveStringToFile(PointerFile, ExpandConstant('{app}\\data'), False)", self.code)
+
+    def test_no_pascal_type_names_as_variables(self):
+        self.assertNotRegex(self.code, r"\bPointer\s*:")
+
+    def test_updater_file_still_released(self):
+        y = read(".github", "workflows", "release.yml")
+        self.assertIn("cp dist/StashOfExile2.exe StashOfExile2.exe", y)
+
+
 class Release(unittest.TestCase):
     def test_built_checked_and_listed(self):
         y = read(".github", "workflows", "release.yml")

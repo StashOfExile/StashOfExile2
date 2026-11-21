@@ -22,7 +22,7 @@ A free, open-source Windows companion for **Path of Exile 2**: price checks, bul
 - **Compare a currency** - pick one currency and see what it's worth in every other, with how each number was worked out.
 - **Rate Mods** - its own Mods section, rating One at a Time or in a Table.
 - **Vaal Lens** - a full step-by-step plan for your temple.
-- **Installer** - a full install if you prefer it. The portable version is still there.
+- **One installer** - it asks first: Full Install or Portable.
 
 A small **NEW** chip marks what's new on its row and on its page's icon, until you open or use it.
 
@@ -78,12 +78,12 @@ This product isn't affiliated with or endorsed by Grinding Gear Games in any way
 
 ## Install and update
 
-Two Windows downloads on every [release](https://github.com/StashOfExile/StashOfExile2/releases/latest) - pick one:
+Download `Setup-StashOfExile2-<version>.exe` from the [latest release](https://github.com/StashOfExile/StashOfExile2/releases/latest). It asks first:
 
-- **Installer** - `Setup-StashOfExile2-<version>.exe`. Puts it in your Start menu and Windows search, and in Settings › Apps to uninstall. Installs for you only, so no admin prompt.
-- **Portable** - `StashOfExile2.exe`. Run it from any folder.
+- **Full Install** - puts it in your Start menu and Windows search, and in Settings › Apps to uninstall. Your settings live in `%APPDATA%\StashOfExile2`, and uninstalling never deletes them.
+- **Portable** - one folder you pick. Nothing else on your PC changes. A new player's settings live in that folder too; if you already use the app, your settings stay where they are.
 
-Both update themselves, and both keep your settings in `%APPDATA%\StashOfExile2` - uninstalling never deletes them.
+Both install for you only, so no admin prompt, and both update themselves. `StashOfExile2.exe` on the release is the file the app's own updater uses.
 
 The project moved to [github.com/StashOfExile/StashOfExile2](https://github.com/StashOfExile/StashOfExile2). If your 2.x app doesn't offer 3.0 by itself, download it once from Releases - it updates itself from then on, and your settings are kept.
 

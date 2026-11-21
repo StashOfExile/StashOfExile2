@@ -66,7 +66,7 @@ NOTES = {
                 ("•", "Game Search: Minor changes and bugfixes."),
                 ("•", "Wealth: Scan stash can now read Socketables tab: runes, soul cores and idols."),
                 ("•", "Overlay: a new Split layout puts it in two small halves."),
-                ("•", "A new installer version if you prefer full install. The portable version is still there."),
+                ("•", "One installer: it asks first, Full Install or Portable."),
             ]),
             ("↻", "Changed", [
                 ("•", "All exchange prices come from poe.ninja only."),
