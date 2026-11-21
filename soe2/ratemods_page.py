@@ -735,17 +735,24 @@ class RateModsPage:
         if s == "jewel" and rolls and ic.get(rolls[0]):
             return ic[rolls[0]]
         by = self.__dict__.get("_rm_pics")
-        if by is None or by[0] != len(ic):                    # (a picture per set: the first base the app knows)
-            from .gearbook import base_cat
-            m = {}
+        if by is None or by[0] != len(ic):                    # a picture per set: the lowest base of that class the
+            from .gearbook import base_cat                    # app has a picture of - never a unique's own art
+            from .pricecheck_page import unique_art
+            lv = base_levels()
+            best = {}
             for base, url in ic.items():
+                if not str(url).startswith("https://") or unique_art(url):
+                    continue
                 try:
                     c = base_cat(base)
                 except Exception:
                     c = None
-                if c and str(url).startswith("https://"):
-                    m.setdefault(c, url)
-            by = self.__dict__["_rm_pics"] = (len(ic), m)
+                if not c:
+                    continue
+                rank = (lv.get(base, 999), base.startswith("Runeforged"), base)
+                if c not in best or rank < best[c][0]:
+                    best[c] = (rank, url)
+            by = self.__dict__["_rm_pics"] = (len(ic), {c: u for c, (_r, u) in best.items()})
         return by[1].get(s)
 
     def _rm_below(self, cv, x0, x1, y, narrow):
@@ -892,7 +899,8 @@ class RateModsPage:
 
     def _rm_byroll(self, cv, key, cur, x0, x1, y, narrow):
         """MIX B: Top / Middle / Low rolls side by side (stacked in the Drawer) - each its tiers and values, its own
-        S A B C D F and what that letter means; the edges move a tier at a time (◂ ▸); Same for every roll."""
+        S A B C D F and what that letter means; Same for every roll. A letter for each of the three rates the mod
+        and moves on to the next one."""
         cx = (x0 + x1) / 2
         cv.text(cx, y, QUESTION, F_BODY, fill=cv.c("text_muted"), anchor="n")
         y += 26
@@ -932,24 +940,6 @@ class RateModsPage:
             if cols == 1:
                 y += h + 6
         y = (top + 108 + 10) if cols == 3 else y + 4
-        # the edges: one tier at a time
-        parts = (("Top | Middle", 0), ("Middle | Low", 1))
-        widths = [cv.tw(t, F_SMALL) + 8 + 2 * 26 + 4 for t, _w in parts]
-        x = cx - (sum(widths) + 24) / 2
-        for (lab, which), w in zip(parts, widths):
-            cv.text(x, y + 12, lab, F_SMALL, fill=cv.c("text_muted"), anchor="w")
-            bx = x + cv.tw(lab, F_SMALL) + 8
-            above, below = ("Top rolls", "Middle rolls") if which == 0 else ("Middle rolls", "Low rolls")
-            for step, arrow in ((-1, "◂"), (1, "▸")):
-                ok = self._rm_edge_ok(key, which, step)
-                tip = (f"One tier fewer in {above}, one more in {below}" if step < 0 else
-                       f"One tier more in {above}, one fewer in {below}")
-                self._rm_btn(cv, bx, y, 26, 24, arrow, f"edge:{which}:{step}",
-                             lambda which=which, step=step: self.rm_edge(key, which, step), off=not ok,
-                             tip=tip if ok else "Each group keeps at least one tier", r=6)
-                bx += 26 + 4
-            x += w + 24
-        y += 24 + 10
         same = RM.same_for_every_roll(key)
         w = cv.tw("✓ " + SAME, F_SMALL) + 28
         if same:
@@ -962,23 +952,25 @@ class RateModsPage:
                          tip="Every group takes the mod's letter again")
         return y + 26 + 18
 
-    def _rm_edge_ok(self, key, which, step):
-        gs = RM.roll_groups(self.rm_set, key) or []
-        if len(gs) < 3:
-            return False
-        top, mid = len(gs[0]["tiers"]), len(gs[1]["tiers"])
-        n = top + mid + len(gs[2]["tiers"])
-        top2, mid2 = (top + step, mid - step) if which == 0 else (top, mid + step)
-        return top2 >= 1 and mid2 >= 1 and top2 + mid2 <= n - 1
-
     def rm_group_pick(self, key, i, grade):
-        """A group's own letter (the same as the mod's: it follows the mod again)."""
-        RM.set_group_grade(key, i, grade, mod_grade=RM.current([key]))
+        """A group's own letter (the same as the mod's: it follows the mod again). Once Top, Middle and Low each have
+        a letter, the mod is rated - its letter is the Top rolls' - and the next mod comes up (feedback: three
+        letters picked and nothing moved on)."""
+        mod = RM.current([key])
+        RM.set_group_grade(key, i, grade, mod_grade=mod)
         self._rm_roll_changed(key)
-
-    def rm_edge(self, key, which, step):
-        if RM.move_edge(self.rm_set, key, which, step) is not None:
-            self._rm_roll_changed(key)
+        groups = RM.roll_groups(self.rm_set, key) or []
+        if len(groups) == 3 and all(g["grade"] or mod for g in groups) and mod is None:
+            e = self.rm_current()
+            if e is not None and key in (e.get("keys") or [key]):
+                tops = [g["grade"] for g in groups]
+                self._rm_apply([e["keys"]], tops[0])
+                for j, gg in enumerate(tops):                  # each group keeps its own letter
+                    RM.set_group_grade(key, j, gg, mod_grade=tops[0])
+                self.rm_note_recent([e])
+                if self.rm_i < len(self.rm_q) - 1:
+                    self.root.after(450, lambda: (setattr(self, "rm_i", min(self.rm_i + 1, len(self.rm_q) - 1)),
+                                                  self._rm_redraw()))
 
     def rm_same(self, key):
         RM.same_again(key)
@@ -1639,3 +1631,21 @@ class RateModsPage:
 def _saved_view():
     from .config import SETTINGS
     return SETTINGS.get("rate_view")
+
+
+_LEVELS = {}
+
+
+def base_levels():
+    """Each base's level to wear it, from Game Search's data: {base: level}. Read once."""
+    if not _LEVELS:
+        import re
+        try:
+            from . import gamesearch
+            for r in gamesearch.load()["rows"] or []:
+                m = re.search(r"Requires level (\d+)", r.get("t") or "")
+                if m:
+                    _LEVELS.setdefault(r["n"], int(m.group(1)))
+        except Exception:
+            buglog.caught()
+    return _LEVELS

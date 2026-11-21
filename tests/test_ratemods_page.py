@@ -89,13 +89,6 @@ class ByRoll(Saved):
         self.assertEqual(RM.group_range(gs[0], GLOVES_FIRE), "T1–T2 · 36–45%")
         self.assertIsNone(RM.default_edges(lad[:2]))               # (fewer than three tiers: no groups)
 
-    def test_edges_saved_as_values_and_move(self):
-        lad = RM.ladder("gear:gloves", GLOVES_FIRE)
-        RM.move_edge("gear:gloves", GLOVES_FIRE, 0, 1)             # Top one tier more
-        self.assertEqual(RM.ROLL_BY[GLOVES_FIRE]["edges"], [lad[2][1], lad[4][1]])
-        self.assertEqual(len(RM.roll_groups("gear:gloves", GLOVES_FIRE)[0]["tiers"]), 3)
-        self.assertIsNone(RM.move_edge("gear:gloves", GLOVES_FIRE, 1, -2))   # each group keeps a tier
-
     def test_group_letter_back_to_the_mods_is_same_again(self):
         RM.set_group_grade(GLOVES_FIRE, 2, "ignore", mod_grade="B")
         self.assertEqual(RM.by_roll_text("gear:gloves", GLOVES_FIRE, "B"), "B · B · F")
@@ -190,6 +183,29 @@ class Table(Saved):
 
     def states(self):
         return {g: b.instate(["disabled"]) for g, b in self.app.rm_bulk.items()}
+
+    def test_three_roll_letters_rate_the_mod_and_move_on(self):
+        """Feedback: a letter for Top, Middle and Low and nothing moved on. Now the mod is rated, Top's letter, and
+        the next mod comes up; Middle and Low keep their own letters."""
+        a = self.app
+        a.rm_view_pick("One at a Time")
+        a.rm_filter_pick("All")
+        hit = next((i for i, e in enumerate(a.rm_q) if a.rm_roll_key(e) and RM.current([a.rm_roll_key(e)]) is None),
+                   None)
+        if hit is None:
+            self.skipTest("no mod with three roll groups here")
+        a.rm_i = hit
+        key = a.rm_roll_key()
+        with mock.patch.object(self.root, "after", lambda ms, fn=None: fn and fn()), \
+                mock.patch.object(a, "_rm_rules_later", lambda: None):
+            a.rm_group_pick(key, 0, "S")
+            a.rm_group_pick(key, 1, "A")
+            self.assertEqual(a.rm_i, hit, "two letters: still here")
+            a.rm_group_pick(key, 2, "B")
+        self.assertEqual(RM.current([key]), "S")
+        self.assertEqual([g["grade"] or "S" for g in RM.roll_groups(a.rm_set, key)], ["S", "A", "B"])
+        self.assertEqual(a.rm_i, hit + 1, "the next mod comes up")
+        a.rm_view_pick("Table")
 
     def test_rate_selected_grayed_until_a_row_is_ticked(self):
         a = self.app

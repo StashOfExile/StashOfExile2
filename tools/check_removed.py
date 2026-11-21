@@ -327,6 +327,10 @@ REMOVED = [
       "wealth_add_pc_tab", "wealth_pc_tab", "wealth_pc_refresh", "_wealth_add", "wealth_toggle_tab",
       "wealth_remove_tab", "wealth_open_trade", "wealth_buttons", "_w_tab_row", "_w_by_tab", "wealth_show_tab_result",
       "wealth_setup_layout", "wealth_save_account", "wealth_skip_tab")),
+    ("3.1.0", "Rate Mods By roll's Top | Middle and Middle | Low arrows that moved a group's edge one tier "
+              "(owner: not self-explanatory; the groups keep their default split)",
+     ("Top | Middle", "Middle | Low", "One tier fewer in", "Each group keeps at least one tier"),
+     ("move_edge", "rm_edge", "_rm_edge_ok")),
     ("3.0.7", "Exchange Helper's Check a flip you see in game: two typed prices, the gain per item and the ratios to post "
               "(owner: replaced by Compare a currency - one currency's worth in every other, no flip or profit wording)",
      ("Check a flip", "flip you see in game", "How many I'd flip", "Flipping only works", "No gain: buying costs"),

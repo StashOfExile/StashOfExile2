@@ -456,28 +456,6 @@ def same_again(key):
         _save_by(key)
 
 
-def move_edge(set_name, key, which, step):
-    """Move an edge one tier: which 0 = Top | Middle, 1 = Middle | Low; step -1 = toward the best tier (the group
-    above gets one fewer), +1 = toward the worst. Saved as values. -> the new edges, or None (can't move)."""
-    lad = ladder(set_name, key)
-    groups = roll_groups(set_name, key)
-    if not groups:
-        return None
-    top, mid = len(groups[0]["tiers"]), len(groups[1]["tiers"])
-    n = len(lad)
-    if which == 0:
-        top2, mid2 = top + step, mid - step
-    else:
-        top2, mid2 = top, mid + step
-    if top2 < 1 or mid2 < 1 or top2 + mid2 > n - 1:
-        return None
-    edges = [lad[top2 - 1][1], lad[top2 + mid2 - 1][1]]
-    d = ROLL_BY.setdefault(key, {})
-    d["edges"] = edges
-    _save_by(key)
-    return edges
-
-
 def _save_by(key):
     d = ROLL_BY.get(key)
     if d is not None:

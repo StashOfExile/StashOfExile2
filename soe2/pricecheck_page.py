@@ -227,9 +227,32 @@ def art_url(base):
     return None
 
 
+def unique_art(url):
+    """Is this trade picture a unique item's own art? The picture's address carries the game's art path, and a
+    unique's sits under Uniques."""
+    try:
+        import base64
+        import json as _json
+        seg = str(url).split("/gen/image/", 1)[1].split("/", 1)[0]
+        data = _json.loads(base64.b64decode(seg + "=" * (-len(seg) % 4)).decode("utf-8"))
+        f = next((x.get("f", "") for x in data if isinstance(x, dict)), "")
+    except Exception:
+        return False
+    return "Unique" in f
+
+
+def _unique_names():
+    try:
+        from . import gamedata
+        return set((gamedata.load().get("uniques") or {}).keys())
+    except Exception:
+        return set()
+
+
 def icons():
-    """2.105.0: base -> the trade site's picture of it (learned from listings; Market Insights' cards use it).
-    3.0.6: the tablets' pictures ship with the app (TABLET_ICONS) - a learned one wins."""
+    """2.105.0: base -> the trade site's picture of it (learned from listings; Market Insights' cards use it), and a
+    unique's name -> its own picture. 3.0.6: the tablets' pictures ship with the app (TABLET_ICONS) - a learned one
+    wins. A base that learned a unique's picture forgets it (feedback: Rate Mods showed Mageblood for every belt)."""
     global _ICONS
     if _ICONS is None:
         from .config import load_json
@@ -238,12 +261,17 @@ def icons():
             learned = learned if isinstance(learned, dict) else {}
         except Exception:
             learned = {}
+        uniq = _unique_names()
+        learned = {k: v for k, v in learned.items() if k in uniq or not unique_art(v)}
         _ICONS = {**BUNDLED_ICONS, **learned}
     return _ICONS
 
 
 def icon_learn(base, url):
+    """A listing's picture, kept by its base - never a unique's art for a base (it goes under the unique's name)."""
     if not base or not str(url or "").startswith("https://"):
+        return
+    if unique_art(url) and base not in _unique_names():
         return
     ic = icons()
     if ic.get(base) != url:
@@ -351,7 +379,9 @@ def own_flags(rec):
 def listing_facts(e):
     """One trade-site entry -> what its card shows."""
     it, lst = (e or {}).get("item") or {}, (e or {}).get("listing") or {}
-    icon_learn(_clean(it.get("baseType") or it.get("typeLine")), it.get("icon"))
+    uniq = str(it.get("rarity") or "").lower() == "unique" or it.get("frameType") == 3
+    icon_learn(_clean(it.get("name")) if uniq and it.get("name") else _clean(it.get("baseType") or it.get("typeLine")),
+               it.get("icon"))
     price = lst.get("price") or {}
     ts = None
     try:
