@@ -199,7 +199,7 @@ class OverlayA8:
                             font=f, tags=("mg", "mg_a8chip"))
         t = _Chip(cv, it, P["bg"], halo=P.get("halo"))
         self.tk_ov_lbls["a8_chip"] = t
-        cv.tag_bind("mg_a8chip", "<Button-1>", lambda e: (self.ov_tip_hide(), self.tracker_play_click()))
+        cv.tag_bind("mg_a8chip", "<Button-1>", lambda e=None: (self.ov_tip_hide(), self.tracker_play_click()))
         self.ov_tip(cv, "mg_a8chip", self.a8_chip_tip)
         return w
 

@@ -153,9 +153,21 @@ class CampaignUI:
         self.camp_events()
         if out or CP.line_text() != before:
             self.camp_refresh()
-        if CP.needs_route() and getattr(self, "camp_rq_win", None) is None:
-            self.camp_route_ask_show()                             # 2.89.0: a new campaign - which guide?
+        self.camp_route_check()
         return out
+
+    def camp_route_check(self):
+        """A run with no guide yet: ask which guide, once a session. The answer goes to the run it was asked for;
+        another run in the log after that - a party member leveling, say - takes the same guide without a new
+        question (feedback: the question came back in every new area while carrying). -> "asked", "set" or None"""
+        if not CP.needs_route() or getattr(self, "camp_rq_win", None) is not None:
+            return None
+        done = getattr(self, "camp_route_answer", None)
+        if done:
+            CP.set_route(done)
+            return "set"
+        self.camp_route_ask_show()                                 # 2.89.0: a new campaign - which guide?
+        return "asked"
 
     def campaign_where(self, ev):
         """Round 18: at start, the log's last area (an ("area", ts, data) event, or its data): in a hideout the
@@ -221,6 +233,7 @@ class CampaignUI:
     # ---------------------------------------------------------------- 2.89.0: which guide, when a campaign starts
     def camp_route_ask_show(self):
         self.camp_route_ask_close()
+        self.camp_rq_run = CP.char()                    # the run this is asked for: the answer goes to it
         w, body, P = self._camp_card("New campaign", "🗺", 460, top=0.16,
                                      on_close=lambda: self.camp_route_pick_new(CP.cfg()["route"]))
         bg = P["bg"]
@@ -250,7 +263,9 @@ class CampaignUI:
         return w
 
     def camp_route_pick_new(self, route):
-        CP.set_route(route, remember=bool(getattr(self, "camp_rq_keep", None) and self.camp_rq_keep.get()))
+        CP.set_route(route, run=getattr(self, "camp_rq_run", None),
+                     remember=bool(getattr(self, "camp_rq_keep", None) and self.camp_rq_keep.get()))
+        self.camp_route_answer = route                  # once a session: other new runs take it without asking
         if getattr(self, "tk_camp_route", None) is not None:
             try:
                 self.tk_camp_route.pick(dict(CP.ROUTES).get(CP.cfg()["route"]), notify=False)
@@ -794,7 +809,7 @@ class CampaignUI:
         tk.Label(head, text="route: " + dict(CP.ROUTES).get(CP.route_of(), ""), bg=bg, fg=P["muted"],
                  font=(P["font"], self.ov_font(9))).pack(side="right")
         rows = CP.steps(key, run)
-        self.camp_rows = []
+        self.camp_row_frames = []                  # the route page's rows; camp_rows() lays out the overlay line
         self.camp_marks = marks = {"done": ("✓", P["on"]), "here": ("▸", P["head"]), "todo": ("○", P["muted"]),
                  "passed": ("–", P["muted"])}
         state = {}                                             # pack 4: the line has the reward in it - the
@@ -833,7 +848,7 @@ class CampaignUI:
                          font=(P["font"], self.ov_font(9))).pack(side="right")
             for wdg in [f] + list(f.winfo_children()):
                 wdg.bind("<Button-1>", lambda e, i=i: self.camp_here(i))
-            self.camp_rows.append(f)
+            self.camp_row_frames.append(f)
             if here and s.get("tip") and c["tips"]:
                 tk.Label(page, text="ⓘ " + s["tip"], bg=bg, fg=P["muted"], font=(P["font"], self.ov_font(9)),
                          anchor="w", justify="left", wraplength=self.ov_px(480)).pack(fill="x", padx=(24, 0))
@@ -955,7 +970,7 @@ class CampaignUI:
     def _camp_rows_restyle(self):
         """The route page's rows take their new state (✓ ▸ ○ –) in place. -> False when the steps changed."""
         rows, P = CP.steps(self.camp_view, CP.char()), self.camp_P
-        frames = getattr(self, "camp_rows", None) or []
+        frames = getattr(self, "camp_row_frames", None) or []
         if len(rows) != len(frames) or any(s.get("learned") for s in rows):
             return False
         bg = P["bg"]
