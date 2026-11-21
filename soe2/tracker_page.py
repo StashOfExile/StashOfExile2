@@ -475,7 +475,8 @@ class TrackerPage:
 
     def _ov_rows(self, parent, items, prefix="", min_w=330):
         """Switches with what each does in one gray line under it, in as many columns as fit (2.98.0: fewer when the
-        page is narrow, so nothing is cut off). items: (label, var, command, line[, tip]). -> the grid frame."""
+        page is narrow, so nothing is cut off). items: (label, var, command, line[, tip[, extra]]); extra(cell) adds
+        what else that switch has, under its line. -> the grid frame."""
         from .style import Tooltip
         P2 = C["panel2"]
         g = tk.Frame(parent, bg=P2)
@@ -490,6 +491,8 @@ class TrackerPage:
                      wraplength=min_w - 24).pack(anchor="w", padx=(2, 0))
             if len(it) > 4 and it[4]:
                 Tooltip(cb, it[4])
+            if len(it) > 5 and it[5]:
+                it[5](cell)
             self.tk_ov_switches[prefix + label] = cb
             cells.append(cell)
         st = {"n": 0}
@@ -554,7 +557,9 @@ class TrackerPage:
                            ("Regex ▾", self.tk_bar_vars["regex"], self.tracker_bar_switch,
                             "Your Regex favorites: click one to copy it."),
                            ("Rates ▾", ov_, lambda: self.ovr_switch(bool(ov_.get())),
-                            "Today's most-used exchange rates."),
+                            "The exchange rates you pick, in your order.", None,
+                            lambda cell: ttk.Button(cell, text="Pick currencies", command=self.ovr_pick).pack(
+                                anchor="w", padx=(2, 0), pady=(4, 0))),
                            ("App ▸", self.tk_bar_vars["app"], self.tracker_bar_switch,
                             "Opens the Drawer.")), prefix="bar:")
         # (the lines above the bar: in Helpers, beside League Plan and Campaign)

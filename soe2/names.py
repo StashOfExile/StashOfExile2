@@ -34,6 +34,7 @@ PAGES = {
 }
 
 FEATURES = (
+    "Compare a currency",       # Exchange Helper: one currency's worth in every other (was Check a flip)
     "Name badge",               # GGG policy audit: STASH OF EXILE 2 in a small badge under the overlay's clock, every
                                 # style and layout (ovlight.BADGE) - so the overlay never reads as part of the game
     "Alert card",               # 2.131.0 every helper's alert over the game (alertcard.py); 2.131.6: was "calm alert card"
@@ -231,6 +232,7 @@ OLD = {
     "Session Configuration": "In your map device",     # 3.0.6: other tools' words - never ours
     "Active Loadout": "In your map device",
     "Loadout": "In your map device",
+    "Check a flip": "Compare a currency",      # Exchange Helper (owner, 3.0.7)
     "Copy items": "Manually Add",              # Bulk Pricing's source switch (owner, 3.0.7)
     # 3.0.7 (GGG policy audit): reading a stash tab through the trade site is removed - Manually Add is the one way
     "Read a stash tab": "Manually Add",

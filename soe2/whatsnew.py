@@ -50,6 +50,9 @@ NOTES = {
         "small": [
             ("Linux", "The Linux download is on the same release page as Windows, built at the same time."),
             ("Bulk Pricing", "Reading a stash tab is removed. The app no longer keeps your account name."),
+            ("Exchange Rates", "The overlay shows the currencies you pick. Drag them into your order."),
+            ("Exchange Rates", "Exchange Helper: Compare a currency shows one currency's worth in every other."),
+            ("Farming Strategies", "New strat: Max boxes beside Min for tablets and waystones you set by hand."),
         ],
     },
     # 3.0.4 (owner): Wealth's What moved it, 7-day prices, no typed prices; Exchange Rates 7 days; Freedom of Faith;
