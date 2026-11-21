@@ -207,6 +207,22 @@ class Layout(unittest.TestCase):
         for t in SETTINGS["pctab"]["tabs"]:
             self.assertEqual(set(t), {"id", "name", "renamed"}, "a tab has no price")
 
+    def test_new_tab_makes_one_chip_and_destroys_nothing(self):
+        """No flicker: ＋ Tab adds one chip; picking a tab restyles chips in place."""
+        self.fill(n=2)
+        a = self.app
+        before = list(self.walk(self.body))
+        a.pctab_new()
+        self.pump()
+        after = list(self.walk(self.body))
+        self.assertEqual([w for w in before if w not in after], [], "nothing destroyed")
+        self.assertEqual(len([w for w in after if w not in before]), 1, "one new chip")
+        chips = dict(a.pc_tabs)
+        a.pctab_pick("Tab 1")
+        self.pump()
+        self.assertEqual(a.pc_tabs, chips, "the same chips, restyled")
+        self.assertEqual(str(a.pc_tabs["manual"].cget("style")), "StripSel.TButton")
+
     def test_ctrl_alt_c_adds_to_the_tab_shown(self):
         a = self.app
         item = bulk_rec("rare_amulet_fractured", 0)["item"]

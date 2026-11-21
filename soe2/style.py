@@ -618,12 +618,14 @@ def flowify(row, vgap=6):
                 for i, k in enumerate(ls):
                     ww = k["w"].winfo_reqwidth() + (extra if k in grow else 0)
                     lp = 0 if li and not i else k["l"]  # 3.0.7 (owner): a wrapped line lines up with the first
-                    k["w"].place(x=px + x + lp, y=py + y + (h - k["w"].winfo_reqheight()) // 2, width=ww)
+                    k["w"].place(x=px + x + lp, y=py + y + (h - k["w"].winfo_reqheight()) // 2,
+                                 width=ww if k in grow else "")      # its own width: new words resize it and the row
+                                                                      # lays out again, never cut off
                     x += lp + ww + k["r"]
                 rx = max(x, W - sum(width(k) for k in rs))      # right-aligned, in their on-screen order
                 for k in rs:
                     ww = k["w"].winfo_reqwidth()
-                    k["w"].place(x=px + rx + k["l"], y=py + y + (h - k["w"].winfo_reqheight()) // 2, width=ww)
+                    k["w"].place(x=px + rx + k["l"], y=py + y + (h - k["w"].winfo_reqheight()) // 2, width="")
                     rx += k["l"] + ww + k["r"]
                 y += h + (vgap if li < len(lines) - 1 else 0)
             if int(row.cget("height") or 0) != y + 2 * py:
@@ -856,13 +858,16 @@ def _setup_style(root, TH):
           foreground=[("active", C["text"]), ("disabled", C["muted"])])
     # 2.126.0: small flat buttons for a header strip (Bulk Pricing's Items strip: Undo, Delete, Clear All) - they fit
     # inside the strip; the delete ones have red words (and a word or icon, never the color alone)
-    for name, fg in (("Strip.TButton", C["steel"]), ("StripDanger.TButton", C["red"]), ("StripOn.TButton", C["text"])):
+    for name, fg in (("Strip.TButton", C["steel"]), ("StripDanger.TButton", C["red"]), ("StripOn.TButton", C["text"]),
+                     ("StripSel.TButton", C["text"])):
         s.layout(name, [("Button.border", {"sticky": "nswe", "border": "1", "children": [("Button.focus", {
             "sticky": "nswe", "children": [("Button.padding", {"sticky": "nswe", "children": [
                 ("Button.label", {"sticky": "nswe"})]})]})]})])
-        s.configure(name, background=C["panel"], foreground=fg, relief="solid", borderwidth=1, bordercolor=C["line"],
-                    lightcolor=C["panel"], darkcolor=C["panel"], focuscolor=C["accent"], focusthickness=1,
-                    padding=(8, 1), font=("Segoe UI", 9, "bold" if name == "StripOn.TButton" else "normal"),
+        bg_ = C["panel2"] if name == "StripSel.TButton" else C["panel"]     # (Sel: a picked tab, on its box's fill)
+        s.configure(name, background=bg_, foreground=fg, relief="solid", borderwidth=1, bordercolor=C["line"],
+                    lightcolor=bg_, darkcolor=bg_, focuscolor=C["accent"], focusthickness=1,
+                    padding=(8, 1), font=("Segoe UI", 9, "bold" if name in ("StripOn.TButton", "StripSel.TButton")
+                                          else "normal"),
                     anchor="center", width=0)   # (as wide as its words)
         s.map(name, background=[("pressed", C["odd"]), ("active", C["panel2"])],
               bordercolor=[("active", C["steel"])], lightcolor=[("active", C["panel2"])], darkcolor=[("active", C["panel2"])],

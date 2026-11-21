@@ -97,43 +97,51 @@ class BulkTabsPage:
         return counts
 
     def pctab_bar(self):
-        """The tabs as chips - "Tab 1 · 12" (the one shown is bold and marked ▸), then ＋ Tab. A click shows a tab's
-        list; right-click renames / closes it. Built again only when the tabs or the shown one changed; else painted in
-        place."""
+        """The tabs as chips - "Tab 1 · 12" (the one shown is bold, marked ▸, on its list's fill), then ＋ Tab. A click
+        shows a tab's list; right-click renames / closes it. No flicker: a chip is made once per tab and changed in
+        place - a new tab adds one chip, picking another restyles two, a closed tab takes its own away."""
         if getattr(self, "pc_tabsrow", None) is None:
             return
         tabs = self.pctab_tabs()
         cur = self.pctab_current()
-        sig = tuple((t["id"], cur is not None and t["id"] == cur["id"]) for t in tabs)
-        if sig == self._pc_bar_sig and all(w.winfo_exists() for w in self.pc_tab_widgets):
-            return self.pctab_counts_paint()
-        for w in self.pc_tab_widgets:
-            w.destroy()
         counts = self.pctab_counts()
-        self.pc_tabs, self.pc_tab_wrap, self.pc_tab_tips, self.pc_tab_widgets = {}, {}, {}, []
-        self.pc_sel_wrap = None
+        ids = [t["id"] for t in tabs]
+        for tid in [k for k in self.pc_tabs if k not in ids]:
+            try:
+                self.pc_tabs[tid].destroy()
+            except tk.TclError:
+                pass
+            for d in (self.pc_tabs, self.pc_tab_wrap, self.pc_tab_tips):
+                d.pop(tid, None)
+        made = False
         for t in tabs:
+            chip = self.pc_tabs.get(t["id"])
+            try:
+                alive = chip is not None and chip.winfo_exists()
+            except tk.TclError:
+                alive = False
+            if not alive:
+                chip = ttk.Button(self.pc_tabsrow, text="", style="Strip.TButton", cursor="hand2",
+                                  command=lambda tid=t["id"]: self.pctab_pick_id(tid))
+                chip.bind("<Button-3>", lambda e, tid=t["id"]: self.pctab_tab_menu(e, tid), add="+")
+                self.pc_tab_tips[t["id"]] = Tooltip(chip, "")
+                self.pc_tabs[t["id"]] = self.pc_tab_wrap[t["id"]] = chip
+                made = True
             on = cur is not None and t["id"] == cur["id"]
-            text = self.pctab_chip_text(t, counts, on)
-            if on:                                       # the shown tab: its own fill and outline, bold
-                wrap = tk.Frame(self.pc_tabsrow, bg=C["line"])
-                chip = tk.Label(wrap, text=text, bg=self.pc_box_bg, fg=C["text"], font=("Segoe UI", 9, "bold"),
-                                padx=8, pady=4)
-                chip.pack(padx=1, pady=1)
-                self.pc_sel_wrap = wrap
-            else:
-                wrap = chip = ttk.Button(self.pc_tabsrow, text=text, style="Strip.TButton", cursor="hand2",
-                                         command=lambda n=t["name"]: self.pctab_pick(n))   # (round, outlined)
-            for w in (wrap, chip):
-                w.bind("<Button-3>", lambda e, tid=t["id"]: self.pctab_tab_menu(e, tid), add="+")
-            self.pc_tab_tips[t["id"]] = Tooltip(chip, self.pctab_chip_tip(t, counts))
+            text, style = self.pctab_chip_text(t, counts, on), ("StripSel.TButton" if on else "Strip.TButton")
+            if chip.cget("text") != text:
+                chip.config(text=text)
+            if str(chip.cget("style")) != style:
+                chip.config(style=style)
+            self.pc_tab_tips[t["id"]].text = self.pctab_chip_tip(t, counts)
             if on:
-                wrap.bind("<Enter>", self.pc_tab_tips[t["id"]]._enter, add="+")
-                wrap.bind("<Leave>", self.pc_tab_tips[t["id"]]._leave, add="+")
-            self.pc_tabs[t["id"]], self.pc_tab_wrap[t["id"]] = chip, wrap
-            self.pc_tab_widgets.append(wrap)
-        self._pc_bar_sig = sig
-        self.pctab_strip_layout()
+                self.pc_sel_wrap = chip
+        self.pc_tab_widgets = [self.pc_tabs[i] for i in ids]
+        self._pc_bar_sig = tuple((i, cur is not None and i == cur["id"]) for i in ids)
+        if made:                                          # a new chip knows its size once Tk has measured it
+            self.pc_tabsrow.after_idle(self.pctab_strip_layout)
+        else:
+            self.pctab_strip_layout()
 
     def pctab_counts_paint(self):
         """The chips' counts follow the lists, in place (only a chip whose words changed)."""
@@ -200,6 +208,14 @@ class BulkTabsPage:
         if not t:
             return
         SETTINGS.setdefault("pctab", {})["current"] = t["id"]
+        save_json("settings.json", SETTINGS)
+        self.pctab_bar()
+        self.list_switched()
+
+    def pctab_pick_id(self, tid):
+        if (SETTINGS.get("pctab") or {}).get("current") == tid:
+            return
+        SETTINGS.setdefault("pctab", {})["current"] = tid
         save_json("settings.json", SETTINGS)
         self.pctab_bar()
         self.list_switched()
