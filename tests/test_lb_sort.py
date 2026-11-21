@@ -14,6 +14,9 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
 from soe2 import leaderboard as LB       # noqa: E402
+from soe2 import campaign as CP          # noqa: E402
+
+CURRENT_CHAR = CP.current_char           # (test_campaign swaps it out in its setUp)
 
 try:
     import tkinter as tk
@@ -168,11 +171,10 @@ class PartyClass(unittest.TestCase):
 
 
     def test_the_campaign_follows_your_typed_name(self):
-        from soe2 import campaign as CP
-        with mock.patch.dict(LB.SETTINGS, {"tracker": {"character": "Me"}}), \
+        with mock.patch.dict(CP.SETTINGS, {"tracker": {"character": "Me"}}), \
                 mock.patch("soe2.focus.cfg", lambda: {"state": {"last_char": "Friend"}}), \
                 mock.patch.object(CP, "_sandbox", lambda: None):
-            self.assertEqual(CP.current_char(), "Me")
+            self.assertEqual(CURRENT_CHAR(), "Me")
 
 
 if __name__ == "__main__":
