@@ -14,15 +14,15 @@ A free, open-source Windows companion for **Path of Exile 2**: price checks, bul
 
 *Screenshots: sample data and made-up listings.*
 
-## New in 3.0
+## New in 3.1
 
-![What's new in 3.0: Why 3.0 and How helpers work now](docs/screenshots/whats-new.png)
-
-- **Why 3.0** - to follow Grinding Gear Games' third-party policy: the app reads your screen or clipboard only when you press a key, once per press. Nothing watches your screen by itself.
-- **How helpers work now** - press your **Read Key** (**Ctrl+Shift+R**) where a helper applies. The read mark (👁) shows what was read. A price check reads the clipboard on its key (**Ctrl+D**).
-- **Drawer** - the app over the game's side: suggested for one monitor. **Full window** is suggested for two or more.
-- **Trial of the Sekhemas** (BETA), **Back from a map** (Map profit + Top Up Reminders in one card), **Campaign Bar**, **Broaden Search** on price checks.
-- Gone, because they watched the screen by themselves: the Delirium helper, the Temple Helper's Vaal Beacon read, Map Content reads. The Toolkit row is gone too (Go to anything, Ctrl+K, finds every page).
+- **Made to follow GGG's rules** - the app searches the trade site only when you press a button, no longer reads your stash tabs or keeps an account name, and shows you the steps for the Ritual filter instead of changing game files. The overlay carries a STASH OF EXILE 2 badge, so it never looks like part of the game.
+- **Farming Strategies: New strat** - build your own strategy. Copy your waystone and tablets in from the game, or set them by hand with Min and Max values. Check cost prices it when you ask.
+- **Exchange Rates overlay** - pick up to 10 currencies, drag them into your order, and choose which currency the rates are shown in.
+- **Compare a currency** - pick one currency and see what it's worth in every other, with how each number was worked out.
+- **Rate Mods** - its own Mods section, rating One at a Time or in a Table.
+- **Vaal Lens** - a full step-by-step plan for your temple.
+- **Installer** - a full install if you prefer it. The portable version is still there.
 
 A small **NEW** chip marks what's new on its row and on its page's icon, until you open or use it.
 
@@ -37,7 +37,7 @@ GGG's rule for tools: *"Reading from the screen or clipboard may only be perform
 - **Never** the game's memory, files or network traffic. The game client is never changed.
 - **Never a macro.** After your key press the app does at most one thing in the game: the game's own item copy, or one chat command. The mouse is never moved or clicked for you.
 - The trade site is searched only for what you started, well inside its limits, with a User-Agent that says who is asking. Rates come from poe.ninja.
-- **No game art ships with the app.** Game images are loaded from Path of Exile's own image server at runtime and kept only on your PC.
+- **No game art ships with the app.** Item pictures load from poe.ninja and the trade site when needed and stay only on your PC.
 - The full list of every read and its trigger: [TOS.md](TOS.md).
 - **Older versions are gone.** Every release before 3.0.0 was removed from GitHub, because those versions read the screen by themselves. Please don't use them with the game. Details: [docs/REMOVED_VERSIONS.md](docs/REMOVED_VERSIONS.md).
 
@@ -48,7 +48,7 @@ This product isn't affiliated with or endorsed by Grinding Gear Games in any way
 **Trade**
 - **Price Checks** - hover an item, press **Ctrl+D**: price, how sure, and how it was worked out. Too few listings for a base? **Broaden Search** widens it, one step a click.
 - **Bulk Pricing** - **Ctrl+Alt+C** on many items (tablets, waystones, jewels): priced as a list.
-- **Favorites**, **Exchange Rates** (poe.ninja, a converter, a flip check).
+- **Favorites**, **Exchange Rates** - poe.ninja rates, a converter, and Compare a currency. Pick which ones show over the game.
 
 **Mods**
 - **Rate Mods** - rate mods One at a Time or in a Table; your ratings tune your price checks. A mod that rolls in tiers can have a letter for its top, middle and low rolls (By roll).

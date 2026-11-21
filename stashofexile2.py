@@ -2,7 +2,7 @@ r"""
 StashOfExile2 - a Path of Exile 2 price checker for tablets and jewels, with a window instead of a text dump.
 Free software under the GNU AGPL v3.0 (see LICENSE; up to 2.129.4: GNU GPL v3.0). Written by an AI (Claude, by Anthropic) under a human's direction.
 
-VERSION 3.0.5
+VERSION 3.1.0
   How versions are numbered (from 2.0.0 on):
     MAJOR.MINOR.PATCH.  The 22 betas ended here: this build is 2.0.0. From now on every build gets a plain number:
       2.0.1, 2.0.2 ...  fixes (nothing new to learn)
@@ -19,6 +19,15 @@ VERSION 3.0.5
   version (settings.json, session.json, modbook.json, mod_rules.json, wealth.json, tabs.txt ...).
 
 VERSION HISTORY
+  3.1.0
+       - Made to follow GGG's third-party policy: trade searches only from a press (Check cost, Re-price buttons, one
+         try after a 429); no stash tab reading and no account name; the Ritual filter is instructions only; no
+         shipped game art - pictures from poe.ninja and trade image links at runtime; the overlay's Name badge and
+         pale gold gems; the usage count opt-in.
+       - Farming Strategies New strat with Min and Max; Exchange Rates overlay picker with drag to reorder and Show
+         rates in; Compare a currency; Rate Mods' Mods group; Vaal Lens full plan; Map Profit and Scan stash reads;
+         reads at any resolution; Split layout; the installer; a softer look and no-flicker pass.
+       - Version rule: a minor version - the removals are small and for GGG's rules.
   3.0.5
        - Linux joins main (owner: merge into main provided it creates no issues for Windows builds): release.yml builds
          the Windows exe as before, then (its own job, ubuntu-24.04) the Linux build onto the SAME full release -
@@ -3945,7 +3954,7 @@ THE "LEARNING" PART
 import os
 import sys
 
-APP_VERSION = "3.0.5"  # bump this and __version__ in soe2/__init__.py together (see VERSION above)
+APP_VERSION = "3.1.0"  # bump this and __version__ in soe2/__init__.py together (see VERSION above)
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
