@@ -606,7 +606,7 @@ class Page(unittest.TestCase):
         return [cv.itemcget(i, "text") for i in cv.find_all() if cv.type(i) == "text"]
 
     def test_waystone_by_hand(self):
-        """No waystone to copy (mockup v3): its tier (16 squares) and its WAYSTONE MODIFIERS · at least, as a
+        """No waystone to copy (mockup v3): its tier (16 squares) and its WAYSTONE MODIFIERS with Min and Max, as a
         waystone reads them - nothing goes in the slot until Done; Cancel adds nothing."""
         from soe2.waystone import PROPS, WAYSTONE_HEADERS
         a = self.app
@@ -621,10 +621,12 @@ class Page(unittest.TestCase):
         self.assertEqual(list(a.mm_nw["hand_props"]), ["Waystone Drop Chance", "Item Rarity", "Pack Size",
                                                        "Monster Rarity", "Monster Effectiveness", "Revives Available"])
         w_ = self.words(cv)
-        for x in ("Waystone by hand", "WAYSTONE MODIFIERS", "· at least", "Item Rarity:", "Revives Available:"):
+        for x in ("Waystone by hand", "WAYSTONE MODIFIERS", "· Min and Max, either can stay empty", "Item Rarity:",
+                  "Revives Available:"):
             self.assertIn(x, w_, x)
         self.assertNotIn("ADD A MOD", w_, "a waystone's mods aren't picked")
-        self.assertEqual(w_.count("%"), 5, "a unit after each number - Revives has none")
+        self.assertEqual(w_.count("%"), 10, "a unit after each Min and Max - Revives has none")
+        self.assertEqual(w_.count("to"), 6, "Min to Max on every line")
         self.assertEqual([f"nw_ht_{n}" in cv.acts for n in range(1, 17)], [True] * 16, "Tier 1-16")
         self.assertEqual(cv.tips.get("nw_hand_x"), "Close without adding")
         self.assertEqual(cv.primaries, [], "Done greyed until a tier is picked")
@@ -635,7 +637,12 @@ class Page(unittest.TestCase):
         self.pump()
         self.assertEqual(cv.primaries, ["Done"], "while the picker is open, Done is the one orange button")
         self.assertIsNone(a.mm_nd["way"], "nothing in the slot before Done")
-        self.assertEqual(a.mm_new_hand_summary(), "Waystone (Tier 15) · Item Rarity 30%+, Revives Available 1+")
+        self.assertEqual(a.mm_new_hand_summary(),
+                         "Waystone (Tier 15) · Item Rarity 30% or more, Revives Available 1 or more")
+        a.mm_nw["hand_props_max"]["Item Rarity"].var.set("60")
+        self.assertEqual(a.mm_new_hand_summary(),
+                         "Waystone (Tier 15) · Item Rarity 30 to 60%, Revives Available 1 or more")
+        a.mm_nw["hand_props_max"]["Item Rarity"].var.set("")
         cv.acts["nw_hand_cancel"]()
         self.pump()
         self.assertIsNone(a.mm_nd["way"], "Cancel: nothing added")

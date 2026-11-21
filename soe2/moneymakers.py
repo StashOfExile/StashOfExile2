@@ -807,6 +807,9 @@ def card_item(card):
         it["mods"] = list(card["mods"])
     if card.get("rarity"):
         it["rarity"] = card["rarity"]
+    maxes = {k: v for k, v in (card.get("maxes") or {}).items() if k in ticked}
+    if maxes:
+        it["key_max"] = maxes                       # each ticked line's Max, kept on this PC only
     return it
 
 
@@ -824,6 +827,8 @@ def item_card(it):
            "mods": mods, "ticked": keys, "count": int(it.get("count") or 1)}
     if str(it.get("rarity") or "").lower() == "unique":
         out["unique"] = True
+    if it.get("key_max"):
+        out["maxes"] = dict(it["key_max"])
     return out
 
 
@@ -940,20 +945,57 @@ def hand_line(template, minimum=None):
     return template.replace("#", v, 1) if v else template
 
 
-def hand_card(kind, base=None, tier=None, props=None, mods=(), uses=10):
-    """A slot filled by hand -> a card like a copy's (every line ticked: they're what matters)."""
+def _num(v):
+    """A typed number -> int or float, None when there is none."""
+    try:
+        f = float(str(v).replace(",", ".").strip().lstrip("+").rstrip("%"))
+    except (TypeError, ValueError):
+        return None
+    return int(f) if f.is_integer() else f
+
+
+def value_range(lo=None, hi=None):
+    """A trade search's value for a number, the way Price Checks sends it: {"min": lo, "max": hi}, either may be left
+    out. None when both are."""
+    out = {}
+    if lo is not None:
+        out["min"] = lo
+    if hi is not None:
+        out["max"] = hi
+    return out or None
+
+
+def hand_card(kind, base=None, tier=None, props=None, mods=(), uses=10, props_max=None):
+    """A slot filled by hand -> a card like a copy's, every line ticked because they're what matters. mods: the
+    template, your Min and your Max, which may be left out. A Max goes in the card's "maxes", by its line."""
+    maxes = {}
+
+    def mod_line(m):
+        t, lo, hi = (tuple(m) + (None, None))[:3]
+        line = hand_line(t, lo)
+        if _num(hi) is not None:
+            maxes[line] = _num(hi)
+        return line
     if kind == "waystone":
         lines = []
         for name in hand_props():
             v = str((props or {}).get(name) or "").strip()
-            if v:
-                lines.append(_prop_line(name, v))
-        lines += [hand_line(t, v) for t, v in mods]
-        return {"kind": "waystone", "base": f"Waystone (Tier {tier})", "name": f"Waystone (Tier {tier})",
+            hi = _num((props_max or {}).get(name))
+            if v or hi is not None:
+                line = _prop_line(name, v or "0")
+                lines.append(line)
+                if hi is not None:
+                    maxes[line] = hi
+        lines += [mod_line(m) for m in mods]
+        card = {"kind": "waystone", "base": f"Waystone (Tier {tier})", "name": f"Waystone (Tier {tier})",
                 "rarity": "", "uses": None, "tier": tier, "mods": lines, "ticked": list(lines), "hand": True}
-    lines = [hand_line(t, v) for t, v in mods]
-    return {"kind": "tablet", "base": base, "name": base, "rarity": "", "uses": uses, "tier": None, "mods": lines,
-            "ticked": list(lines), "hand": True}
+    else:
+        lines = [mod_line(m) for m in mods]
+        card = {"kind": "tablet", "base": base, "name": base, "rarity": "", "uses": uses, "tier": None,
+                "mods": lines, "ticked": list(lines), "hand": True}
+    if maxes:
+        card["maxes"] = maxes
+    return card
 
 
 def board_compat(data):
@@ -995,7 +1037,8 @@ def made_for_you(kind, cards, league, sid_of=None, uses_sid=None):
     bases = [c["base"] for c in cards]
     base = max(dict.fromkeys(bases), key=bases.count)
     lines = [m for i in items if i["base"] == base for m in i.get("key_mods") or []]
-    sids, mins = [], {}
+    maxes = {m: v for i in items if i["base"] == base for m, v in (i.get("key_max") or {}).items()}
+    sids, mins, his = [], {}, {}
     for line in lines:
         try:
             sid = (sid_of or stat_id)(line)
@@ -1006,11 +1049,14 @@ def made_for_you(kind, cards, league, sid_of=None, uses_sid=None):
             n = re.search(r"\d+(?:\.\d+)?", str(line))            # (its number: the search's minimum)
             if n:
                 mins[sid] = float(n.group(0)) if "." in n.group(0) else int(n.group(0))
+            if maxes.get(line) is not None:
+                his[sid] = maxes[line]
     q = {"query": {"status": {"option": _status()}, "type": base}, "sort": {"price": "asc"}}
     groups = []
     if sids:
         several = len([i for i in items if i["base"] == base and i.get("key_mods")]) > 1
-        flt = [dict({"id": s}, **({"value": {"min": mins[s]}} if s in mins else {})) for s in sids]
+        flt = [dict({"id": s}, **({"value": value_range(mins.get(s), his.get(s))}
+                                   if s in mins or s in his else {})) for s in sids]
         groups.append({"type": "count", "value": {"min": 1}, "filters": flt} if several
                       else {"type": "and", "filters": flt})
     if uses_sid:
@@ -1424,7 +1470,8 @@ def item_trade_link(league, item):
     wp = waystone_props(item)
     if wp is not None:
         tier, props = wp
-        mp = {fid: {"min": v} for fid, _ro, v in props}
+        his = waystone_maxes(item)
+        mp = {fid: value_range(v, his.get(fid)) for fid, _ro, v in props}
         if tier:
             mp["map_tier"] = {"min": tier, "max": tier}
         if mp:
@@ -1435,8 +1482,9 @@ def item_trade_link(league, item):
             continue
         f = {"id": sid}
         n = re.search(r"[-+]?\d+(?:\.\d+)?", line)
-        if n:
-            f["value"] = {"min": float(n.group(0)) if "." in n.group(0) else int(n.group(0))}
+        v = value_range(_num(n.group(0)) if n else None, (item.get("key_max") or {}).get(line))
+        if v:
+            f["value"] = v
         filters.append(f)
     if filters:
         q["query"]["stats"] = [{"type": "and", "filters": filters}]
@@ -1451,23 +1499,35 @@ WAYSTONE_REGEX = {"map_iir": "item_rarity", "map_bonus": "drop_chance", "map_pac
 def waystone_props(item):
     """2.84.0: a waystone item -> (tier or None, [(trade filter id, regex option or None, value)]) from its ★ lines
     ("Monster Rarity: +103%"); None for anything else."""
-    from .waystone import PROPS
     base = str(item.get("base") or "")
     if item.get("kind") != "waystone" and "waystone" not in base.lower():
         return None
     m = re.search(r"Tier (\d+)", base)
     tier = int(m.group(1)) if m else None
+    out = [(fid, ro, v) for fid, ro, v, _line in _waystone_lines(item)]
+    return tier, out
+
+
+def _waystone_lines(item):
+    """A waystone item's numbered lines -> [(trade filter id, regex option or None, value, the line)]."""
+    from .waystone import PROPS
     out = []
     for line in item.get("key_mods") or []:
         mm = re.match(r"^\s*([A-Za-z ]+?)\s*:?\s*([+-]?\d+(?:\.\d+)?)%?", str(line).replace("★", "").strip())
         if not mm:
             continue
-        key = mm.group(1).strip().lower()           # (the line's own words, or the short name it is shown by -
-        hit = PROPS.get(key) or next((v for v in PROPS.values() if v[1].lower() == key), None)   # "Experience")
+        key = mm.group(1).strip().lower()           # the line's own words, or the short name it is shown by
+        hit = PROPS.get(key) or next((v for v in PROPS.values() if v[1].lower() == key), None)
         if hit:
             v = float(mm.group(2))
-            out.append((hit[0], WAYSTONE_REGEX.get(hit[0]), int(v) if v.is_integer() else v))
-    return tier, out
+            out.append((hit[0], WAYSTONE_REGEX.get(hit[0]), int(v) if v.is_integer() else v, line))
+    return out
+
+
+def waystone_maxes(item):
+    """A waystone item's Max per trade filter id, from the strat's key_max."""
+    his = item.get("key_max") or {}
+    return {fid: his[line] for fid, _ro, _v, line in _waystone_lines(item) if his.get(line) is not None}
 
 
 def item_regex(items):

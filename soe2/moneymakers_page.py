@@ -1178,7 +1178,10 @@ class MoneyMakersPage(StratViews, StratNewPage):
     def mm_board_send(self, send, data):
         """Post / update / suggest on the board. 3.0.6: a board from before New strat answers "unknown field" for
         the league, Atlas masters and the copies' every line - then it is sent without them (they stay on this PC).
-        -> (ok, answer)."""
+        -> (ok, answer). Max values stay on this PC: the board keeps each line's own number only."""
+        if isinstance(data, dict) and data.get("items"):
+            data = dict(data, items=[{k: v for k, v in it.items() if k != "key_max"} if isinstance(it, dict) else it
+                                     for it in data["items"]])
         res = send(data)
         if not res[0] and ("unknown field" in str(res[1]) or "items must be" in str(res[1])):
             res = send(MM.board_compat(data))

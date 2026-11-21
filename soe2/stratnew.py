@@ -185,7 +185,9 @@ class StratNewPage:
         nw["source"] = self._mm_new_entry(stext, "Link to the guide or video, and its author")
         nw["hand_q"] = self._mm_new_entry("", "Search…")                           # the by-hand pickers
         nw["hand_rows"] = {r: self._mm_new_entry("", "min", right=True) for r in ROWS}
-        nw["hand_props"] = {name: self._mm_new_entry("", "any", right=True) for name in MM.hand_props()}
+        nw["hand_rows_max"] = {r: self._mm_new_entry("", "max", right=True) for r in ROWS}
+        nw["hand_props"] = {name: self._mm_new_entry("", "min", right=True) for name in MM.hand_props()}
+        nw["hand_props_max"] = {name: self._mm_new_entry("", "max", right=True) for name in MM.hand_props()}
 
     def _mm_new_typed(self):
         """A key typed in a field: a new empty step when the last is filled; the side panel and Needs follow."""
@@ -379,8 +381,12 @@ class StratNewPage:
         nw["hand_q"].var.set("")
         for r, e in nw["hand_rows"].items():
             e.var.set((st.get("mins") or {}).get(r, ""))
+        for r, e in nw["hand_rows_max"].items():
+            e.var.set((st.get("maxes") or {}).get(r, ""))
         for name, e in nw["hand_props"].items():
             e.var.set((st.get("props") or {}).get(name, ""))
+        for name, e in nw["hand_props_max"].items():
+            e.var.set((st.get("props_max") or {}).get(name, ""))
         self.mm_new_cv.later(1)
         return d["hand"]
 
@@ -394,7 +400,7 @@ class StratNewPage:
         h = self.mm_nd["hand"]
         if field == "ttype":
             h.update(ttype=value, unique=None, rows={}, open=None)
-            for e in self.mm_nw["hand_rows"].values():
+            for e in list(self.mm_nw["hand_rows"].values()) + list(self.mm_nw["hand_rows_max"].values()):
                 e.var.set("")
         elif field == "unique":
             h.update(unique=value, ttype=MM.unique_tablets().get(value) or h.get("ttype"), rows={}, open=None)
@@ -440,22 +446,31 @@ class StratNewPage:
         return bool(h and (h.get("tier") if h["kind"] == "waystone" else (h.get("ttype") or h.get("unique"))))
 
     def _mm_hand_values(self):
+        """The typed numbers -> (waystone Min, row Min, waystone Max, row Max), each by its name or row."""
         nw = self.mm_nw
         num = lambda w: re.sub(r"[^\d.]", "", self._mm_val(w))       # noqa: E731
         return ({n: num(e) for n, e in nw["hand_props"].items() if num(e)},
-                {r: num(e) for r, e in nw["hand_rows"].items() if num(e)})
+                {r: num(e) for r, e in nw["hand_rows"].items() if num(e)},
+                {n: num(e) for n, e in nw["hand_props_max"].items() if num(e)},
+                {r: num(e) for r, e in nw["hand_rows_max"].items() if num(e)})
 
     def mm_new_hand_summary(self):
         """The picker's footer: what Done puts in the slot."""
         h = self.mm_nd.get("hand")
         if not h:
             return ""
-        props, mins = self._mm_hand_values()
+        props, mins, props_max, _maxes = self._mm_hand_values()
         if h["kind"] == "waystone":
             if not h.get("tier"):
                 return "Pick its tier."
-            bits = [f"{n} {v}{'' if n.lower().startswith('revives') else '%'}+" for n, v in
-                    ((n, props[n]) for n in MM.hand_props() if n in props)]
+
+            def bit(n):
+                pc = "" if n.lower().startswith("revives") else "%"
+                lo, hi = props.get(n), props_max.get(n)
+                if lo and hi:
+                    return f"{n} {lo} to {hi}{pc}"
+                return f"{n} {lo}{pc} or more" if lo else f"{n} up to {hi}{pc}"
+            bits = [bit(n) for n in MM.hand_props() if n in props or n in props_max]
             return f"Waystone (Tier {h['tier']})" + (" · " + ", ".join(bits) if bits else "")
         if h.get("unique"):
             return f"{h['unique']} · {h.get('ttype') or 'Tablet'} · unique"
@@ -471,17 +486,17 @@ class StratNewPage:
         h = d.get("hand")
         if not self.mm_new_hand_ready():
             return None
-        props, mins = self._mm_hand_values()
+        props, mins, props_max, maxes = self._mm_hand_values()
         state = {"tier": h.get("tier"), "ttype": h.get("ttype"), "unique": h.get("unique"), "rows": dict(h["rows"]),
-                 "mins": mins, "props": props}
+                 "mins": mins, "props": props, "maxes": maxes, "props_max": props_max}
         if h["kind"] == "waystone":
-            card = MM.hand_card("waystone", tier=h["tier"], props=props)
+            card = MM.hand_card("waystone", tier=h["tier"], props=props, props_max=props_max)
         elif h.get("unique"):
             card = MM.unique_card(h["unique"], h.get("ttype"))
             card["hand"] = True
         else:
             card = MM.hand_card("tablet", base=h["ttype"],
-                                mods=[(h["rows"][r], mins.get(r)) for r in ROWS
+                                mods=[(h["rows"][r], mins.get(r), maxes.get(r)) for r in ROWS
                                       if h["rows"].get(r) and h["rows"][r] != ANY])
         card["hand_state"] = state
         if h["kind"] == "waystone":
@@ -1121,19 +1136,26 @@ class StratNewPage:
                 cv.tips[tag] = f"Tier {n}"
                 x += sq + g
             yy += sq + 20
-            yy = label("WAYSTONE MODIFIERS", yy, "· at least")
+            yy = label("WAYSTONE MODIFIERS", yy, "· Min and Max, either can stay empty")
             yy += 4
             for name in MM.hand_props():
-                e = nw["hand_props"][name]
-                filled = bool(self._mm_val(e).strip())
-                try:
-                    e.configure(highlightbackground=C["accent"] if filled else C["line"])
-                except tk.TclError:
-                    pass
+                pc = not name.lower().startswith("revives")
                 cv.text(lx, yy + 16, f"{name}:", F10, fill=cv.c("text"), anchor="w")
-                self._nw_place(cv, e, lx + 208, yy, 88, 32)
-                if not name.lower().startswith("revives"):
-                    cv.text(lx + 208 + 88 + 12, yy + 16, "%", F10, fill=cv.c("text_muted"), anchor="w")
+                x = lx + 208
+                for k, word in (("hand_props", "to"), ("hand_props_max", None)):
+                    e = nw[k][name]
+                    try:
+                        e.configure(highlightbackground=C["accent"] if self._mm_val(e).strip() else C["line"])
+                    except tk.TclError:
+                        pass
+                    self._nw_place(cv, e, x, yy, 72, 32)
+                    x += 72 + 8
+                    if pc:
+                        cv.text(x, yy + 16, "%", F10, fill=cv.c("text_muted"), anchor="w")
+                    x += 16                              # the Max boxes line up, with or without a %
+                    if word:
+                        cv.text(x, yy + 16, word, F9, fill=cv.c("text_muted"), anchor="w")
+                        x += 24
                 yy += 38
         else:
             yy = label("TYPE", yy)
@@ -1153,7 +1175,7 @@ class StratNewPage:
             elif h.get("ttype"):
                 for r, lab in ROWS.items():
                     cv.text(lx, yy + 17, lab.upper(), FB, fill=cv.c("text_muted"), anchor="w")
-                    bx0, bx1 = lx + 86, cr - 98
+                    bx0, bx1 = lx + 86, cr - 178
                     tag = f"nw_hrow_{r}"
                     val = h["rows"].get(r)
                     b = TH.round_rect(cv, bx0, yy, bx1, yy + 34, 4, fill=cv.c("surface_sunken"),
@@ -1167,15 +1189,16 @@ class StratNewPage:
                     cv.lifts[tag] = [(b, {"outline": acc if h.get("open") == r else cv.c("border_light")},
                                       {"outline": cv.c("text_muted")})]
                     cv.tips[tag] = val or ("This type's prefixes" if r.startswith("p") else "This type's suffixes")
-                    e = nw["hand_rows"][r]
-                    try:
-                        e.configure(highlightbackground=C["accent"] if self._mm_val(e).strip() else C["line"])
-                    except tk.TclError:
-                        pass
-                    if val == ANY:                       # (any mod: no number to search for)
-                        e.var.set("")
-                    else:
-                        self._nw_place(cv, e, cr - 88, yy, 88, 34)
+                    for k, ex in (("hand_rows", cr - 168), ("hand_rows_max", cr - 80)):
+                        e = nw[k][r]
+                        try:
+                            e.configure(highlightbackground=C["accent"] if self._mm_val(e).strip() else C["line"])
+                        except tk.TclError:
+                            pass
+                        if val == ANY:                   # any mod: no number to search for
+                            e.var.set("")
+                        else:
+                            self._nw_place(cv, e, ex, yy, 80, 34)
                     yy += 42
                     if h.get("open") == r:
                         yy = self._nw_hand_list(cv, r, bx0, bx1, yy) + 8
