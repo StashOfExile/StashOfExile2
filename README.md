@@ -89,6 +89,24 @@ The project moved to [github.com/StashOfExile/StashOfExile2](https://github.com/
 
 Each release lists the SHA-256 of every download and a VirusTotal scan of the exe: open the [latest release](https://github.com/StashOfExile/StashOfExile2/releases/latest), then the VirusTotal link under **Check your download**.
 
+### Windows warnings and VirusTotal
+
+**Windows SmartScreen** may say "Windows protected your PC" the first time you run a new version. That happens because the app isn't signed with a paid code-signing certificate, and every new version starts with no download history. Press **More info**, then **Run anyway**. The warning fades as more people download that version.
+
+**VirusTotal** usually shows one or two engines out of about 70 flagging the exe, with generic names like `W32.Malware`. These are false positives. Here is where they come from:
+
+- **PyInstaller.** The app is written in Python and packed into one exe with PyInstaller. Some malware uses the same packer, so a few engines flag anything packed with it. VirusTotal's own PyInstaller rule says this alone doesn't mean a file is malicious.
+- **The tags** `overlay`, `obfuscated`, `detect-debug-environment` and `calls-wmi` describe how PyInstaller and Python work: the code is stored as a compressed archive at the end of the exe, and Python asks Windows which version it's running on.
+- **`checks-user-input`** is the Read Key and the other hotkeys you set. The app waits for your key press, then reads.
+- **Cloudflare `workers.dev`** is where Leaderboards, Farming Strategies posts and Community data sharing live. It's an info-level note, not a warning.
+
+Don't just take our word for it:
+
+- Compare the exe's SHA-256 with the one on the release page.
+- Read the code. Everything the exe runs is in this repo.
+- Build it yourself. Each release has a build kit zip with the exact code for that version; run `build_exe.bat` in it. Or run it from source, below.
+- Upload the exe to VirusTotal yourself, or scan it with your own antivirus.
+
 From source (Python 3.12): `py -m pip install requests pystray pillow mss numpy opencv-python-headless` then `py stashofexile2.py`.
 
 ### Linux
