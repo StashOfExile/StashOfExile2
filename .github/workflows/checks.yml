@@ -25,7 +25,9 @@ jobs:
       - name: GGG ToS safety check (TOS.md)
         run: python tools/check_tos.py
       - name: Screen reads only on a Read Key press (GGG policy)
-        run: python tools/check_screenread.py
+        run: |
+          python -m pip install --quiet requests
+          python tools/check_screenread.py
       - name: No currency-seller or banned sites
         run: python tools/check_rmt.py
       - name: Version agrees everywhere
