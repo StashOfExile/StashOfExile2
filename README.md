@@ -14,6 +14,13 @@ A free, open-source Windows companion for **Path of Exile 2**: price checks, bul
 
 *Screenshots: sample data and made-up listings.*
 
+## New in 3.2
+
+- **Suggest a Feature** - a button next to Report a bug. You see every word before your idea is sent.
+- **Report a bug can add your screen setup** - screen size, scaling, HDR and the game window's mode, shown before you send. Untick it to leave it out.
+- **Mod Lab** - a bigger intro, a picture of each item, and a Next button for a mod rated by roll.
+- **Map Profit and Top Up** look for your inventory along the whole top of the game, and the log says what was seen when it isn't found.
+
 ## New in 3.1
 
 - **Made to follow GGG's rules** - the app searches the trade site only when you press a button, no longer reads your stash tabs or keeps an account name, and shows you the steps for the Ritual filter instead of changing game files. The overlay carries a STASH OF EXILE 2 badge, so it never looks like part of the game.
@@ -124,7 +131,7 @@ Every release has a Linux download on the same page: `StashOfExile2-<version>-li
 - The usage count (off until you switch it on, Settings › Privacy & community): a random id made on your PC, every 10 minutes, so we know how many people use the app. Not your account, name or PC.
 - Nothing else leaves your PC unless you turn on Community data sharing - and then only anonymous data that helps improve the app's price checks, map ranks and campaign guide. Never your account or character names, personal information or anything about your currency or wealth. Leaderboard times show under the community name you pick.
 - Error reports: off until you turn them on. They only show where in the code an error happened and its type - never messages, names, items or files.
-- Logs (`app_log.txt`, `crash_report.txt`) stay on your PC and leave out your names and folders. You see every word before a bug report is sent.
+- Logs (`app_log.txt`, `crash_report.txt`) stay on your PC and leave out your names and folders. You see every word before a bug report is sent. A bug report can add your screen setup: screen size, scaling, HDR and the game window's mode, from Windows - never from the game. Untick it to leave it out.
 - Settings › Privacy & community › Leave and delete my data removes everything of yours from the community board.
 
 ## Community
