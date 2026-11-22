@@ -97,7 +97,9 @@ class GoTo:
         for key, m in sh.modules.items():
             if not sh.visible(m) or getattr(m, "hidden", False):
                 continue
-            out.append(("Page", m.title, where_of(key), f"{m.title} {getattr(m, 'blurb', '')}",
+            from .names import OLD                 # (an old name still finds the page: Rate Mods -> Mod Lab)
+            olds = " ".join(o for o, new in OLD.items() if new == m.title)
+            out.append(("Page", m.title, where_of(key), f"{m.title} {olds} {getattr(m, 'blurb', '')}",
                         lambda k=key: sh.open(k)))
             for tab in sh.tab_titles(key):
                 out.append(("Tab", tab, f"{where_of(key)} › {m.title}".lstrip(" ›"), f"{tab} {m.title}",

@@ -133,6 +133,15 @@ class Bar(unittest.TestCase):
         self.assertNotIn('(optional)', part)
 
 
+class OldName(unittest.TestCase):
+    def test_rate_mods_still_finds_mod_lab(self):
+        from soe2 import goto, names
+        self.assertEqual(names.OLD["Rate Mods"], "Mod Lab")
+        olds = " ".join(o for o, new in names.OLD.items() if new == "Mod Lab")
+        words = f"Mod Lab {olds} Bored, have a few minutes to kill?"
+        self.assertGreater(goto.score("rate mods", "Mod Lab", words), 0)
+
+
 @unittest.skipUnless(shutil.which("node"), "no node")
 class Board(unittest.TestCase):
     def test_board_takes_ideas(self):
