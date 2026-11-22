@@ -9,7 +9,10 @@ Report a bug: a small form - what happened, how to make it happen, what you expe
 log (2.115.0: buglog.diagnostics - the last crash / freeze / slow report and the newest errors, cleaned).
 You see exactly what will be sent. It goes to the community board server (board/), which opens a GitHub issue with
 its own token (the app holds none) and tells Discord. If the board can't take it, GitHub's
-"new issue" page opens in your browser with everything filled in."""
+"new issue" page opens in your browser with everything filled in.
+
+Suggest a Feature (3.2.0, owner): the same way for an idea - a small form (the idea, how it would help, a name to be
+credited by if it ships, all but the idea optional), every word shown before it's sent, an [Idea] issue on GitHub."""
 import platform
 import threading
 import tkinter as tk
@@ -60,6 +63,11 @@ class FeedbackPage:
                                 highlightbackground="#3d5582")
         self.bug_btn.pack(in_=self.shell.task_right, side="left", padx=4, before=self.league_chip)
         self.bug_btn.bind("<Button-1>", lambda e: self.bug_report_open())
+        self.idea_btn = tk.Label(self.shell.task_right, text="💡 Suggest a Feature", bg=tb, fg="#cfdaf0", padx=8,
+                                 pady=4, cursor="hand2", font=("Segoe UI", 9), highlightthickness=1,
+                                 highlightbackground="#3d5582")
+        self.idea_btn.pack(in_=self.shell.task_right, side="left", padx=4, before=self.bug_btn)
+        self.idea_btn.bind("<Button-1>", lambda e: self.idea_open())
         self.upd_latest = None
         self.root.after(15000, self.quiet_update_check)
 
@@ -107,7 +115,8 @@ class FeedbackPage:
                 sb.redraw()
                 return
             if not self.upd_badge.winfo_ismapped():
-                self.upd_badge.pack(in_=self.shell.task_right, side="left", padx=4, before=self.bug_btn)
+                self.upd_badge.pack(in_=self.shell.task_right, side="left", padx=4,
+                                    before=getattr(self, "idea_btn", None) or self.bug_btn)
             from .style import Tooltip
             Tooltip(self.upd_badge, f"Version {pretty_version(tag)} is out - you have {pretty_version()}. Click to see "
                                     "what's new and update. It asks first.")
@@ -233,9 +242,9 @@ class FeedbackPage:
         Send stays gray, and the line under it says what's still needed, until both are long enough."""
         need = []
         if len(self._bug_val("title").strip()) < 4:
-            need.append("a title (4+ letters)")
+            need.append("a title of 4+ letters")
         if len(self._bug_val("what").strip()) < 10:
-            need.append("what happened (10+ letters)")
+            need.append("10+ letters on what happened")
         try:
             if getattr(self, "bug_send_btn", None) is not None and str(self.bug_send_btn.cget("text")) == "Send":
                 self.bug_send_btn.config(state="disabled" if need else "normal")
@@ -295,4 +304,166 @@ class FeedbackPage:
             self.bug_msg.config(text=("The board couldn't take it" + (f" ({why})" if why else "") + " - GitHub's new "
                                       "issue page opened in your browser with everything filled in: press Submit "
                                       "there."), fg=C["orange"])
+        return url
+
+    # ================================================================ Suggest a Feature
+    IDEA_INTRO = ("It becomes an idea on GitHub, StashOfExile/StashOfExile2, and the developer is told on Discord. Your "
+                  "account and character names and your Windows user name are taken out. Below is exactly what goes, "
+                  "word for word. It's public.")
+    IDEA_CREDIT = "If your idea ships, What's new and the README thank you by this name. Leave it empty for no credit."
+
+    def idea_text(self, what, why, credit):
+        """Exactly what is sent, shown in the form before you send it."""
+        from .privacy import scrub_names
+        parts = [f"**The idea**\n{what.strip()}"]
+        if why.strip():
+            parts.append(f"**How it would help**\n{why.strip()}")
+        if credit.strip():
+            parts.append(f"**Credit me as** {credit.strip()[:40]}")
+        parts.append(f"**App** {APP_VERSION} · {os_line()}")
+        return scrub_names("\n\n".join(parts))
+
+    def idea_open(self):
+        P1, P2 = C["panel"], C["panel2"]
+        if getattr(self, "idea_win", None) is not None:
+            try:
+                self.idea_win.lift()
+                return self.idea_win
+            except tk.TclError:
+                pass
+        win = tk.Toplevel(self.root)
+        win.withdraw()                                  # (built hidden, shown once: no flicker)
+        over_app(win, self.dlg_parent())
+        win.title("Suggest a Feature")
+        win.configure(bg=P1)
+        win.transient(self.root)
+        win.geometry("640x620")
+        win.minsize(520, 520)
+        self.idea_win = win
+        win.protocol("WM_DELETE_WINDOW", self._idea_close)
+        f = tk.Frame(win, bg=P1, padx=16, pady=12)
+        f.pack(fill="both", expand=True)
+        tk.Label(f, text="Suggest a Feature", bg=P1, fg=C["accent"], font=("Segoe UI", 12, "bold"),
+                 anchor="w").pack(fill="x")
+        tk.Label(f, text=self.IDEA_INTRO, bg=P1, fg=C["muted"], font=("Segoe UI", 9), wraplength=600, justify="left",
+                 anchor="w").pack(fill="x", pady=(2, 8))
+        self.idea_vars = {}
+
+        def field(key, label, h=0, note=""):
+            tk.Label(f, text=label, bg=P1, fg=C["text"], anchor="w").pack(fill="x", pady=(4, 2))
+            if h:
+                t = tk.Text(f, height=h, bg=P2, fg=C["text"], insertbackground=C["text"], relief="flat",
+                            highlightthickness=1, highlightbackground=C["line"], wrap="word", font=("Segoe UI", 9))
+                t.pack(fill="x")
+                t.bind("<KeyRelease>", lambda e: self._idea_preview())
+                t.bind("<Tab>", lambda e: (e.widget.tk_focusNext().focus_set(), "break")[1])
+                t.bind("<Shift-Tab>", lambda e: (e.widget.tk_focusPrev().focus_set(), "break")[1])
+                self.idea_vars[key] = t
+            else:
+                v = tk.StringVar()
+                ttk.Entry(f, textvariable=v).pack(fill="x")
+                v.trace_add("write", lambda *a: self._idea_preview())
+                self.idea_vars[key] = v
+            if note:
+                tk.Label(f, text=note, bg=P1, fg=C["muted"], font=("Segoe UI", 9), anchor="w", justify="left",
+                         wraplength=600).pack(fill="x")
+        field("title", "Your idea, in a few words")
+        field("what", "What would you like?", 3)
+        field("why", "How would it help you? Optional", 2)
+        field("credit", "A name to credit you by. Optional", note=self.IDEA_CREDIT)
+        b = tk.Frame(f, bg=P1)                          # (the buttons first, at the bottom - never cut off)
+        b.pack(side="bottom", fill="x", pady=(8, 0))
+        tk.Label(f, text="What will be sent", bg=P1, fg=C["muted"], font=("Segoe UI", 9), anchor="w").pack(fill="x",
+                                                                                                        pady=(8, 0))
+        self.idea_prev = tk.Text(f, height=5, bg=C["bg"], fg=C["muted"], relief="flat", wrap="word",
+                                 font=("Consolas", 9), highlightthickness=1, highlightbackground=C["line"],
+                                 takefocus=0)
+        self.idea_prev.pack(fill="both", expand=True)
+        self.idea_msg = tk.Label(b, text="", bg=P1, fg=C["muted"], font=("Segoe UI", 9), anchor="w", justify="left",
+                                 wraplength=380)
+        self.idea_msg.pack(side="left", fill="x", expand=True)
+        self.idea_send_btn = ttk.Button(b, text="Send", style="Primary.TButton", command=self.idea_send)
+        self.idea_send_btn.pack(side="right")
+        ttk.Button(b, text="Cancel", style="Quiet.TButton", command=self._idea_close).pack(side="right", padx=(0, 8))
+        self._idea_preview()
+        win.deiconify()
+        return win
+
+    def _idea_close(self):
+        w, self.idea_win = getattr(self, "idea_win", None), None
+        if w is not None:
+            try:
+                w.destroy()
+            except tk.TclError:
+                pass
+
+    def _idea_val(self, key):
+        v = self.idea_vars[key]
+        return v.get("1.0", "end-1c") if isinstance(v, tk.Text) else v.get()
+
+    def _idea_ready(self):
+        """Send stays gray, and the line beside it says what's still needed, until the title and the idea are there."""
+        need = []
+        if len(self._idea_val("title").strip()) < 4:
+            need.append("a title of 4+ letters")
+        if len(self._idea_val("what").strip()) < 10:
+            need.append("10+ letters on your idea")
+        try:
+            if str(self.idea_send_btn.cget("text")) == "Send":
+                self.idea_send_btn.config(state="disabled" if need else "normal")
+            if self.idea_msg.cget("fg") != C["orange"]:
+                self.idea_msg.config(text=("Still needed: " + " and ".join(need) + ".") if need else "", fg=C["muted"])
+        except (tk.TclError, AttributeError):
+            pass
+        return not need
+
+    def _idea_preview(self):
+        if getattr(self, "idea_win", None) is None or getattr(self, "idea_prev", None) is None:
+            return
+        self._idea_ready()
+        text = self.idea_text(self._idea_val("what"), self._idea_val("why"), self._idea_val("credit"))
+        self.idea_prev.config(state="normal")
+        self.idea_prev.delete("1.0", "end")
+        self.idea_prev.insert("1.0", f"[Idea] {self._idea_val('title').strip()}\n\n{text}")
+        self.idea_prev.config(state="disabled")
+
+    def idea_send(self):
+        if not self._idea_ready():
+            return None
+        title = self._idea_val("title").strip()
+        body = self.idea_text(self._idea_val("what"), self._idea_val("why"), self._idea_val("credit"))
+        self.idea_send_btn.config(state="disabled")
+        self.idea_msg.config(text="Sending…", fg=C["muted"])
+
+        def work():
+            from .privacy import scrub_names
+            return B.call("POST", "/bugs", body={"kind": "idea", "title": scrub_names(title), "body": body,
+                                                 "version": APP_VERSION})
+
+        def done(res):
+            ok, data = res
+            if ok and isinstance(data, dict) and data.get("url"):
+                if hasattr(self, "app_toast"):
+                    self.app_toast(f"Thanks! Your idea is #{data.get('number')} on GitHub.", "Suggest a Feature",
+                                   kind="success")
+                self.idea_last = data
+                self._idea_close()
+                return
+            self.idea_browser(title, body, why=data if isinstance(data, str) else "")
+        self.run_bg(work, done)
+
+    def idea_browser(self, title, body, why=""):
+        """The board couldn't take it: GitHub's new-issue page, filled in. You sign in to GitHub to send it."""
+        url = (f"https://github.com/{REPO}/issues/new?labels=enhancement&title=" + urllib.parse.quote(f"[Idea] {title}")
+               + "&body=" + urllib.parse.quote(body[:6000]))
+        self.idea_last = {"url": url, "browser": True}
+        try:
+            webbrowser.open(url)
+        except Exception:
+            buglog.caught()
+        if getattr(self, "idea_win", None) is not None:
+            self.idea_send_btn.config(state="normal")
+            self.idea_msg.config(text="The board couldn't take it" + (f": {why}." if why else ".") + " GitHub's new "
+                                      "issue page opened in your browser with everything filled in. Press Submit "
+                                      "there.", fg=C["orange"])
         return url

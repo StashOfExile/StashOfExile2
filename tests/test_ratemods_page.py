@@ -63,14 +63,61 @@ class Intro(unittest.TestCase):
     def test_one_line_with_its_tip(self):
         from soe2.modules.ratemods import RateMods
         from soe2 import ratemods_page as RP
-        self.assertEqual(RateMods.blurb, "Bored, have a few minutes to kill? Submit some mod ratings: it helps build "
-                                         "community mod data so everyone's price checks are more accurate.")
+        self.assertEqual(RateMods.blurb, "Bored, have a few minutes to kill? Rate some mods: it builds community mod "
+                                         "data so everyone's price checks get more accurate.")
+        self.assertEqual(RateMods.title, "Mod Lab", "owner, after 3.1.0: was Rate Mods")
+        self.assertEqual([t for t, key in RateMods.blurb_rich if key],
+                         ["a few minutes", "Rate some mods", "everyone's price checks"], "bold and in the accent")
+        self.assertEqual(RP.QUESTION, "How valuable is each roll?")
         self.assertEqual(RateMods.blurb_tip(None), "S and A count as High, B, C and D as Normal, F is left out of "
                          "searches. Your ratings change your price checks at once. With Community data sharing on, "
                          "they're your vote too.")
         with open(RP.__file__, encoding="utf-8") as f:
             src = f.read()
         self.assertNotIn("Rate how much each mod matters", src)          # (the old second line is gone)
+
+
+class RichIntro(unittest.TestCase):
+    """Owner, after 3.1.0: Mod Lab's intro bigger, its key words bold in the accent color, wrapping word by word and
+    the header growing to fit, never cut off."""
+
+    def test_wraps_and_the_header_grows(self):
+        import tkinter as tk
+        import types
+        from soe2.modules.ratemods import RateMods
+        from soe2.shell import PageBar
+        try:
+            root = tk.Tk()
+        except tk.TclError:
+            self.skipTest("no display")
+        try:
+            root.withdraw()
+            mod = types.SimpleNamespace(blurb_rich=RateMods.blurb_rich, blurb=RateMods.blurb, blurb_tip=lambda: "tip",
+                                        title="Mod Lab")
+            win = types.SimpleNamespace(key="ratemods", title="Mod Lab",
+                                        shell=types.SimpleNamespace(modules={"ratemods": mod}, where=lambda k: "Mods",
+                                                                    app=types.SimpleNamespace()))
+            pb = PageBar.__new__(PageBar)
+            tk.Canvas.__init__(pb, root, width=1400, height=96)
+            pb.win = win
+            pb.place(x=0, y=0, width=1400)
+            root.update()
+            wide = pb._rich_layout()[1]
+            self.assertEqual(len(wide), 1, "one line when it fits")
+            keys = [p for line in wide for _x, p, k in line if k]
+            self.assertEqual(" ".join(p.strip() for p in keys), "a few minutes Rate some mods everyone's price checks")
+            h_wide = pb.height_now()
+            pb.place(width=520)
+            root.update()
+            narrow = pb._rich_layout()[1]
+            self.assertGreater(len(narrow), 1, "wraps in the Drawer")
+            plain, bold, lh = pb._rich_fonts()
+            for line in narrow:
+                x, piece, key = line[-1]
+                self.assertLessEqual(24 + x + (bold if key else plain).measure(piece.rstrip()), 520 - 24, piece)
+            self.assertEqual(pb.height_now(), h_wide + (len(narrow) - 1) * lh, "the header grows a line at a time")
+        finally:
+            root.destroy()
 
 
 class ByRoll(Saved):
@@ -102,7 +149,7 @@ class ByRoll(Saved):
         mana = next(m for m in it["mods"] if "maximum Mana" in m["text"])
         self.assertEqual(mana["roll_key"], RING_MANA)
         self.assertEqual(mana["auto"], "ignore")
-        self.assertEqual(mana["note"], "middle roll for this mod in Rate Mods - not searched - tick it to search on it")
+        self.assertEqual(mana["note"], "middle roll for this mod in Mod Lab - not searched - tick it to search on it")
         self.assertEqual(T.mod_impact(rec, mana), "ignore")
         rec["ov"] = {T.ov_key(mana): "normal"}                     # ticked: searched anyway
         self.assertEqual(T.mod_impact(rec, mana), "normal")
@@ -272,6 +319,27 @@ class Table(Saved):
         self.assertEqual(a.rm_view, "One at a Time")
         a.rm_view_pick("Table")
 
+    def test_pictures_fit_a_square_and_load_when_missing(self):
+        """Owner: some sets had no picture, some were far too big - a staff is tall."""
+        from PIL import Image
+        from unittest import mock
+        from soe2.config import SETTINGS
+        a = self.app
+        self.addCleanup(SETTINGS.__setitem__, "pc_art", SETTINGS.get("pc_art", True))
+        SETTINGS["pc_art"] = True                              # (Item pictures on, whatever a test before left)
+        url = "https://web.poecdn.com/gen/image/x/abc/Staff.png"
+        Image.new("RGBA", (78, 312), (200, 80, 40, 255)).save(a._pc_art_path(url))       # a 1x4 picture
+        with mock.patch.object(type(a), "rm_pic_url", lambda self, s, e=None: url):
+            ph = a.rm_pic("gear:staves", None, 24)
+        self.assertEqual((ph.width(), ph.height()), (6, 24), "inside a 24 px square, never stretched")
+        missing = "https://web.poecdn.com/gen/image/x/def/Bow.png"
+        asked = []
+        with mock.patch.object(type(a), "rm_pic_url", lambda self, s, e=None: missing), \
+                mock.patch.object(type(a), "pc_art", lambda self, u, px=0: asked.append(u)):
+            self.assertIsNone(a.rm_pic("gear:bows", None, 24))
+        self.assertEqual(asked, [missing], "a picture not on this PC yet is loaded, then the page redraws")
+        self.assertTrue(any(getattr(f, "__name__", "") == "came" for f in a._art_hooks))
+
     def test_card_default_same_for_every_roll(self):
         a = self.app
         a.rm_view_pick("One at a Time")
@@ -280,9 +348,21 @@ class Table(Saved):
         a.rm_cardcv.redraw()
         self.assertEqual(a.rm_roll_key(), GLOVES_FIRE)
         self.assertEqual(a.rm_roll_state(GLOVES_FIRE), "same")
-        self.assertIn("same", a.rm_cardcv.tips)                   # the "✓ Same for every roll" mark
-        self.assertNotIn("same", a.rm_cardcv.acts)                # (nothing to undo yet)
-        self.assertTrue(any(t.startswith("grp:2:") for t in a.rm_cardcv.acts))
+        cv = a.rm_cardcv
+        self.assertTrue(any(t.startswith("grp:2:") for t in cv.acts))
+        # owner: the three rolls' letters rate it - no second S A B C D F row under them, and a hint, not a pill
+        self.assertFalse([t for t in cv.acts if t.startswith(("rate:", "grade:"))], "no second letter row")
+        self.assertNotIn("same", cv.tips)
+        texts = [cv.itemcget(i, "text") for i in cv.find_all() if cv.type(i) == "text"]
+        self.assertIn("Pick a letter for each roll to rate this mod.", texts)
+        self.assertIn("Skip", texts)
+        a._rm_apply([e["keys"]], "A")                             # rated: the pill, and Next to go on
+        cv.redraw()
+        self.assertIn("same", cv.tips)                            # the "✓ Same for every roll" mark
+        self.assertNotIn("same", cv.acts)                         # (nothing to undo yet)
+        texts = [cv.itemcget(i, "text") for i in cv.find_all() if cv.type(i) == "text"]
+        self.assertIn("Next ›", texts)
+        self.assertNotIn("Skip", texts)
         a.rm_view_pick("Table")
 
 

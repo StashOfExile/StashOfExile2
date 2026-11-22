@@ -9,7 +9,7 @@ from .config import SETTINGS
 GROUPS = (
     {"key": "price", "name": "Price checking", "keys": "pc_key",
      "what": "Hover an item in game and press the key: its price from the trade site's listings. Pages: "
-             "Price Checks, Favorites, Rate Mods, Mod Book.",
+             "Price Checks, Favorites, Mod Lab, Mod Book.",
      "modules": ("pricecheck", "favorites", "modbook", "ratemods", "library")},
     {"key": "bulk", "name": "Bulk Pricing", "keys": "Ctrl+Alt+C",
      "what": "Add many items in game with Ctrl+Alt+C (Manually Add): they're priced as a list, in the "

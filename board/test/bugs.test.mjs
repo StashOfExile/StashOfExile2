@@ -1,0 +1,69 @@
+// Report a bug and Suggest a Feature (3.2.0): both post to /bugs. Runs the Worker's own bugReport (cut out of
+// src/index.js) with GitHub and Discord faked: an idea becomes an [Idea] issue labelled enhancement, a bug stays a
+// [Bug] issue, names and home folders are masked, and the daily limit counts both.      node board/test/bugs.test.mjs
+import { DatabaseSync } from "node:sqlite";
+import { readFileSync } from "node:fs";
+import assert from "node:assert/strict";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+
+const here = dirname(fileURLToPath(import.meta.url));
+const src = readFileSync(join(here, "../src/index.js"), "utf8");
+const cut = (from, to) => src.slice(src.indexOf(from), src.indexOf(to));
+const code = cut("const scrubText", "// ------------------------------------------------------------------ 2.137.0") +
+  cut("async function bugReport", "// ------------------------------------------------------------------ 2.78.0");
+
+const raw = new DatabaseSync(":memory:");
+raw.exec("CREATE TABLE bug_limits (ip TEXT PRIMARY KEY, n INTEGER NOT NULL, day TEXT NOT NULL)");
+const wrap = (sql, args = []) => ({
+  bind: (...a) => wrap(sql, a),
+  run: async () => { raw.prepare(sql).run(...args); return {}; },
+  first: async () => raw.prepare(sql).get(...args) ?? null,
+});
+const DB = { prepare: (sql) => wrap(sql) };
+
+const sent = [];
+const fakeFetch = async (url, opts) => {
+  sent.push({ url, body: JSON.parse(opts.body) });
+  if (url.includes("api.github.com")) return { ok: true, json: async () => ({ number: sent.length, html_url: `https://github.com/i/${sent.length}` }) };
+  return { ok: true };
+};
+const lib = new Function("json", "fail", "readBody", "ipKey", "today", "fetch",
+  `${code}; return { bugReport };`)(
+  (o, status = 200) => ({ status, body: o }), (status, msg) => ({ status, body: { error: msg } }),
+  async (req) => req.json, async () => "ip1", () => "2026-11-22", fakeFetch);
+
+const req = (body) => ({ json: body, headers: { get: (k) => ({ "content-type": "application/json", "x-soe2": "1" })[k] } });
+const env = { DB, GITHUB_TOKEN: "t", DISCORD_WEBHOOK: "https://discord/hook", BUGS_PER_DAY: "3" };
+
+// an idea
+let r = await lib.bugReport(req({ kind: "idea", title: "A cost per 10 uses", body: "Show it next to Cost per map. C:\\Users\\Sam\\x Worm#1234", version: "3.2.0" }), env);
+assert.equal(r.status, 201);
+let gh = sent.find((s) => s.url.includes("github")).body;
+assert.equal(gh.title, "[Idea] A cost per 10 uses");
+assert.deepEqual(gh.labels, ["enhancement", "from the app"]);
+assert.match(gh.body, /Sent from StashOfExile2 3\.2\.0 \(Suggest a Feature\)\./);
+assert.ok(!gh.body.includes("Sam") && !gh.body.includes("Worm#1234"), "names and home folders masked");
+assert.match(sent.find((s) => s.url.includes("discord")).body.content, /^💡 New idea #1/);
+
+// a bug, as before
+sent.length = 0;
+r = await lib.bugReport(req({ title: "Crash on start", body: "It closed by itself.", version: "3.2.0" }), env);
+assert.equal(r.status, 201);
+gh = sent.find((s) => s.url.includes("github")).body;
+assert.equal(gh.title, "[Bug] Crash on start");
+assert.deepEqual(gh.labels, ["bug", "from the app"]);
+assert.match(sent.find((s) => s.url.includes("discord")).body.content, /^🐞 New bug report/);
+
+// too short says what's missing, in the idea's words
+r = await lib.bugReport(req({ kind: "idea", title: "Hi", body: "x" }), env);
+assert.equal(r.status, 400);
+assert.match(r.body.error, /what you'd like/);
+
+// the daily limit counts ideas and bugs together
+r = await lib.bugReport(req({ kind: "idea", title: "Third one", body: "Another idea for today." }), env);
+assert.equal(r.status, 201);
+r = await lib.bugReport(req({ kind: "idea", title: "Fourth one", body: "One more idea for today." }), env);
+assert.equal(r.status, 429);
+assert.match(r.body.error, /ideas today/);
+console.log("bugs.test.mjs: ok");

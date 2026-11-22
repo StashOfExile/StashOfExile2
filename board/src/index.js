@@ -1362,35 +1362,41 @@ async function errorList(env, me, url) {
     msg: r.msg, first_v: r.first_v, last_v: r.last_v, os: r.os, first: r.first, last: r.last, n: r.n, installs: r.installs })) });
 }
 
+// 3.2.0 (owner): Suggest a Feature posts here too, with kind "idea" - the same checks and the same daily limit, an
+// [Idea] issue labelled enhancement, and "💡 New idea" on Discord. A name to credit is only there if the player typed one.
 async function bugReport(req, env) {
   // 2.89.3: only the app sends these - a web page can't (a JSON body and the app's own header force a check first)
   if (!/^application\/json/i.test(req.headers.get("content-type") || "") || req.headers.get("x-soe2") !== "1")
     return fail(400, "bad request");
   if (!env.GITHUB_TOKEN) return fail(503, "Bug reports aren't set up on the board yet.");
   const b = await readBody(req);
+  const idea = b.kind === "idea";
   const title = scrubText(String(b.title || "").trim().slice(0, 120));
   const text = scrubText(String(b.body || "").trim().slice(0, 20000));
   const version = String(b.version || "?").slice(0, 30);
-  if (title.length < 4 || text.length < 10) return fail(400, "Say what happened (a title and a few words).");
+  if (title.length < 4 || text.length < 10)
+    return fail(400, idea ? "Say what you'd like: a title and a few words." : "Say what happened: a title and a few words.");
   const day = today();
   const ip = await ipKey(req, env, "bug");
   await env.DB.prepare("DELETE FROM bug_limits WHERE day <> ?").bind(day).run();
   const seen = await env.DB.prepare("SELECT n FROM bug_limits WHERE ip = ?").bind(ip).first();
-  if (seen && seen.n >= Number(env.BUGS_PER_DAY || 5)) return fail(429, "That's a lot of reports today - try tomorrow.");
+  if (seen && seen.n >= Number(env.BUGS_PER_DAY || 5))
+    return fail(429, `That's a lot of ${idea ? "ideas" : "reports"} today - try tomorrow.`);
   await env.DB.prepare("INSERT INTO bug_limits (ip, n, day) VALUES (?, 1, ?) ON CONFLICT(ip) DO UPDATE SET n = n + 1").bind(ip, day).run();
   const repo = env.GITHUB_REPO || "StashOfExile/StashOfExile2";
   const r = await fetch(`https://api.github.com/repos/${repo}/issues`, {
     method: "POST",
     headers: { authorization: `Bearer ${env.GITHUB_TOKEN}`, accept: "application/vnd.github+json",
       "user-agent": "soe2-board", "content-type": "application/json" },
-    body: JSON.stringify({ title: `[Bug] ${title}`, labels: ["bug", "from the app"],
-      body: `${text}\n\n---\nSent from StashOfExile2 ${version} (Report a bug).` }),
+    body: JSON.stringify({ title: `${idea ? "[Idea]" : "[Bug]"} ${title}`,
+      labels: [idea ? "enhancement" : "bug", "from the app"],
+      body: `${text}\n\n---\nSent from StashOfExile2 ${version} (${idea ? "Suggest a Feature" : "Report a bug"}).` }),
   });
   if (!r.ok) return fail(502, `GitHub said ${r.status}.`);
   const issue = await r.json();
   if (env.DISCORD_WEBHOOK) {
     await fetch(env.DISCORD_WEBHOOK, { method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ content: `🐞 New bug report #${issue.number} (v${version}): ${title}\n${issue.html_url}`,
+      body: JSON.stringify({ content: `${idea ? "💡 New idea" : "🐞 New bug report"} #${issue.number} (v${version}): ${title}\n${issue.html_url}`,
         allowed_mentions: { parse: [] } }) })
       .catch(() => {});
   }

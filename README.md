@@ -20,7 +20,7 @@ A free, open-source Windows companion for **Path of Exile 2**: price checks, bul
 - **Farming Strategies: New strat** - build your own strategy. Copy your waystone and tablets in from the game, or set them by hand with Min and Max values. Check cost prices it when you ask.
 - **Exchange Rates overlay** - pick up to 10 currencies, drag them into your order, and choose which currency the rates are shown in.
 - **Compare a currency** - pick one currency and see what it's worth in every other, with how each number was worked out.
-- **Rate Mods** - its own Mods section, rating One at a Time or in a Table.
+- **Mod Lab** - its own Mods section, rating One at a Time or in a Table.
 - **Vaal Lens** - a full step-by-step plan for your temple.
 - **One installer** - it asks first: Full Install or Portable.
 
@@ -51,7 +51,7 @@ This product isn't affiliated with or endorsed by Grinding Gear Games in any way
 - **Favorites**, **Exchange Rates** - poe.ninja rates, a converter, and Compare a currency. Pick which ones show over the game.
 
 **Mods**
-- **Rate Mods** - rate mods One at a Time or in a Table; your ratings tune your price checks. A mod that rolls in tiers can have a letter for its top, middle and low rolls (By roll).
+- **Mod Lab** - rate mods One at a Time or in a Table; your ratings tune your price checks. A mod that rolls in tiers can have a letter for its top, middle and low rolls (By roll).
 - **Market Insights** - your most valuable items, the top mods and the priciest listings seen.
 - **Craft Helper** (BETA) - each mod of a tablet or jewel rated S to F, and a next step.
 
@@ -80,18 +80,18 @@ This product isn't affiliated with or endorsed by Grinding Gear Games in any way
 
 Download `Setup-StashOfExile2-<version>.exe` from the [latest release](https://github.com/StashOfExile/StashOfExile2/releases/latest). It asks first:
 
-- **Full Install** - puts it in your Start menu and Windows search, and in Settings › Apps to uninstall. Your settings live in `%APPDATA%\StashOfExile2`, and uninstalling never deletes them.
+- **Full Install** - puts it in your Start menu and Windows search, and in Settings › Apps to uninstall. Your settings live in `%APPDATA%\StashOfExile2`
 - **Portable** - one folder you pick. Nothing else on your PC changes. A new player's settings live in that folder too; if you already use the app, your settings stay where they are.
 
-Both install for you only, so no admin prompt, and both update themselves. `StashOfExile2.exe` on the release is the file the app's own updater uses.
+Both install for you only, so no admin prompt, and both can update themselves if enabled (off by default).
 
 The project moved to [github.com/StashOfExile/StashOfExile2](https://github.com/StashOfExile/StashOfExile2). If your 2.x app doesn't offer 3.0 by itself, download it once from Releases - it updates itself from then on, and your settings are kept.
 
 Each release lists the SHA-256 of every download and a VirusTotal scan of the exe: open the [latest release](https://github.com/StashOfExile/StashOfExile2/releases/latest), then the VirusTotal link under **Check your download**.
 
-### Windows warnings and VirusTotal
+### Windows SmartScreen and VirusTotal
 
-**Windows SmartScreen** may say "Windows protected your PC" the first time you run a new version. That happens because the app isn't signed with a paid code-signing certificate, and every new version starts with no download history. Press **More info**, then **Run anyway**. The warning fades as more people download that version.
+**Windows SmartScreen** may say "Windows protected your PC" the first time you run a new version. That happens because the app isn't signed with a paid code-signing certificate, and every new version starts with no download history. Press **More info**, then **Run anyway**.
 
 **VirusTotal** usually shows one or two engines out of about 70 flagging the exe, with generic names like `W32.Malware`. These are false positives. Here is where they come from:
 
@@ -113,16 +113,17 @@ From source (Python 3.12): `py -m pip install requests pystray pillow mss numpy 
 
 Every release has a Linux download on the same page: `StashOfExile2-<version>-linux.tar.gz` (and its checksum, `SHA256SUMS-linux.txt`). Same code and same version as the Windows app, built at the same time.
 
-- Tested on Arch + Hyprland. X11 desktops and other Wayland compositors work too, with limits.
+- Tested on Arch + Hyprland. X11 desktops and other Wayland compositors should work too, with limits.
 - `tar xzf StashOfExile2-*-linux.tar.gz`, then `./StashOfExile2 --check-linux`: it lists what works on your setup, each with its fix.
 - The same third-party rules hold: the screen and clipboard are read only once per key press.
 - It updates itself from the same releases. Packages, window rules and known issues: [linux/README.md](linux/README.md).
 
 ## Privacy
 
+- Everything is opt-in, never opt-out: you control what you share. It's never shared anywhere else or sold to anyone. It's stored on the app's community server on Cloudflare, which never keeps your internet address. Bug reports and feature ideas you send become public GitHub issues.
 - The usage count (off until you switch it on, Settings › Privacy & community): a random id made on your PC, every 10 minutes, so we know how many people use the app. Not your account, name or PC.
-- Nothing else leaves your PC unless you turn on Community data sharing - and then only anonymous data, never names or wealth.
-- Error reports: off until you say yes. Only where in the code an error happened and its type - never messages, names, items or files.
+- Nothing else leaves your PC unless you turn on Community data sharing - and then only anonymous data that helps improve the app's price checks, map ranks and campaign guide. Never your account or character names, personal information or anything about your currency or wealth. Leaderboard times show under the community name you pick.
+- Error reports: off until you turn them on. They only show where in the code an error happened and its type - never messages, names, items or files.
 - Logs (`app_log.txt`, `crash_report.txt`) stay on your PC and leave out your names and folders. You see every word before a bug report is sent.
 - Settings › Privacy & community › Leave and delete my data removes everything of yours from the community board.
 

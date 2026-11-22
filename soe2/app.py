@@ -5525,7 +5525,7 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
                            cursor="hand2",
                            command=lambda g=("ignore" if g_ == "F" else g_): self.pc_ask_answer(rec, m, key, g))
             b_.pack(side="left", padx=(0 if i_ == 0 else 4, 0))
-            Tooltip(b_, tips[g_] + " - for every item like it. Same grades as Rate Mods.")
+            Tooltip(b_, tips[g_] + " - for every item like it. Same grades as Mod Lab.")
         fr.update_idletasks()
         h = fr.winfo_reqheight()
         cv.create_window(x, y, window=fr, anchor="nw", width=max(160, w - x - 12))
@@ -5681,7 +5681,7 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
                        fill=(C["text"] if _cl(cv) else C["accent"]) if cur else C["muted"], tags=(tag, "cardthumb"))
         if _cl(cv):
             TagTip(cv, tag, f"Rated {label}: how much this mod matters - for every item like it." if cur else
-                   "Rate this mod: how much it matters, for every item like it (Rate Mods' grades).")
+                   "Rate this mod: how much it matters for every item like it. Same grades as Mod Lab.")
         cv.tag_bind(tag, "<Button-1>", lambda e: self.card_rate_menu(e, rec, m, key, cur))
         cv.tag_bind(tag, "<Enter>", lambda e: cv.configure(cursor="hand2"))
         cv.tag_bind(tag, "<Leave>", lambda e: cv.configure(cursor=""))
