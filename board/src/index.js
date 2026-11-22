@@ -51,8 +51,66 @@ export function nameProblem(name) {
     return flat.includes(w) || plain2.includes(w) || (sq.length >= 4 && plain.includes(sq));
   };
   if (HATE.some(hit)) return "That name isn't allowed - pick another.";
+  if (textProblem(raw)) return "That name isn't allowed - pick another.";   // 3.2.1: spaced letters, more words
   return null;
 }
+// 3.2.0 owner: "block inappropriate words in the form, like usernames" - the same list on Report a bug's and Suggest a
+// Feature's title and typed words. Only what the player typed: the app log and screen setup after **App** are left
+// alone, since item names and numbers in a log would trip it. A hate term counts as a whole word, or inside a word
+// when it is 5 letters or more, so a short one inside an ordinary word is let through.
+export const CLEAN_MSG = "Please keep it clean";
+// whole words only - each is also part of an ordinary word somewhere
+const RUDE_WORDS = ["phuck", "phuk", "fuq", "fuk", "cvnt", "kunt", "jizz", "kys", "spic", "spick", "nazi", "nazis", "tard",
+  "wank", "wanker", "fck", "fcuk", "dik", "nigg", "niqqer", "niqqa", "niqqers", "nibba", "nibbas", "nigguh", "niggah",
+  "nigor", "nignog", "kyke", "spik", "coon", "coons", "paki", "pakis", "gyppo"];
+const HARM = /\b(kill|neck|hang|off)\s*(yo)?u?r\s*self\b(?!-)|\bkys\b|\bgo\s+back\s+to\s+(africa|asia|china|mexico|india|your\s+(own\s+)?country)\b/i;
+// hate terms written as two or three words: looked for with the spaces between words taken out
+const HATE_PHRASES = ["heilhit", "siegheil", "whitepower", "whitepride", "gaschamber", "slanteye", "porchmonk", "jewrat",
+  "towelhead", "killalljews", "killallblacks", "gasthejews"];
+// letters spaced out with spaces, dots or dashes: three or more single letters in a row are read as one word as well
+const SPACED = /(?<![\p{L}\p{N}])(?:[\p{L}\p{N}@$!|€*][\s._\-*+~]+){2,}[\p{L}\p{N}@$!|€*](?![\p{L}\p{N}])/gu;
+export function textProblem(text) {
+  const raw = String(text || "").normalize("NFKC");
+  const joined = raw.replace(SPACED, (m) => m.replace(/[\s._\-*+~]+/g, ""));
+  const say = (w) => `${CLEAN_MSG}: reword "${w}" and send again.`;
+  if (HARM.test(raw) || HARM.test(joined)) return say(raw.match(HARM)?.[0] || joined.match(HARM)[0]);
+  for (const t of joined === raw ? [raw] : [raw, joined]) {
+    const all = MATCHER.getAllMatches(t, true);
+    if (all.length) return say(t.slice(all[0].startIndex, all[0].endIndex + 1));
+  }
+  const squashed = [...joined.toLowerCase().replace(/[^\p{L}\p{N}@$|!€]+/gu, "")].map((c) => LEET[c] ?? c).join("");
+  const phrase = HATE_PHRASES.find((h) => squashed.includes(h));
+  if (phrase) return say(phrase);
+  for (const word of joined.toLowerCase().split(/[^\p{L}\p{N}@$|!€]+/u)) {
+    if (!word) continue;
+    if ((HATE.includes(word) && !/^\d+$/.test(word)) || RUDE_WORDS.includes(word)) return say(word);   // 1488 in a name only: a log or a price can say it
+    const plain = [...word].map((c) => LEET[c] ?? c).join("").replace(/€/g, "e");
+    const sq = plain.replace(/(.)\1+/g, "$1");
+    const sqz = (h) => h.replace(/(.)\1+/g, "$1");
+    const bad = HATE.find((h) => plain === h || sq === sqz(h) ||
+      (h.length >= 5 && !/^\d+$/.test(h) && (plain.includes(h) || sq.includes(sqz(h))))) ||
+      RUDE_WORDS.find((h) => plain === h || sq === sqz(h) || plain === h + "s" || sq === sqz(h) + "s");
+    if (bad) return say(word);
+  }
+  return null;
+}
+// 3.2.1 owner: "anything that accepts text input and can leave a person's computer" - every typed text in a post.
+// Left out: game text and patterns - item mods and bases, a regex, a trade query - and the fields the board sets.
+const NOT_TYPED = new Set(["id", "updated", "author", "regex", "query", "patch", "mods", "key_mods", "base", "rarity",
+  "kind", "atlas_image", "masters", "ledger", "category", "type", "tags", "items_raw"]);
+export function postProblem(data, key = "") {
+  if (NOT_TYPED.has(key)) return null;
+  if (typeof data === "string") return textProblem(data);
+  if (Array.isArray(data)) {
+    for (const x of data) { const p = postProblem(x, key); if (p) return p; }
+    return null;
+  }
+  if (data && typeof data === "object") {
+    for (const [k, v] of Object.entries(data)) { const p = postProblem(v, k); if (p) return p; }
+  }
+  return null;
+}
+const typedPart = (body) => String(body || "").split("\n\n**App**")[0];
 const APPROVALS = 2, REVIEWER_DAYS = 14, REPORTER_DAYS = 7, AWAY_DAYS = 30;
 const PER_DAY = { edit: 30, suggest: 10, report: 20, vote: 200, admin_key: 5, admin_key_ip: 20, review: 100 };
 const MAX_MONEY = 100000, MAX_LINES = 60, MAX_LINE = 500;
@@ -570,6 +628,8 @@ async function getPost(env, me, id) {
 }
 
 function prepare(kind, data, user, id) {
+  const dirty = postProblem(data ?? {});
+  if (dirty) return { probs: [dirty], dirty };
   const base = { ...data };
   if (kind === "strat") {
     base.author = user.name;
@@ -612,7 +672,7 @@ async function createPost(req, env, me) {
   const today = await env.DB.prepare("SELECT COUNT(*) AS n FROM posts WHERE author_id = ? AND created > ?").bind(me.id, now() - DAY).first();
   if (today.n >= Number(env.POSTS_PER_DAY || 10) && !me.admin) return fail(429, "That's enough posts for today - try again tomorrow.");
   const r = prepare(kind, body.data ?? {}, me, null);
-  if (r.probs) return json({ error: "Not in the standard layout: " + r.probs[0], problems: r.probs }, 400);
+  if (r.probs) return json({ error: r.dirty || "Not in the standard layout: " + r.probs[0], problems: r.probs }, 400);
   if (!(await imageOk(env, r.data, me))) return fail(400, "That atlas screenshot belongs to another post - upload your own.");
   let basedOn = Number(body.based_on) || null;                     // 2.85.0: a copy credits the post it came from
   if (basedOn && !(await env.DB.prepare("SELECT 1 AS x FROM posts WHERE id = ?").bind(basedOn).first())) basedOn = null;
@@ -670,8 +730,9 @@ async function updatePost(req, env, me, id) {
   if (row.author_id !== me.id) return fail(403, "only its author can change it - use Suggest an edit");
   if (!(await allowance(env, "edit", me.id, limitFor(env, "edit")))) return fail(429, "That's enough edits for today.");
   const body = await readBody(req);
+  if (body.note && textProblem(String(body.note))) return fail(400, textProblem(String(body.note)));
   const r = await prepareFor(env, row, body.data);
-  if (r.probs) return json({ error: "Not in the standard layout: " + r.probs[0], problems: r.probs }, 400);
+  if (r.probs) return json({ error: r.dirty || "Not in the standard layout: " + r.probs[0], problems: r.probs }, 400);
   const old = JSON.parse(row.data);
   if (!(await imageOk(env, r.data, me, old.atlas_image))) return fail(400, "That atlas screenshot belongs to another post - upload your own.");
   await ensureFirstRevision(env, row);
@@ -697,8 +758,9 @@ async function suggest(req, env, me, id) {
   const body = await readBody(req);
   const note = String(body.note || "").trim();
   if (note.length < 3) return fail(400, "Say in a few words what you changed and why.");
+  if (textProblem(note)) return fail(400, textProblem(note));
   const r = await prepareFor(env, row, body.data);
-  if (r.probs) return json({ error: "Not in the standard layout: " + r.probs[0], problems: r.probs }, 400);
+  if (r.probs) return json({ error: r.dirty || "Not in the standard layout: " + r.probs[0], problems: r.probs }, 400);
   const old = JSON.parse(row.data);
   if (!(await imageOk(env, r.data, me, old.atlas_image))) return fail(400, "That atlas screenshot belongs to another post - upload your own.");
   if (JSON.stringify(r.data) === JSON.stringify(old)) return fail(400, "Nothing changed.");
@@ -754,6 +816,7 @@ async function revAction(req, env, me, rid) {
   const row = await getPost(env, me, rev.post_id);
   if (!row) return fail(404, "not found");
   const { action, why } = await readBody(req);
+  if (why && textProblem(String(why))) return fail(400, textProblem(String(why)));
   const owner = row.author_id === me.id || me.admin;
   const t = now();
   if (action === "withdraw") {
@@ -933,6 +996,7 @@ async function report(req, env, me, id) {
   const row = await getPost(env, me, id);
   if (!row) return fail(404, "not found");
   if (row.author_id === me.id) return fail(400, "That's your own post.");
+  if (body.reason && textProblem(String(body.reason))) return fail(400, textProblem(String(body.reason)));
   if (!(await allowance(env, "report", me.id, limitFor(env, "report")))) return fail(429, "That's enough reports for today.");
   await env.DB.prepare("INSERT OR IGNORE INTO reports (post_id, user_id, reason, created) VALUES (?, ?, ?, ?)")
     .bind(id, me.id, String(body.reason || "").slice(0, 200), now()).run();
@@ -1004,7 +1068,8 @@ async function lbSend(req, env, me) {
     const cat = String(e?.cat), key = String(e?.key ?? "").trim(), league = String(e?.league ?? "").trim();
     const cls = String(e?.cls ?? "").trim(), secs = Number(e?.secs);
     if (!LB_CATS.includes(cat) || !key || key.length > 80 || !league || league.length > 60 || cls.length > 40 ||
-        !isFinite(secs) || secs < LB_FLOOR[cat] || secs > LB_CEIL[cat]) { bad++; continue; }
+        !isFinite(secs) || secs < LB_FLOOR[cat] || secs > LB_CEIL[cat] ||
+        textProblem(key) || textProblem(league) || textProblem(cls)) { bad++; continue; }   // 3.2.1: a private league's name
     const level = Math.max(0, Math.min(100, Math.floor(Number(e.level) || 0)));
     const deaths = Math.max(0, Math.min(999, Math.floor(Number(e.deaths) || 0)));
     // 2.89.3: only the day is kept - the exact second would show when (and in which time zone) someone plays
@@ -1080,6 +1145,7 @@ async function lbReport(req, env, me, id) {
   if (row.user_id === me.id) return fail(400, "That's your own time.");
   if (!(await allowance(env, "report", me.id, limitFor(env, "report")))) return fail(429, "That's enough reports for today.");
   const { reason } = await readBody(req);
+  if (reason && textProblem(String(reason))) return fail(400, textProblem(String(reason)));
   await env.DB.prepare("INSERT OR IGNORE INTO lb_reports (lb_id, user_id, reason, created) VALUES (?, ?, ?, ?)")
     .bind(id, me.id, String(reason || "").slice(0, 200), now()).run();
   const n = (await env.DB.prepare("SELECT COUNT(*) AS n FROM lb_reports WHERE lb_id = ?").bind(id).first()).n;
@@ -1376,6 +1442,8 @@ async function bugReport(req, env) {
   const version = String(b.version || "?").slice(0, 30);
   if (title.length < 4 || text.length < 10)
     return fail(400, idea ? "Say what you'd like: a title and a few words." : "Say what happened: a title and a few words.");
+  const dirty = textProblem(title) || textProblem(typedPart(text));
+  if (dirty) return fail(400, dirty);
   const day = today();
   const ip = await ipKey(req, env, "bug");
   await env.DB.prepare("DELETE FROM bug_limits WHERE day <> ?").bind(day).run();

@@ -192,6 +192,34 @@ class Form(unittest.TestCase):
         self.assertTrue(shown.endswith(sent["body"]))
 
 
+class Clean(Form):
+    """3.2.1 owner: a refused word keeps the form open with the board's words - no GitHub page in the browser."""
+    def send(self, open_form, fill, send, msg):
+        with mock.patch.object(SI, "gather", return_value={"screens": [], "game": None}):
+            open_form()
+        fill()
+        said = (False, 'Please keep it clean: reword "PENIS" and send again.')
+        with mock.patch.object(F.B, "call", return_value=said), mock.patch.object(F.webbrowser, "open") as web:
+            send()
+        self.assertEqual(web.call_count, 0)
+        self.assertEqual(msg().cget("text"), said[1])
+
+    def test_bug(self):
+        def fill():
+            self.h.bug_vars["title"].set("PENIS")
+            self.h.bug_vars["what"].insert("1.0", "nothing at all here")
+        self.send(self.h.bug_report_open, fill, self.h.bug_send, lambda: self.h.bug_msg)
+        self.assertIsNotNone(self.h.bug_win)
+        self.assertEqual(str(self.h.bug_send_btn.cget("state")), "normal")
+
+    def test_idea(self):
+        def fill():
+            self.h.idea_vars["title"].set("PENIS")
+            self.h.idea_vars["what"].insert("1.0", "nothing at all here")
+        self.send(self.h.idea_open, fill, self.h.idea_send, lambda: self.h.idea_msg)
+        self.assertIsNotNone(self.h.idea_win)
+
+
 class Save(unittest.TestCase):
     def test_a_file_held_for_a_moment_still_saves(self):
         from soe2 import config as CF
