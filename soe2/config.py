@@ -6,6 +6,7 @@ import json
 import os
 import sys
 import threading
+import time
 
 
 # ------------------------------------------------------------------ paths / settings
@@ -259,14 +260,29 @@ SAVE_ERRORS = []                          # 2.4.0: (file, problem) - saving no l
 def save_json(name, data):
     """-> True when the file was written. A failure (file in use, folder not writable...) is noted in SAVE_ERRORS and
     the app's log (buglog) instead of passing silently."""
+    tmp = None
     try:
-        tmp = P(name) + ".tmp"
-        text = json.dumps(data)           # 2.25.1: dumps (one go, the fast C encoder) - json.dump streams through
+        # 3.2.0, owner's report: two saves of one file at once shared one .tmp - "used by another process". Each
+        # save writes its own; Windows' short holds on the file - antivirus, indexing - get three more tries
+        tmp = f"{P(name)}.{os.getpid()}.{threading.get_ident()}.tmp"
+        text = json.dumps(data)           # 2.25.1: dumps - one go, the fast C encoder - json.dump streams through
         with open(tmp, "w", encoding="utf-8") as f:   # the slow pure-Python one: a long Price checks list took
             f.write(text)                 # seconds and froze the app
-        os.replace(tmp, P(name))          # all-or-nothing: never leaves a half-written file behind
+        for i in range(4):
+            try:
+                os.replace(tmp, P(name))  # all-or-nothing: never leaves a half-written file behind
+                break
+            except PermissionError:
+                if i == 3:
+                    raise
+                time.sleep(0.05 * (i + 1))
         return True
     except Exception as e:
+        if tmp:
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
         SAVE_ERRORS.append((name, str(e)[:200]))
         del SAVE_ERRORS[:-20]
         try:

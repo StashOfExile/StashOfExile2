@@ -192,5 +192,36 @@ class Form(unittest.TestCase):
         self.assertTrue(shown.endswith(sent["body"]))
 
 
+class Save(unittest.TestCase):
+    def test_a_file_held_for_a_moment_still_saves(self):
+        from soe2 import config as CF
+        real, n = CF.os.replace, []
+
+        def held(a, b):
+            n.append(1)
+            if len(n) < 3:
+                raise PermissionError(32, "used by another process")
+            return real(a, b)
+        with mock.patch.object(CF.os, "replace", side_effect=held), mock.patch.object(CF.time, "sleep"):
+            self.assertTrue(CF.save_json("held_test.json", {"a": 1}))
+        self.assertEqual(CF.load_json("held_test.json", {}), {"a": 1})
+        self.assertEqual([f for f in os.listdir(os.path.dirname(CF.P("held_test.json"))) if f.endswith(".tmp")], [])
+
+    def test_two_saves_at_once_use_their_own_tmp(self):
+        import threading
+        from soe2 import config as CF
+        errs = []
+
+        def save(i):
+            for _ in range(30):
+                if not CF.save_json("both.json", {"i": i, "pad": "x" * 20000}):
+                    errs.append(i)
+        ts = [threading.Thread(target=save, args=(i,)) for i in range(3)]
+        [t.start() for t in ts]
+        [t.join() for t in ts]
+        self.assertEqual(errs, [])
+        self.assertIn(CF.load_json("both.json", {}).get("i"), (0, 1, 2))
+
+
 if __name__ == "__main__":
     unittest.main()
