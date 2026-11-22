@@ -574,6 +574,12 @@ class Page(unittest.TestCase):
 
         class Answer:
             status_code, content = 200, buf.getvalue()
+        a._pc_art_init()
+        for url in (PCP.WAYSTONE_ICON, PCP.TABLET_ICONS["Breach Tablet"]):    # (a test before may have kept it:
+            for k in [k for k in a._pc_art_cache if k.split("#")[0] == url]:  # the Linux build machine downloads
+                a._pc_art_cache.pop(k)
+            if os.path.exists(a._pc_art_path(url)):                          # for real)
+                os.remove(a._pc_art_path(url))
         orig = requests.get
         requests.get = lambda url, **k: (got.append(url), Answer())[1]
         try:
