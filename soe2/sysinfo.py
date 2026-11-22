@@ -13,13 +13,23 @@ from . import buglog
 
 GAME_TITLE = "Path of Exile 2"
 WS_CAPTION = 0x00C00000
+_USER32 = []
+
+
+def _user32():
+    """This module's own user32: other parts of the app set argtypes on the shared windll with their own structs,
+    and a call here with ours then fails - owner's report: no screen line, an ArgumentError."""
+    if not _USER32:
+        import ctypes
+        _USER32.append(ctypes.WinDLL("user32"))
+    return _USER32[0]
 
 
 def _windows_screens():
     """[{name, x, y, w, h, hz, scale, main, hmon}] in real pixels, Windows."""
     import ctypes
     from ctypes import wintypes
-    u = ctypes.windll.user32
+    u = _user32()
 
     class MONITORINFOEXW(ctypes.Structure):
         _fields_ = [("cbSize", wintypes.DWORD), ("rcMonitor", wintypes.RECT), ("rcWork", wintypes.RECT),
@@ -42,13 +52,16 @@ def _windows_screens():
                     ("dmPanningHeight", wintypes.DWORD)]
 
     mons = []
-    proc = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HMONITOR, wintypes.HDC, ctypes.POINTER(wintypes.RECT),
-                              wintypes.LPARAM)
+    proc = ctypes.WINFUNCTYPE(wintypes.BOOL, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p)
+    u.EnumDisplayMonitors.argtypes = [ctypes.c_void_p, ctypes.c_void_p, proc, ctypes.c_void_p]
+    u.GetMonitorInfoW.argtypes = [ctypes.c_void_p, ctypes.POINTER(MONITORINFOEXW)]
+    u.EnumDisplaySettingsW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, ctypes.POINTER(DEVMODEW)]
 
     def each(hmon, _dc, _r, _l):
         mons.append(hmon)
         return True
-    u.EnumDisplayMonitors(None, None, proc(each), 0)
+    cb = proc(each)
+    u.EnumDisplayMonitors(None, None, cb, None)
     try:
         shcore = ctypes.windll.shcore
     except Exception:
@@ -63,14 +76,14 @@ def _windows_screens():
         dm.dmSize = ctypes.sizeof(DEVMODEW)
         w = h = hz = 0
         x, y = mi.rcMonitor.left, mi.rcMonitor.top
-        if u.EnumDisplaySettingsW(mi.szDevice, -1, ctypes.byref(dm)):        # ENUM_CURRENT_SETTINGS: real pixels
+        if u.EnumDisplaySettingsW(mi.szDevice, 0xFFFFFFFF, ctypes.byref(dm)):        # ENUM_CURRENT_SETTINGS: real pixels
             w, h, hz = dm.dmPelsWidth, dm.dmPelsHeight, dm.dmDisplayFrequency
             x, y = dm.dmPositionX, dm.dmPositionY
         scale = 0
         if shcore is not None:
             dx, dy = wintypes.UINT(0), wintypes.UINT(0)
             try:
-                if shcore.GetDpiForMonitor(hm, 0, ctypes.byref(dx), ctypes.byref(dy)) == 0 and dx.value:
+                if shcore.GetDpiForMonitor(ctypes.c_void_p(hm), 0, ctypes.byref(dx), ctypes.byref(dy)) == 0 and dx.value:
                     scale = int(round(dx.value * 100 / 96.0))
             except Exception:
                 scale = 0
@@ -86,7 +99,7 @@ def _windows_hdr():
     """{GDI device name: True / False} - HDR on each screen, Windows 10 1709 or newer; {} when it can't be read."""
     import ctypes
     from ctypes import wintypes
-    u = ctypes.windll.user32
+    u = _user32()
 
     class LUID(ctypes.Structure):
         _fields_ = [("LowPart", wintypes.DWORD), ("HighPart", wintypes.LONG)]
@@ -147,7 +160,13 @@ def _windows_game(screens):
     """{w, h, screen, mode} of the game window, or None when it isn't running."""
     import ctypes
     from ctypes import wintypes
-    u = ctypes.windll.user32
+    u = _user32()
+    u.FindWindowW.argtypes, u.FindWindowW.restype = [wintypes.LPCWSTR, wintypes.LPCWSTR], ctypes.c_void_p
+    u.MonitorFromWindow.argtypes, u.MonitorFromWindow.restype = [ctypes.c_void_p, wintypes.DWORD], ctypes.c_void_p
+    for fn in ("GetWindowRect", "GetClientRect"):
+        getattr(u, fn).argtypes = [ctypes.c_void_p, ctypes.POINTER(wintypes.RECT)]
+    u.IsIconic.argtypes = [ctypes.c_void_p]
+    u.GetWindowLongW.argtypes = [ctypes.c_void_p, ctypes.c_int]
     hwnd = u.FindWindowW(None, GAME_TITLE)
     if not hwnd:
         return None
