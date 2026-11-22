@@ -93,6 +93,7 @@ also ask for this notice, word for word, and a User-Agent that says how to reach
    | Favours prices keep their cut of the press's picture in memory up to 120 s | your price check key on a reward in that time teaches its icon (saved as a small icon) | no new read - the cut of the last Read Key press, never saved whole |
    | Atlas screenshots (Strat Tracker) | Ctrl+V on the Atlas step (one read) or Pick an image file… | your own picture, by your key press or your file pick |
    | Report a bug; Error reports (opt-in, Settings › Privacy & community) | your click on Send; Error reports hourly once you opt in | text only: the app's log and what you type - no screenshot, no clipboard |
+   | Report a bug › Add your screen setup (3.2.0, ticked by default, shown word for word before Send) | your click on Send | text only: each screen's size, refresh rate, scaling and HDR from Windows' display settings, the game window's size and whether it has a title bar or fills its screen - window metadata like the rows above; Windows' OCR language; the last missed inventory read's log line. Nothing read from the game or its files, no picture |
    | Scan stash | Start reading (a click) only arms; each Read Key press reads one tab | the click reads nothing |
 
    Plus public websites: the official trade site's search API, only for

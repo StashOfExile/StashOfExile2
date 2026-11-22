@@ -305,23 +305,37 @@ def _read_text(pic):
     return ocrengine.tesseract(pic.convert("L"), prepped=True, psm="11")
 
 
-def find_word(img, words):
+LAST_READ = []                  # find_word's last read: every line's words - the log says them when nothing matched
+
+
+def find_word(img, words, biggest=False):
     """A picture (PIL) -> the box (x0, y0, x1, y1, in its pixels) of the first word that is one of `words` (lower
     case, spaces ignored), or None. Read twice if needed - as it is and light-on-dark turned around - each made
-    twice as big (a small area) with full contrast - a title's dark letters on a light plate read best that way."""
+    twice as big (a small area) with full contrast - a title's dark letters on a light plate read best that way.
+    biggest: of every line that matches, the tallest - a panel's title over a tab with the same word."""
     from PIL import ImageOps
     want = {w.replace(" ", "").lower() for w in words}
     g = ImageOps.autocontrast(img.convert("L"))
     k = 2 if g.width * g.height <= 400_000 else 1          # (a big area is read as it is: quick enough)
     if k != 1:
         g = g.resize((g.width * k, g.height * k))
+    seen = []
     for pic in (g, ImageOps.invert(g)):
         try:
             lines = _read_text(pic)
-        except Exception:
+        except Exception as e:
+            seen.append(f"<the text reader failed: {e.__class__.__name__}>")
             continue
+        hits = []
         for text, box in lines or []:
+            seen.append(str(text))
             t = str(text).replace(" ", "").lower()
             if any(w in t for w in want):
-                return tuple(int(round(v / k)) for v in box)
+                hits.append(tuple(int(round(v / k)) for v in box))
+                if not biggest:
+                    break
+        if hits:
+            LAST_READ[:] = seen
+            return max(hits, key=lambda b: b[3] - b[1])
+    LAST_READ[:] = seen
     return None
