@@ -327,9 +327,21 @@ class Table(Saved):
         a.rm_cardcv.redraw()
         self.assertEqual(a.rm_roll_key(), GLOVES_FIRE)
         self.assertEqual(a.rm_roll_state(GLOVES_FIRE), "same")
-        self.assertIn("same", a.rm_cardcv.tips)                   # the "✓ Same for every roll" mark
-        self.assertNotIn("same", a.rm_cardcv.acts)                # (nothing to undo yet)
-        self.assertTrue(any(t.startswith("grp:2:") for t in a.rm_cardcv.acts))
+        cv = a.rm_cardcv
+        self.assertTrue(any(t.startswith("grp:2:") for t in cv.acts))
+        # owner: the three rolls' letters rate it - no second S A B C D F row under them, and a hint, not a pill
+        self.assertFalse([t for t in cv.acts if t.startswith(("rate:", "grade:"))], "no second letter row")
+        self.assertNotIn("same", cv.tips)
+        texts = [cv.itemcget(i, "text") for i in cv.find_all() if cv.type(i) == "text"]
+        self.assertIn("Pick a letter for each roll to rate this mod.", texts)
+        self.assertIn("Skip", texts)
+        a._rm_apply([e["keys"]], "A")                             # rated: the pill, and Next to go on
+        cv.redraw()
+        self.assertIn("same", cv.tips)                            # the "✓ Same for every roll" mark
+        self.assertNotIn("same", cv.acts)                         # (nothing to undo yet)
+        texts = [cv.itemcget(i, "text") for i in cv.find_all() if cv.type(i) == "text"]
+        self.assertIn("Next ›", texts)
+        self.assertNotIn("Skip", texts)
         a.rm_view_pick("Table")
 
 

@@ -242,9 +242,9 @@ class FeedbackPage:
         Send stays gray, and the line under it says what's still needed, until both are long enough."""
         need = []
         if len(self._bug_val("title").strip()) < 4:
-            need.append("a title (4+ letters)")
+            need.append("a title of 4+ letters")
         if len(self._bug_val("what").strip()) < 10:
-            need.append("what happened (10+ letters)")
+            need.append("10+ letters on what happened")
         try:
             if getattr(self, "bug_send_btn", None) is not None and str(self.bug_send_btn.cget("text")) == "Send":
                 self.bug_send_btn.config(state="disabled" if need else "normal")
@@ -405,9 +405,9 @@ class FeedbackPage:
         """Send stays gray, and the line beside it says what's still needed, until the title and the idea are there."""
         need = []
         if len(self._idea_val("title").strip()) < 4:
-            need.append("a title, 4 or more letters")
+            need.append("a title of 4+ letters")
         if len(self._idea_val("what").strip()) < 10:
-            need.append("what you'd like, 10 or more letters")
+            need.append("10+ letters on your idea")
         try:
             if str(self.idea_send_btn.cget("text")) == "Send":
                 self.idea_send_btn.config(state="disabled" if need else "normal")

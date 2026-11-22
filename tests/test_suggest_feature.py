@@ -73,6 +73,18 @@ class Form(unittest.TestCase):
         self.assertEqual(str(h.idea_send_btn.cget("state")), "normal")
         self.assertEqual(h.idea_msg.cget("text"), "")
 
+    def test_same_words_as_report_a_bug(self):
+        """Owner: the two forms' still-needed lines said the same thing in two different ways."""
+        h = self.h
+        h.idea_open()
+        h.bug_report_open()
+        self.root.update()
+        self.assertEqual(h.idea_msg.cget("text"), "Still needed: a title of 4+ letters and 10+ letters on your idea.")
+        self.assertEqual(h.bug_msg.cget("text"), "Still needed: a title of 4+ letters and 10+ letters on what happened.")
+        h.idea_vars["title"].set("Cost of 10 uses")
+        self.root.update()
+        self.assertEqual(h.idea_msg.cget("text"), "Still needed: 10+ letters on your idea.")
+
     def test_preview_is_what_goes(self):
         h = self.h
         h.idea_open()

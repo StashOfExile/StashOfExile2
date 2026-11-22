@@ -80,11 +80,11 @@ class GamePlanPage:
         top = tk.Frame(page, bg=P2, padx=12, pady=8, highlightthickness=1, highlightbackground=C["line"])
         top.pack(fill="x", padx=8, pady=(8, 8))
         self.gp_on = tk.BooleanVar(value=bool(f["on"]))
-        ttk.Checkbutton(top, text="Goal on the overlay + pokes", variable=self.gp_on, command=self.gp_switch,
+        ttk.Checkbutton(top, text="Goal on the overlay + reminders", variable=self.gp_on, command=self.gp_switch,
                         style="Card.TCheckbutton").pack(side="left")
         self.gp_summary = tk.Label(top, text="", bg=P2, fg=C["text"], font=("Segoe UI", 9), anchor="e")
         self.gp_summary.pack(side="right")
-        tk.Label(page, text="Set it once - the overlay's goal line and pokes bring it back when it matters.",
+        tk.Label(page, text="Set it once - the overlay's goal line and reminders bring it back when it matters.",
                  bg=P1, fg=C["muted"], font=("Segoe UI", 9), anchor="w").pack(fill="x", padx=12, pady=(0, 4))
         sa = ScrollArea(page, bg=P1)
         sa.pack(fill="both", expand=True)
@@ -97,7 +97,7 @@ class GamePlanPage:
         right.grid(row=0, column=1, sticky="nsew", padx=(8, 0))
         self._gp_goals(left)
         # P5 (2.108.0): the right side is tabs - one part at a time
-        tabs = ("Stockpile", "Farm plan", "Pokes")        # (2.131.2: Map supplies moved to Top Up Reminders)
+        tabs = ("Stockpile", "Farm plan", "Reminders")        # (2.131.2: Map supplies moved to Top Up Reminders)
         self.gp_tabs = SegBar(right, list(tabs), command=self.gp_tab, size=10, pad=(12, 4), bg=P1)
         self.gp_tabs.pack(anchor="w", pady=(0, 8))
         self.gp_tab_frames = {}
@@ -135,7 +135,7 @@ class GamePlanPage:
             bits.append(f"{len(f['stockpile'])} to stockpile")
         if f["farms"]:
             bits.append(f"{len(f['farms'])} farm{'s' if len(f['farms']) != 1 else ''}")
-        bits.append(("pokes on" if int(f["pokes"].get("per_hour") or 0) else "pokes off") if f["on"] else "not on the overlay")
+        bits.append(("reminders on" if int(f["pokes"].get("per_hour") or 0) else "reminders off") if f["on"] else "not on the overlay")
         return "  ·  ".join(bits)
 
     # ---------------- A: goals by phase
@@ -159,7 +159,7 @@ class GamePlanPage:
         e = ttk.Entry(form, textvariable=self.gp_new)
         e.grid(row=0, column=1, columnspan=3, sticky="ew", pady=2)
         e.bind("<Return>", lambda ev: self.gp_add_goal())
-        self._gp_label(form, 1, "Poke me")
+        self._gp_label(form, 1, "Remind me")
         r1 = tk.Frame(form, bg=P2)
         r1.grid(row=1, column=1, columnspan=3, sticky="ew", pady=2)
         self.gp_new_trig = tk.StringVar(value=F.TRIGGERS[0][1])
@@ -284,7 +284,7 @@ class GamePlanPage:
                     tk.Label(meta, text=f"/ {target:g}" + (f" {unit}" if unit and kind != "act" else ""), bg=P2,
                              fg=C["muted"], font=("Segoe UI", 9)).pack(side="left")
                 self._gp_bar(meta, have / target if target else 0).pack(side="left", padx=(8, 0))
-            tk.Label(meta, text="poke: " + trig.get(g["trigger"], g["trigger"]), bg=P2, fg=C["muted"],
+            tk.Label(meta, text="remind: " + trig.get(g["trigger"], g["trigger"]), bg=P2, fg=C["muted"],
                      font=("Segoe UI", 9)).pack(side="right")
 
     def gp_goal_tick(self, gid, v):
@@ -589,7 +589,7 @@ class GamePlanPage:
         lk = F.cfg()["lock"]
         o, box = chrome_section(parent, "Build lock", "Stop the reroll itch: your league starter, and when you're "
                                                       "allowed to switch. A new level-1 character in the log gets a "
-                                                      "poke first.", wrap=True)
+                                                      "reminder first.", wrap=True)
         o.pack(fill="x", pady=(0, 12))
         self.gp_lock_on = tk.BooleanVar(value=bool(lk["on"]))
         ttk.Checkbutton(box, text="Build lock on", variable=self.gp_lock_on, style="Card.TCheckbutton",
@@ -617,14 +617,14 @@ class GamePlanPage:
     def _gp_pokes(self, parent):
         P2 = C["panel2"]
         pk = F.cfg()["pokes"]
-        o, box = chrome_section(parent, "Pokes", "How often and where the plan reminds you. Quiet by default.",
+        o, box = chrome_section(parent, "Reminders", "How often and where the plan reminds you. Quiet by default.",
                                 wrap=True)
         o.pack(fill="x", pady=(0, 12))
         self.gp_poke_vars = {}
         self._gp_head(box, "LIMITS", top=0)
         nums = tk.Frame(box, bg=P2)
         nums.pack(fill="x")
-        for i, (key, lab, lo, hi) in enumerate((("per_hour", "Pokes an hour, at most", 0, 12),
+        for i, (key, lab, lo, hi) in enumerate((("per_hour", "Reminders an hour, at most", 0, 12),
                                                  ("checkin_min", "Check-in every, minutes of play", 0, 240),
                                                  ("snooze_min", "Snooze for, minutes", 5, 480))):
             tk.Label(nums, text=lab, bg=P2, fg=C["text"], anchor="w").grid(row=i, column=0, sticky="w", pady=2)
@@ -638,7 +638,7 @@ class GamePlanPage:
         for c in range(2):
             sw.columnconfigure(c, weight=1, uniform="pk")
         for i, (key, lab) in enumerate((("town_only", "Only in town or hideout"), ("session_only", "Only during a session"),
-                                        ("milestones", "Milestones from the log"), ("prices", "Stockpile price pokes"),
+                                        ("milestones", "Milestones from the log"), ("prices", "Stockpile price reminders"),
                                         ("quieter", "Quieter after 3 \"Not today\""), ("sound", "Soft sound"),
                                         ("why", "Say why it showed up"), ("quiet_on", "Quiet hours (23:00-08:00)"),
                                         ("windows", "A Windows notification when the game isn't in front"))):
@@ -654,7 +654,7 @@ class GamePlanPage:
         self.gp_tone = SegBar(tr, list(F.TONES), command=lambda v: self.gp_pokes_save(), size=9, pad=(8, 4), bg=P2)
         self.gp_tone.pack(side="left")
         self.gp_tone.pick(pk.get("tone", "Gentle"), notify=False)
-        ttk.Button(tr, text="Test a poke", command=self.focus_test).pack(side="right")
+        ttk.Button(tr, text="Test a reminder", command=self.focus_test).pack(side="right")
         ttk.Button(tr, text="History", command=self.focus_history, style="Quiet.TButton").pack(side="right", padx=8)
 
     def focus_history(self):
@@ -663,8 +663,8 @@ class GamePlanPage:
         from tkinter import messagebox
         h = F.cfg()["history"][-15:]
         lines = [f"{_t.strftime('%b %d %H:%M', _t.localtime(x['ts']))}  {x['kind']}: {x['text'].splitlines()[0][:60]}"
-                 f"  ->  {x.get('answer') or '-'}" for x in reversed(h)] or ["No pokes yet."]
-        messagebox.showinfo("Poke history", "\n".join(lines), parent=self.root)
+                 f"  ->  {x.get('answer') or '-'}" for x in reversed(h)] or ["No reminders yet."]
+        messagebox.showinfo("Reminder history", "\n".join(lines), parent=self.root)
         return lines
 
     def gp_pokes_save(self):

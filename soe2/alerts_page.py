@@ -128,7 +128,7 @@ HELPER_BLURBS = {"breach": "An alert card when your Hiveblood is almost full, an
                  "ritual": f"Press {LOOK} with a Ritual altar's Favours window open: prices each reward once.",
                  "remnant": f"Press {LOOK} with an Expedition remnant's book open: prices each reward once, beside its "
                             f"line.",
-                 "focus": "Your League Plan over the game: the goal you're on, and pokes when it matters.",
+                 "focus": "Your League Plan over the game: the goal you're on, and reminders when it matters.",
                  "campaign": "Where you are in the campaign, what's next and rewards you missed - from the game's log.",
                  "whispers": "A card over the game when someone whispers to buy your item: what, for how much, where.",
                  "desecrate": f"Press {LOOK} at The Well of Souls: reads the tier of each Desecration option once.",

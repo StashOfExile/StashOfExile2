@@ -667,17 +667,22 @@ class RateModsPage:
         y = self._rm_rolls(cv, e, (x0 + x1) / 2, y, x1 - x0 - 2 * pad)
         y = self._rm_facts(cv, e, cur, x0 + pad, x1 - pad, y, narrow)
         key = self.rm_roll_key(e)
-        if key:
+        if key:                                        # (owner: the three rolls' letters rate it - no second row)
             y = self._rm_byroll(cv, key, cur, x0 + pad, x1 - pad, y, narrow)
-        y = self._rm_rate_row(cv, cur, (x0 + x1) / 2, y, narrow)
-        # Back · Skip
+        else:
+            y = self._rm_rate_row(cv, cur, (x0 + x1) / 2, y, narrow)
+        # Back · Next (rated) or Skip (not rated yet)
         bw, gap = 96, 12
         bx = (x0 + x1) / 2 - bw - gap / 2
         last = self.rm_i >= n - 1
         self._rm_btn(cv, bx, y, bw, 32, "‹ Back", "nav:back", lambda: self.rm_step(-1), off=self.rm_i <= 0,
-                     tip="The mod before this one (←)")
-        self._rm_btn(cv, bx + bw + gap, y, bw, 32, "Skip", "nav:skip", lambda: self.rm_step(1), off=last,
-                     tip="The next mod, without rating this one (→)")
+                     tip="The mod before this one. Key: ←")
+        if cur is not None:
+            self._rm_btn(cv, bx + bw + gap, y, bw, 32, "Next ›", "nav:skip", lambda: self.rm_step(1), off=last,
+                         tip="The next mod. This one keeps its rating. Key: →")
+        else:
+            self._rm_btn(cv, bx + bw + gap, y, bw, 32, "Skip", "nav:skip", lambda: self.rm_step(1), off=last,
+                         tip="The next mod, without rating this one. Key: →")
         y += 32 + 16
         rated, total = self.rm_counts.get(self.rm_set, (0, 0))
         if total and rated == total:
@@ -946,7 +951,10 @@ class RateModsPage:
         y = (top + 108 + 10) if cols == 3 else y + 4
         same = RM.same_for_every_roll(key)
         w = cv.tw("✓ " + SAME, F_SMALL) + 28
-        if same:
+        if cur is None:                                  # (not rated yet: a letter in each group rates it)
+            cv.text(cx, y + 13, "Pick a letter for each roll to rate this mod.", F_SMALL, fill=cv.c("text_muted"),
+                    anchor="center")
+        elif same:
             cv.card(cx - w / 2, y, cx + w / 2, y + 26, tag="same", fill=cv.c("surface_high"),
                     outline=cv.c("border_light"), r=12, lift=False)
             cv.text(cx, y + 13, "✓ " + SAME, F_SMALL, anchor="center", tags=("same",))

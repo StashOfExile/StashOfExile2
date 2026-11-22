@@ -170,6 +170,7 @@ GAME_SEARCH_GROUPS = ("Tablets", "Waystones", "Atlas Masters", "Vaal Temple", "P
                       "Trial of the Sekhemas", "Trial of Chaos", "Ritual Altars", "Leagues")
 
 OLD = {
+    "Pokes": "Reminders",                       # owner, after 3.1.0: League Plan's pokes
     "Rate Mods": "Mod Lab",                     # owner, after 3.1.0
     # 2.132.4 - 2.143.0: the overlay's settings were a child page, Overlay ↳ Overlay Settings. Nav phase 2: they are
     # the Overlay page's tabs (Helpers, On the Overlay, Look, Options) - an old name opens the Overlay page
