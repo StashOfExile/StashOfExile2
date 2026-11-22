@@ -319,6 +319,27 @@ class Table(Saved):
         self.assertEqual(a.rm_view, "One at a Time")
         a.rm_view_pick("Table")
 
+    def test_pictures_fit_a_square_and_load_when_missing(self):
+        """Owner: some sets had no picture, some were far too big - a staff is tall."""
+        from PIL import Image
+        from unittest import mock
+        from soe2.config import SETTINGS
+        a = self.app
+        self.addCleanup(SETTINGS.__setitem__, "pc_art", SETTINGS.get("pc_art", True))
+        SETTINGS["pc_art"] = True                              # (Item pictures on, whatever a test before left)
+        url = "https://web.poecdn.com/gen/image/x/abc/Staff.png"
+        Image.new("RGBA", (78, 312), (200, 80, 40, 255)).save(a._pc_art_path(url))       # a 1x4 picture
+        with mock.patch.object(type(a), "rm_pic_url", lambda self, s, e=None: url):
+            ph = a.rm_pic("gear:staves", None, 24)
+        self.assertEqual((ph.width(), ph.height()), (6, 24), "inside a 24 px square, never stretched")
+        missing = "https://web.poecdn.com/gen/image/x/def/Bow.png"
+        asked = []
+        with mock.patch.object(type(a), "rm_pic_url", lambda self, s, e=None: missing), \
+                mock.patch.object(type(a), "pc_art", lambda self, u, px=0: asked.append(u)):
+            self.assertIsNone(a.rm_pic("gear:bows", None, 24))
+        self.assertEqual(asked, [missing], "a picture not on this PC yet is loaded, then the page redraws")
+        self.assertTrue(any(getattr(f, "__name__", "") == "came" for f in a._art_hooks))
+
     def test_card_default_same_for_every_roll(self):
         a = self.app
         a.rm_view_pick("One at a Time")

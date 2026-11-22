@@ -543,9 +543,9 @@ class RateModsPage:
         ink = cv.c("text_strong") if on else cv.c("text")
         pic = self.rm_pic(s, None, 24)
         nx = x0 + 10
-        if pic is not None:                                   # the item's picture, before its name
-            cv.create_image(nx, y + 15, image=pic, anchor="w", tags=(tag,))
-            nx += 30
+        if pic is not None:                                   # the item's picture, before its name, centered in its
+            cv.create_image(nx + 12, y + 15, image=pic, anchor="center", tags=(tag,))     # 24 px square
+        nx += 30                                              # (names line up, with a picture or without)
         cv.text(nx, y + 7, ("▸ " if on else "") + lab, F_BOLD if on else F_BODY, fill=ink, tags=(tag,))
         cv.text(x1 - 10, y + 8, f"{r} of {n} rated" + (" ✓" if n and r == n else ""), F_SMALL,
                 fill=cv.c("text_muted"), anchor="ne", tags=(tag,))
@@ -714,19 +714,45 @@ class RateModsPage:
         return y
 
     def rm_pic(self, s, e=None, px=28):
-        """The item's picture for a set (a mod's own tablet type when it rolls on one only) - only one the app
-        already has on this PC (the price checks' picture cache): nothing is downloaded for it. None: no picture."""
-        url = self.rm_pic_url(s, e)
+        """The item's picture for a set (a mod's own tablet type when it rolls on one only), fitted inside a px square
+        so a tall staff is no bigger than a ring (owner: some pictures were far too big). Not on this PC yet: it loads
+        in the background, from the same place price checks get pictures, and the page redraws. None: no picture."""
+        from .config import SETTINGS
+        url = self.rm_pic_url(s, e) if SETTINGS.get("pc_art", True) else None      # (Item pictures off: none)
         if not url:
             return None
         try:
             import os
-            if not os.path.exists(self._pc_art_path(url)):
+            path = self._pc_art_path(url)
+            if not os.path.exists(path):
+                self._rm_art_hook()
+                self.pc_art(url)                             # (loads it; the hook redraws when it's here)
                 return None
-            return self.pc_art(url, px)
+            cache = self.__dict__.setdefault("_rm_pic_cache", {})
+            if (url, px) not in cache:
+                from PIL import Image, ImageTk
+                im = Image.open(path).convert("RGBA")
+                im.thumbnail((px, px), Image.LANCZOS)
+                cache[(url, px)] = ImageTk.PhotoImage(im, master=self.root)
+            return cache[(url, px)]
         except Exception:
             buglog.caught()
             return None
+
+    def _rm_art_hook(self):
+        """Once: a picture that came in redraws Mod Lab's list and card."""
+        if self.__dict__.get("_rm_hooked"):
+            return
+        self._rm_hooked = True
+
+        def came(_done):
+            for cv in (getattr(self, "rm_setcv", None), getattr(self, "rm_cardcv", None)):
+                try:
+                    if cv is not None and cv.winfo_ismapped():
+                        cv.later(0) if hasattr(cv, "later") else cv.redraw()
+                except Exception:
+                    buglog.caught()
+        self._art_hooks = list(getattr(self, "_art_hooks", [])) + [came]
 
     def rm_pic_url(self, s, e=None):
         try:
