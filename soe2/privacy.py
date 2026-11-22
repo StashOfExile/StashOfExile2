@@ -87,23 +87,5 @@ def public_league(league):
 # account or character names): the one line every community-name ask shows, and its ⓘ
 NAME_RULE = ("Pick a made-up name - not your real name, and never your Path of Exile account or character names. "
              "Other players see it.")
-NAME_TIP = ("A made-up name keeps the board from pointing at you, or at your characters in game. The app turns down "
-            "names it knows are yours (characters from the game's log) or that contain one - the rest is up to "
-            "you.")
-
-
-def name_problem(name):
-    """A community name that is one of your characters - or contains one, or is a big part of one (2.131.1) -> why
-    not (it would tie the board to you in game); else None."""
-    n = str(name or "").strip().lower()
-    if not n:
-        return None
-    for k in known_names():
-        full = k.lower()
-        if full == n:
-            return ("That's your character name - pick a made-up one, so nobody can find you in game from the "
-                    "board.")
-        if (len(full) >= 4 and full in n) or (len(n) >= 5 and n in full):
-            return ("That's too close to your character name - pick a made-up one, so nobody can find you in game "
-                    "from the board.")
-    return None
+NAME_TIP = ("A made-up name keeps the board from pointing at you, or at your characters in game. The app doesn't "
+            "check it against your characters - the choice is yours.")

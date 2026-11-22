@@ -327,6 +327,10 @@ REMOVED = [
       "wealth_add_pc_tab", "wealth_pc_tab", "wealth_pc_refresh", "_wealth_add", "wealth_toggle_tab",
       "wealth_remove_tab", "wealth_open_trade", "wealth_buttons", "_w_tab_row", "_w_by_tab", "wealth_show_tab_result",
       "wealth_setup_layout", "wealth_save_account", "wealth_skip_tab")),
+    ("3.2.1", "The community name check against your own character names: That's your character name, too close to "
+              "your character name (owner: reading your names to refuse one felt too invasive)",
+     ("That's your character name", "too close to your character name"),
+     ("name_problem",)),
     ("3.2.0", "League Plan's Build lock: your character, build and Locked until, and a reminder at a new level 1 "
               "character (owner: the app can't know your build, character or divines, so it enforced nothing)",
      ("Build lock", "Locked until", "My build", "I'm sure - unlock", "Stop the reroll itch"),

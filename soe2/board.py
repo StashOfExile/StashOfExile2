@@ -106,9 +106,6 @@ def image(iid, get=None):
 # ---------------------------------------------------------------- joining (no login)
 def join(name):
     """-> (True, user) or (False, why). Keeps the key the board hands out."""
-    from .privacy import name_problem
-    if name_problem(name):                                     # 2.89.3: never your account / a character's name
-        return False, name_problem(name)
     ok, d = call("POST", "/auth/join", body={"name": name})
     if ok and d.get("token"):
         save_json(SESSION, {"token": d["token"], "user": d.get("user") or {}, "since": time.time()})
@@ -126,9 +123,6 @@ def _keep_user(res):
 
 
 def rename(name):
-    from .privacy import name_problem
-    if name_problem(name):                                     # 2.89.3
-        return False, name_problem(name)
     return _keep_user(call("POST", "/auth/rename", body={"name": name}))
 
 
