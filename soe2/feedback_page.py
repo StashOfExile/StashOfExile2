@@ -23,11 +23,18 @@ from tkinter import ttk
 from . import buglog
 from . import board as B
 from .config import APP_VERSION, SETTINGS
-from .style import C, over_app
+from .style import C, Tooltip, over_app
 
 REPO = "StashOfExile/StashOfExile2"
 UPDATE_EVERY = 3600                 # 2.79.1 (feedback): every hour (was 6 h)
 
+
+
+SETUP_LABEL = "Add your screen setup"
+SETUP_LINE = "Screen size, scaling, HDR, the game window's mode and the last missed inventory read."
+SETUP_TIP = ("Helps with bugs where the app doesn't read your screen. It comes from Windows' display settings and "
+             "the game window's size. Nothing is read from the game or its files, and no picture is taken or sent. "
+             "Untick it to leave it out. The box below shows it word for word.")
 
 
 def os_line():
@@ -127,8 +134,8 @@ class FeedbackPage:
                 sb.redraw()
 
     # ================================================================ Report a bug
-    def bug_report_text(self, what, steps, expected, contact, with_log):
-        """Exactly what is sent (shown in the form before you send it)."""
+    def bug_report_text(self, what, steps, expected, contact, with_log, with_setup=False):
+        """Exactly what is sent, shown in the form before you send it. with_setup: 3.2.0, the screen setup part."""
         from .privacy import public_league, scrub_names
         try:
             sh = self.root.winfo_screenheight()
@@ -143,6 +150,8 @@ class FeedbackPage:
         res = "4K" if sh >= 2000 else "1440p" if sh >= 1400 else "1080p" if sh >= 1000 else "under 1080p" if sh else "?"
         parts.append(f"**App** {APP_VERSION} · {os_line()} · {res} · "
                      f"league {public_league(SETTINGS.get('league')) or '?'}")
+        if with_setup:
+            parts.append(getattr(self, "bug_setup", "") or "**Screen setup**\nReading it…")
         if with_log:                                 # 2.115.0: the one log - the last crash / freeze / slow report and
             from . import buglog                     # the newest entries of app_log.txt, cleaned, capped
             parts.append(buglog.diagnostics() or "**App log**\n(nothing logged - no errors, crashes or freezes)")
@@ -205,6 +214,17 @@ class FeedbackPage:
                         variable=self.bug_log, command=self._bug_preview).pack(anchor="w", pady=(8, 0))
         tk.Label(f, text=f"In the last week: {seen}.", bg=P1, fg=C["muted"], font=("Segoe UI", 9),
                  anchor="w").pack(fill="x", padx=(24, 0), pady=(0, 4))
+        self.bug_setup_on = tk.BooleanVar(value=True)      # 3.2.0 owner: the screen setup, shown before Send
+        srow = tk.Frame(f, bg=P1)
+        srow.pack(fill="x")
+        ttk.Checkbutton(srow, text=SETUP_LABEL, variable=self.bug_setup_on,
+                        command=self._bug_preview).pack(side="left")
+        si = tk.Label(srow, text="ⓘ", bg=P1, fg=C["muted"], font=("Segoe UI", 10), cursor="question_arrow")
+        si.pack(side="left", padx=(8, 0))
+        Tooltip(si, SETUP_TIP)
+        tk.Label(f, text=SETUP_LINE, bg=P1, fg=C["muted"], font=("Segoe UI", 9),
+                 anchor="w").pack(fill="x", padx=(24, 0), pady=(0, 4))
+        self.bug_setup = ""
         b = tk.Frame(f, bg=P1)                   # 2.50.0: the buttons first, at the bottom - never cut off
         b.pack(side="bottom", fill="x", pady=(8, 0))
         tk.Label(f, text="What will be sent", bg=P1, fg=C["muted"], font=("Segoe UI", 9), anchor="w").pack(fill="x")
@@ -223,6 +243,7 @@ class FeedbackPage:
         if what:
             self.bug_vars["what"].insert("1.0", what)
         self._bug_preview()
+        self._bug_setup_read()
         return win
 
     def _bug_close(self):
@@ -260,18 +281,33 @@ class FeedbackPage:
             return
         self._bug_ready()
         text = self.bug_report_text(self._bug_val("what"), self._bug_val("steps"), self._bug_val("expected"), "",
-                                    self.bug_log.get())
+                                    self.bug_log.get(), self._bug_setup_wanted())
         self.bug_prev.config(state="normal")
         self.bug_prev.delete("1.0", "end")
         self.bug_prev.insert("1.0", f"[Bug] {self._bug_val('title').strip()}\n\n{text}")
         self.bug_prev.config(state="disabled")
+
+    def _bug_setup_wanted(self):
+        v = getattr(self, "bug_setup_on", None)
+        return bool(v.get()) if v is not None else False
+
+    def _bug_setup_read(self):
+        """The screen setup, read once as the form opens - off the window thread, then the preview shows it."""
+        from . import sysinfo
+        root = self.root
+
+        def done(t):
+            self.bug_setup = t or ""
+            self._bug_preview()
+        self.run_bg(lambda: sysinfo.report_part(root), done)
 
     def bug_send(self):
         title, what = self._bug_val("title").strip(), self._bug_val("what").strip()
         if len(title) < 4 or len(what) < 10:
             self.bug_msg.config(text="A title and a few words about what happened, please.", fg=C["red"])
             return None
-        body = self.bug_report_text(what, self._bug_val("steps"), self._bug_val("expected"), "", self.bug_log.get())
+        body = self.bug_report_text(what, self._bug_val("steps"), self._bug_val("expected"), "", self.bug_log.get(),
+                                    self._bug_setup_wanted())
         self.bug_send_btn.config(state="disabled")
         self.bug_msg.config(text="Sending…", fg=C["muted"])
 

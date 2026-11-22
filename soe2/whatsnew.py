@@ -45,6 +45,29 @@ BETA_AREAS = ("Wealth", "Money Makers", "Game Search", "Market Insights", "Craft
 # repeats. Someone coming from rollup["since"] or older (or a fresh install) sees it instead of each version; someone
 # on a pre-release already saw them and gets only this version's own lines (notes_between).
 NOTES = {
+    # 3.2.0: verified on the owner's PC; League Plan's rework waits for its own test round
+    "3.2.0": {
+        "lead": [
+            ("✦", "New", [
+                ("•", "Suggest a Feature: a button next to Report a bug. You see every word before your idea is "
+                      "sent."),
+                ("•", "Report a bug can add your screen setup: screen size, scaling, HDR and the game window's mode. "
+                      "You see it before you send, and you can leave it out."),
+            ]),
+            ("↻", "Changed", [
+                ("•", "Rate Mods is now Mod Lab, with a bigger intro and a picture of each item."),
+                ("•", "Mod Lab asks How valuable is each roll? A mod rated by roll gets a Next button."),
+                ("•", "League Plan: pokes are now called Reminders."),
+                ("•", "Go to anything still finds a page by its old name."),
+            ]),
+            ("▲", "Improved", [
+                ("•", "Map Profit and Top Up look for your inventory along the whole top of the game."),
+                ("•", "When your Read Key doesn't find your inventory, the app's log says what it saw, so a bug "
+                      "report shows why."),
+                ("•", "Settings and sessions still save when another program holds the file for a moment."),
+            ]),
+        ],
+    },
     # 3.1.0: the owner's own patch notes, in his words - groups in order: GGG's rules, New, Changed, Improved
     "3.1.0": {
         "lead": [

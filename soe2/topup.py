@@ -16,6 +16,7 @@ Nothing is sent anywhere. GGG ToS: one screenshot per Read Key press - nothing i
 import base64
 import re
 import sys
+import time
 
 from . import buglog
 from .config import SETTINGS, load_json, save_json
@@ -77,6 +78,11 @@ BANNER_KEY = "inventory_title"          # gameart.screen_look: the inventory's t
 BANNER_WORDS = ("inventory",)
 
 
+TITLE_MID = (0.308, 0.065)               # the title's middle: width from the right, top - in game heights
+READ = []                               # the words OCR read in the top right on the last look
+MISS = {}                               # the last Read Key press that didn't find the inventory - Report a bug says it
+
+
 def is_open(img, game_h):
     """The banner area (PIL) -> the inventory's title is there."""
     return open_score(img, game_h) >= BANNER_MIN
@@ -84,23 +90,103 @@ def is_open(img, game_h):
 
 def open_score(img, game_h):
     """How well the inventory's title learned on this PC matches (0 .. 1). Not learned yet: OCR looks for the word
-    and, found, keeps that piece of the picture (1.0) - 3.1, no picture of the game ships with the app."""
+    and, found, keeps that piece of the picture (1.0) - 3.1, no picture of the game ships with the app. 3.2: a learned
+    title that no longer matches is looked for again by OCR, and kept anew when found."""
     try:
         cv2, np = _cv()
         from . import gameart as GA
         a = cv2.cvtColor(np.asarray(img.convert("RGB")), cv2.COLOR_RGB2GRAY)
+        score = 0.0
         if GA.screen_look(BANNER_KEY) is not None:
-            return GA.match_look(a, BANNER_KEY, game_h)[0]
-        box = GA.find_word(img, BANNER_WORDS)
+            score = GA.match_look(a, BANNER_KEY, game_h)[0]
+            if score >= BANNER_MIN:
+                return score
+        READ[:] = []
+        box = GA.find_word(img, BANNER_WORDS, biggest=True)
+        READ[:] = GA.LAST_READ
         if box is None:
-            return 0.0
-        p = max(2, int(round(4 * game_h / 1440.0)))
-        crop = a[max(0, box[1] - p):box[3] + p, max(0, box[0] - p):box[2] + p]
-        GA.keep_screen_look(BANNER_KEY, crop, game_h)
+            return score
+        _keep_title(a, box, game_h)
         return 1.0
     except Exception:
         buglog.caught()
         return 0.0
+
+
+def _keep_title(gray, box, game_h):
+    from . import gameart as GA
+    p = max(2, int(round(4 * game_h / 1440.0)))
+    crop = gray[max(0, box[1] - p):box[3] + p, max(0, box[0] - p):box[2] + p]
+    GA.keep_screen_look(BANNER_KEY, crop, game_h)
+
+
+def top_rect(game):
+    """The whole top of the game, as tall as the banner: where the title is looked for when it isn't at the right."""
+    x, y, w, h = game
+    return (int(x), int(y + BANNER[1] * h), int(x + w), int(y + BANNER[2] * h))
+
+
+def find_title(img, game_h):
+    """The top of the game (PIL) -> the title's middle (x, y) in its pixels, or None."""
+    try:
+        cv2, np = _cv()
+        from . import gameart as GA
+        a = cv2.cvtColor(np.asarray(img.convert("RGB")), cv2.COLOR_RGB2GRAY)
+        lk = GA.screen_look(BANNER_KEY)
+        if lk is not None:
+            score, loc, s = GA.match_look(a, BANNER_KEY, game_h)
+            if score >= BANNER_MIN and loc is not None:
+                th, tw = lk[0].shape[:2]
+                return loc[0] + tw * s / 2.0, loc[1] + th * s / 2.0
+        box = GA.find_word(img, BANNER_WORDS, biggest=True)
+        if box is None:
+            return None
+        return (box[0] + box[2]) / 2.0, (box[1] + box[3]) / 2.0
+    except Exception:
+        buglog.caught()
+        return None
+
+
+def title_shift(mid, game):
+    """The title's middle found in top_rect's picture -> (dx, dy): how far the panel sits from where it's expected."""
+    x, y, w, h = game
+    ex, ey = w - TITLE_MID[0] * h, TITLE_MID[1] * h - BANNER[1] * h
+    return int(round(mid[0] - ex)), int(round(mid[1] - ey))
+
+
+def shifted(rect, d):
+    dx, dy = d
+    return (rect[0] + dx, rect[1] + dy, rect[2] + dx, rect[3] + dy)
+
+
+def note_miss(game, ban, found_at=None):
+    """A press that didn't find the inventory: one line in the app's log, and MISS for Report a bug. ban: the picture
+    of the top right - how bright it is tells a black capture from a screen that shows something else."""
+    try:
+        from PIL import ImageStat
+        light = int(round(ImageStat.Stat(ban.convert("L")).mean[0]))
+    except Exception:
+        light = -1
+    words = " | ".join(str(w).strip() for w in READ if str(w).strip())[:120] or "nothing"
+    _x, _y, w, h = game
+    MISS.clear()
+    MISS.update({"t": time.time(), "game": (int(w), int(h)), "looked": tuple(int(v) for v in ban.size), "light": light,
+                 "read": words, "found_at": found_at})
+    buglog.record("read", "Inventory not found", miss_text())
+
+
+def miss_text():
+    """The last miss in a line, or ''."""
+    if not MISS:
+        return ""
+    gw, gh = MISS["game"]
+    lw, lh = MISS["looked"]
+    when = time.strftime("%H:%M", time.localtime(MISS["t"]))
+    where = ("not anywhere along the top either" if MISS.get("found_at") is None
+             else "the title was found {} px across and {} px down from where it's expected".format(*MISS["found_at"]))
+    return (f"{when}: game window {gw}×{gh}, looked at the top right {lw}×{lh}, its brightness "
+            f"{MISS.get('light', -1)} of 255, {where}. "
+            f"Words read there: {MISS['read']}")
 
 
 def split(grid_img):
