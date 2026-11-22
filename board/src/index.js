@@ -57,9 +57,9 @@ export function nameProblem(name) {
 // 3.2.0 owner: "block inappropriate words in the form, like usernames" - the same list on Report a bug's and Suggest a
 // Feature's title and typed words. Only what the player typed: the app log and screen setup after **App** are left
 // alone, since item names and numbers in a log would trip it. A hate term counts as a whole word, or inside a word
-// when it is 5 letters or more - homo stays out of homogeneous.
+// when it is 5 letters or more, so a short one inside an ordinary word is let through.
 export const CLEAN_MSG = "Please keep it clean";
-// whole words only - each is part of an ordinary word somewhere: Spice, Nazir, Retardation ...
+// whole words only - each is also part of an ordinary word somewhere
 const RUDE_WORDS = ["phuck", "phuk", "fuq", "fuk", "cvnt", "kunt", "jizz", "kys", "spic", "spick", "nazi", "nazis", "tard",
   "wank", "wanker", "fck", "fcuk", "dik", "nigg", "niqqer", "niqqa", "niqqers", "nibba", "nibbas", "nigguh", "niggah",
   "nigor", "nignog", "kyke", "spik", "coon", "coons", "paki", "pakis", "gyppo"];
@@ -67,7 +67,7 @@ const HARM = /\b(kill|neck|hang|off)\s*(yo)?u?r\s*self\b(?!-)|\bkys\b|\bgo\s+bac
 // hate terms written as two or three words: looked for with the spaces between words taken out
 const HATE_PHRASES = ["heilhit", "siegheil", "whitepower", "whitepride", "gaschamber", "slanteye", "porchmonk", "jewrat",
   "towelhead", "killalljews", "killallblacks", "gasthejews"];
-// p e n i s, p.e.n.i.s, p_e_n_i_s: three or more single letters in a row are read as one word as well
+// letters spaced out with spaces, dots or dashes: three or more single letters in a row are read as one word as well
 const SPACED = /(?<![\p{L}\p{N}])(?:[\p{L}\p{N}@$!|€*][\s._\-*+~]+){2,}[\p{L}\p{N}@$!|€*](?![\p{L}\p{N}])/gu;
 export function textProblem(text) {
   const raw = String(text || "").normalize("NFKC");
