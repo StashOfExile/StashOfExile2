@@ -513,9 +513,9 @@ def apply_roll(m):
     m["roll_base"] = [m.get("auto"), m.get("note")]
     word = GROUP_SHORT[i]
     if g["grade"] == "ignore":
-        m.update(auto="ignore", note=f"{word} roll for this mod in Rate Mods - not searched - tick it to search on it")
+        m.update(auto="ignore", note=f"{word} roll for this mod in Mod Lab - not searched - tick it to search on it")
     elif m.get("auto") == "ignore" and m.get("low_tier"):
-        m.update(auto=None, note=f"{word} roll for this mod in Rate Mods: {g['grade']} - searched")
+        m.update(auto=None, note=f"{word} roll for this mod in Mod Lab: {g['grade']} - searched")
     return g["grade"]
 
 

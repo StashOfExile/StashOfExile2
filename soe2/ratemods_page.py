@@ -24,8 +24,12 @@ from .mods import F_TIP
 from .style import C, SegBar, Tooltip, letter_color, text_on
 
 SETS = RM.MAP_SETS + (RM.JEWEL_SET,)
-INTRO = ("Bored, have a few minutes to kill? Submit some mod ratings: it helps build community mod data so "
-         "everyone's price checks are more accurate.")     # (the page header shows it: modules/ratemods.py blurb)
+# Owner, after 3.1.0: Mod Lab's intro stands out - bigger, in the heading font, key words bold in the accent color
+# (bold too, so color is never the only change). The page header draws INTRO_RICH; INTRO is the same words plain.
+INTRO_RICH = (("Bored, have ", False), ("a few minutes", True), (" to kill? ", False), ("Rate some mods", True),
+              (": it builds community mod data so ", False), ("everyone's price checks", True),
+              (" get more accurate.", False))
+INTRO = "".join(t for t, _ in INTRO_RICH)
 INTRO_TIP = ("S and A count as High, B, C and D as Normal, F is left out of searches. Your ratings change your price "
              "checks at once. With Community data sharing on, they're your vote too.")
 VIEWS = ("One at a Time", "Table")
@@ -33,7 +37,7 @@ GROUPS = (("High", ("S", "A")), ("Normal", ("B", "C", "D")), ("Ignore", ("ignore
 SHOWN = (("S", "S"), ("A", "A"), ("B", "B"), ("C", "C"), ("D", "D"), ("ignore", "F"))
 KEYS_LINE = "S A B C D F rate · ← → move"
 FILTERS = ("Not rated", "Rated", "All")
-QUESTION = "How much is each kind of roll worth?"
+QUESTION = "How valuable is each roll?"
 SAME = "Same for every roll"
 SEARCH_HINT = "Search mods or items"
 NARROW = 720                     # below this page width (the Drawer): the set list is a drop-down
@@ -1607,7 +1611,7 @@ class RateModsPage:
             b = ttk.Button(row, text=label, style=style, command=lambda k=k: pick(k))
             b.pack(side="left", padx=4)
             self.rm_ask_btns[k] = b
-        tk.Label(box, text="Not now asks once more in a few days. Either way, it's always in Mods › Rate Mods.",
+        tk.Label(box, text="Not now asks once more in a few days. Either way, it's always in Mods › Mod Lab.",
                  bg=P2, fg=C["muted"], font=("Segoe UI", 9), wraplength=440, justify="center").pack(pady=(12, 0))
         w.protocol("WM_DELETE_WINDOW", lambda: pick("not_now"))
         self.rm_ask_pick = pick

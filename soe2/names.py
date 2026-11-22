@@ -17,7 +17,7 @@ PAGES = {
     "insights": "Market Insights",
     "library": "Under the Hood",
     "modbook": "Mod Book",
-    "ratemods": "Rate Mods",
+    "ratemods": "Mod Lab",              # 3.2.0 owner: was Rate Mods
     "wealth": "Wealth",
     "money": "Farming Strategies",          # UI overhaul: was Money Makers (Craft Helper moved to its own page)
     "crafthelper": "Craft Helper",      # UI overhaul: was a Money Makers tab
@@ -169,6 +169,7 @@ GAME_SEARCH_GROUPS = ("Tablets", "Waystones", "Atlas Masters", "Vaal Temple", "P
                       "Trial of the Sekhemas", "Trial of Chaos", "Ritual Altars", "Leagues")
 
 OLD = {
+    "Rate Mods": "Mod Lab",                     # owner, after 3.1.0
     # 2.132.4 - 2.143.0: the overlay's settings were a child page, Overlay ↳ Overlay Settings. Nav phase 2: they are
     # the Overlay page's tabs (Helpers, On the Overlay, Look, Options) - an old name opens the Overlay page
     "Overlay Settings": "Overlay",

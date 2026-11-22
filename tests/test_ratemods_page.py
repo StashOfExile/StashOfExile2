@@ -63,14 +63,61 @@ class Intro(unittest.TestCase):
     def test_one_line_with_its_tip(self):
         from soe2.modules.ratemods import RateMods
         from soe2 import ratemods_page as RP
-        self.assertEqual(RateMods.blurb, "Bored, have a few minutes to kill? Submit some mod ratings: it helps build "
-                                         "community mod data so everyone's price checks are more accurate.")
+        self.assertEqual(RateMods.blurb, "Bored, have a few minutes to kill? Rate some mods: it builds community mod "
+                                         "data so everyone's price checks get more accurate.")
+        self.assertEqual(RateMods.title, "Mod Lab", "owner, after 3.1.0: was Rate Mods")
+        self.assertEqual([t for t, key in RateMods.blurb_rich if key],
+                         ["a few minutes", "Rate some mods", "everyone's price checks"], "bold and in the accent")
+        self.assertEqual(RP.QUESTION, "How valuable is each roll?")
         self.assertEqual(RateMods.blurb_tip(None), "S and A count as High, B, C and D as Normal, F is left out of "
                          "searches. Your ratings change your price checks at once. With Community data sharing on, "
                          "they're your vote too.")
         with open(RP.__file__, encoding="utf-8") as f:
             src = f.read()
         self.assertNotIn("Rate how much each mod matters", src)          # (the old second line is gone)
+
+
+class RichIntro(unittest.TestCase):
+    """Owner, after 3.1.0: Mod Lab's intro bigger, its key words bold in the accent color, wrapping word by word and
+    the header growing to fit, never cut off."""
+
+    def test_wraps_and_the_header_grows(self):
+        import tkinter as tk
+        import types
+        from soe2.modules.ratemods import RateMods
+        from soe2.shell import PageBar
+        try:
+            root = tk.Tk()
+        except tk.TclError:
+            self.skipTest("no display")
+        try:
+            root.withdraw()
+            mod = types.SimpleNamespace(blurb_rich=RateMods.blurb_rich, blurb=RateMods.blurb, blurb_tip=lambda: "tip",
+                                        title="Mod Lab")
+            win = types.SimpleNamespace(key="ratemods", title="Mod Lab",
+                                        shell=types.SimpleNamespace(modules={"ratemods": mod}, where=lambda k: "Mods",
+                                                                    app=types.SimpleNamespace()))
+            pb = PageBar.__new__(PageBar)
+            tk.Canvas.__init__(pb, root, width=1400, height=96)
+            pb.win = win
+            pb.place(x=0, y=0, width=1400)
+            root.update()
+            wide = pb._rich_layout()[1]
+            self.assertEqual(len(wide), 1, "one line when it fits")
+            keys = [p for line in wide for _x, p, k in line if k]
+            self.assertEqual(" ".join(p.strip() for p in keys), "a few minutes Rate some mods everyone's price checks")
+            h_wide = pb.height_now()
+            pb.place(width=520)
+            root.update()
+            narrow = pb._rich_layout()[1]
+            self.assertGreater(len(narrow), 1, "wraps in the Drawer")
+            plain, bold, lh = pb._rich_fonts()
+            for line in narrow:
+                x, piece, key = line[-1]
+                self.assertLessEqual(24 + x + (bold if key else plain).measure(piece.rstrip()), 520 - 24, piece)
+            self.assertEqual(pb.height_now(), h_wide + (len(narrow) - 1) * lh, "the header grows a line at a time")
+        finally:
+            root.destroy()
 
 
 class ByRoll(Saved):
@@ -102,7 +149,7 @@ class ByRoll(Saved):
         mana = next(m for m in it["mods"] if "maximum Mana" in m["text"])
         self.assertEqual(mana["roll_key"], RING_MANA)
         self.assertEqual(mana["auto"], "ignore")
-        self.assertEqual(mana["note"], "middle roll for this mod in Rate Mods - not searched - tick it to search on it")
+        self.assertEqual(mana["note"], "middle roll for this mod in Mod Lab - not searched - tick it to search on it")
         self.assertEqual(T.mod_impact(rec, mana), "ignore")
         rec["ov"] = {T.ov_key(mana): "normal"}                     # ticked: searched anyway
         self.assertEqual(T.mod_impact(rec, mana), "normal")

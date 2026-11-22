@@ -20,7 +20,7 @@ A free, open-source Windows companion for **Path of Exile 2**: price checks, bul
 - **Farming Strategies: New strat** - build your own strategy. Copy your waystone and tablets in from the game, or set them by hand with Min and Max values. Check cost prices it when you ask.
 - **Exchange Rates overlay** - pick up to 10 currencies, drag them into your order, and choose which currency the rates are shown in.
 - **Compare a currency** - pick one currency and see what it's worth in every other, with how each number was worked out.
-- **Rate Mods** - its own Mods section, rating One at a Time or in a Table.
+- **Mod Lab** - its own Mods section, rating One at a Time or in a Table.
 - **Vaal Lens** - a full step-by-step plan for your temple.
 - **One installer** - it asks first: Full Install or Portable.
 
@@ -51,7 +51,7 @@ This product isn't affiliated with or endorsed by Grinding Gear Games in any way
 - **Favorites**, **Exchange Rates** - poe.ninja rates, a converter, and Compare a currency. Pick which ones show over the game.
 
 **Mods**
-- **Rate Mods** - rate mods One at a Time or in a Table; your ratings tune your price checks. A mod that rolls in tiers can have a letter for its top, middle and low rolls (By roll).
+- **Mod Lab** - rate mods One at a Time or in a Table; your ratings tune your price checks. A mod that rolls in tiers can have a letter for its top, middle and low rolls (By roll).
 - **Market Insights** - your most valuable items, the top mods and the priciest listings seen.
 - **Craft Helper** (BETA) - each mod of a tablet or jewel rated S to F, and a next step.
 

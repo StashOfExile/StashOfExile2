@@ -9,6 +9,7 @@ own content into the window they are given.
 
 Window positions, sizes and which ones are open are saved in settings.json ("shell")."""
 import os
+import re
 import sys
 import time
 import tkinter as tk
@@ -134,6 +135,7 @@ class PageBar(GradientBar):
     the theme's heading font and one line about it. Child-tool buttons sit on its right, as on the title bar."""
 
     H = 96
+    RICH_PT = 12                     # a page's rich intro line: the heading font at this size (Mod Lab)
 
     def __init__(self, parent, win, kind="title"):
         self.win = win
@@ -148,13 +150,59 @@ class PageBar(GradientBar):
 
     def height_now(self):
         """The page header: 96 px; in the Drawer the mockup's (mockups.html .eyebrow / .ptitle / .blurb): 108 px with
-        the group over the name, 98 without."""
+        the group over the name, 98 without. A rich intro line is taller, and grows a line at a time as it wraps."""
         if not self.drawer_look():
-            return self.H
+            base = self.H
+        else:
+            try:
+                base = 108 if self.win.shell.where(self.win.key) else 98
+            except Exception:
+                base = 108
+        lines = self._rich_layout()[1]
+        if not lines:
+            return base
+        return base + 8 + (len(lines) - 1) * self._rich_fonts()[2]
+
+    def _rich_fonts(self):
+        """(plain font, key word font, line height) of a rich intro line."""
+        from . import themes as _th
+        import tkinter.font as tkf
+        fam = _th.head_font(_th.ST.theme) if _th.ST.theme is not None else "Segoe UI"
+        got = getattr(self, "_rich_f", None)
+        if got is None or got[0] != fam:                # (kept: Tk drops a font once nothing holds it, and the
+            plain = tkf.Font(root=self, family=fam, size=self.RICH_PT)       # text falls back to the default)
+            bold = tkf.Font(root=self, family=fam, size=self.RICH_PT, weight="bold")
+            self._rich_f = got = (fam, plain, bold, plain.metrics("linespace") + 2)
+        return got[1:]
+
+    def _rich_layout(self):
+        """The page's blurb_rich, laid out at this width: (module, [[(x, word, key word), ...], ...]), word by word so
+        a key word keeps its look when the line wraps. Nothing for a page without one."""
         try:
-            return 108 if self.win.shell.where(self.win.key) else 98
+            mod = self.win.shell.modules.get(self.win.key)
         except Exception:
-            return 108
+            return None, []
+        rich = getattr(mod, "blurb_rich", None)
+        if not rich:
+            return mod, []
+        plain, bold, _lh = self._rich_fonts()
+        avail = max(200, max(self.winfo_width(), 2) - 48 - (24 if getattr(mod, "blurb_tip", None) else 0))
+        lines, line, x = [], [], 0
+        for text, key in rich:
+            f = bold if key else plain
+            lead = text[:len(text) - len(text.lstrip())]
+            if lead and line:                           # (a space before a key word, or after one)
+                x += f.measure(lead)
+            for piece in re.findall(r"\S+\s*", text) or [text]:
+                wd = f.measure(piece.rstrip())
+                if line and x + wd > avail:
+                    lines.append(line)
+                    line, x = [], 0
+                line.append((x, piece, key))
+                x += f.measure(piece)
+        if line:
+            lines.append(line)
+        return mod, lines
 
     def paint(self, colours=None):
         from . import themes as _th
@@ -194,6 +242,25 @@ class PageBar(GradientBar):
                              tags="pg")
             mod = self.win.shell.modules.get(self.win.key)
             blurb = getattr(mod, "blurb", "") if mod is not None else ""
+            _rmod, rich = self._rich_layout()
+            if rich:                                                # (Mod Lab: bigger, key words bold and in the accent)
+                plain, bold, lh = self._rich_fonts()
+                key_col, text_col = t.c("accent"), t.c("text")
+                y = y_blurb + 4
+                for line in rich:
+                    for x, piece, key in line:
+                        fam = self._rich_f[0]                       # (drawn by family, as the title is)
+                        self.create_text(24 + x, y, text=piece, anchor="w",
+                                         font=(fam, self.RICH_PT, "bold") if key else (fam, self.RICH_PT),
+                                         fill=key_col if key else text_col, tags=("pg", "pgrich"))
+                    y += lh
+                if getattr(mod, "blurb_tip", None) is not None:
+                    last = rich[-1]
+                    end = 24 + last[-1][0] + (bold if last[-1][2] else plain).measure(last[-1][1].rstrip())
+                    self.create_text(end + 8, y - lh, text="ⓘ", anchor="w", font=("Segoe UI", 10), fill=mut,
+                                     tags=("pg", "pgtip"))
+                    self._blurb_tip_bind(mod)
+                blurb = ""
             if blurb:                                               # (a long line wraps at Drawer width)
                 bid = self.create_text(24, y_blurb, text=blurb, anchor="w", font=("Segoe UI", 9), fill=mut, tags="pg",
                                        width=max(200, w - 48 - (24 if getattr(mod, "blurb_tip", None) else 0)))

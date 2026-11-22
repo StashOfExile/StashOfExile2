@@ -28,7 +28,7 @@ class Rail(unittest.TestCase):
         S.apply_look(TH.DEFAULT, root)
         S.setup_style(root)
         mods = {k: types.SimpleNamespace(key=k, title=t, icon="•", kind="module", parent=None, labs=False, beta=b)
-                for k, t, b in (("crafthelper", "Craft Helper", True), ("ratemods", "Rate Mods", False))}
+                for k, t, b in (("crafthelper", "Craft Helper", True), ("ratemods", "Mod Lab", False))}
         shell = types.SimpleNamespace(active="ratemods", modules=mods, app=types.SimpleNamespace(drawer_look_on=lambda: True),
                                       listed=lambda m: True, children=lambda k: [], tab_titles=lambda k: [],
                                       tab_current=lambda k: None)
