@@ -58,20 +58,30 @@ export function nameProblem(name) {
 // alone, since item names and numbers in a log would trip it. A hate term counts as a whole word, or inside a word
 // when it is 5 letters or more - homo stays out of homogeneous.
 export const CLEAN_MSG = "Please keep it clean";
+// whole words only - each is part of an ordinary word somewhere: Spice, Nazir, Retardation ...
+const RUDE_WORDS = ["phuck", "phuk", "fuq", "fuk", "cvnt", "kunt", "jizz", "kys", "spic", "spick", "nazi", "nazis", "tard",
+  "wank", "wanker", "fck", "fcuk", "dik", "nigg"];
+const HARM = /\b(kill|neck|hang|off)\s*(yo)?u?r\s*self\b(?!-)|\bkys\b/i;
+// p e n i s, p.e.n.i.s, p_e_n_i_s: three or more single letters in a row are read as one word as well
+const SPACED = /(?<![\p{L}\p{N}])(?:[\p{L}\p{N}@$!|€*][\s._\-*+~]+){2,}[\p{L}\p{N}@$!|€*](?![\p{L}\p{N}])/gu;
 export function textProblem(text) {
   const raw = String(text || "").normalize("NFKC");
-  const all = MATCHER.getAllMatches(raw, true);
-  if (all.length) {
-    const m = all[0];
-    return `${CLEAN_MSG}: reword "${raw.slice(m.startIndex, m.endIndex + 1)}" and send again.`;
+  const joined = raw.replace(SPACED, (m) => m.replace(/[\s._\-*+~]+/g, ""));
+  const say = (w) => `${CLEAN_MSG}: reword "${w}" and send again.`;
+  if (HARM.test(raw) || HARM.test(joined)) return say(raw.match(HARM)?.[0] || joined.match(HARM)[0]);
+  for (const t of joined === raw ? [raw] : [raw, joined]) {
+    const all = MATCHER.getAllMatches(t, true);
+    if (all.length) return say(t.slice(all[0].startIndex, all[0].endIndex + 1));
   }
-  for (const word of raw.toLowerCase().split(/[^\p{L}\p{N}@$|!]+/u)) {
+  for (const word of joined.toLowerCase().split(/[^\p{L}\p{N}@$|!€]+/u)) {
     if (!word) continue;
-    const plain = [...word].map((c) => LEET[c] ?? c).join("");
+    const plain = [...word].map((c) => LEET[c] ?? c).join("").replace(/€/g, "e");
     const sq = plain.replace(/(.)\1+/g, "$1");
-    const bad = HATE.find((h) => plain === h || sq === h.replace(/(.)\1+/g, "$1") ||
-      (h.length >= 5 && !/^\d+$/.test(h) && (plain.includes(h) || sq.includes(h.replace(/(.)\1+/g, "$1")))));
-    if (bad) return `${CLEAN_MSG}: reword "${word}" and send again.`;
+    const sqz = (h) => h.replace(/(.)\1+/g, "$1");
+    const bad = HATE.find((h) => plain === h || sq === sqz(h) ||
+      (h.length >= 5 && !/^\d+$/.test(h) && (plain.includes(h) || sq.includes(sqz(h))))) ||
+      RUDE_WORDS.find((h) => plain === h || sq === sqz(h) || plain === h + "s" || sq === sqz(h) + "s");
+    if (bad) return say(word);
   }
   return null;
 }

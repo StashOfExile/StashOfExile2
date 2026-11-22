@@ -87,6 +87,13 @@ console.log("bugs.test.mjs: ok");
   assert.equal(lib.textProblem("my tranny build"), 'Please keep it clean: reword "tranny" and send again.');
   assert.equal(lib.textProblem("Hitler's map"), 'Please keep it clean: reword "hitler" and send again.');
   assert.equal(lib.textProblem("Therapist, Raccoon, Spice and a Torpedo"), null);
+  for (const bad of ["pen1s", "P3nis", "p3n1s", "p e n i s", "p.e.n.i.s", "p-e-n-i-s", "P 3 N 1 S", "peeeenis", "pénis",
+    "f*ck", "phuck", "c u n t", "cvnt", "kunt", "n1gg3r", "fa66ot", "sp1c", "n4zi", "kys", "kill urself", "Hang your self"])
+    assert.ok(lib.textProblem(`my ${bad} here`), bad);
+  for (const ok of ["the pen is broken", "analysis", "cumulative", "assassin", "Sextant", "Cockatrice", "Scunthorpe",
+    "Nigeria", "Niggle", "Nazir", "spicy", "a b c", "T 1 6 map", "i hit 1 4 8 8 dmg", "kill your self-cast",
+    "I'm off to die in the Trial", "Titan", "harass"])
+    assert.equal(lib.textProblem(ok), null, ok);
 }
 console.log("bugs: clean words ok");
 
