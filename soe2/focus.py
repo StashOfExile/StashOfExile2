@@ -1,6 +1,12 @@
 """League Plan (2.73.0 as League Focus; one name from 2.119.0): a set-and-forget game plan for the league - goals by phase, a stockpile to buy while it's
-cheap, the farms you planned, a build lock - and (2.73.1) pokes over the game that remind you of it. Built for players
-who get sidetracked (ADHD-friendly): everything is optional, quiet by default, and says why it showed up.
+cheap, the farms you planned - and (2.73.1) reminders over the game. Built for players who get sidetracked
+(ADHD-friendly): everything is optional, quiet by default, and always says why it showed up.
+
+3.2.0 rework (owner, mockups 2026-11-22): a goal's Done when is only what the game's log can see (a level, an act,
+reaching maps, maps run) or "I tick it myself" - no divines, no typed numbers. A farm's Goal is a level, hours of
+play, maps run or a date, counted from the log once that farm is NOW; reaching it reminds you to move on. The build
+lock is gone - the app can't know your build, character or divines. Reminders: always in town or your hideout,
+always while you play, always say why, always gentle; Snooze is a real button.
 
 Stored in SETTINGS["focus"]. Reads only what the app already knows - the game's log (Client.txt: zones, levels),
 poe.ninja prices; counts and progress are what you type (2.73.2: not Wealth - it doesn't track live and is a beta).
@@ -15,9 +21,8 @@ import uuid
 from .config import SETTINGS, save_json
 
 PHASES = (("start", "League start"), ("maps", "When I reach maps"), ("long", "Long term"))
-TRIGGERS = (("town", "in town or my hideout"), ("phase", "when I reach this phase"), ("weekly", "once a week"),
-            ("never", "never - keep it on the plan"))
-TONES = ("Gentle", "Firm", "Drill sergeant")
+TRIGGERS = (("town", "In town, now and then"), ("phase", "Once, when this phase starts"),
+            ("never", "Never, keep it on the plan"))
 DEFAULTS = {
     "on": True,                     # the whole feature (Overlay › Helpers); 2.118.0: on for a new install
     "line": True,                   # the focus line on the overlay (I)
@@ -25,14 +30,15 @@ DEFAULTS = {
     "now": None,                    # the goal shown on the focus line (None: the first open one of this phase)
     "goals": [],                    # [{id, text, phase, done, trigger, target_div, created, snooze, stopped}]
     "stockpile": [],                # [{name, goal, under, paid}]
-    "farms": [],                    # [{strat, name, until}]
-    "lock": {"on": False, "character": "", "build": "", "until": "I reach maps and have 10 div"},
-    "pokes": {"per_hour": 2, "checkin_min": 45, "snooze_min": 60, "town_only": True, "session_only": True,
-              "milestones": True, "prices": True, "quiet_on": False, "quiet": [23, 8], "tone": "Gentle",
-              "sound": True, "why": True, "quieter": True, "windows": False},
+    "farms": [],                    # [{strat, name, src, kind, target, started, maps_at, secs, done}]
+    "pokes": {"per_hour": 2, "checkin_min": 45, "snooze_min": 60, "milestones": True, "prices": True,
+              "farms": True, "alert": True, "sound": True, "windows": False, "quiet_on": False, "quiet": [23, 8]},
     # (2.131.2: Map supplies moved to Top Up Reminders - supplies_out hands them over)
     "history": [],
 }
+
+
+GONE_POKES = ("tone", "town_only", "session_only", "why", "quieter")   # 3.2.0: always on, no switch
 
 
 def cfg():
@@ -42,8 +48,18 @@ def cfg():
             f[k] = copy.deepcopy(v)
     for k, v in DEFAULTS["pokes"].items():
         f["pokes"].setdefault(k, v)
-    for k, v in DEFAULTS["lock"].items():
-        f["lock"].setdefault(k, v)
+    if not f.get("lp_320"):                              # 3.2.0 rework, once
+        f.pop("lock", None)
+        for k in GONE_POKES:
+            f["pokes"].pop(k, None)
+        for g in f["goals"]:
+            if g.get("trigger") not in dict(TRIGGERS):   # (once a week is gone: in town, now and then)
+                g["trigger"] = "town"
+            if g.get("target_kind") in ("div", "count") or (g.get("target_div") and not g.get("target_kind")):
+                g["target_kind"], g["target"], g["target_div"] = None, None, None   # (the app can't see those)
+        for r in f["farms"]:
+            r.setdefault("kind", "none")
+        f["lp_320"] = True
     return f
 
 
@@ -56,21 +72,30 @@ def phase_name(key):
 
 
 # ---------------------------------------------------------------- goals
-# 2.73.4: what a goal's target counts. "auto": filled in from the game's log (no typing).
-TARGETS = (("div", "Divines", "div"), ("level", "Character level", "level"), ("act", "Reach act", "act"),
-           ("maps", "Maps run", "maps"), ("count", "A number (anything)", ""))
-AUTO_TARGETS = ("level", "maps")
+# 3.2.0: what a goal's Done when can be - each one the game's log can see, so it ticks itself; or you tick it.
+# (kind, the words, what the number is - "" for none)
+DONE_WHEN = (("tick", "I tick it myself", ""), ("level", "My character reaches level", "Level"),
+             ("act", "I reach act", "Act"), ("reach_maps", "I reach maps", ""), ("maps", "I've run maps", "Maps"))
+DONE_HINT = {"tick": "For anything the game's log can't see, like a drop or a craft.",
+             "level": "Ticks itself. The level comes from the game's log.",
+             "act": "Ticks itself when the log shows you in that act.",
+             "reach_maps": "Ticks itself in your first waystone map.",
+             "maps": "Counted from the day you add it, from the game's log."}
+TARGETS = tuple((k, n, u.lower()) for k, n, u in DONE_WHEN if k != "tick")      # (older callers)
+AUTO_TARGETS = ("level", "act", "reach_maps", "maps")
 
 
 def add_goal(text, phase="start", trigger="town", target_div=None, target_kind=None, target=None):
     """target_kind / target (2.73.4) - or the older target_div (a div target)."""
     if target is None and target_div is not None:
         target_kind, target = "div", target_div
-    kind = target_kind if target_kind in dict((k, n) for k, n, _u in TARGETS) else ("div" if target else None)
+    kind = target_kind if target_kind in dict((k, n) for k, n, _u in TARGETS) else None
+    if kind == "reach_maps":
+        target = 1
     g = {"id": uuid.uuid4().hex[:10], "text": text.strip(), "phase": phase if phase in dict(PHASES) else "start",
          "done": False, "trigger": trigger if trigger in dict(TRIGGERS) else "town",
-         "target_kind": kind if target else None, "target": float(target) if target else None,
-         "target_div": float(target) if target and kind == "div" else None,
+         "target_kind": kind if kind and target else None, "target": float(target) if kind and target else None,
+         "target_div": None,
          "maps_at": state()["maps"], "created": time.time(), "snooze": 0, "stopped": False}
     cfg()["goals"].append(g)
     save()
@@ -121,26 +146,32 @@ def current():
 
 
 def goal_target(g):
-    """-> (kind, target) of a goal, or (None, None). Goals from 2.73.0-2.73.3 only had target_div."""
-    if not g:
+    """-> (kind, target) of a goal, or (None, None): one you tick yourself."""
+    if not g or not g.get("target") or g.get("target_kind") not in AUTO_TARGETS:
         return None, None
-    if g.get("target"):
-        return g.get("target_kind") or "div", float(g["target"])
-    if g.get("target_div"):
-        return "div", float(g["target_div"])
-    return None, None
+    return g["target_kind"], float(g["target"])
 
 
 def char_level():
-    """The level the log last showed for your character (the build lock's, else the last one that leveled)."""
+    """The level the log last showed for your character: the name typed in Options, else the last one to level."""
     st = state()
     lv = st.get("levels") or {}
-    mine = (cfg()["lock"].get("character") or "").strip().lower()
+    mine = ((SETTINGS.get("tracker") or {}).get("character") or "").strip().lower()
     for who, n in lv.items():
         if who.lower() == mine and mine:
             return n
     last = st.get("last_char")
     return lv.get(last) if last else None
+
+
+def act_now():
+    """The act the Campaign Helper last saw you in, 1-4 (an interlude counts as 4), or 0."""
+    try:
+        from . import campaign as CP
+        a = str(CP.char().get("act") or "")
+    except Exception:
+        return 0
+    return int(a) if a.isdigit() else (4 if a.startswith("i") else 0)
 
 
 def progress(g, worth=None):
@@ -154,24 +185,48 @@ def progress(g, worth=None):
         have = char_level() or 0
     elif kind == "maps":
         have = state()["maps"] - int(g.get("maps_at") or 0)
-    else:
-        have = g.get("have") or 0
+    elif kind == "reach_maps":
+        have = 1 if state()["reached_maps"] else 0
+    else:                                                    # act: the furthest the Campaign Helper saw
+        have = g["have"] = max(int(g.get("have") or 0), act_now())
     return max(0.0, float(have)), target
 
 
 def progress_text(g):
-    """ "12 / 50 div", "Lv 61 / 70", "Act 2 / 4", "14 / 50 maps", "3 / 10" - or "" (no target)."""
+    """ "Level 74 of 90", "Act 2 of 4", "37 of 100 maps", "Not in maps yet" - or "" (you tick it)."""
     p = progress(g)
     if not p:
         return ""
     kind = goal_target(g)[0]
     h, t = p
     if kind == "level":
-        return f"Lv {h:g} / {t:g}"
+        return f"Level {h:g} of {t:g}"
     if kind == "act":
-        return f"Act {h:g} / {t:g}"
-    unit = {"div": " div", "maps": " maps"}.get(kind, "")
-    return f"{h:g} / {t:g}{unit}"
+        return f"Act {h:g} of {t:g}"
+    if kind == "reach_maps":
+        return "In maps" if h else "Not in maps yet"
+    return f"{h:g} of {t:g} maps"
+
+
+def check_goals(now=None):
+    """Goals the log can see tick themselves once reached. -> the ones that just did (each gets a milestone
+    reminder when Remind me about goals is on)."""
+    f, st = cfg(), state()
+    done = []
+    for g in f["goals"]:
+        if g["done"]:
+            continue
+        p = progress(g)
+        if p and p[1] and p[0] >= p[1]:
+            g["done"], g["auto_done"] = True, True
+            if f.get("now") == g["id"]:
+                f["now"] = None
+            done.append(g)
+            if f["pokes"].get("milestones"):
+                st["pending"].append({"kind": "reached", "goal": g["id"], "at": now or time.time()})
+    if done:
+        save()
+    return done
 
 
 def set_have(gid, have):
@@ -192,7 +247,7 @@ def set_phase(phase):
     return False
 
 
-# ---------------------------------------------------------------- stockpile, farms, build lock
+# ---------------------------------------------------------------- stockpile, farms
 def add_stock(name, goal_qty=0, under=None):
     row = {"name": name.strip(), "goal": int(goal_qty or 0), "under": under, "paid": None, "have": 0}
     cfg()["stockpile"].append(row)
@@ -229,16 +284,85 @@ def stock_status(row, have=None, each=None):
     return "cheap" if under is not None and each <= float(under) else "ok"
 
 
-def add_farm(strat_id, name, until=""):
-    """strat_id: a Money Makers strat, or None for a farm you typed (2.73.4)."""
+# 3.2.0: a farm's Goal - when to move on to the next one. (kind, the words, what the number is)
+FARM_GOALS = (("level", "My character reaches level", "Level"), ("hours", "I've played it for hours", "Hours"),
+              ("maps", "I've run maps of it", "Maps"), ("date", "A date", "Date"), ("none", "I move on myself", ""))
+
+
+def add_farm(strat_id, name, kind="none", target=None, src="", until=None):
+    """strat_id: a Farming Strategies strat (src: Mine / Community / Official), or None for one of your own. kind /
+    target: its Goal (FARM_GOALS); a date is a timestamp. until: the 2.73 words, kept for older callers."""
     f = cfg()
     name = (name or "").strip()
     if not name or any((strat_id and x["strat"] == strat_id) or x["name"].lower() == name.lower() for x in f["farms"]):
         return None
-    row = {"strat": strat_id, "name": name, "until": until}
+    kind = kind if kind in dict((k, n) for k, n, _u in FARM_GOALS) else "none"
+    if kind != "none" and not target:
+        kind = "none"
+    row = {"strat": strat_id, "name": name, "src": src, "kind": kind,
+           "target": float(target) if kind != "none" and target else None,
+           "started": None, "maps_at": None, "secs": 0.0, "done": False}
+    if until:
+        row["until"] = until
     f["farms"].append(row)
+    farm_now()                                           # (the first one starts counting at once)
     save()
     return row
+
+
+def farm_now():
+    """The farm you're on: the first one not moved on from. It starts counting the first time it's NOW."""
+    for r in cfg()["farms"]:
+        if not r.get("done"):
+            if r.get("started") is None:
+                r["started"], r["maps_at"], r["secs"] = time.time(), state()["maps"], 0.0
+            return r
+    return None
+
+
+def farm_progress(r):
+    """(have, target) of a farm's Goal, or None (I move on myself / not started yet)."""
+    kind, t = r.get("kind") or "none", r.get("target")
+    if kind == "none" or not t or r.get("started") is None:
+        return None
+    if kind == "level":
+        return float(char_level() or 0), float(t)
+    if kind == "hours":
+        return round(float(r.get("secs") or 0) / 3600, 1), float(t)
+    if kind == "maps":
+        return float(state()["maps"] - int(r.get("maps_at") or 0)), float(t)
+    return (1.0 if time.time() >= float(t) else 0.0), 1.0                 # a date
+
+
+def farm_text(r):
+    """ "Goal: level 95 · now 93" - the words for a farm's row."""
+    kind, t = r.get("kind") or "none", r.get("target")
+    if kind == "none":
+        return "Goal: I move on myself" + (f" · {r['until']}" if r.get("until") else "")
+    goal_words = {"level": f"level {t:g}", "hours": f"{t:g} hours of play", "maps": f"{t:g} maps",
+                  "date": time.strftime("%b %d", time.localtime(t))}[kind]
+    p = farm_progress(r)
+    if p is None:
+        return f"Goal: {goal_words} · counted once it's NOW"
+    have = {"level": f"now {p[0]:g}", "hours": f"{p[0]:g} hours so far", "maps": f"{p[0]:g} so far",
+            "date": "today" if p[0] else ""}[kind]
+    return f"Goal: {goal_words}" + (f" · {have}" if have else "") + " · from the game's log"
+
+
+def check_farms(now=None):
+    """The farm you're on reached its Goal: it's moved on from and the next one starts. -> that farm or None."""
+    f, st = cfg(), state()
+    r = farm_now()
+    p = farm_progress(r) if r else None
+    if not p or p[0] < p[1]:
+        return None
+    r["done"] = True
+    nxt = farm_now()
+    if f["pokes"].get("farms"):
+        st["pending"].append({"kind": "farm", "name": r["name"], "next": nxt["name"] if nxt else None,
+                              "at": now or time.time()})
+    save()
+    return r
 
 
 def move_farm(i, step):
@@ -255,6 +379,7 @@ def remove_farm(i):
     farms = cfg()["farms"]
     if 0 <= i < len(farms):
         del farms[i]
+        farm_now()
         save()
 
 
@@ -267,10 +392,12 @@ def line_text(worth=None):
     if not f["on"]:                                    # 2.97.0: on = its line shows (no line switch)
         return "", None
     g = current()
+    r = next((x for x in f["farms"] if not x.get("done")), None)
+    farm = f" · farm: {r['name']}" if r else ""          # (3.2.0: the farm you're on, under your goal)
     if not g:
-        return NO_GOAL, None                               # 2.73.4: say what Focus is waiting for
+        return (f"Farm: {r['name']}", None) if r else (NO_GOAL, None)
     p = progress(g, worth)
-    return g["text"], (p[0] / p[1] if p and p[1] else None)
+    return g["text"] + farm, (p[0] / p[1] if p and p[1] else None)
 
 
 # ---------------------------------------------------------------- 2.131.2: map supplies moved to Top Up
@@ -287,13 +414,12 @@ def supplies_out():
 
 
 # ---------------------------------------------------------------- 2.73.1: pokes
-# What each poke is, in the order they win when several are due. "urgent" ones (milestones, the build-lock guard)
-# don't count toward the per-hour limit; every poke still waits for town / hideout when "Only in town" is on.
-KINDS = {"milestone": "urgent", "guard": "urgent", "price": "normal", "checkin": "normal",
+# What each reminder is, in the order they win when several are due. "urgent" ones (milestones, a goal reached, a
+# farm to move on from) don't count toward the per-hour limit; every one waits for town or your hideout.
+KINDS = {"milestone": "urgent", "reached": "urgent", "farm": "urgent", "price": "normal", "checkin": "normal",
          "nudge": "normal"}
-TONE_WORDS = {"Gentle": ("A nudge from your plan", "Still on plan?"),
-              "Firm": ("Your plan says", "On plan? Be honest."),
-              "Drill sergeant": ("Eyes on the plan, exile", "Report: on plan?")}
+HEAD, ASK = "A nudge from your plan", "Still on plan?"           # (3.2.0: always gentle)
+PLAYING = 10 * 60          # the log showed you within this many seconds: you're playing
 
 
 def state():
@@ -313,6 +439,8 @@ def state():
     st.setdefault("map_secs", 0.0)         # seconds spent in maps
     st.setdefault("map_in", None)          # when the current map was entered
     st.setdefault("map_seed", None)
+    st.setdefault("seen", 0.0)             # 3.2.0: when the log last showed you playing
+    st.setdefault("where", None)           # 3.2.0: the log's last area kind - town / hideout / map / other
     return st
 
 
@@ -326,6 +454,12 @@ def log_event(kind, data, area_kind=None, now=None):
     if not f["on"]:
         return None
     now = now or time.time()
+    last, st["seen"] = st.get("seen") or 0.0, now          # 3.2.0: time played, from the log alone - the farm
+    r = farm_now()                                         # you're on counts it, overlay or not
+    if r is not None and last and 0 < now - last <= PLAYING:
+        r["secs"] = float(r.get("secs") or 0) + (now - last)
+    if kind == "area":
+        st["where"] = area_kind
     if kind == "area":                                     # 2.73.3: count maps and time in maps (map goals)
         if st["map_in"] is not None:
             st["map_secs"] += max(0.0, min(now - st["map_in"], 3 * 3600))
@@ -341,9 +475,13 @@ def log_event(kind, data, area_kind=None, now=None):
         moved = set_phase("maps")
         if f["pokes"].get("milestones") and (moved or goals_of("maps")):
             st["pending"].append({"kind": "milestone", "id": "maps", "at": now})
+        check_goals(now)
+        check_farms(now)
         save()
         return "milestone"
     if kind == "area":
+        check_goals(now)
+        check_farms(now)
         save()
     if kind == "level":
         who, lvl = data.get("who", ""), int(data.get("level") or 0)
@@ -361,12 +499,8 @@ def log_event(kind, data, area_kind=None, now=None):
         if len(lv) > 30:
             for k in list(lv)[:-30]:
                 lv.pop(k, None)
-        lk = f["lock"]
-        mine = (lk.get("character") or "").strip().lower()
-        if not known and lvl <= 2 and lk.get("on") and mine and who.lower() != mine:
-            st["pending"].append({"kind": "guard", "who": who, "cls": data.get("cls", ""), "at": now})
-            save()
-            return "guard"
+        check_goals(now)
+        check_farms(now)
         save()
     return None
 
@@ -381,7 +515,7 @@ def _quiet(pk, now):
 
 def _room(pk, st, now):
     per = int(pk.get("per_hour") or 0)
-    if pk.get("quieter") and st["notoday_streak"] >= 3:
+    if st["notoday_streak"] >= 3:                          # (3.2.0: quieter after 3 "Not today", always)
         per = per // 2
     st["sent"] = [t for t in st["sent"] if now - t < 3600]
     return per > 0 and len(st["sent"]) < per
@@ -396,9 +530,10 @@ def due(now=None, in_town=True, session=True, played=0.0, prices=None, have=None
     now = now or time.time()
     pk = f["pokes"]
     st["played"] += max(0.0, played)
-    if pk.get("session_only") and not session:
-        return None
-    if _quiet(pk, now) or (pk.get("town_only") and not in_town):
+    playing = session or now - float(st.get("seen") or 0) <= PLAYING      # (3.2.0: always only while you play,
+    if st.get("where") in ("town", "hideout", "map", "other") and not session:   # always only in town or hideout)
+        in_town = st["where"] in ("town", "hideout")
+    if not playing or _quiet(pk, now) or not in_town:
         return None
     if st["pending"]:
         return st["pending"].pop(0)
@@ -433,8 +568,6 @@ def _nudgeable(now):
         last = g.get("poked") or 0
         if g["trigger"] == "town" and now - last >= 3 * 3600:
             out.append(g)
-        elif g["trigger"] == "weekly" and now - last >= 7 * 86400:
-            out.append(g)
     return sorted(out, key=lambda g: g.get("poked") or 0)
 
 
@@ -450,8 +583,8 @@ def sent(poke, now=None):
 
 
 def answer(poke, what, now=None):
-    """Your answer to a poke -> what it changes. what: done / snooze / nottoday / stop / unlock / ontrack /
-    sidetracked / break / ok."""
+    """Your answer to a reminder -> what it changes. what: done / snooze / nottoday / stop / ontrack / sidetracked /
+    break / ok."""
     st, f = state(), cfg()
     now = now or time.time()
     g = goal(poke.get("goal")) if poke.get("goal") else None
@@ -464,8 +597,6 @@ def answer(poke, what, now=None):
         st["notoday_streak"] += 1
     elif what == "stop" and g:
         g["stopped"] = True
-    elif what == "unlock":
-        f["lock"]["on"] = False
     elif what == "break":
         st["checkin_snooze"] = now + 30 * 60
     if what not in ("nottoday",):
@@ -476,19 +607,28 @@ def answer(poke, what, now=None):
 
 
 def poke_text(poke):
-    """-> (title, text, why, [(answer, label)]) for a poke, in the tone you picked."""
+    """-> (title, text, why, [(answer, label)]) for a reminder - always gentle, always with why."""
     f = cfg()
-    tone = f["pokes"].get("tone", "Gentle")
-    head, ask = TONE_WORDS.get(tone, TONE_WORDS["Gentle"])
+    head, ask = HEAD, ASK
     k = poke["kind"]
+    snooze = ("snooze", f"Snooze · {int(f['pokes'].get('snooze_min') or 60)} min")
     if k == "nudge":
         g = goal(poke["goal"]) or {"text": "?", "created": time.time(), "phase": "start", "trigger": "town"}
-        when = time.strftime("%b %d", time.localtime(g.get("created") or time.time()))
-        return (head.upper(), f"You set this on {when}:\n\"{g['text']}\"",
-                ("Why now: a weekly reminder you asked for" if g["trigger"] == "weekly" else
-                 "Why now: you're in town, where you asked to be reminded") + f" ({phase_name(g['phase'])} goal).",
-                [("done", "Done"), ("snooze", f"Snooze {int(f['pokes'].get('snooze_min') or 60)} min"),
-                 ("nottoday", "Not today"), ("stop", "Stop this one")])
+        pt = progress_text(g)
+        return (head.upper(), f"Still on: {g['text']}" + (f"\n{pt} · from the game's log" if pt else ""),
+                f"Why now: you're in town, where you asked to be reminded. A {phase_name(g['phase'])} goal.",
+                [("done", "✓ Done"), snooze, ("nottoday", "Not today")])
+    if k == "reached":
+        g = goal(poke.get("goal")) or {"text": "?"}
+        return ("GOAL REACHED", f"✓ {g['text']}\n{progress_text(g) or 'Done'}",
+                "Why now: the game's log shows you reached it, so it ticked itself.",
+                [("plan", "Open League Plan"), ("ok", "Got it")])
+    if k == "farm":
+        nxt = poke.get("next")
+        body = f"You reached the Goal for {poke.get('name', '?')}." + (f"\nNext on your plan: {nxt}." if nxt else
+                                                                    "\nThat was the last farm on your plan.")
+        return ("TIME TO MOVE ON", body, "Why now: the game's log shows the farm's Goal is reached.",
+                [("plan", "Open League Plan"), ("ok", "Got it")])
     if k == "milestone":
         lines = [g["text"] for g in goals_of("maps") if not g["done"]][:5]
         farms = [x["name"] for x in f["farms"]][:2]
@@ -504,13 +644,7 @@ def poke_text(poke):
         if poke.get("goal"):
             body += f"\nYou have {poke.get('have') if poke.get('have') is not None else '?'} of {poke['goal']}."
         return ("CHEAP NOW - YOUR STOCKPILE", body, "Why now: poe.ninja's price is under the one you set.",
-                [("exchange", "Open the exchange"), ("ok", "Snooze today")])
-    if k == "guard":
-        lk = f["lock"]
-        body = (f"The log shows a new level 1 character ({poke.get('who', '?')}).\nYour build lock says: finish "
-                f"{lk.get('build') or 'your starter'} until {lk.get('until') or 'you reach your goal'}.")
-        return ("NEW CHARACTER?", body, "Why now: your build lock is on.",
-                [("plan", "Back to the plan"), ("unlock", "I'm sure - unlock")])
+                [("exchange", "Open the exchange"), ("ok", "Not today")])
     if k == "checkin":
         g = goal(poke.get("goal"))
         body = ask + (f"\nNow: {g['text']}" if g else "")

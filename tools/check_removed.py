@@ -327,6 +327,14 @@ REMOVED = [
       "wealth_add_pc_tab", "wealth_pc_tab", "wealth_pc_refresh", "_wealth_add", "wealth_toggle_tab",
       "wealth_remove_tab", "wealth_open_trade", "wealth_buttons", "_w_tab_row", "_w_by_tab", "wealth_show_tab_result",
       "wealth_setup_layout", "wealth_save_account", "wealth_skip_tab")),
+    ("3.2.0", "League Plan's Build lock: your character, build and Locked until, and a reminder at a new level 1 "
+              "character (owner: the app can't know your build, character or divines, so it enforced nothing)",
+     ("Build lock", "Locked until", "My build", "I'm sure - unlock", "Stop the reroll itch"),
+     ("_gp_lock", "gp_lock_save", "gp_lock_on", "gp_lock_vars")),
+    ("3.2.0", "League Plan reminders' Tone and the switches for what now always happens: Say why it showed up, Only in "
+              "town or hideout, Only during a session, Quieter after 3 Not today (owner: too many settings)",
+     ("Drill sergeant", "Say why it showed up", "Only during a session", "Quieter after 3", "Eyes on the plan"),
+     ("TONE_WORDS", "gp_tone")),
     ("3.1.0", "Rate Mods By roll's Top | Middle and Middle | Low arrows that moved a group's edge one tier "
               "(owner: not self-explanatory; the groups keep their default split)",
      ("Top | Middle", "Middle | Low", "One tier fewer in", "Each group keeps at least one tier"),
