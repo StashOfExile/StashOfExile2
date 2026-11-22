@@ -53,6 +53,29 @@ export function nameProblem(name) {
   if (HATE.some(hit)) return "That name isn't allowed - pick another.";
   return null;
 }
+// 3.2.0 owner: "block inappropriate words in the form, like usernames" - the same list on Report a bug's and Suggest a
+// Feature's title and typed words. Only what the player typed: the app log and screen setup after **App** are left
+// alone, since item names and numbers in a log would trip it. A hate term counts as a whole word, or inside a word
+// when it is 5 letters or more - homo stays out of homogeneous.
+export const CLEAN_MSG = "Please keep it clean";
+export function textProblem(text) {
+  const raw = String(text || "").normalize("NFKC");
+  const all = MATCHER.getAllMatches(raw, true);
+  if (all.length) {
+    const m = all[0];
+    return `${CLEAN_MSG}: reword "${raw.slice(m.startIndex, m.endIndex + 1)}" and send again.`;
+  }
+  for (const word of raw.toLowerCase().split(/[^\p{L}\p{N}@$|!]+/u)) {
+    if (!word) continue;
+    const plain = [...word].map((c) => LEET[c] ?? c).join("");
+    const sq = plain.replace(/(.)\1+/g, "$1");
+    const bad = HATE.find((h) => plain === h || sq === h.replace(/(.)\1+/g, "$1") ||
+      (h.length >= 5 && !/^\d+$/.test(h) && (plain.includes(h) || sq.includes(h.replace(/(.)\1+/g, "$1")))));
+    if (bad) return `${CLEAN_MSG}: reword "${word}" and send again.`;
+  }
+  return null;
+}
+const typedPart = (body) => String(body || "").split("\n\n**App**")[0];
 const APPROVALS = 2, REVIEWER_DAYS = 14, REPORTER_DAYS = 7, AWAY_DAYS = 30;
 const PER_DAY = { edit: 30, suggest: 10, report: 20, vote: 200, admin_key: 5, admin_key_ip: 20, review: 100 };
 const MAX_MONEY = 100000, MAX_LINES = 60, MAX_LINE = 500;
@@ -1376,6 +1399,8 @@ async function bugReport(req, env) {
   const version = String(b.version || "?").slice(0, 30);
   if (title.length < 4 || text.length < 10)
     return fail(400, idea ? "Say what you'd like: a title and a few words." : "Say what happened: a title and a few words.");
+  const dirty = textProblem(title) || textProblem(typedPart(text));
+  if (dirty) return fail(400, dirty);
   const day = today();
   const ip = await ipKey(req, env, "bug");
   await env.DB.prepare("DELETE FROM bug_limits WHERE day <> ?").bind(day).run();

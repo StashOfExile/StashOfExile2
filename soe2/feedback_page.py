@@ -30,6 +30,7 @@ UPDATE_EVERY = 3600                 # 2.79.1 (feedback): every hour (was 6 h)
 
 
 
+CLEAN_MSG = "Please keep it clean"          # the board's answer to a refused word - board/src/index.js textProblem
 SETUP_LABEL = "Add your screen setup"
 SETUP_LINE = "Screen size, scaling, HDR, the game window's mode and the last missed inventory read."
 SETUP_TIP = ("Helps with bugs where the app doesn't read your screen. It comes from Windows' display settings and "
@@ -323,7 +324,14 @@ class FeedbackPage:
                 self.bug_last = data
                 self._bug_close()
                 return
-            self.bug_browser(title, body, why=data if isinstance(data, str) else "")
+            why = data if isinstance(data, str) else ""
+            if why.startswith(CLEAN_MSG):            # 3.2.1: a word the board refuses - fix it here, no browser
+                if getattr(self, "bug_win", None) is None:
+                    return
+                self.bug_send_btn.config(state="normal")
+                self.bug_msg.config(text=why, fg=C["red"])
+                return
+            self.bug_browser(title, body, why=why)
         self.run_bg(work, done)
 
     def bug_browser(self, title, body, why=""):
@@ -485,7 +493,14 @@ class FeedbackPage:
                 self.idea_last = data
                 self._idea_close()
                 return
-            self.idea_browser(title, body, why=data if isinstance(data, str) else "")
+            why = data if isinstance(data, str) else ""
+            if why.startswith(CLEAN_MSG):
+                if getattr(self, "idea_win", None) is None:
+                    return
+                self.idea_send_btn.config(state="normal")
+                self.idea_msg.config(text=why, fg=C["red"])
+                return
+            self.idea_browser(title, body, why=why)
         self.run_bg(work, done)
 
     def idea_browser(self, title, body, why=""):

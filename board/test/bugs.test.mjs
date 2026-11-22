@@ -10,8 +10,11 @@ import { dirname, join } from "node:path";
 const here = dirname(fileURLToPath(import.meta.url));
 const src = readFileSync(join(here, "../src/index.js"), "utf8");
 const cut = (from, to) => src.slice(src.indexOf(from), src.indexOf(to));
-const code = cut("const scrubText", "// ------------------------------------------------------------------ 2.137.0") +
+const code = cut("const MATCHER", "export function nameProblem") +
+  cut("export const CLEAN_MSG", "const APPROVALS").replace(/export /g, "") +
+  cut("const scrubText", "// ------------------------------------------------------------------ 2.137.0") +
   cut("async function bugReport", "// ------------------------------------------------------------------ 2.78.0");
+const { RegExpMatcher, englishDataset, englishRecommendedTransformers } = await import("obscenity");
 
 const raw = new DatabaseSync(":memory:");
 raw.exec("CREATE TABLE bug_limits (ip TEXT PRIMARY KEY, n INTEGER NOT NULL, day TEXT NOT NULL)");
@@ -28,8 +31,9 @@ const fakeFetch = async (url, opts) => {
   if (url.includes("api.github.com")) return { ok: true, json: async () => ({ number: sent.length, html_url: `https://github.com/i/${sent.length}` }) };
   return { ok: true };
 };
-const lib = new Function("json", "fail", "readBody", "ipKey", "today", "fetch",
-  `${code}; return { bugReport };`)(
+const lib = new Function("RegExpMatcher", "englishDataset", "englishRecommendedTransformers",
+  "json", "fail", "readBody", "ipKey", "today", "fetch",
+  `${code}; return { bugReport, textProblem };`)(RegExpMatcher, englishDataset, englishRecommendedTransformers,
   (o, status = 200) => ({ status, body: o }), (status, msg) => ({ status, body: { error: msg } }),
   async (req) => req.json, async () => "ip1", () => "2026-11-22", fakeFetch);
 
@@ -67,3 +71,22 @@ r = await lib.bugReport(req({ kind: "idea", title: "Fourth one", body: "One more
 assert.equal(r.status, 429);
 assert.match(r.body.error, /ideas today/);
 console.log("bugs.test.mjs: ok");
+
+// 3.2.0 owner: inappropriate words are refused, like usernames - in the title and the typed words, never in the log
+{
+  const before = sent.length;
+  const env2 = { ...env, BUGS_PER_DAY: "99" };
+  let r2 = await lib.bugReport(req({ title: "PENIS", body: "**What happened**\nnothing at all here\n\n**App** 3.2.0", version: "3.2.0" }), env2);
+  assert.equal(r2.status, 400);
+  assert.match(r2.body.error, /^Please keep it clean: reword "PENIS"/);
+  r2 = await lib.bugReport(req({ kind: "idea", title: "A better map list", body: "**The idea**\nyou f4ggot make it\n\n**App** 3.2.0", version: "3.2.0" }), env2);
+  assert.equal(r2.status, 400);
+  r2 = await lib.bugReport(req({ title: "Inventory not found", body: "**What happened**\nThe Assassin's homogeneous grid, 1488 exalted, then a Cocktail.\n\n**App** 3.2.0\n\n**App log**\nshit 1488 kkk", version: "3.2.0" }), env2);
+  assert.equal(r2.status, 201, JSON.stringify(r2.body));
+  assert.equal(sent.length, before + 2);                     // only the clean one reached GitHub and Discord
+  assert.equal(lib.textProblem("my tranny build"), 'Please keep it clean: reword "tranny" and send again.');
+  assert.equal(lib.textProblem("Hitler's map"), 'Please keep it clean: reword "hitler" and send again.');
+  assert.equal(lib.textProblem("Therapist, Raccoon, Spice and a Torpedo"), null);
+}
+console.log("bugs: clean words ok");
+
