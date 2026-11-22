@@ -34,6 +34,7 @@ PAGES = {
 }
 
 FEATURES = (
+    "Suggest a Feature",        # 3.2.0 owner: the bottom bar, next to Report a bug - an idea becomes a GitHub issue
     "Compare a currency",       # Exchange Helper: one currency's worth in every other (was Check a flip)
     "Name badge",               # GGG policy audit: STASH OF EXILE 2 in a small badge under the overlay's clock, every
                                 # style and layout (ovlight.BADGE) - so the overlay never reads as part of the game
