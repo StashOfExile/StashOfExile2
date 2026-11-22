@@ -62,9 +62,18 @@ class TopUpPage:
             ban = SR.capture(TU.banner_rect(game), name)
             if ban is None:
                 return None
-            if not TU.is_open(ban, gh):
-                return {"open": False}
             rect = TU.grid_rect(game)
+            if not TU.is_open(ban, gh):
+                # 3.2.0, bug report: always "nothing found" on a 1440p screen. The whole top of the game is looked
+                # at too - the panel found away from the right edge moves the grid with it; not found, the log says
+                # what was read, for Report a bug
+                top = SR.capture(TU.top_rect(game), name)
+                mid = TU.find_title(top, gh) if top is not None else None
+                d = TU.title_shift(mid, game) if mid is not None else None
+                TU.note_miss(game, ban, d)
+                if d is None:
+                    return {"open": False}
+                rect = TU.shifted(rect, d)
             img = SR.capture(rect, name)
             if img is None:
                 return None
