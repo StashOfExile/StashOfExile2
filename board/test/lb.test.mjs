@@ -26,7 +26,11 @@ function makeDb() {
   return { raw, prepare: (sql) => wrap(sql),
     batch: async (stmts) => { raw.exec("BEGIN"); try { stmts.forEach((s) => s._run()); raw.exec("COMMIT"); } catch (e) { raw.exec("ROLLBACK"); throw e; } } };
 }
-const lib = new Function("DAY", "now", "json", "fail", "readBody", "canReview", `${code}; return { lbMulti, lbSend, lbList };`)(
+const o = await import("obscenity");
+const clean = src.slice(src.indexOf("const MATCHER"), src.indexOf("const APPROVALS")).replace(/export /g, "");
+const lib = new Function("RegExpMatcher", "englishDataset", "englishRecommendedTransformers", "DAY", "now", "json", "fail",
+  "readBody", "canReview", `${clean}; ${code}; return { lbMulti, lbSend, lbList };`)(o.RegExpMatcher, o.englishDataset,
+  o.englishRecommendedTransformers,
   DAY, () => clock, (o, status = 200) => ({ status, body: o }), (status, msg) => ({ status, body: { error: msg } }),
   async (req) => req, () => false);
 
