@@ -10,8 +10,7 @@ import { dirname, join } from "node:path";
 const here = dirname(fileURLToPath(import.meta.url));
 const src = readFileSync(join(here, "../src/index.js"), "utf8");
 const cut = (from, to) => src.slice(src.indexOf(from), src.indexOf(to));
-const code = cut("const MATCHER", "export function nameProblem") +
-  cut("export const CLEAN_MSG", "const APPROVALS").replace(/export /g, "") +
+const code = cut("const MATCHER", "const APPROVALS").replace(/export /g, "") +
   cut("const scrubText", "// ------------------------------------------------------------------ 2.137.0") +
   cut("async function bugReport", "// ------------------------------------------------------------------ 2.78.0");
 const { RegExpMatcher, englishDataset, englishRecommendedTransformers } = await import("obscenity");
@@ -33,7 +32,7 @@ const fakeFetch = async (url, opts) => {
 };
 const lib = new Function("RegExpMatcher", "englishDataset", "englishRecommendedTransformers",
   "json", "fail", "readBody", "ipKey", "today", "fetch",
-  `${code}; return { bugReport, textProblem };`)(RegExpMatcher, englishDataset, englishRecommendedTransformers,
+  `${code}; return { bugReport, textProblem, nameProblem, postProblem };`)(RegExpMatcher, englishDataset, englishRecommendedTransformers,
   (o, status = 200) => ({ status, body: o }), (status, msg) => ({ status, body: { error: msg } }),
   async (req) => req.json, async () => "ip1", () => "2026-11-22", fakeFetch);
 
@@ -95,5 +94,19 @@ console.log("bugs.test.mjs: ok");
     "I'm off to die in the Trial", "Titan", "harass"])
     assert.equal(lib.textProblem(ok), null, ok);
 }
+// 3.2.1 owner: racist words and slurs are refused in names, reports, ideas and every typed text in a post
+for (const bad of ["nigger", "n1gger", "N1GG3R", "n i g g e r", "n.i.g.g.e.r", "niqqer", "niqqa", "nigga", "nibba",
+  "nigguh", "kike", "kyke", "chink", "gook", "spic", "spik", "wetback", "beaner", "raghead", "coon", "jigaboo",
+  "towelhead", "paki", "faggot", "f4ggot", "tranny", "retard", "heil hitler", "sieg heil", "kkk", "white power",
+  "slant eye", "zipperhead", "go back to africa"]) {
+  assert.ok(lib.textProblem(`you ${bad}`), bad);
+  assert.ok(lib.nameProblem(bad), bad);
+}
+assert.ok(lib.nameProblem("1488"));
+for (const ok of ["I hit 1488 damage", "Raccoon", "cocoon", "Pakistan", "spike", "Kyle", "nibbler", "the wet backpack", "Nigeria"])
+  assert.equal(lib.textProblem(ok), null, ok);
+assert.ok(lib.postProblem({ name: "Clean name", steps: ["run maps", "kill the n1gger boss"] }));
+assert.ok(lib.postProblem({ summary: "p e n i s" }));
+assert.equal(lib.postProblem({ name: "Breach farm", regex: "!ass|pen", items: [{ base: "Cockatrice", mods: ["+1 kkk"] }] }), null);
 console.log("bugs: clean words ok");
 
