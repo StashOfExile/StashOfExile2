@@ -262,7 +262,9 @@ class PriceCheckGolden(unittest.TestCase):
     def test_every_item_prices_as_recorded(self):
         with open(GOLDEN, encoding="utf-8") as f:
             golden = json.load(f)
-        now = build_all()
+        empty = {"bases": set(), "uniques": {}, "by_len": [], "loaded": False}
+        with mock.patch.dict(GD.TRADE_ITEMS, empty):     # (as recorded: no trade site item list; a test run
+            now = build_all()                            # before this one may have left one loaded)
         self.assertEqual(sorted(golden), sorted(now), "the corpus and the golden file list different items")
         bad = []
         for name in golden:
