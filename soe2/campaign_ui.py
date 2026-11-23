@@ -574,7 +574,7 @@ class CampaignUI:
             w.attributes("-topmost", True)
         except tk.TclError:
             pass
-        box = tk.Frame(w, bg=bg, highlightthickness=1, highlightbackground=rim, padx=8, pady=6)
+        box = tk.Frame(w, bg=bg, highlightthickness=1, highlightbackground=rim, padx=8, pady=8)
         box.pack()
         head = tk.Frame(box, bg=bg)
         head.pack(fill="x")
