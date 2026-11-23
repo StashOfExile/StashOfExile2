@@ -682,11 +682,8 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
         self.league_var.trace_add("write", lambda *a: self._league_chip())
         self._league_chip()
         self.build_feedback()                                  # 2.48.0: ⬆ Update badge, 🐞 Report a bug
-        # 3.3.0 owner: the online count is here, off the Dashboard; its hover says what it counts
-        self.online_chip = tk.Label(self.shell.task_right, text="", bg=C["bg"], fg=C["muted"], padx=8, pady=4,
-                                    font=("Segoe UI", 9))
-        self.online_tip = Tooltip(self.online_chip, "")
-        self.online_paint()
+        # 3.3.0 owner: the online count is a badge on the title bar's chest and a line under the Dashboard's greeting
+        self.root.after(1500, self.online_paint)
         self.shell.make_task_dots()
         # (2.97.3, feedback: no 📌 on the status bar - Always on top is in Settings › General › Window)
         self._top_label()
@@ -992,20 +989,13 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
         self.root.after(400, self.features_maybe)              # 2.131.1: Setup next, one at a time
 
     def online_paint(self):
-        """The status bar's online count: shown when the board has answered, hidden until then. Looked at again
-        every minute; only a changed word is drawn."""
+        """The online count on the title bar's chest. Looked at again every minute; only a changed number is drawn."""
         from . import usage as US
         try:
-            text = US.label()
-            chip = self.online_chip
-            if text:
-                if chip.cget("text") != "👤 " + text:
-                    chip.config(text="👤 " + text)
-                self.online_tip.text = US.tip()
-                if not chip.winfo_manager():
-                    chip.pack(in_=self.shell.task_right, side="left", padx=4, before=self.idea_btn)
-            elif chip.winfo_manager():
-                chip.pack_forget()
+            c = US.counts() or (0, 0)
+            strip = getattr(self, "drawer_strip", None)
+            if strip is not None:
+                strip.set_online(c[0], US.tip() if (c[0] or c[1]) else "")
         except Exception:
             buglog.caught()
         try:

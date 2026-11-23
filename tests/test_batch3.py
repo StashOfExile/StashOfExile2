@@ -72,13 +72,15 @@ class Movers(unittest.TestCase):
 
 
 class Online(unittest.TestCase):
-    def test_label_and_what_it_counts(self):
+    def test_the_line_and_what_it_counts(self):
         with mock.patch.object(US, "counts", lambda: None):
-            self.assertEqual(US.label(), "")
+            self.assertEqual(US.line(), ("", ""))
         with mock.patch.object(US, "counts", lambda: (0, 340)):
-            self.assertEqual(US.label(), "340 this week")
+            self.assertEqual(US.line(), ("", "340 this week"))
+        with mock.patch.object(US, "counts", lambda: (1, 5)):
+            self.assertEqual(US.line(), ("1 exile online", " · 5 this week"))
         with mock.patch.object(US, "counts", lambda: (1234, 5000)), mock.patch.object(US, "on", lambda: False):
-            self.assertEqual(US.label(), "1,234 online")
+            self.assertEqual(US.line(), ("1,234 exiles online", " · 5,000 this week"))
             tip = US.tip()
             self.assertIn("last 15 minutes", tip)
             self.assertIn("version 3.1 or newer", tip)
@@ -86,6 +88,26 @@ class Online(unittest.TestCase):
             self.assertNotIn("(", tip)
         with mock.patch.object(US, "counts", lambda: (2, 5)), mock.patch.object(US, "on", lambda: True):
             self.assertIn("You are counted.", US.tip())
+
+
+class StashLine(unittest.TestCase):
+    def test_it_says_when_and_invites_a_new_scan(self):
+        now = 2_000_000.0
+        self.assertEqual(DP.stash_line(None, now), ("", ""))
+        fresh = {"total": 10.0, "today": 2.0, "ts": now - 1800}
+        text, nudge = DP.stash_line(fresh, now)
+        self.assertIn("on your last scan, 30 min ago", text)
+        self.assertIn("▲ up", text)
+        self.assertEqual(nudge, "", "just scanned: nothing to ask")
+        text, nudge = DP.stash_line({"total": 10.0, "today": 0, "ts": now - 8 * 3600}, now)
+        self.assertTrue(text.endswith("8 hours ago."))
+        self.assertEqual(nudge, "Scan again to see today's gains")
+        text, nudge = DP.stash_line({"total": 10.0, "today": 0, "ts": now - 2 * 86400}, now)
+        self.assertIn("2 days ago", text)
+        self.assertEqual(nudge, "Scan again to see what you've earned since")
+        self.assertNotIn("no change", text)
+        for w in ("haven't", "missed", "overdue", "should"):
+            self.assertNotIn(w, text + nudge)
 
 
 class Sharing(unittest.TestCase):
@@ -129,34 +151,35 @@ class Worth(unittest.TestCase):
 
 
 @unittest.skipUnless(os.environ.get("DISPLAY") or sys.platform == "win32", "needs a display")
-class StatusBar(unittest.TestCase):
-    def test_online_chip_shows_hides_and_only_changes_its_word(self):
+class TitleBar(unittest.TestCase):
+    def test_the_chest_has_a_badge_that_only_changes_with_the_count(self):
         import tkinter as tk
-        from soe2.app import App
+        from soe2 import lineicons
+        from soe2.drawer_page import DrawerStrip
         root = tk.Tk()
         root.withdraw()
         try:
-            a = App.__new__(App)
-            a.root = types.SimpleNamespace(after=lambda *x: None)
-            bar = tk.Frame(root)
-            bar.pack()
-            a.shell = types.SimpleNamespace(task_right=bar)
-            a.idea_btn = tk.Label(bar, text="idea")
-            a.idea_btn.pack(side="left")
-            a.online_chip = tk.Label(bar, text="")
-            a.online_tip = types.SimpleNamespace(text="")
-            with mock.patch.object(US, "counts", lambda: None):
-                a.online_paint()
-            self.assertFalse(a.online_chip.winfo_manager())
-            with mock.patch.object(US, "counts", lambda: (12, 340)):
-                a.online_paint()
-                self.assertEqual(a.online_chip.cget("text"), "👤 12 online")
-                self.assertEqual(bar.pack_slaves(), [a.online_chip, a.idea_btn])
-                self.assertIn("last 15 minutes", a.online_tip.text)
-                a.online_chip.config = mock.Mock(side_effect=AssertionError("drawn again"))
-                a.online_paint()
+            self.assertIn("M4 11v8.5h16V11", lineicons.ICONS["mark"], "the app's chest, not a diamond")
+            s = DrawerStrip.__new__(DrawerStrip)
+            s.mark, s._mark, s.online = tk.Canvas(root), None, None
+            s.mark_tip = types.SimpleNamespace(text="")
+            s.mark_paint = mock.Mock()
+            s.set_online(12, "what it counts")
+            self.assertEqual((s.online, s.mark_tip.text), (12, "what it counts"))
+            s.mark_paint.assert_called_once()
+            s.set_online(12, "what it counts")
+            s.mark_paint.assert_called_once()
+            s.set_online(0)
+            self.assertIsNone(s.online)
+            self.assertEqual([DrawerStrip.badge_text(n) for n in (None, 7, 999, 1000, 1540)],
+                             ["", "7", "999", "1k", "1.5k"])
         finally:
             root.destroy()
+
+    def test_the_status_bar_has_no_count(self):
+        import inspect
+        from soe2.app import App
+        self.assertNotIn("online_chip", inspect.getsource(App))
 
 
 if __name__ == "__main__":

@@ -52,6 +52,27 @@ def wealth_numbers(now=None):
             "ts": last.get("ts", 0), "series": [(s["ts"], s.get("total") or 0) for s in snaps if s.get("ts", 0) >= cut]}
 
 
+def stash_line(wn, now=None):
+    """The Dashboard's line about your stash -> (what it was worth at your last scan, a nudge to scan again or "").
+    3.3.0 owner: the worth is as old as the scan, so it says when - and an older one invites a new scan by what you
+    gain from it, never by what you missed."""
+    if not wn:
+        return "", ""
+    from . import focus as F
+    from .pricefmt import fmt_div
+    now = now or time.time()
+    age = max(0, now - (wn.get("ts") or now))
+    text = f"Your stash was worth {fmt_div(wn['total'])} on your last scan, {F.ago(wn.get('ts') or now, now)}"
+    if age < 6 * 3600:
+        if wn["today"] > 0:
+            text += f"  ·  ▲ up {fmt_div(wn['today'])} today"
+        elif wn["today"] < 0:
+            text += f"  ·  ▼ down {fmt_div(-wn['today'])} today"
+        return text, ""
+    return text + ".", ("Scan again to see what you've earned since" if age >= 86400 else
+                        "Scan again to see today's gains")
+
+
 def map_numbers(now=None):
     from . import mapprofit as MP
     es = MP.log_read(since=(now or time.time()) - 7 * 86400)
@@ -480,15 +501,31 @@ class Dashboard(tk.Canvas):
         except Exception:
             who = "Exile"
         self.create_text(PAD, y, text=f"{greeting(now)}, {who}", anchor="nw", font=(head, 28), fill=strong)
-        if wn and vis["wealth"]:
-            sub = f"Your stash is worth {fmt_div(wn['total'])}"
-            sub += (f"  ·  ▲ up {fmt_div(wn['today'])} today" if wn["today"] > 0 else
-                    f"  ·  ▼ down {fmt_div(-wn['today'])} today" if wn["today"] < 0 else "  ·  no change today")
-        else:
-            sub = "Where you stand, at a glance."
-        sid = self.create_text(PAD, y + 50, text=sub, anchor="nw", font=("Segoe UI", 12), fill=mut)
-        # 3.3.0 owner: the online count is on the status bar (app.online_paint), not here
-        del sid
+        sub, nudge = stash_line(wn, now) if vis["wealth"] else ("", "")
+        # 3.3.0 owner: "12 exiles online · 340 this week" under the greeting; its hover says what it counts
+        from . import usage as US
+        try:
+            on_now, on_week = US.line()
+        except Exception:
+            buglog.caught()
+            on_now = on_week = ""
+        ly = y + 50
+        if on_now or on_week:
+            oid = self.create_text(PAD, ly, text=on_now, anchor="nw", font=("Segoe UI", 12), fill=t.c("accent_2"),
+                                   tags=("online",))
+            ox = self.bbox(oid)[2] if on_now else PAD
+            self.create_text(ox, ly, text=on_week, anchor="nw", font=("Segoe UI", 12), fill=mut, tags=("online",))
+            self.tips["online"] = US.tip()
+            ly += 24
+        if sub:
+            wid = self.create_text(PAD, ly, text=sub, anchor="nw", font=("Segoe UI", 12), fill=mut)
+            if nudge:                                        # 3.3.0 owner: a reason to scan again, said kindly
+                self.create_text(self.bbox(wid)[2] + 8, ly, text=nudge + " ›", anchor="nw",
+                                 font=("Segoe UI", 12, "underline" if self.hover == "scan_go" else "normal"),
+                                 fill=t.c("accent"), tags=("scan_go",))
+                self.acts["scan_go"] = go("wealth")
+                self.tips["scan_go"] = "Open Wealth to scan your stash"
+            ly += 24
         pc_key = SETTINGS.get("pc_key") or "Ctrl+D"
         x = W - PAD
         if vis["price"]:
@@ -497,7 +534,7 @@ class Dashboard(tk.Canvas):
         if vis["overlay"]:
             self._button(x, y + 6, "Overlay", "b_ov", go("tracker"), tip="Over the game: the session timer and the helpers.")
 
-        y += 96
+        y += max(96, ly - y + 16)
         look = getattr(self.app, "drawer_look_on", None)
         narrow = W < 900 or bool(look and look())            # D3: in the Drawer the tiles and Start cards wrap, 2 a row
         if share_prompt_due():                               # 3.3.0 owner: asked once, here, while sharing is off

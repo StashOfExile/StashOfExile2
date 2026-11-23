@@ -43,7 +43,10 @@ ICONS = {
     "circle": '<circle cx="12" cy="12" r="6"/>',
     "warn": '<path d="M12 4l9 16H3z"/><path d="M12 10v4M12 17v.5"/>',
     "open": '<path d="M9 5H5v14h14v-4"/><path d="M13 5h6v6M19 5l-8 8"/>',
-    "mark": '<path d="M12 3l8 9-8 9-8-9z"/><path d="M12 8l3.5 4-3.5 4-3.5-4z"/>',
+    # the app's mark: its chest icon as one line, lid, body and the hex lock (3.3.0 owner; it was a diamond)
+    "mark": '<path d="M8.5 6.5V5a1.5 1.5 0 0 1 1.5-1.5h4A1.5 1.5 0 0 1 15.5 5v1.5"/>'
+            '<path d="M3 6.5h18V11H3z"/><path d="M4 11v8.5h16V11"/>'
+            '<path d="M12 8.2l2.4 1.4v2.8L12 13.8l-2.4-1.4V9.6z"/>',
     "up": '<path d="M12 19V5"/><path d="M6 11l6-6 6 6"/>',
     "note": '<path d="M6 4h9l4 4v12H6z"/><path d="M14 4v5h5"/><path d="M9 13h7M9 16h5"/>',
     "bars": '<path d="M5 20V11M10 20V6M15 20v-7M20 20V9"/>',

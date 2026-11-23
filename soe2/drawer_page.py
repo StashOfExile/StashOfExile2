@@ -1245,8 +1245,11 @@ class DrawerStrip(tk.Frame):
         self.pack_propagate(False)
         self.line = tk.Frame(self, height=1)
         self.line.pack(side="bottom", fill="x")
-        self.mark = tk.Label(self, bd=0)
-        self.mark.pack(side="left", padx=(12, 8))
+        # 3.3.0 owner: the mark is the app's chest, with the online count as a small badge on its corner
+        self.mark = tk.Canvas(self, width=52, height=30, highlightthickness=0, bd=0)
+        self.mark.pack(side="left", padx=(12, 4))
+        self.online = None                                    # the number on the badge, or None: no badge
+        self.mark_tip = Tooltip(self.mark, "")
         self.name = tk.Label(self, text="Stash of Exile 2", bd=0)
         self.name.pack(side="left")
         self.sep = tk.Frame(self, width=1, height=16)
@@ -1265,6 +1268,38 @@ class DrawerStrip(tk.Frame):
             self.btns[key] = (b, Tooltip(b, tip))
         TH.subscribe(lambda t: self.paint(), owner=self)
         self.paint()
+
+    @staticmethod
+    def badge_text(n):
+        return "" if not n else str(n) if n < 1000 else f"{n / 1000:.1f}k".replace(".0k", "k")
+
+    def mark_paint(self, t=None, bg=None):
+        """The chest and its badge. Called on a theme change and when the count changes."""
+        from . import themes as TH
+        t = t or TH.ST.theme
+        if t is None:
+            return
+        cv = self.mark
+        with TH.raw():
+            bg = bg or t.c("chassis")
+            cv.configure(bg=bg)
+            cv.delete("all")
+            if self._mark:
+                cv.create_image(2, 16, image=self._mark, anchor="w")
+            text = self.badge_text(self.online)
+            if text:
+                tid = cv.create_text(27, 8, text=text, anchor="w", font=("Segoe UI", 8, "bold"), fill=bg)
+                x0, y0, x1, y1 = cv.bbox(tid)
+                TH.round_rect(cv, x0 - 4, y0 - 1, x1 + 4, y1 + 1, 7, fill=t.c("accent_2", "#6aa6ff"), outline="")
+                cv.tag_raise(tid)
+
+    def set_online(self, n, tip=""):
+        """The online count for the badge. Only a changed number is drawn."""
+        n = int(n or 0) or None
+        self.mark_tip.text = tip
+        if n != self.online:
+            self.online = n
+            self.mark_paint()
 
     def fit_height(self):
         """Tall enough for its buttons and key caps (their size follows the display scale)."""
@@ -1333,8 +1368,8 @@ class DrawerStrip(tk.Frame):
             self.line.configure(bg=t.c("border"))
             self.sep.configure(bg=t.c("border"))
             self.keys.configure(bg=bg)
-            self._mark = lineicons.icon(self, "mark", 16, t.c("text"))
-            self.mark.configure(image=self._mark or "", bg=bg)
+            self._mark = lineicons.icon(self, "mark", 24, t.c("text"))
+            self.mark_paint(t, bg)
             self.name.configure(bg=bg, fg=t.c("text"), font=(TH.head_font(t), 12))
             self.say.configure(bg=bg, fg=t.c("text_muted"), font=("Segoe UI", 9))
         if st.eff == "drawer":

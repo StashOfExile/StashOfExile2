@@ -62,7 +62,7 @@ NOTES = {
                 ("•", "Moved Favorites into Price Checks"),
                 ("•", "Moved Stockpile into Exchange Rates"),
                 ("•", "Updated price filtering options"),
-                ("•", "Moved online count to the status bar"),
+                ("•", "Added online count to the title bar"),
                 ("•", "Uniques list in Mod Lab can now be collapsed"),
             ]),
             ("✓", "Fixes", [

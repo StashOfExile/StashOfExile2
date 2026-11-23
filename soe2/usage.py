@@ -45,12 +45,14 @@ def counts():
     return num(d.get("online")), num(d.get("week"))
 
 
-def label():
-    """The status bar's words: "12 online", or "340 this week" when nobody is counted right now, or ""."""
+def line():
+    """The Dashboard's line under the greeting -> ("12 exiles online", " · 340 this week"), either part may be ""."""
     c = counts()
     if not c or not (c[0] or c[1]):
-        return ""
-    return f"{c[0]:,} online" if c[0] else f"{c[1]:,} this week"
+        return "", ""
+    now = f"{c[0]:,} exile{'s' if c[0] != 1 else ''} online" if c[0] else ""
+    week = f"{c[1]:,} this week" if c[1] else ""
+    return now, ((" · " if now else "") + week if week else "")
 
 
 def tip():
@@ -58,7 +60,7 @@ def tip():
     c = counts() or (0, 0)
     return ("People with Stash of Exile 2 open in the last 15 minutes. Only players who turned on Count me as a "
             "user, on version 3.1 or newer."
-            + (f" {c[1]:,} this week." if c[1] else "")
+            + (f" This week: {c[1]:,} in the last 7 days." if c[1] else "")
             + (" You are counted." if on() else " You are not counted. Its switch is in Settings › Privacy & "
                                                 "community."))
 
