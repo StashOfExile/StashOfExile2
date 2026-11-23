@@ -327,6 +327,10 @@ REMOVED = [
       "wealth_add_pc_tab", "wealth_pc_tab", "wealth_pc_refresh", "_wealth_add", "wealth_toggle_tab",
       "wealth_remove_tab", "wealth_open_trade", "wealth_buttons", "_w_tab_row", "_w_by_tab", "wealth_show_tab_result",
       "wealth_setup_layout", "wealth_save_account", "wealth_skip_tab")),
+    ("3.3.0", "The campaign card's act and zone line, and the lines under the rewards list and the act times "
+              "(owner: the overlay's ZONE says it; filler)",
+     ("The list comes from the guide pack", "with pauses for AFK. Each league keeps its own best"),
+     ()),
     ("3.3.0", "League Plan's phases, Farm plan and Show on overlay (owner's redraw: one list, Next up first); the "
               "Stockpile tab there (owner: it is on Exchange Rates)",
      ("When I reach maps", "Long term", "I'm here now", "Farm plan", "Done, next ›", "Show on overlay",

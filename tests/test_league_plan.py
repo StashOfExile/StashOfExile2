@@ -290,5 +290,30 @@ class CampaignCard(unittest.TestCase):
         self.assertEqual([k for k, _n in CampaignUI.CAMP_FILTERS], ["all", "rewards", "bosses"])
 
 
+@unittest.skipUnless(os.environ.get("DISPLAY") or sys.platform == "win32", "needs a display")
+class CampaignLine(unittest.TestCase):
+    def test_no_act_and_zone_line_on_top(self):
+        import tkinter as tk
+        from tkinter import font as tkfont
+        from soe2.campaign_ui import CampaignUI
+        root = tk.Tk()
+        root.withdraw()
+        try:
+            f = tkfont.Font(root=root, family="TkDefaultFont", size=10)
+            h = CampaignUI.__new__(CampaignUI)
+            h._camp_fonts = lambda P, cv=None: (f, f, f, f)
+            d = {"head": "ACT I · CLEARFELL ENCAMPMENT", "step": "2 / 16", "tip": "",
+                 "do": "Talk to Renly and Una for their quests", "then": "Clearfell"}
+            rows = h.camp_rows({}, 600, d)
+            roles = [[r for _t, _f, r in row] for row in rows]
+            self.assertNotIn("head", sum(roles, []))
+            words = " ".join(t for row in rows for t, _f, _r in row)
+            self.assertNotIn("CLEARFELL ENCAMPMENT", words)
+            self.assertEqual(roles[0][-1], "step", "the step count sits on the first line")
+            self.assertEqual(len(rows), 2)
+        finally:
+            root.destroy()
+
+
 if __name__ == "__main__":
     unittest.main()

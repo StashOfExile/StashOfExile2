@@ -410,17 +410,18 @@ class CampaignUI:
 
     def camp_rows(self, P, width, d=None):
         """The Campaign Bar's line laid out in width px -> [[(text, font, role)], ...] one list per line:
-          the head (act · zone, and the step n / N with ⓘ when the step has a tip, at the right: role "step"),
-          what to do now (its gain in the gain role), wrapped - never cut,
+          what to do now (its gain in the gain role), wrapped - never cut - with the step n / N at the right of its
+          first line (ⓘ when the step has a tip: role "step"),
           then → where next (dimmed).
-        role: head / step / do / gain / then / to."""
+        3.3.0 owner: no act · zone line on top - the overlay's ZONE says where you are.
+        role: step / do / gain / then / to."""
         d = d or CP.line()
         if not d:
             return []
         fh, fd, fi, fb = self._camp_fonts(P)
         step = d["step"] + ("  ⓘ" if d.get("tip") else "")
-        out = [[(fit_lines(fh, d["head"], max(40, width - (_measure(fi, step) + 16 if step else 0)), 1), fh, "head")]
-               + ([(step, fi, "step")] if step else [])]
+        room = width - (_measure(fi, step) + 16 if step else 0)       # (the step keeps its place at the right)
+        out = []
         words = []                                            # (a gain stays in one piece: never "(+10% cold" / "res)")
         for part in re.split(r"(\((?:their )?\+[^)]*\))", d["do"]):
             if not part.strip():
@@ -430,7 +431,9 @@ class CampaignUI:
                 continue
             for wd in part.split():
                 words.append((wd, fd, "gain" if wd == "✓" else "do"))
-        out += _wrap(words, width)
+        out += _wrap(words, max(40, room)) or [[]]
+        if step:
+            out[0] = out[0] + [(step, fi, "step")]
         if d.get("then"):
             out += _wrap([("then →", fi, "then")] + [(w, fb, "to") for w in d["then"].split(" ")], width)
         return out
@@ -962,10 +965,6 @@ class CampaignUI:
                 tk.Label(row, text={"missed": "✕ missed", "skip": "– skipped", "remind": "○ not yet"}[st], bg=bg,
                          fg=P.get("off", P["muted"]) if st == "missed" else P["muted"],
                          font=(P["font"], self.ov_font(9))).pack(side="right")
-        tk.Label(page, text=f"The list comes from the guide pack ({CP.pack().get('name', '')}). A boss's line in the "
-                            "game's log ticks its reward; the rest are asked in town. Tick or untick any by hand.",
-                 bg=bg, fg=P["muted"],
-                 font=(P["font"], self.ov_font(9)), anchor="w", justify="left", wraplength=self.ov_px(520)).pack(fill="x", pady=(8, 0))
 
     def _camp_splits_page(self, page, P):
         bg = P["bg"]
@@ -989,8 +988,6 @@ class CampaignUI:
                 tk.Label(g, text=v, bg=bg, fg=dcol if c == 3 else (P["text"] if mine is not None else P["muted"]),
                          font=(P["font"], self.ov_font(10))).grid(row=i, column=c, sticky="w", padx=(0, 24))
             self.camp_split_rows.append(vals)
-        tk.Label(page, text="From the game log's zone changes, with pauses for AFK. Each league keeps its own best.",
-                 bg=bg, fg=P["muted"], font=(P["font"], self.ov_font(9)), anchor="w").pack(fill="x", pady=(8, 0))
 
     # ---------------------------------------------------------------- actions
     def camp_here(self, i):
