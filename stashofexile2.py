@@ -30,6 +30,10 @@ VERSION HISTORY
        - Dashboard: Top Movers, Daily from poe.ninja's 7-day line and Hourly from the app's own reads; Worth a look;
          the sharing question, asked once. The online count is on the status bar and counts only 3.1 and newer, on
          the board too; the Rates text is off the bar; the clock sits on the bar's own color.
+       - Who am I, identity.py: a name the log shows joining an area is never you; a level-up, death or reward from
+         any other name is; The Riverbank starts a blank run; the character screen makes it assumed. YOU and Got so
+         far show a dash until known, a click lists your characters. Act times are Ranked or Personal and only
+         Ranked ones are sent. No other player's name is saved: the log's tail is read into memory at each start.
   3.2.0
        - Suggest a Feature next to Report a bug; Rate Mods is Mod Lab, with a bigger intro, pictures and a Next button
          for a mod rated by roll; League Plan's pokes are Reminders; an old page name still finds its page.

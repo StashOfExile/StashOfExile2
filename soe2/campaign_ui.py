@@ -511,7 +511,12 @@ class CampaignUI:
         return (f"{z}, level {zl} - from the game's log ('Generating level {zl} area \"{aid}\"').\n"
                 + (f"Here for {CP.fmt(zt)}." if zt is not None else "Time here: from the next zone you enter."))
 
+    NOT_NAMED = "–"
+
     def camp_you_text(self):
+        from . import identity as ID
+        if not ID.known():                                   # 3.3.0 owner: no level until the log names you
+            return self.NOT_NAMED
         d = CP.line() or {}
         you, zl = d.get("level") or (CP.char_level(), 0)
         t = CP.level_text(you, zl)
@@ -522,11 +527,18 @@ class CampaignUI:
 
     @staticmethod
     def camp_you_tip():
+        from . import identity as ID
+        if not ID.known():
+            return "The game's log hasn't named your character yet. Click to pick it."
         d = CP.line() or {}
         you, zl = d.get("level") or (CP.char_level(), 0)
-        return CP.level_how(you, zl) + "\nYour level: from the game's log ('is now level ...')."
+        return (CP.level_how(you, zl) + f"\n{ID.current()}: from the game's log ('is now level ...'). Click to "
+                "change character.")
 
     def camp_got_text(self, mode=None):
+        from . import identity as ID
+        if not ID.known():
+            return self.NOT_NAMED
         g = CP.got_so_far()
         mode = mode or getattr(self, "_camp_got_mode", "full")
         p, sp = g["points"], g["spirit"]
@@ -538,7 +550,43 @@ class CampaignUI:
 
     @staticmethod
     def camp_got_tip():
+        from . import identity as ID
+        if not ID.known():
+            return "Shows once the game's log names your character, or you pick it under YOU."
         return CP.got_how(CP.got_so_far())
+
+    # ---------------------------------------------------------------- 3.3.0 owner: which character is this?
+    def camp_you_menu(self, e=None):
+        """A click on YOU: your characters (the current one ticked) and Not my character."""
+        from . import identity as ID
+        m = tk.Menu(self.root, tearoff=0)
+        cur = ID.current() if ID.known() else ""
+        rows = ID.characters()
+        for name, cls, lvl in rows[:12]:
+            bits = " · ".join(x for x in (cls, f"level {lvl}" if lvl else "") if x)
+            m.add_command(label=("✓ " if name == cur else "    ") + name + (f"   {bits}" if bits else ""),
+                          command=lambda n=name: self.camp_you_pick(n))
+        if not rows:
+            m.add_command(label="No character seen yet", state="disabled")
+        if ID.current() and not ID.typed():
+            m.add_separator()
+            m.add_command(label=f"Not my character: {ID.current()}", command=self.camp_you_not_mine)
+        try:
+            x, y = (e.x_root, e.y_root) if e is not None else self.root.winfo_pointerxy()
+            m.tk_popup(x, y)
+        finally:
+            m.grab_release()
+
+    def camp_you_pick(self, name):
+        from . import identity as ID
+        if ID.pick(name):
+            self.camp_refresh()
+
+    def camp_you_not_mine(self):
+        from . import identity as ID
+        if ID.not_mine(ID.current()):
+            ID.purge()
+            self.camp_refresh()
 
     @staticmethod
     def camp_act_text():
@@ -970,7 +1018,9 @@ class CampaignUI:
         bg = P["bg"]
         g = tk.Frame(page, bg=bg)
         g.pack(fill="x")
-        for c, h in enumerate(("ACT", "THIS RUN", "BEST", "+/-")):
+        from .style import Tooltip
+        marks = CP.split_marks()
+        for c, h in enumerate(("ACT", "THIS RUN", "BEST", "+/-", "")):
             tk.Label(g, text=h, bg=bg, fg=P["muted"], font=(P["font"], self.ov_font(8), "bold")).grid(row=0, column=c, sticky="w",
                                                                                      padx=(0, 24))
         self.camp_split_rows = []
@@ -987,6 +1037,13 @@ class CampaignUI:
             for c, v in enumerate(vals):
                 tk.Label(g, text=v, bg=bg, fg=dcol if c == 3 else (P["text"] if mine is not None else P["muted"]),
                          font=(P["font"], self.ov_font(10))).grid(row=i, column=c, sticky="w", padx=(0, 24))
+            mk = marks[i - 1] if i - 1 < len(marks) else None
+            if mk is not None:                              # 3.3.0 owner: a mark and a word, never color alone
+                lab = tk.Label(g, text="★ Ranked" if mk else "○ Personal", bg=bg, fg=P["on"] if mk else P["muted"],
+                               font=(P["font"], self.ov_font(9)))
+                lab.grid(row=i, column=4, sticky="w")
+                Tooltip(lab, "Sent to the Leaderboards when you share times." if mk else
+                        "Ranked times are one character, start to finish. This one stays on your PC.")
             self.camp_split_rows.append(vals)
 
     # ---------------------------------------------------------------- actions

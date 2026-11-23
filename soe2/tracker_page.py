@@ -860,6 +860,13 @@ class TrackerPage:
         if self.tk_last_area is not None:                # Round 18: started in your hideout - no Campaign Bar there
             self.campaign_where(self.tk_last_area)
         self.tk_others = {e[2]["who"].lower() for e in evs if e[0] == "party"}       # 2.7.0: other players seen
+        from . import identity as ID                     # 3.3.0: who you are, for the whole app (identity.py)
+        for e in evs:
+            if e[0] == "party":
+                ID.note("party", e[2], e[1])
+        if hasattr(self, "run_bg"):                      # each start, into memory only: who joined your areas
+            self.run_bg(lambda: ID.backfill(path), lambda _n: self.camp_refresh()
+                        if hasattr(self, "camp_refresh") else None)
         self.tk_last_scene = next((e for e in reversed(evs) if e[0] == "scene" and e[2]["name"] != "Atlas"), None)
         size = os.path.getsize(path) / 1048576 if os.path.exists(path) else 0
         self.tk_log_lbl.config(text=f"Following {path} ({size:,.0f} MB - only new lines are read). "
@@ -884,12 +891,13 @@ class TrackerPage:
     def tracker_is_me(self, who):
         """Is this death yours? Your character name (Options) if you set it; otherwise anyone who hasn't joined or
         left your area (the game only logs that for other players). The first death counted that way names you."""
+        from . import identity as ID
         cfg = self.tracker_cfg()
         mine = (cfg.get("character") or "").strip().lower()
         w = (who or "").strip().lower()
         if mine:
             return w == mine
-        if w in getattr(self, "tk_others", set()):
+        if w in getattr(self, "tk_others", set()) or ID.is_other(w):
             return False
         if cfg.get("character_guess", "").lower() != w:
             cfg["character_guess"] = who
@@ -898,12 +906,28 @@ class TrackerPage:
                 self.tracker_char_hint()
         return True
 
+    def identity_log(self, kind, ts, data):
+        """One log event for identity.py. The log named a different one of your characters than the one assumed:
+        the time since the character screen went to the wrong run, so both acts are Personal."""
+        from . import campaign as CP
+        from . import identity as ID
+        try:
+            what = ID.note(kind, data, ts)
+            if what == "switch":
+                CP.mark_personal(data.get("was"))
+                CP.mark_personal(ID.current())
+            if what and hasattr(self, "camp_refresh"):
+                self.camp_refresh()
+        except Exception:
+            buglog.caught()
+
     def tracker_tick(self):
         try:
             s = self.tk_session
             if s is not None and s.ended is None and self.tk_reader is not None:
                 changed = False
                 for kind, ts, data in self.tk_reader.poll():
+                    self.identity_log(kind, ts, data)         # 3.3.0: first - everything below asks who you are
                     if kind == "party":
                         self.tk_others = getattr(self, "tk_others", set()) | {data["who"].lower()}
                         continue

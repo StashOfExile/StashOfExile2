@@ -40,6 +40,7 @@ PARTY = re.compile(r"^: (.+) has (joined|left) the area\.")
 AFK_ON = re.compile(r"AFK mode is now ON", re.I)
 AFK_OFF = re.compile(r"AFK mode is now OFF", re.I)
 FOCUS = re.compile(r"\[WINDOW\] (Lost|Gained) focus", re.I)
+GAIN = re.compile(r"^: (.+?) has received ")             # 3.3.0: a quest reward - yours or a party member's (identity.py)
 LEVELUP = re.compile(r"^: (.+?) \(([^)]+)\) is now level (\d+)")     # 2.73.1: League Focus (new characters)
 # an NPC's line: "Speaker: text" - not chat (#$&%@ and *), not the game's own ": ..." lines, no <guild> tag, no
 # [TAG] (the client's own subsystems); the speaker starts with a letter and has no ':' in it
@@ -205,6 +206,9 @@ def parse(line):
     lv = LEVELUP.search(text)
     if lv:
         return "level", ts, {"who": lv.group(1), "cls": lv.group(2), "level": int(lv.group(3))}
+    gn = GAIN.search(text)
+    if gn:
+        return "gain", ts, {"who": gn.group(1)}
     p = PARTY.search(text)
     if p:
         return "party", ts, {"who": p.group(1), "joined": p.group(2) == "joined"}

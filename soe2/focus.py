@@ -249,13 +249,14 @@ def goal_target(g):
 def char_level():
     """The level the log last showed for your character: the name typed in Options, else the last one to level."""
     st = state()
+    from . import identity as ID                            # 3.3.0: your character - never a party member
     lv = st.get("levels") or {}
-    mine = ((SETTINGS.get("tracker") or {}).get("character") or "").strip().lower()
+    last = st.get("last_char") or ""
+    mine = (ID.current() or (last if ID.is_me(last) else "")).lower()
     for who, n in lv.items():
         if who.lower() == mine and mine:
             return n
-    last = st.get("last_char")
-    return lv.get(last) if last else None
+    return ID.level() or None
 
 
 def act_now():
@@ -592,6 +593,9 @@ def log_event(kind, data, area_kind=None, now=None):
         save()
     if kind == "level":
         who, lvl = data.get("who", ""), int(data.get("level") or 0)
+        from . import identity as ID
+        if not ID.is_me(who):                               # 3.3.0: a party member leveled, not you
+            return None
         known = who in st["chars"]
         if not known:
             st["chars"] = (st["chars"] + [who])[-30:]

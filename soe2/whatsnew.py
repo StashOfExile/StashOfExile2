@@ -54,6 +54,8 @@ NOTES = {
                 ("•", "Added Top Movers to the Dashboard"),
                 ("•", "Added Worth a look to the Dashboard"),
                 ("•", "Added data sharing prompt to the Dashboard"),
+                ("•", "Added Ranked and Personal marks to campaign act times"),
+                ("•", "Added character list to the overlay's level"),
             ]),
             ("▲", "Improved", [
                 ("•", "Reworked League Plan page to be a more streamlined user experience"),
@@ -62,6 +64,9 @@ NOTES = {
                 ("•", "Updated price filtering options"),
                 ("•", "Moved online count to the status bar"),
                 ("•", "Uniques list in Mod Lab can now be collapsed"),
+            ]),
+            ("✓", "Fixes", [
+                ("•", "Party members should no longer be shown as your character"),
             ]),
             ("✕", "Removed", [
                 ("•", "Removed League Plan phases and Farm plan"),

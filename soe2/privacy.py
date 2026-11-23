@@ -50,6 +50,8 @@ def known_names():
         st = (SETTINGS.get("focus") or {}).get("state") or {}
         chars |= {st.get("last_char") or ""} | set((st.get("levels") or {}).keys()) | set((st.get("classes") or {}).keys())
         chars |= set(((SETTINGS.get("campaign") or {}).get("chars") or {}).keys())
+        from . import identity as ID                    # 3.3.0: yours, and the players seen in your areas (memory)
+        chars |= set((ID.cfg().get("mine") or {}).keys()) | set(ID.OTHERS)
         for c in chars:
             if isinstance(c, str) and c.strip():
                 out.setdefault(c.strip(), "<character>")

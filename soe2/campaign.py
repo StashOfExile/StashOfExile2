@@ -113,6 +113,11 @@ def cfg():
             for old in [k for k in rw if k in OLD_IDS]:
                 rw.setdefault(OLD_IDS[old], rw.pop(old))
             run["ask"] = [OLD_IDS.get(x, x) for x in run.get("ask") or []]
+    if not c.get("id_330"):                              # 3.3.0: runs from before Ranked and Personal count as
+        c["id_330"] = True                               # started at The Riverbank (ranked() still drops a party
+        for run in (c.get("chars") or {}).values():      # member's name)
+            if isinstance(run, dict):
+                run.setdefault("from_start", True)
     return c
 
 
@@ -273,11 +278,28 @@ def current_char():
     sb = _sandbox()
     if sb:
         return sb["char"]
-    from . import focus as F
-    st = F.cfg().get("state") or {}
-    tr = SETTINGS.get("tracker") or {}
-    # 3.1.0: the name you typed comes first - the last one to level up can be a party member
-    return ((tr.get("character") or "").strip() or st.get("last_char") or cfg().get("last_char") or "")
+    from . import identity as ID                # 3.3.0: one answer for the whole app - never a party member
+    return ID.current()
+
+
+def mark_personal(name):
+    """The act this character is in is Personal: its time may hold another character's minutes."""
+    run = cfg()["chars"].get(name or "")
+    if isinstance(run, dict) and run.get("act"):
+        p = run.setdefault("personal", [])
+        if run["act"] not in p:
+            p.append(run["act"])
+            save()
+
+
+def ranked(name, run, key):
+    """Does this act's time go to the leaderboards? One character, known from The Riverbank to the act's end: not a
+    name that joined your areas, not a run picked up partway, not an act marked Personal."""
+    from . import identity as ID
+    base = str(name or "").split(" #")[0]
+    if ID.is_other(base) or not isinstance(run, dict):
+        return False
+    return bool(run.get("from_start")) and key not in (run.get("personal") or [])
 
 
 def char_level():
@@ -642,8 +664,8 @@ def log_event(kind, ts, data, area_kind=None):
         return None
     if kind == "level":                                      # (party members level up in the log too: your name, if
         who, lvl = data.get("who") or "", int(data.get("level") or 0)        # set, else the last one)
-        mine = ((SETTINGS.get("tracker") or {}).get("character") or "").strip()
-        if who and (not mine or mine.lower() == who.lower()):
+        from . import identity as ID
+        if who and ID.is_me(who):
             if _sandbox():
                 _sandbox()["char"] = who                          # (a rebuild: the name from here on)
             lv = c.setdefault("char_levels", {})
@@ -772,6 +794,8 @@ def _enter(run, name, area_id, level, ts, id_act=None):
     if run.get("done") and _new_campaign(key, step, area_id, level):
         run = _restart(run)                                   # 3.0.6: a new character on a finished (nameless) run
         run["last_ts"] = ts
+    if _new_campaign(key, step, area_id, level) and not any((run.get("secs") or {}).values()):
+        run["from_start"] = True                              # 3.3.0: timed from The Riverbank - it can be Ranked
     left, fight = run.get("area"), run.get("fight")
     _zone_done(run, ts)                                       # 2.124.0: the zone you left, timed; this one starts
     run["away"] = False
@@ -1118,6 +1142,14 @@ def splits(run=None):
     best = cfg()["best"].get(_league(), {})
     return [(a.get("name"), run["secs"].get(a["key"]), best.get(a["key"]), run.get("act") == a["key"])
             for a in acts()]
+
+
+def split_marks(run=None):
+    """Ranked or Personal for each act of this run, in splits()' order: True / False, or None with no time yet."""
+    from . import identity as ID
+    run = run or char()
+    name = ID.current()
+    return [None if run["secs"].get(a["key"]) is None else ranked(name, run, a["key"]) for a in acts()]
 
 
 def fmt(secs):

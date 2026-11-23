@@ -303,7 +303,10 @@ class OverlayA8:
             t.ok, t.warn = P["big"], P.get("accent") or P["head"]
         for it in (lab.item, t.item):
             cv.addtag_withtag(tag, it)
-        self.ov_tip(cv, tag, tip, hand=False)
+        self.ov_tip(cv, tag, tip, hand=key == "c_you")
+        if key == "c_you":                                   # 3.3.0 owner: a click lists your characters
+            from .merged_page import click_not_drag
+            click_not_drag(cv, tag, self.camp_you_menu)
         return t
 
     def a8_camp_plan(self, cv, P, room):

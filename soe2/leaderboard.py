@@ -170,6 +170,7 @@ def campaign_entries():
     run's (else the current one), the class whatever is known; the bests rebuilt from the log (best_secs, best_total)
     count too."""
     from . import campaign as CP
+    from . import identity as ID
     cls = classes()
     acts = CP.acts()
     names = {a["key"]: a.get("name") or a["key"] for a in acts}
@@ -180,7 +181,10 @@ def campaign_entries():
             continue
         own = run.get("secs") if isinstance(run.get("secs"), dict) else {}
         # (the act you're in isn't finished - unless the whole run is done)
-        secs = {k: v for k, v in own.items() if isinstance(v, (int, float)) and v > 0
+        if ID.is_other(str(ch).split(" #")[0]):               # 3.3.0: a run saved under a party member's name
+            continue
+        # 3.3.0 (owner): only Ranked acts are sent - one character, from The Riverbank to the act's end
+        secs = {k: v for k, v in own.items() if isinstance(v, (int, float)) and v > 0 and CP.ranked(ch, run, k)
                 and (run.get("done") or k != run.get("act") or k in (run.get("closed") or []))}
         at = run.get("secs_at") or {}
         best_at = run.get("best_at") or {}
