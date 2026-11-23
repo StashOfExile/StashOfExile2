@@ -136,18 +136,65 @@ class Sharing(unittest.TestCase):
 
 
 class Worth(unittest.TestCase):
-    def test_what_is_off_comes_first(self):
+    def test_cards_then_what_is_off(self):
         from soe2 import features as FEAT
-        key = FEAT.ALL[0]["key"]
-        with mock.patch.object(FEAT, "on", lambda k: k != key), mock.patch.object(FEAT, "helper_on", lambda k: True):
+        with mock.patch.object(FEAT, "on", lambda k: True), mock.patch.object(FEAT, "helper_on", lambda k: True):
             items = DP.worth_items()
-        self.assertEqual(items[0][0], f"{FEAT.ALL[0]['name']} is off")
-        self.assertEqual(items[0][3:], ("settings", "General"))
-        for title, line, btn, _page, _tab in items:
-            self.assertNotIn("(", title + line + btn)
-        with mock.patch.object(FEAT, "on", lambda k: True), mock.patch.object(FEAT, "helper_on", lambda k: False):
-            titles = [i[0] for i in DP.worth_items()]
-        self.assertIn("Temple Helper is off", titles)
+        self.assertEqual(len(items), len(DP.WORTH))
+        self.assertEqual(items[0]["button"], "Open Leaderboards")
+        plan = next(i for i in items if i["name"] == "League Plan")
+        self.assertEqual(plan["head"], "Got ADHD? Lose track of your goals?")
+        self.assertIn("one list", plan["body"])
+        for it in items:
+            text = " ".join((it["head"], it["body"], it["punch"], it["button"]))
+            self.assertNotIn("(", text)
+            for w in ("powerful", "unlock", "seamless", "you should", "must"):
+                self.assertNotIn(w, text.lower())
+        key = FEAT.ALL[0]["key"]
+        with mock.patch.object(FEAT, "on", lambda k: k != key), mock.patch.object(FEAT, "helper_on", lambda k: False):
+            more = DP.worth_items()
+        heads = [i["head"] for i in more[len(DP.WORTH):]]
+        self.assertIn(f"{FEAT.ALL[0]['name']} is switched off.", heads)
+
+    def test_a_card_stays_long_enough_to_read(self):
+        for it in DP.worth_items():
+            secs = DP.worth_secs(it)
+            self.assertGreaterEqual(secs, 14)
+            self.assertLessEqual(secs, 30)
+        long_one = max(DP.worth_items(), key=lambda i: len(i["body"]))
+        short_one = min(DP.worth_items(), key=lambda i: len(i["body"] + i["head"] + i["punch"]))
+        self.assertGreater(DP.worth_secs(long_one), DP.worth_secs(short_one))
+
+    def test_it_turns_by_itself_but_not_while_paused(self):
+        d = DP.Dashboard.__new__(DP.Dashboard)
+        d.winfo_exists = lambda: True
+        d.after = lambda ms, fn: "job"
+        d.later = mock.Mock()
+        d._worth_bar = mock.Mock()
+        d._wl_box, d._wl_secs, d._wl_n, d._wl_i, d._wl_t, d._wl_job = (0, 0, 9, 9), 1.0, 8, 3, 0.0, None
+        old = SETTINGS.get("dash_worth_off")
+        SETTINGS["dash_worth_off"] = False
+        try:
+            d._worth_paused = lambda: True                  # the mouse is on it, or the app is in the background
+            for _ in range(10):
+                d._worth_tick()
+            self.assertEqual((d._wl_i, d._wl_t), (3, 0.0))
+            d.later.assert_not_called()
+            d._worth_paused = lambda: False
+            d._worth_tick()
+            self.assertEqual(d._wl_i, 3)
+            d._worth_bar.assert_called()
+            d._worth_tick()
+            self.assertEqual((d._wl_i, d._wl_t), (4, 0.0), "after its time, the next card")
+            d.later.assert_called_once()
+            d._worth_step(2)
+            self.assertEqual(d._wl_i, 6, "a click on Up next jumps there")
+            SETTINGS["dash_worth_off"] = True
+            d._wl_job = None
+            d._worth_tick()
+            self.assertIsNone(d._wl_job, "hidden: nothing keeps running")
+        finally:
+            SETTINGS["dash_worth_off"] = old
 
 
 @unittest.skipUnless(os.environ.get("DISPLAY") or sys.platform == "win32", "needs a display")

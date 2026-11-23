@@ -12,7 +12,7 @@ from .config import SETTINGS
 
 PAD, GAP, R = 32, 16, 8           # page margin, gap between cards, card corner (rule 24: soft, smooth)
 TILE_H, START_H, LIST_H = 116, 150, 252
-MOVERS_H, WORTH_H = 252, 196
+MOVERS_H, WORTH_H, WORTH_H_NARROW = 252, 196, 260
 
 
 def day_start(now=None):
@@ -120,39 +120,65 @@ def share_prompt_answer(app, yes):
         save_json("settings.json", SETTINGS)
 
 
-WORTH = (   # things players miss: (page key, tab or None, name, one line)
-    ("regex", None, "Regex", "Build a stash search for the mods you want, and paste it in game."),
-    ("pricecheck", "Favorites", "Favorites", "Star an item on Price Checks to keep its search one click away."),
-    ("rates", "Stockpile", "Stockpile", "List what to buy early in a league, and what to pay for it."),
-    ("rates", "Exchange Helper", "Compare a currency", "See what one currency is worth in every other."),
-    ("plan", None, "League Plan", "Your league goals in one list, with the next one on the overlay."),
-    ("maps", None, "Map Library", "Rank maps by layout and boss, and see the community's ranks."),
-    ("leaderboards", None, "Leaderboards", "Your best map, boss and campaign times, against everyone's."),
-    ("ratemods", None, "Mod Lab", "Rate mods to make price checks more accurate."),
-    ("search", None, "Game Search", "Look up any skill, item or mod in the game's own data."),
+# 3.3.0 owner: Worth a look as a carousel. Each card: the surprising part first, then how it works, then the best
+# bit - told the way you'd show a friend something cool. No sales words, nothing telling you what to do.
+# (page, tab, line icon, name, headline, how it works, the best bit)
+WORTH = (
+    ("leaderboards", None, "trophy", "Leaderboards", "You already have a best time. You just haven't seen it.",
+     "The game writes down every zone you enter. So the app already knows how long each map, boss and act took "
+     "you, without you pressing anything.", "Your best sits next to everyone else's."),
+    ("regex", None, "regex", "Regex", "Stop reading 60 items one by one.",
+     "Tick the mods you care about and Regex writes the stash search for you. Paste it into the game's search box.",
+     "Every item that matches lights up. One paste, whole tab."),
+    ("plan", None, "flag", "League Plan", "Got ADHD? Lose track of your goals?",
+     "League Plan keeps your league goals in one list and puts the next one on the overlay, so it's always in the "
+     "corner of your eye. It reads levels, maps and boss runs from the game's log, and your net worth from Wealth.",
+     "Type \"Level 90\" once. The bars fill themselves."),
+    ("rates", "Stockpile", "coins", "Stockpile", "It watches the price so you don't have to.",
+     "Put an item on your Stockpile with the most you'd pay. The app checks poe.ninja for you.",
+     "When the price drops under your number, it tells you next time you're back in town."),
+    ("pricecheck", "Favorites", "star", "Favorites", "Checking the same item every day? Star it.",
+     "A starred item keeps its whole trade search, filters and all. One click runs it again at today's prices.",
+     "No retyping anything."),
+    ("maps", None, "map", "Map Library", "Not every map is worth your waystone.",
+     "Map Library ranks maps by layout and boss. Add your own ranks, and see how everyone else ranked them.",
+     "Know before you slot it."),
+    ("ratemods", None, "rate", "Mod Lab", "You know which mods are good. Tell the price checker.",
+     "Rate mods from S to F. Your ratings join everyone else's, and price checks learn which mods buyers pay for.",
+     "A few minutes makes every price check sharper."),
+    ("search", None, "search", "Game Search", "Every skill, item and mod in the game, one search box.",
+     "Game Search looks through the game's own data, thousands of entries, as fast as you type.",
+     "No wiki tab needed."),
 )
 
 
 def worth_items():
-    """Worth a look: what you have off first, then what players often miss. -> [(title, line, button, page, tab)]"""
+    """Worth a look's cards: what players often miss, then what you have switched off.
+    -> [{page, tab, icon, name, head, body, punch, button}]"""
     from . import features as FEAT
-    out = []
+    out = [{"page": p, "tab": tab, "icon": ic, "name": name, "head": head, "body": body, "punch": punch,
+            "button": f"Open {name}"} for p, tab, ic, name, head, body, punch in WORTH]
     for g in FEAT.ALL:
         if not FEAT.on(g["key"]):
-            out.append((f"{g['name']} is off", g["what"], "Turn on in Settings", "settings", "General"))
+            out.append({"page": "settings", "tab": "General", "icon": "layers", "name": g["name"],
+                        "head": f"{g['name']} is switched off.", "body": g["what"], "punch": "",
+                        "button": "Turn on in Settings"})
     if FEAT.on("overlay"):
         for key, (_d, _k, name) in FEAT.HELPER_SWITCHES.items():
             try:
                 if not FEAT.helper_on(key):
-                    out.append((f"{name} is off", "A helper over the game. Its switch is in Overlay › Helpers.",
-                                "Open Helpers", "tracker", "Helpers"))
+                    out.append({"page": "tracker", "tab": "Helpers", "icon": "layers", "name": name,
+                                "head": f"{name} is switched off.", "body": "A helper that sits over the game.",
+                                "punch": "Its switch is in Overlay › Helpers.", "button": "Open Helpers"})
             except Exception:
                 buglog.caught()
-    mods = {m for g in FEAT.ALL if FEAT.on(g["key"]) for m in g.get("modules", ())}
-    for page, tab, name, line in WORTH:
-        if page in mods or page in ("rates", "plan", "maps", "leaderboards", "ratemods", "pricecheck"):
-            out.append((name, line, f"Open {name}", page, tab))
     return out
+
+
+def worth_secs(item):
+    """How long a card stays up: long enough to read all of it at an easy pace, never under 14 seconds."""
+    words = len(" ".join((item["head"], item["body"], item["punch"])).split())
+    return max(14.0, 6.0 + words / 2.6)
 
 
 class Dashboard(tk.Canvas):
@@ -314,22 +340,16 @@ class Dashboard(tk.Canvas):
 
     def _extras(self, x0, y, x1, stack):
         from . import features as FEAT
-        show_mv = FEAT.on("rates") if "rates" in FEAT.cfg() else True
-        show_tips = not SETTINGS.get("dash_worth_off")
-        if not (show_mv or show_tips):
-            return y
-        full = x1 - x0
-        both = show_mv and show_tips
-        mw = full if (stack or not both) else (full - GAP) * 0.62
-        if show_mv:
-            self._movers(x0, y, x0 + mw)
-            if stack and both:
-                y += MOVERS_H + GAP
-        if show_tips:
-            tx0 = x0 if (stack or not both) else x0 + mw + GAP
-            self._worth(tx0, y, x1, MOVERS_H if (both and not stack) else WORTH_H)
-            return y + (MOVERS_H if (both and not stack) else WORTH_H) + GAP
-        return y + MOVERS_H + GAP
+        if not SETTINGS.get("dash_worth_off"):
+            h = WORTH_H_NARROW if stack else WORTH_H
+            self._worth(x0, y, x1, h, stack)
+            y += h + GAP
+        else:
+            self._wl_box = None
+        if FEAT.on("rates") if "rates" in FEAT.cfg() else True:
+            self._movers(x0, y, x1)
+            y += MOVERS_H + GAP
+        return y
 
     def _movers(self, x0, y, x1):
         from . import movers as MV
@@ -398,47 +418,119 @@ class Dashboard(tk.Canvas):
         save_json("settings.json", SETTINGS)
         self.later()
 
-    def _worth(self, x0, y, x1, h):
+    def _worth(self, x0, y, x1, h, stack=False):
+        """Worth a look (owner's pick D): one card featured, the next two beside it. It moves on by itself."""
+        from . import lineicons
         t = TH.ST.theme
         head = TH.head_font(t)
-        mut, strong = t.c("text_muted"), t.c("text_strong")
-        self._card(x0, y, x1, y + h)
-        self.create_text(x0 + 20, y + 18, text="Worth a look", anchor="nw", font=(head, 16), fill=strong)
-        hid = self.create_text(x1 - 20, y + 22, text="✕", anchor="ne", font=("Segoe UI", 10),
-                               fill=t.c("text") if self.hover == "wl_hide" else mut, tags=("wl_hide",))
-        del hid
-        self.acts["wl_hide"] = self._worth_hide
-        self.tips["wl_hide"] = "Hide Worth a look. Its switch is in Settings › General › Window"
+        mut, strong, txt, acc = t.c("text_muted"), t.c("text_strong"), t.c("text"), t.c("accent")
+        self._wl_box = (x0, y, x1, y + h)
         try:
             items = worth_items()
         except Exception:
             buglog.caught()
             items = []
         if not items:
-            self.create_text(x0 + 20, y + 60, text="Nothing new to show.", anchor="nw", font=("Segoe UI", 10), fill=mut)
             return
-        i = self._wl_i = getattr(self, "_wl_i", int(time.time() // 86400)) % len(items)
-        title, line, btn, page, tab = items[i]
-        self.create_text(x0 + 20, y + 58, text=title, anchor="nw", font=("Segoe UI", 12, "bold"), fill=strong,
-                         width=x1 - x0 - 40)
-        self.create_text(x0 + 20, y + 86, text=line, anchor="nw", font=("Segoe UI", 10), fill=mut, width=x1 - x0 - 40)
+        n = len(items)
+        i = self._wl_i = getattr(self, "_wl_i", int(time.time() // 86400)) % n
+        it = items[i]
+        self._wl_n, self._wl_secs = n, worth_secs(it)
+        side = 0 if stack else min(300, (x1 - x0) * 0.3)
+        fx1 = x1 - side - (GAP if side else 0)
+        self._card(x0, y, fx1, y + h)
+        hid = self.create_text(fx1 - 20, y + 16, text="✕", anchor="ne", font=("Segoe UI", 10),
+                               fill=txt if self.hover == "wl_hide" else mut, tags=("wl_hide",))
+        del hid
+        self.acts["wl_hide"] = self._worth_hide
+        self.tips["wl_hide"] = "Hide Worth a look. Its switch is in Settings › General › Window"
+        TH.round_rect(self, x0 + 20, y + 20, x0 + 68, y + 68, 12, fill=t.c("surface_high"), outline="")
+        img = lineicons.icon(self, it["icon"], 26, acc)
+        if img:
+            self._wl_imgs = [img]
+            self.create_image(x0 + 44, y + 44, image=img)
+        tw = fx1 - x0 - 88 - 48
+        self.create_text(x0 + 88, y + 20, text=f"WORTH A LOOK  ·  {it['name'].upper()}", anchor="nw",
+                         font=("Segoe UI", 9, "bold"), fill=mut)
+        hd = self.create_text(x0 + 88, y + 38, text=it["head"], anchor="nw", font=(head, 16), fill=strong, width=tw)
+        by = self.bbox(hd)[3] + 8
+        bd = self.create_text(x0 + 88, by, text=it["body"], anchor="nw", font=("Segoe UI", 10), fill=mut, width=tw)
+        if it["punch"]:
+            self.create_text(x0 + 88, self.bbox(bd)[3] + 4, text=it["punch"], anchor="nw",
+                             font=("Segoe UI", 10, "bold"), fill=txt, width=tw)
         sh = getattr(self.app, "shell", None)
-        by = y + h - 44 - 20
-        self._button(x1 - 20, by, btn, "wl_go",
-                     (lambda: (sh.open_tab(page, tab) if tab else sh.open(page)) if sh else None))
-        px = x0 + 20
-        for tag, glyph, step, tip in (("wl_prev", "‹", -1, "The one before"), ("wl_next", "›", 1, "The next one")):
-            lit = self.hover == tag
-            TH.round_rect(self, px, by + 6, px + 32, by + 38, 6, fill=t.c("surface_high") if lit else "",
-                          outline=t.c("border_light") if lit else t.c("border"), tags=(tag,))
-            self.create_text(px + 16, by + 21, text=glyph, font=("Segoe UI", 12, "bold"), fill=t.c("text"), tags=(tag,))
-            self.acts[tag] = lambda s=step, n=len(items): self._worth_step(s, n)
-            self.tips[tag] = tip
-            px += 40
-        self.create_text(px + 4, by + 22, text=f"{i + 1} of {len(items)}", anchor="w", font=("Segoe UI", 9), fill=mut)
+        self._button(fx1 - 20, y + h - 44 - 16, it["button"], "wl_go",
+                     (lambda p=it["page"], tab=it["tab"]: (sh.open_tab(p, tab) if tab else sh.open(p)) if sh else None))
+        self.create_text(x0 + 88, y + h - 38, text=f"{i + 1} of {n}", anchor="w", font=("Segoe UI", 9), fill=mut)
+        # the time left: a thin line along the bottom, moved by _worth_tick - nothing else is redrawn for it
+        self._wl_bar = self.create_line(x0 + 12, y + h - 2, x0 + 12, y + h - 2, fill=acc, width=2)
+        self._wl_span = (x0 + 12, fx1 - 12, y + h - 2)
+        self._worth_bar()
+        if side:                                             # up next: the two after it; a click jumps there
+            sx0 = fx1 + GAP
+            rh = (h - GAP - 24) / 2
+            self.create_text(sx0, y + 4, text="UP NEXT", anchor="nw", font=("Segoe UI", 8, "bold"), fill=mut)
+            for k in (1, 2):
+                nx = items[(i + k) % n]
+                tag = f"wl_n{k}"
+                ry = y + 24 + (k - 1) * (rh + GAP)
+                lit = self.hover == tag
+                TH.round_rect(self, sx0, ry, x1, ry + rh, 8, fill=t.c("surface_high") if lit else t.c("surface"),
+                              outline=t.c("border_light") if lit else t.c("border"), tags=(tag,))
+                im = lineicons.icon(self, nx["icon"], 20, acc)
+                if im:
+                    self._wl_imgs.append(im)
+                    self.create_image(sx0 + 24, ry + rh / 2, image=im, tags=(tag,))
+                self.create_text(sx0 + 48, ry + rh / 2, text=nx["name"], anchor="w", font=("Segoe UI", 10, "bold"),
+                                 fill=txt, width=x1 - sx0 - 60, tags=(tag,))
+                self.acts[tag] = lambda s=k: self._worth_step(s)
+                self.tips[tag] = "Show this one now"
+        self._worth_arm()
 
-    def _worth_step(self, step, n):
-        self._wl_i = (getattr(self, "_wl_i", 0) + step) % max(1, n)
+    def _worth_bar(self):
+        try:
+            a, b, yy = self._wl_span
+            f = min(1.0, getattr(self, "_wl_t", 0.0) / max(1.0, self._wl_secs))
+            self.coords(self._wl_bar, a, yy, a + (b - a) * f, yy)
+        except (tk.TclError, AttributeError):
+            pass
+
+    def _worth_paused(self):
+        """No turning while you're reading it (the mouse is on it), while the Dashboard isn't on screen, or while
+        the app is in the background - nothing runs then but this one check."""
+        box = getattr(self, "_wl_box", None)
+        if not box or not self.winfo_viewable():
+            return True
+        try:
+            if self.app.root.focus_displayof() is None:
+                return True
+            px = self.canvasx(self.winfo_pointerx() - self.winfo_rootx())
+            py = self.canvasy(self.winfo_pointery() - self.winfo_rooty())
+        except (tk.TclError, AttributeError, KeyError):
+            return True
+        return box[0] <= px <= box[2] and box[1] <= py <= box[3]
+
+    WL_TICK = 0.5
+
+    def _worth_arm(self):
+        if getattr(self, "_wl_job", None) is None:
+            self._wl_job = self.after(int(self.WL_TICK * 1000), self._worth_tick)
+
+    def _worth_tick(self):
+        self._wl_job = None
+        if not self.winfo_exists() or SETTINGS.get("dash_worth_off") or not getattr(self, "_wl_box", None):
+            return                                           # (armed again by the next draw that shows the card)
+        if not self._worth_paused():
+            self._wl_t = getattr(self, "_wl_t", 0.0) + self.WL_TICK
+            if self._wl_t >= self._wl_secs:
+                self._worth_step(1)
+            else:
+                self._worth_bar()
+        self._worth_arm()
+
+    def _worth_step(self, step, n=None):
+        self._wl_i = (getattr(self, "_wl_i", 0) + step) % max(1, n or getattr(self, "_wl_n", 1))
+        self._wl_t = 0.0
         self.later()
 
     def _worth_hide(self):
