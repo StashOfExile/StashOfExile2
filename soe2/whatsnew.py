@@ -53,6 +53,7 @@ NOTES = {
                 ("•", "Added option to skip mods that don't affect price in Mod Lab"),
                 ("•", "Added Top Movers to the Dashboard"),
                 ("•", "Added Worth a look to the Dashboard"),
+                ("•", "Added more greetings to the Dashboard"),
                 ("•", "Added data sharing prompt to the Dashboard"),
                 ("•", "Added Ranked and Personal marks to campaign act times"),
                 ("•", "Added character list to the overlay's level"),

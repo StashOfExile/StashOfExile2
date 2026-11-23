@@ -187,6 +187,10 @@ class SettingsPage:
             var.set(PC_SHOW.get(self.pc_show_get(), "In the app"))
         self.pc_where_paint()
 
+    def greet_switch(self):
+        SETTINGS["greet_playful"] = bool(self.greet_var.get())
+        save_json("settings.json", SETTINGS)
+
     def dash_worth_switch(self):
         SETTINGS["dash_worth_off"] = not self.dash_worth_var.get()
         save_json("settings.json", SETTINGS)             # (the Dashboard draws itself each time it is opened)
@@ -347,6 +351,13 @@ class SettingsPage:
         ttk.Checkbutton(drow, text="Show Worth a look on the Dashboard", variable=self.dash_worth_var,
                         command=self.dash_worth_switch).pack(side="left")
         tk.Label(drow, text="Features you have off, or may not know.", bg=P2, fg=C["muted"],
+                 font=("Segoe UI", 9)).pack(side="left", padx=(8, 0))
+        grow = tk.Frame(row.master, bg=P2)              # 3.3.0 owner: the Dashboard's greeting
+        grow.pack(fill="x", pady=(8, 0))
+        self.greet_var = tk.BooleanVar(value=SETTINGS.get("greet_playful", True) is not False)
+        ttk.Checkbutton(grow, text="Playful greetings on the Dashboard", variable=self.greet_var,
+                        command=self.greet_switch).pack(side="left")
+        tk.Label(grow, text="Off: Good morning, Good afternoon or Good evening.", bg=P2, fg=C["muted"],
                  font=("Segoe UI", 9)).pack(side="left", padx=(8, 0))
         wrow = tk.Frame(row.master, bg=P2)              # 2.116.0 (P10): from Price checking › Advanced fine tuning -
         wrow.pack(fill="x", pady=(8, 0))                # they're about the app's windows, not prices

@@ -31,9 +31,10 @@ def ago(t, now=None):
     return f"{s // 86400} d ago"
 
 
-def greeting(now=None):
-    h = time.localtime(now or time.time()).tm_hour
-    return "Good morning" if 5 <= h < 12 else "Good afternoon" if 12 <= h < 18 else "Good evening"
+def greeting(now=None, name=""):
+    """The hello on top: greetings.py has the lines (3.3.0)."""
+    from . import greetings as GR
+    return GR.greeting(name, now)
 
 
 # ---------------------------------------------------------------- the numbers (each guarded: a page never breaks)
@@ -589,10 +590,18 @@ class Dashboard(tk.Canvas):
         y = PAD
         try:                                                 # your community name, if you gave one
             from . import board as B
-            who = ((B.session().get("user") or {}).get("name") or "").strip() or "Exile"
+            who = ((B.session().get("user") or {}).get("name") or "").strip()
         except Exception:
-            who = "Exile"
-        self.create_text(PAD, y, text=f"{greeting(now)}, {who}", anchor="nw", font=(head, 28), fill=strong)
+            who = ""
+        try:
+            hello = greeting(now, who)
+        except Exception:
+            buglog.caught()
+            hello = f"Good day, {who or 'Exile'}"
+        room = max(240, W - 2 * PAD - 300)                   # (the two buttons sit at the right)
+        gid = self.create_text(PAD, y, text=hello, anchor="nw", font=(head, 28 if len(hello) <= 34 else 20),
+                               fill=strong, width=room)
+        hello_bottom = self.bbox(gid)[3]
         sub, nudge = stash_line(wn, now) if vis["wealth"] else ("", "")
         # 3.3.0 owner: "12 exiles online · 340 this week" under the greeting; its hover says what it counts
         from . import usage as US
@@ -601,7 +610,7 @@ class Dashboard(tk.Canvas):
         except Exception:
             buglog.caught()
             on_now = on_week = ""
-        ly = y + 50
+        ly = max(y + 50, hello_bottom + 6)
         if on_now or on_week:
             oid = self.create_text(PAD, ly, text=on_now, anchor="nw", font=("Segoe UI", 12), fill=t.c("accent_2"),
                                    tags=("online",))
