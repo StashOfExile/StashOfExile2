@@ -327,6 +327,13 @@ REMOVED = [
       "wealth_add_pc_tab", "wealth_pc_tab", "wealth_pc_refresh", "_wealth_add", "wealth_toggle_tab",
       "wealth_remove_tab", "wealth_open_trade", "wealth_buttons", "_w_tab_row", "_w_by_tab", "wealth_show_tab_result",
       "wealth_setup_layout", "wealth_save_account", "wealth_skip_tab")),
+    ("3.3.0", "League Plan's phases, Farm plan and Show on overlay (owner's redraw: one list, Next up first); the "
+              "Stockpile tab there (owner: it is on Exchange Rates)",
+     ("When I reach maps", "Long term", "I'm here now", "Farm plan", "Done, next ›", "Show on overlay",
+      "ADD A GOAL TO THIS PHASE", "ADD A FARM", "✓ On the overlay", "the phase you're in"),
+     ("gp_phase_pick", "gp_view_pick", "gp_farm_next", "_gp_farms", "_gp_farm_rows", "gp_add_farm", "gp_farm_choices",
+      "add_farm", "farm_now", "farm_done", "farm_text", "move_farm", "remove_farm", "gp_set_now", "set_phase",
+      "goals_of", "gp_summary_text", "phase_name", "gp_target_hint", "DONE_WHEN")),
     ("3.3.0", "Favorites as its own page and the Add to favorites button (owner: a Price Checks tab and ☆ Favorite); "
               "Vaal Orbs in Prices in (owner: the same choices as the trade filters' Priced in)",
      ("Add to favorites", "★ In favorites", "Trade › Favorites", "Vaal Orbs"),

@@ -23,6 +23,10 @@ VERSION HISTORY
        - Every equipment base has a picture link, from RePoE's export; currency and the rest from the trade site's
          list. Favorites is a Price Checks tab; ☆ Favorite; Prices in has the trade filters' Priced in choices.
        - Test builds never update themselves.
+       - League Plan redrawn: one ordered list with Next up first; goals count levels, acts, maps, tiers, boss arena
+         runs, net worth from Wealth, div an hour from Map Profit, hours on a strat and the Stockpile; no phases and
+         no Farm plan. The Stockpile is an Exchange Rates tab. The campaign route card counts steps done and filters
+         to rewards or bosses. Mod Lab: Not a price mod, a unique's fixed lines left out, uniques fold.
   3.2.0
        - Suggest a Feature next to Report a bug; Rate Mods is Mod Lab, with a bigger intro, pictures and a Next button
          for a mod rated by roll; League Plan's pokes are Reminders; an old page name still finds its page.

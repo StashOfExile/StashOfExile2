@@ -378,9 +378,9 @@ class OverlayParts:
             return self._goalbar_show(main, cv, H, geo)
         mid = mids[rows.index("focus")]
         ftext, fprog = self.focus_line()
-        cv.create_text(lft, mid, text="▸ NOW", anchor="w", fill=P["head"], font=(P["hfont"], self._hf(9), "bold"),
+        cv.create_text(lft, mid, text="▸ NEXT", anchor="w", fill=P["head"], font=(P["hfont"], self._hf(9), "bold"),
                        tags=("mg",))
-        nx = lft + fm.measure("▸ NOW ") + 8
+        nx = lft + fm.measure("▸ NEXT ") + 8
         pw = 0 if fprog is None else self._hf(56)
         from .campaign_ui import FitText
         ft = self._mg_text(cv, P, nx, mid, "focus", f, cls=FitText)

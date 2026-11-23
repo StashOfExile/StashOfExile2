@@ -1,13 +1,12 @@
-"""3.2.0 League Plan rework (owner's mockups, 2026-11-22): Done when instead of Target, the build lock gone, a Farm plan,
-reminders cut down, Snooze a real button. 3.2.1 (owner's checklist): in town only, numbers in range, a Done box, the
-overlay mark in words, two strat lists and Done, next instead of a farm Goal, quiet hours of an hour or more.
+"""3.3.0 League Plan redraw (owner's mockups, 2026-11-23): one ordered list, Next up, goals counted from the game's
+log, Wealth, Map Profit and the Stockpile; no phases, no Farm plan; the Stockpile on Exchange Rates; the campaign
+route card's count and filter.
 
     DISPLAY=:99 python3.12 -m unittest tests.test_league_plan          (or tests/runall.sh)"""
 import os
 import sys
 import tempfile
 import time
-import types
 import unittest
 from unittest import mock
 
@@ -36,289 +35,256 @@ class Fresh(unittest.TestCase):
 
 
 class Migration(Fresh):
-    def test_lock_tone_and_always_on_switches_are_gone(self):
-        SETTINGS["focus"] = {"lock": {"on": True, "character": "Me"},
-                             "pokes": {"tone": "Drill sergeant", "town_only": False, "session_only": False,
-                                       "why": False, "quieter": False, "per_hour": 3},
-                             "goals": [{"id": "a", "text": "Have 10 div", "phase": "start", "done": False,
-                                        "trigger": "weekly", "target_kind": "div", "target": 10.0},
-                                       {"id": "b", "text": "Old div goal", "phase": "start", "done": False,
-                                        "trigger": "town", "target_div": 5.0}],
-                             "farms": [{"strat": None, "name": "Breach", "until": "level 90"}]}
+    def test_phases_and_farms_become_one_list(self):
+        SETTINGS["focus"] = {"phase": "maps", "now": "c",
+                             "goals": [{"id": "a", "text": "Long one", "phase": "long", "done": False},
+                                       {"id": "b", "text": "Start one", "phase": "start", "done": False},
+                                       {"id": "c", "text": "On the overlay", "phase": "maps", "done": False}],
+                             "farms": [{"strat": "s1", "name": "Breach", "secs": 7200},
+                                       {"strat": "s2", "name": "Old", "done": True}],
+                             "stockpile": [{"name": "Divine Orb", "goal": 5, "have": 0}]}
         f = F.cfg()
-        self.assertNotIn("lock", f)
-        for k in F.GONE_POKES:
-            self.assertNotIn(k, f["pokes"])
-        self.assertEqual(f["pokes"]["per_hour"], 3, "your own limits stay")
-        self.assertTrue(f["pokes"]["alert"])
-        self.assertNotIn("farms", f["pokes"], "3.2.1: a farm has no Goal to remind you of")
-        a, b = f["goals"]
-        self.assertEqual(a["trigger"], "town", "once a week is gone")
-        self.assertEqual(F.goal_target(a), (None, None), "the app can't see your divines: you tick it")
-        self.assertEqual(F.goal_target(b), (None, None))
-        self.assertEqual(f["farms"][0]["kind"], "none")
-        self.assertIn("level 90", F.farm_text(f["farms"][0]), "its old words still show")
+        self.assertEqual([g["text"] for g in f["goals"]],
+                         ["On the overlay", "Start one", "Long one", "Farm Breach", F.STOCK_TEXT])
+        for k in ("phase", "now", "farms"):
+            self.assertNotIn(k, f)
+        farm = f["goals"][3]
+        self.assertEqual(F.progress_text(farm), "2 hours so far", "the time on it is kept")
+        self.assertEqual(F.current()["id"], "c")
+        again = [g["id"] for g in F.cfg()["goals"]]
+        self.assertEqual(again, [g["id"] for g in f["goals"]], "once only")
+
+    def test_old_3_2_goals_still_count(self):
+        SETTINGS["focus"] = {"goals": [{"id": "a", "text": "Hit 90", "phase": "start", "done": False,
+                                        "target_kind": "level", "target": 90.0}]}
+        F.state()["levels"], F.state()["last_char"] = {"Me": 74}, "Me"
+        self.assertEqual(F.progress_text(F.goal("a")), "Level 74 of 90")
 
 
-class DoneWhen(Fresh):
-    def test_only_what_the_log_can_see(self):
-        self.assertEqual([k for k, _n, _u in F.DONE_WHEN], ["tick", "level", "act", "reach_maps", "maps"])
-        self.assertEqual([k for k, _n in F.TRIGGERS], ["town"], "3.2.1 owner: in town only")
+class Goals(Fresh):
+    def test_words(self):
+        for kind, n, ref, words in (("level", 90, None, "Level 90"), ("campaign", 1, None, "Finish the campaign"),
+                                    ("act_done", 2, None, "Finish act 2"), ("reach_maps", 1, None, "Reach maps"),
+                                    ("maps", 100, None, "Run 100 maps"), ("tier", 15, None, "Reach tier 15 maps"),
+                                    ("boss", 1, "The Burning Monolith", "Kill the Arbiter of Ash"),
+                                    ("boss", 3, "Dark Domain", "Beat Dark Domain 3 times"),
+                                    ("networth", 10, None, "Reach a net worth of 10 divine"),
+                                    ("divhour", 3, None, "Make 3 div an hour"),
+                                    ("farm", 10, "Delirium T15", "Farm Delirium T15 for 10 hours"),
+                                    ("farm", None, "Delirium T15", "Farm Delirium T15")):
+            self.assertEqual(F.goal_words(kind, n, ref), words)
+            self.assertNotIn("(", words)
 
-    def test_old_triggers_become_town(self):
-        SETTINGS["focus"] = {"lp_320": True, "pokes": {"farms": True},
-                             "goals": [{"id": "a", "text": "x", "phase": "maps", "done": False, "trigger": "never"}],
-                             "farms": [{"strat": "s", "name": "Breach", "kind": "level", "target": 95.0}]}
-        f = F.cfg()
-        self.assertEqual(f["goals"][0]["trigger"], "town")
-        self.assertEqual((f["farms"][0]["kind"], f["farms"][0]["target"]), ("none", None))
-        self.assertNotIn("farms", f["pokes"])
+    def test_start_plan_and_next_up(self):
+        gs = F.use_start_plan()
+        self.assertEqual([g["text"] for g in gs], F.start_plan_words())
+        self.assertEqual(len(gs), 6)
+        self.assertEqual(F.current()["text"], "Finish the campaign")
+        self.assertEqual(F.counts(), (0, 6))
+        self.assertEqual(F.line_text(), ("Finish the campaign", 0.0))
 
-    def test_level_goal_ticks_itself_and_says_so(self):
-        F.cfg()
-        g = F.add_goal("Level my Witch to 90", "start", "town", target_kind="level", target=90)
-        F.log_event("level", {"who": "Witchy", "level": 74})
-        self.assertEqual(F.progress_text(g), "Level 74 of 90")
-        self.assertFalse(g["done"])
-        F.log_event("level", {"who": "Witchy", "level": 90})
-        self.assertTrue(g["done"] and g["auto_done"])
-        self.assertEqual(F.state()["pending"][-1]["kind"], "reached")
-        title, text, why, _b = F.poke_text(F.state()["pending"][-1])
-        self.assertEqual(title, "GOAL REACHED")
-        self.assertIn("log", why)
+    def test_order_skip_and_remove(self):
+        a, b, c = F.add_goal("One"), F.add_goal("Two"), F.add_goal("Three")
+        self.assertTrue(F.move_goal(c["id"], -1))
+        self.assertEqual([g["text"] for g in F.cfg()["goals"]], ["One", "Three", "Two"])
+        self.assertFalse(F.move_goal(a["id"], -1), "already first")
+        self.assertEqual(F.skip(a["id"])["text"], "Three", "the goal after it is Next up")
+        self.assertEqual(F.current(time.time() + 2 * 86400)["text"], "One", "until tomorrow")
+        F.skip(c["id"]), F.skip(b["id"])
+        self.assertEqual(F.current()["text"], "One", "all skipped: the first again")
+        F.remove_goal(a["id"])
+        self.assertEqual(len(F.cfg()["goals"]), 2)
+        self.assertIsNone(F.add_goal("   "), "an empty goal is not added")
 
-    def test_reach_maps_and_maps_run(self):
-        F.cfg()
-        g = F.add_goal("Get to maps", "start", "town", target_kind="reach_maps")
-        m = F.add_goal("Run 2 maps", "maps", "town", target_kind="maps", target=2)
-        self.assertEqual(F.progress_text(g), "Not in maps yet")
-        F.log_event("area", {"area": "MapA", "seed": 1}, "map")
-        self.assertTrue(g["done"])
-        self.assertEqual(F.progress_text(m), "1 of 2 maps")
-        F.log_event("area", {"area": "Hideout", "seed": 2}, "hideout")
-        F.log_event("area", {"area": "MapB", "seed": 3}, "map")
-        self.assertTrue(m["done"])
+    def test_log_ticks_levels_maps_tiers_and_bosses(self):
+        lvl, maps = F.add_goal(kind="level", target=20), F.add_goal(kind="reach_maps")
+        tier = F.add_goal(kind="tier", target=15)
+        boss = F.add_goal(kind="boss", target=1, ref_name="The Burning Monolith")
+        run = F.add_goal(kind="maps", target=2)
+        F.log_event("level", {"who": "Me", "level": 20}, None)
+        self.assertTrue(lvl["done"] and lvl["auto_done"])
+        F.log_event("area", {"area": "MapRugosa", "seed": 5, "level": 70}, "map")
+        self.assertTrue(maps["done"])
+        self.assertEqual(F.progress_text(tier), "Tier 6 of 15")
+        self.assertEqual(F.progress_text(boss), "Not yet")
+        F.log_event("area", {"area": "MapRugosa", "seed": 5, "level": 70}, "map")
+        self.assertEqual(F.progress_text(run), "1 of 2 maps", "back through the portal is the same map")
+        F.log_event("area", {"area": "MapUberBoss_Monolith", "seed": 9, "level": 79}, "map")
+        self.assertTrue(boss["done"], "a run of its arena")
+        self.assertTrue(tier["done"] and run["done"])
+        kinds = [p["kind"] for p in F.state()["pending"]]
+        self.assertIn("reached", kinds)
 
-    def test_act_from_the_campaign_helper(self):
-        F.cfg()
-        g = F.add_goal("Finish act 2", "start", "town", target_kind="act", target=3)
-        with mock.patch.object(F, "act_now", lambda: 2):
-            self.assertEqual(F.progress_text(g), "Act 2 of 3")
-        with mock.patch.object(F, "act_now", lambda: 3):
-            F.check_goals()
-        self.assertTrue(g["done"])
+    def test_an_unticked_goal_stays_unticked(self):
+        boss = F.add_goal(kind="boss", target=1, ref_name="The Burning Monolith")
+        F.log_event("area", {"area": "MapUberBoss_Monolith", "seed": 9, "level": 79}, "map")
+        self.assertTrue(boss["done"])
+        F.set_done(boss["id"], False)
+        F.check_goals()
+        self.assertFalse(boss["done"], "the boss won: the app doesn't tick it again")
 
-    def test_tick_it_myself_never_ticks_itself(self):
-        F.cfg()
-        g = F.add_goal("Buy a Grand Spectrum", "start", "town")
-        F.log_event("level", {"who": "Witchy", "level": 99})
-        self.assertFalse(g["done"])
-        self.assertEqual(F.progress_text(g), "")
+    def test_net_worth_from_wealth(self):
+        g = F.add_goal(kind="networth", target=10)
+        with mock.patch.object(F, "net_worth", lambda: (None, None)):
+            self.assertEqual(F.progress_text(g), "Nothing counted in Wealth yet")
+            self.assertEqual(F.source_text(g), "")
+        with mock.patch.object(F, "net_worth", lambda: (6.2, time.time() - 2 * 3600)):
+            self.assertEqual(F.progress_text(g), "6.2 of 10 div")
+            self.assertEqual(F.source_text(g), "from Wealth · last read 2 hours ago")
+            self.assertAlmostEqual(F.frac(g), 0.62)
+        with mock.patch.object(F, "net_worth", lambda: (12.0, time.time())):
+            self.assertEqual(F.check_goals(), [g])
 
+    def test_div_an_hour_from_map_profit(self):
+        g = F.add_goal(kind="divhour", target=3)
+        from soe2 import mapprofit as MP
+        runs = [{"t": i, "secs": 600, "div": 0.35} for i in range(14)]
+        with mock.patch.object(MP, "log_read", lambda since=0: runs):
+            self.assertAlmostEqual(F.div_hour()[0], 2.1)
+            self.assertEqual(F.progress_text(g), "2.1 div an hour over your last 10 maps")
+        with mock.patch.object(MP, "log_read", lambda since=0: []):
+            self.assertEqual(F.progress_text(g), "No maps in Map Profit yet")
 
-class Farms(Fresh):
-    """3.2.1 owner: no Goal - Done, next moves you on; the one you're on shows its time and maps."""
-    def test_done_next_moves_you_on(self):
-        F.cfg()
-        a = F.add_farm("s1", "Breach", src="Community")
-        b = F.add_farm("s2", "Ritual", src="Official")
-        self.assertIs(F.farm_now(), a)
-        self.assertIs(F.farm_done(), b)
-        self.assertTrue(a["done"])
-        self.assertIs(F.farm_now(), b)
-        self.assertIsNone(F.farm_done())
-        self.assertIsNone(F.farm_now())
+    def test_farm_counts_hours_while_next_up(self):
+        g = F.add_goal(kind="farm", target=1, ref="s1", ref_name="Delirium T15")
+        t = 1_000_000.0
+        F.log_event("area", {"area": "MapRugosa", "seed": 1, "level": 70}, "map", now=t)
+        F.log_event("area", {"area": "MapRugosa", "seed": 2, "level": 70}, "map", now=t + 540)
+        self.assertEqual(g["secs"], 540)
+        F.log_event("area", {"area": "x", "seed": 1}, "town", now=t + 9000)
+        self.assertEqual(g["secs"], 540, "a long gap is not play")
+        g["secs"] = 3600
+        self.assertEqual(F.check_goals(), [g])
 
-    def test_hours_and_maps_on_the_one_youre_on(self):
-        F.cfg()
-        a = F.add_farm("s1", "Breach")
-        b = F.add_farm("s2", "Ritual")
-        t = 1_800_000_000.0
-        for i in range(8):                               # 8 log events 8 minutes apart: 56 minutes of play
-            F.log_event("area", {"area": "X", "seed": i}, "other", now=t + i * 480)
-        F.log_event("area", {"area": "MapA", "seed": 20}, "map", now=t + 8 * 480)
-        self.assertFalse(a.get("done"), "no Goal: nothing moves you on by itself")
-        self.assertEqual(F.farm_text(a), "1.1 hours · 1 maps on it so far · from the game's log")
-        self.assertEqual(F.farm_text(b), "", "not the one you're on")
-
-    def test_a_gap_isnt_play(self):
-        F.cfg()
-        a = F.add_farm("s1", "Breach")
-        F.log_event("area", {"area": "X", "seed": 1}, "other", now=1000.0)
-        F.log_event("area", {"area": "X", "seed": 2}, "other", now=1000.0 + 3 * 3600)     # the game was closed
-        self.assertEqual(a["secs"], 0.0)
-
-    def test_farm_on_the_overlay_line(self):
-        F.cfg()
-        F.add_goal("Level to 90", "start", "town")
-        F.add_farm("s1", "Breach")
-        self.assertEqual(F.line_text()[0], "Level to 90 · farm: Breach")
+    def test_stock_up_follows_the_stockpile(self):
+        F.add_stock("Divine Orb", 5)
+        g = next(x for x in F.cfg()["goals"] if x["target_kind"] == "stock")
+        self.assertEqual(g["text"], F.STOCK_TEXT, "the first Stockpile item puts the goal on your plan")
+        F.add_stock("Chaos Orb", 100)
+        self.assertEqual(sum(1 for x in F.cfg()["goals"] if x["target_kind"] == "stock"), 1)
+        self.assertEqual(F.progress_text(g), "0 of 2 bought")
+        F.set_stock_have("Divine Orb", 5)
+        self.assertEqual(F.progress_text(g), "1 of 2 bought")
+        F.set_stock_have("Chaos Orb", 100)
+        self.assertEqual(F.check_goals(), [g])
 
 
 class Reminders(Fresh):
-    def test_always_in_town_while_playing_and_why(self):
-        F.cfg()
-        F.add_goal("Level to 90", "start", "town")
-        now = 1_800_000_000.0
-        F.log_event("area", {"area": "Map", "seed": 1}, "map", now=now)
-        self.assertIsNone(F.due(now + 5, in_town=True, session=False), "in a map: never")
-        F.log_event("area", {"area": "Town", "seed": 2}, "town", now=now + 10)
-        poke = F.due(now + 20, in_town=False, session=False)
-        self.assertEqual(poke["kind"], "milestone")                          # (the first map's)
-        self.assertIsNone(F.due(now + 20 + 2 * F.PLAYING, in_town=True, session=False), "not playing: never")
+    def test_only_next_up_is_brought_back(self):
+        a, b = F.add_goal("One"), F.add_goal(kind="level", target=90)
+        now = time.time()
+        F.state()["seen"], F.state()["where"] = now, "town"
+        p = F.due(now, in_town=True, session=True)
+        self.assertEqual(p, {"kind": "nudge", "goal": a["id"]})
+        title, text, why, btns = F.poke_text(p)
+        self.assertEqual((title, text), ("NEXT UP", "One"))
+        self.assertEqual([k for k, _l in btns], ["ok", "snooze", "done"], "a goal you tick can be ticked from it")
+        self.assertIn("back in town", why)
+        self.assertIsNone(F.due(now + 60, in_town=True, session=True), "not again within 3 hours")
+        F.set_done(a["id"])
+        p = F.due(now + 4 * 3600, in_town=True, session=True)
+        self.assertEqual(p["goal"], b["id"])
+        self.assertEqual([k for k, _l in F.poke_text(p)[3]], ["ok", "snooze"])
 
-    def test_snooze_button_and_gentle(self):
-        F.cfg()
-        g = F.add_goal("Level to 90", "start", "town")
-        title, _text, why, buttons = F.poke_text({"kind": "nudge", "goal": g["id"]})
-        self.assertEqual(title, "A NUDGE FROM YOUR PLAN")
-        self.assertTrue(why.startswith("Why now:"))
-        self.assertEqual([k for k, _l in buttons], ["done", "snooze", "nottoday"])
-        self.assertEqual(dict(buttons)["snooze"], "Snooze · 60 min")
-        F.answer({"kind": "nudge", "goal": g["id"]}, "snooze", now=1000.0)
-        self.assertEqual(g["snooze"], 1000.0 + 3600)
-
-    def test_quiet_hours_are_yours(self):
-        pk = {"quiet_on": True, "quiet": [1, 5]}
-        at = time.mktime((2026, 11, 22, 3, 0, 0, 0, 0, -1))
-        self.assertTrue(F._quiet(pk, at))
-        self.assertFalse(F._quiet(dict(pk, quiet=[22, 1]), at))
+    def test_not_in_a_map(self):
+        F.add_goal("One")
+        self.assertIsNone(F.due(time.time(), in_town=False, session=True))
 
 
-class PageWords(unittest.TestCase):
-    def test_no_lock_no_tone_and_the_words(self):
-        src = open(os.path.join(ROOT, "soe2", "plan_page.py"), encoding="utf-8").read()
-        for gone in ("_gp_lock", "Build lock", "Drill sergeant", "Target", "Or your own", "Until", "Remind me",
-                     "gp_f_kind", "Reminds you"):
-            self.assertNotIn(gone, src.split('"""', 2)[2], gone)
-        for word in ("Done when", "Snooze lasts", "An alert in-game", "No reminders from", "+ Add goal",
-                     "Make one in Farming Strategies ›", "Show on overlay", "✓ On the overlay", "My own strat",
-                     "Done, next ›", "☐ Done"):
-            self.assertIn(word, src)
-
-
-@unittest.skipIf(os.environ.get("DISPLAY") is None and sys.platform != "win32", "no display")
+@unittest.skipUnless(os.environ.get("DISPLAY") or sys.platform == "win32", "needs a display")
 class Page(Fresh):
     def setUp(self):
         super().setUp()
         import tkinter as tk
-        try:
-            self.root = tk.Tk()
-        except tk.TclError:
-            self.skipTest("no display")
+        from soe2.plan_page import GamePlanPage
+        self.root = tk.Tk()
         self.root.withdraw()
-        from soe2 import style as S, themes as TH
-        S.apply_look(TH.DEFAULT, self.root)
-        S.setup_style(self.root)
-        from soe2.plan_page import GamePlanPage, FocusPokes
 
-        class Host(GamePlanPage, FocusPokes):
+        class Host(GamePlanPage):
             pass
-        h = Host.__new__(Host)
+        h = self.h = Host()
         h.root = self.root
-        h.gp_overlay = lambda: None
-        h.focus_test = lambda: None
-        h.mm_board, h.mm_official = [], {}
-        self.h = h
+        h.gp_overlay = mock.Mock()
+        h.focus_test = h.focus_history = lambda: None
+        h.shell = mock.Mock()
         self.page = h.build_game_plan(self.root)
         self.page.pack()
-        self.root.update()
 
     def tearDown(self):
         self.root.destroy()
         super().tearDown()
 
-    def test_done_when_shows_a_number_only_when_it_needs_one(self):
+    def test_first_open_then_the_start_plan(self):
         h = self.h
-        self.assertFalse(h.gp_new_target_e.winfo_manager())
-        h.gp_new_tkind.set("My character reaches level")
-        h.gp_target_hint()
-        self.assertEqual(h.gp_new_target_e.winfo_manager(), "pack")
-        self.assertEqual(h.gp_new_target_lbl.cget("text"), "Level")
-        self.assertIn("1 to 100", h.gp_target_note.cget("text"))
-        h.gp_new.set("Level to 90")
-        h.gp_new_target.set("90")
-        g = h.gp_add_goal()
-        self.assertEqual(F.goal_target(g), ("level", 90.0))
-        self.assertEqual(g["trigger"], "town", "no Remind me: always in town")
+        self.assertEqual(h.gp_start_sec.winfo_manager(), "pack")
+        self.assertEqual(h.gp_plan_sec.winfo_manager(), "")
+        h.gp_use_start()
+        self.assertEqual(h.gp_start_sec.winfo_manager(), "")
+        self.assertEqual(h.gp_next_sec.winfo_manager(), "pack")
+        self.assertEqual(h._gp_done_lbl.cget("text"), "0 of 6 done")
 
-    def test_numbers_only_and_in_range(self):
+    def test_add_is_greyed_until_the_goal_is_whole(self):
         h = self.h
-        h.gp_new_tkind.set("My character reaches level")
-        h.gp_target_hint()
-        self.assertTrue(h._gp_digits_ok("95"))
-        self.assertFalse(h._gp_digits_ok("101"))
+        h.gp_add_open()
+        self.assertEqual(h.gp_adder.winfo_manager(), "pack")
+        h.gp_kind_pick("level")
+        self.assertTrue(h.gp_add_btn.instate(["disabled"]))
+        self.assertEqual(h.gp_add_tip.text, "Type a level first.")
+        h.gp_num.set("90")
+        self.assertFalse(h.gp_add_btn.instate(["disabled"]))
+        self.assertEqual(h.gp_reads.cget("text"), "Level 90")
+        self.assertFalse(h._gp_digits_ok("101"), "a level stops at 100")
         self.assertFalse(h._gp_digits_ok("9a"))
-        self.assertTrue(h._gp_digits_ok(""))
-        h.gp_new_tkind.set("I've run maps")
-        h.gp_target_hint()
-        self.assertTrue(h._gp_digits_ok("1000"))
-        self.assertFalse(h._gp_digits_ok("1001"))
-        h.gp_new_tkind.set("I reach act")
-        h.gp_target_hint()
-        self.assertEqual(h.gp_new_act.winfo_manager(), "pack", "acts are a list")
-        self.assertFalse(h.gp_new_target_e.winfo_manager())
-        self.assertEqual(list(h.gp_new_act.cget("values")), ["1", "2", "3", "4", "5", "6"])
-        h.gp_new.set("Finish the campaign")
-        h.gp_new_target.set("6")
-        self.assertEqual(F.goal_target(h.gp_add_goal()), ("act", 6.0))
+        g = h.gp_add_goal()
+        self.assertEqual(g["text"], "Level 90")
+        self.assertEqual(h.gp_adder.winfo_manager(), "", "back on the plan")
 
-    def test_done_box_and_overlay_mark(self):
+    def test_every_kind_can_be_added(self):
         h = self.h
-        a, b = F.add_goal("One", "start", "town"), F.add_goal("Two", "start", "town")
-        h.gp_fill()
-        self.root.update()
-        self.assertTrue(h._gp_on_lbls[a["id"]].winfo_ismapped(), "the shown one: orange words, no button")
-        self.assertEqual(h._gp_on_lbls[a["id"]].cget("text"), "✓ On the overlay")
-        self.assertFalse(h._gp_now_btns[a["id"]].winfo_ismapped())
-        self.assertEqual(h._gp_now_btns[b["id"]].cget("text"), "Show on overlay")
-        F.cfg()["on"] = False
-        seen = []
-        h.focus_set_on = lambda on: (seen.append(on), F.cfg().update(on=on))
-        h._gp_now_btns[b["id"]].invoke()
-        self.root.update()
-        self.assertEqual(F.cfg()["now"], b["id"])
-        self.assertEqual(seen, [True], "Show on overlay turns the plan's overlay line on")
-        self.assertTrue(h._gp_on_lbls[b["id"]].winfo_ismapped())
-        self.assertFalse(h._gp_on_lbls[a["id"]].winfo_ismapped())
-        self.assertTrue(h._gp_now_btns[a["id"]].winfo_ismapped())
+        h.gp_kind_pick("act")
+        self.assertEqual(h.gp_add_goal()["text"], "Finish the campaign")
+        h.gp_kind_pick("act"), h.gp_pick.set("Act 2")
+        self.assertEqual(h.gp_add_goal()["text"], "Finish act 2")
+        h.gp_kind_pick("maps")
+        self.assertEqual(h.gp_add_goal()["text"], "Reach maps")
+        h.gp_kind_pick("maps"), h.gp_mode.set("Reach a tier"), h.gp_num.set("15")
+        self.assertEqual(h.gp_add_goal()["text"], "Reach tier 15 maps")
+        h.gp_kind_pick("boss")
+        self.assertTrue(h.gp_add_btn.instate(["disabled"]))
+        h.gp_pick.set(next(k for k, v in h.gp_bosses.items() if v == "The Burning Monolith"))
+        self.assertEqual(h.gp_add_goal()["text"], "Kill the Arbiter of Ash")
+        h.gp_kind_pick("networth"), h.gp_num.set("10")
+        self.assertEqual(h.gp_add_goal()["text"], "Reach a net worth of 10 divine")
+        h.gp_kind_pick("divhour"), h.gp_num.set("3")
+        self.assertEqual(h.gp_add_goal()["text"], "Make 3 div an hour")
+        h.gp_kind_pick("tick"), h.gp_new.set("Craft a staff")
+        self.assertEqual(h.gp_add_goal()["text"], "Craft a staff")
+        h.gp_kind_pick("stock")
+        self.assertEqual(h.gp_add_goal()["text"], F.STOCK_TEXT)
+        h.gp_kind_pick("stock")
+        self.assertTrue(h.gp_add_btn.instate(["disabled"]), "only one Stock up goal")
 
-    def test_strat_lists_and_done_next(self):
-        h = self.h
-        from soe2 import moneymakers as MM
-        h.mm_board = [{"id": "c1", "name": "Abyss lineage", "origin": "board"}]
-        h.mm_official = {"strats": [{"id": "o1", "name": "Abyss T15"}]}
-        with mock.patch.object(MM, "all_strats", lambda: [{"id": "m1", "name": "My Breach", "origin": "mine"}]):
-            h.gp_farm_choices()
-        self.assertEqual(list(h.gp_f_box.cget("values")), ["Abyss lineage  ·  Community", "Abyss T15  ·  Official"])
-        self.assertEqual(list(h.gp_f_mine_box.cget("values")), ["My Breach  ·  Mine"])
-        self.assertFalse(h.gp_f_none.winfo_manager(), "you have one: a list, no pointer")
-        with mock.patch.object(MM, "all_strats", lambda: []):
-            h.gp_farm_choices()
-        self.assertEqual(h.gp_f_none.winfo_manager(), "grid", "none of your own: Make one in Farming Strategies")
-        self.assertFalse(h.gp_f_mine_box.winfo_manager())
-        a = h.gp_add_farm("Abyss lineage  ·  Community")
-        h.gp_f_pick.set("Abyss T15  ·  Official")
-        b = h.gp_add_farm()
-        self.assertEqual((a["name"], a["src"], a["kind"]), ("Abyss lineage", "Community", "none"))
-        h.gp_farm_next()
-        self.assertTrue(a["done"])
-        self.assertIs(F.farm_now(), b)
+    def test_ui_text_has_no_brackets(self):
+        import tkinter as tk
+        self.h.gp_use_start()
+        for k, _n, _w in F.GOAL_KINDS:
+            self.h.gp_kind_pick(k)
 
-    def test_reminder_settings(self):
-        h = self.h
-        h.gp_quiet[0].set("01:00")
-        h.gp_quiet[1].set("06:00")
-        self.assertEqual(F.cfg()["pokes"]["quiet"], [1, 6])
-        h.gp_quiet[1].set("01:00")
-        self.assertEqual(F.cfg()["pokes"]["quiet"], [1, 2], "the same hour: the end moves on one - at least an hour")
-        self.assertNotIn("01:00", list(h.gp_quiet_to.cget("values")))
-        self.assertNotIn("farms", h.gp_poke_vars, "no farm Goal to remind you of")
-        h.gp_poke_vars["alert"].set(False)
-        h.gp_pokes_save()
-        self.assertFalse(F.cfg()["pokes"]["alert"])
-        shown = h.focus_show({"kind": "checkin", "goal": None})
-        self.assertIsNone(shown, "An alert in-game off: no window")
+            def walk(w):
+                if isinstance(w, tk.Label):
+                    self.assertNotIn("(", str(w.cget("text")))
+                for c in w.winfo_children():
+                    walk(c)
+            walk(self.page)
+
+
+class CampaignCard(unittest.TestCase):
+    def test_count(self):
+        from soe2.campaign_ui import CampaignUI
+        rows = [{"state": "done"}, {"state": "passed"}, {"state": "here"}, {"state": "todo"}]
+        self.assertEqual(CampaignUI.camp_count_text(rows), "· 2 of 4 done")
+        self.assertEqual(CampaignUI.camp_count_text([]), "")
+        self.assertEqual([k for k, _n in CampaignUI.CAMP_FILTERS], ["all", "rewards", "bosses"])
 
 
 if __name__ == "__main__":

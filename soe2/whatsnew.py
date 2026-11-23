@@ -49,8 +49,13 @@ NOTES = {
         "lead": [
             ("✦", "New", [
                 ("•", "Every item has a picture, before you price check it."),
+                ("•", "League Plan goals for net worth, div an hour, bosses, map tiers and your Stockpile."),
+                ("•", "The campaign route shows steps done, and can list only rewards or bosses."),
             ]),
             ("↻", "Changed", [
+                ("•", "League Plan is one list of goals, with Next up on top."),
+                ("•", "Stockpile is a tab in Exchange Rates."),
+                ("•", "League Plan has no phases and no Farm plan."),
                 ("•", "Favorites is a tab in Price Checks."),
                 ("•", "☆ Favorite replaces Add to favorites."),
                 ("•", "Prices in has the same choices as the trade filters."),

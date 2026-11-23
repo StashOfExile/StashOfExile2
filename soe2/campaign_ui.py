@@ -809,7 +809,22 @@ class CampaignUI:
         tk.Label(head, text="route: " + dict(CP.ROUTES).get(CP.route_of(), ""), bg=bg, fg=P["muted"],
                  font=(P["font"], self.ov_font(9))).pack(side="right")
         rows = CP.steps(key, run)
-        self.camp_row_frames = []                  # the route page's rows; camp_rows() lays out the overlay line
+        # 3.3.0 owner: how far along the act is, and a filter - all steps, the ones with a reward, the ones with a boss
+        self.camp_count = tk.Label(head, text=self.camp_count_text(rows), bg=bg, fg=P["text"],
+                                   font=(P["font"], self.ov_font(9)))
+        self.camp_count.pack(side="left", padx=(8, 0))
+        flt = c.get("route_filter") if c.get("route_filter") in dict(self.CAMP_FILTERS) else "all"
+        frow = tk.Frame(page, bg=bg)
+        frow.pack(fill="x", pady=(2, 4))
+        for fk, flab in self.CAMP_FILTERS:
+            on = fk == flt
+            b = tk.Label(frow, text=("✓ " if on else "") + flab, bg=P.get("cell_bg", bg) if on else bg,
+                         fg=P["head"] if on else P["muted"], font=(P["font"], self.ov_font(9), "bold" if on else "normal"),
+                         cursor="hand2", padx=8, pady=1)
+            b.pack(side="left", padx=(0, 4))
+            b.bind("<Button-1>", lambda e, fk=fk: self.camp_filter(fk))
+        self.camp_row_frames, self.camp_row_idx = [], []      # the rows shown, and which steps they are
+        self.camp_rows_n = len(rows)
         self.camp_marks = marks = {"done": ("✓", P["on"]), "here": ("▸", P["head"]), "todo": ("○", P["muted"]),
                  "passed": ("–", P["muted"])}
         state = {}                                             # pack 4: the line has the reward in it - the
@@ -817,7 +832,11 @@ class CampaignUI:
             st = run["rewards"].get(r["id"])
             state.setdefault(CP.norm(r["zone"]), []).append(st)
         patch = CP.pack().get("patch", "?")
+        shown = 0
         for i, s in enumerate(rows):
+            if (flt == "rewards" and CP.norm(s["zone"]) not in state) or (flt == "bosses" and not s.get("boss")):
+                continue
+            shown += 1
             here = s["state"] == "here"
             rbg = P.get("cell_bg", bg) if here else bg
             f = tk.Frame(page, bg=rbg, cursor="hand2")
@@ -849,6 +868,7 @@ class CampaignUI:
             for wdg in [f] + list(f.winfo_children()):
                 wdg.bind("<Button-1>", lambda e, i=i: self.camp_here(i))
             self.camp_row_frames.append(f)
+            self.camp_row_idx.append(i)
             if here and s.get("tip") and c["tips"]:
                 tk.Label(page, text="ⓘ " + s["tip"], bg=bg, fg=P["muted"], font=(P["font"], self.ov_font(9)),
                          anchor="w", justify="left", wraplength=self.ov_px(480)).pack(fill="x", padx=(24, 0))
@@ -857,6 +877,10 @@ class CampaignUI:
         if not rows:
             tk.Label(page, text="The guide has no steps for this act yet - they're added as you go.", bg=bg,
                      fg=P["muted"], font=(P["font"], self.ov_font(10))).pack(anchor="w")
+        elif not shown:
+            tk.Label(page, text="No steps with a reward in this act." if flt == "rewards" else
+                     "No steps with a boss in this act.", bg=bg, fg=P["muted"],
+                     font=(P["font"], self.ov_font(10))).pack(anchor="w")
         nav = tk.Frame(page, bg=bg)
         nav.pack(fill="x", pady=(8, 0))
         ttk.Button(nav, text="◀", width=3, style=self.ov_btn(), command=lambda: self.camp_step(-1)).pack(side="left")
@@ -867,6 +891,19 @@ class CampaignUI:
         if tip and c["tips"]:
             tk.Label(page, text="Tip: " + tip, bg=bg, fg=P["muted"], font=(P["font"], self.ov_font(9)), anchor="w",
                      justify="left", wraplength=self.ov_px(520)).pack(fill="x", pady=(8, 0))
+
+    CAMP_FILTERS = (("all", "All steps"), ("rewards", "Rewards only"), ("bosses", "Bosses only"))
+
+    @staticmethod
+    def camp_count_text(rows):
+        """ "9 of 22 done" - the act's steps behind you, of all of them."""
+        return f"· {sum(1 for s in rows if s['state'] in ('done', 'passed'))} of {len(rows)} done" if rows else ""
+
+    def camp_filter(self, key):
+        """All steps / Rewards only / Bosses only on the route card."""
+        CP.cfg()["route_filter"] = key if key in dict(self.CAMP_FILTERS) else "all"
+        CP.save()
+        self.camp_refresh()
 
     def _camp_unknown_row(self, page, P, s):
         """P: a zone the guide doesn't know - a note for it, or Mark optional (a newer guide arrives on its own)."""
@@ -971,11 +1008,17 @@ class CampaignUI:
         """The route page's rows take their new state (✓ ▸ ○ –) in place. -> False when the steps changed."""
         rows, P = CP.steps(self.camp_view, CP.char()), self.camp_P
         frames = getattr(self, "camp_row_frames", None) or []
-        if len(rows) != len(frames) or any(s.get("learned") for s in rows):
+        idx = getattr(self, "camp_row_idx", None)
+        if idx is None:
+            idx = list(range(len(frames)))
+        if len(idx) != len(frames) or len(rows) != getattr(self, "camp_rows_n", len(frames)) or \
+                any(s.get("learned") for s in rows):
             return False
         bg = P["bg"]
         try:
-            for s, f in zip(rows, frames):
+            if getattr(self, "camp_count", None) is not None:
+                self.camp_count.configure(text=self.camp_count_text(rows))
+            for s, f in zip([rows[i] for i in idx], frames):
                 here = s["state"] == "here"
                 rbg = P.get("cell_bg", bg) if here else bg
                 mk, col = self.camp_marks[s["state"]]

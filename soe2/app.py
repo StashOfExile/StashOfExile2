@@ -2165,12 +2165,21 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
     def build_rates_window(self, win):
         self.rates_win = win
         # 2.4.0: tabs - Rates, Exchange Helper (2.92.0: Arbitrage removed; its flip check is under Exchange Helper)
-        self.rates_view = SegBar(win, ["Rates", "Exchange Helper"], command=lambda v: self.rates_show_page(),
+        # 3.3.0 owner: the Stockpile lives here now; League Plan has a Stock up goal for it
+        self.rates_view = SegBar(win, ["Rates", "Exchange Helper", "Stockpile"],
+                                 command=lambda v: self.rates_show_page(),
                                  size=10, pad=(16, 4))
         self.rates_view.pack(anchor="w", padx=16, pady=(8, 0))
         if getattr(self, "shell", None) is not None:          # 2.64.0: its tabs are listed in the sidebar
             self.shell.register_tabs("rates", self.rates_view)
-        self.rates_pages = {k: tk.Frame(win, bg=C["panel"]) for k in ("Rates", "Exchange Helper")}
+        self.rates_pages = {k: tk.Frame(win, bg=C["panel"]) for k in ("Rates", "Exchange Helper", "Stockpile")}
+        from .style import ScrollArea as _SA
+        ssa = _SA(self.rates_pages["Stockpile"], bg=C["panel"])
+        ssa.pack(fill="both", expand=True)
+        sp = tk.Frame(ssa.inner, bg=C["panel"], padx=16, pady=8)
+        sp.pack(fill="both", expand=True)
+        self._gp_stock(sp)
+        self._gp_stock_rows()
         w = self.rates_pages["Rates"]
         w.pack(fill="both", expand=True)
         # UI overhaul: each currency a row with its picture (rates_view.py); search first, then the sort
@@ -2283,6 +2292,8 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
                 f.pack(fill="both", expand=True)
             else:
                 f.pack_forget()
+        if pick == "Stockpile":
+            self._gp_stock_rows()
 
     def draw_rates(self):
         w = self.rates_win

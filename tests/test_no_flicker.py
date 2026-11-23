@@ -379,34 +379,30 @@ class Settings(Tk):
 
 
 class Plan(Tk):
-    def test_goal_tick_changes_the_marks_not_the_rows(self):
+    def test_the_same_plan_is_not_drawn_again(self):
         from soe2 import focus as F
+        from soe2.config import SETTINGS
         from soe2.plan_page import GamePlanPage
-        top = self.frame()
         s = GamePlanPage.__new__(GamePlanPage)
-        s.gp_goal_box = tk.Frame(top)
-        s.gp_goal_box.pack()
-        s.gp_overlay = mock.Mock()
-        s.gp_fill = mock.Mock(side_effect=AssertionError("the whole plan was drawn again"))
-        s.gp_summary = tk.Label(top)
-        s.gp_summary_text = lambda: "summary"
-        s.gp_phase_pick = lambda n: None
-        with mock.patch.object(F, "cfg", return_value={"phase": "start", "goals": [], "now": None, "on": False,
-                                                       "stockpile": [], "farms": [], "pokes": {}}), \
-                mock.patch.object(F, "save", lambda: None):
-            a, b = F.add_goal("First goal", "start", "town"), F.add_goal("Second goal", "start", "town")
-            s._gp_goal_rows()
-            kids = list(s.gp_goal_box.winfo_children())
-            self.assertEqual(s._gp_done_lbl.cget("text"), "0 / 2 done")
-            self.assertTrue(s._gp_on_lbls[a["id"]].winfo_manager(), "the shown one: ✓ On the overlay in words")
-            self.assertFalse(s._gp_now_btns[a["id"]].winfo_manager())
-            s.gp_goal_tick(a["id"], types.SimpleNamespace(get=lambda: True))
-            self.assertEqual(list(s.gp_goal_box.winfo_children()), kids)
-            self.assertEqual(s._gp_done_lbl.cget("text"), "1 / 2 done")
-            self.assertFalse(s._gp_now_btns[a["id"]].winfo_manager(), "a done goal has no overlay button")
-            self.assertFalse(s._gp_on_lbls[a["id"]].winfo_manager())
-            self.assertTrue(s._gp_on_lbls[b["id"]].winfo_manager())                     # the next one is on the line
-            s.gp_overlay.assert_called_once()
+        s.root, s.gp_overlay, s.shell = self.root, mock.Mock(), mock.Mock()
+        s.focus_test = s.focus_history = lambda: None
+        old = SETTINGS.get("focus")
+        SETTINGS["focus"] = {}
+        try:
+            with mock.patch.object(F, "save", lambda: None):
+                F.add_goal("First goal"), F.add_goal("Second goal")
+                s.build_game_plan(self.frame()).pack()
+                kids = list(s.gp_goal_box.winfo_children()) + list(s.gp_next_box.winfo_children())
+                s.gp_fill()
+                self.assertEqual(list(s.gp_goal_box.winfo_children()) + list(s.gp_next_box.winfo_children()), kids)
+                s.gp_goal_done(F.cfg()["goals"][0]["id"], True)
+                self.assertEqual(s._gp_done_lbl.cget("text"), "1 of 2 done")
+                self.assertNotEqual(list(s.gp_goal_box.winfo_children()), kids, "a tick moves Next up on")
+        finally:
+            if old is None:
+                SETTINGS.pop("focus", None)
+            else:
+                SETTINGS["focus"] = old
 
 
 class Overlay2(Tk):
