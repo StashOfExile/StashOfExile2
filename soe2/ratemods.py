@@ -96,13 +96,34 @@ def apply(keys, grade):
     return keys
 
 
+def not_price():
+    """3.3.0 owner: mods you marked Not a price mod - on the item but nothing to do with its price."""
+    from .config import SETTINGS
+    v = SETTINGS.get("rm_not_price")
+    return set(v) if isinstance(v, list) else set()
+
+
+def mark_not_price(keys, on=True):
+    from .config import SETTINGS, save_json
+    have = not_price()
+    have = have | set(keys) if on else have - set(keys)
+    SETTINGS["rm_not_price"] = sorted(have)
+    save_json("settings.json", SETTINGS)
+
+
+def fixed_line(set_name, text):
+    """3.3.0 owner: a unique's line with no number - on every copy, so it never moves the price."""
+    return set_name.startswith("unique:") and "#" not in str(text or "") and not any(c.isdigit() for c in str(text))
+
+
 def queue(set_name, gear_mods=None):
-    """Mods to rate in one set, the ones you haven't rated first: [(keys, text)]."""
+    """Mods to rate in one set, the ones you haven't rated first: [(keys, text)]. 3.3.0: without a unique's fixed
+    lines and the mods you marked Not a price mod."""
     out = []
     if set_name.startswith(("gear:", "unique:")):
         seen = set()
         for k, text in gear_mods or []:
-            if k not in seen:
+            if k not in seen and not fixed_line(set_name, text):
                 seen.add(k)
                 out.append(([k], text))
     else:
@@ -111,6 +132,8 @@ def queue(set_name, gear_mods=None):
             lines = m.get("lines") or [m["line"]]
             keys = [rule_key(set_name, norm(line)) for line in lines]
             out.append((keys, " / ".join(line[:1].upper() + line[1:] for line in lines)))
+    gone = not_price()
+    out = [x for x in out if not any(k in gone for k in x[0])]
     mine = lambda keys: any(k in RULES or k in TIERS for k in keys)      # noqa: E731
     return [x for x in out if not mine(x[0])] + [x for x in out if mine(x[0])]
 

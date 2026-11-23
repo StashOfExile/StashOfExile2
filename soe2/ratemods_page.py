@@ -86,6 +86,8 @@ def _letter(g):
     return "F" if g == "ignore" else g
 
 
+UNIQ_TITLE = "UNIQUES YOU'VE CHECKED"
+
 class RateModsPage:
     """Mixed into App."""
 
@@ -137,7 +139,7 @@ class RateModsPage:
         out = [("MAP ITEMS", list(RM.MAP_SETS)), ("JEWELS", [RM.JEWEL_SET]), ("GEAR", [k for k in kinds if k[2]])]
         uniq = [(s, lab) for s, lab in sets if s.startswith("unique:")]
         if uniq:
-            out.append(("UNIQUES YOU'VE CHECKED", uniq))
+            out.append((UNIQ_TITLE, uniq))
         return out
 
     # ---------------------------------------------------------------- the page
@@ -495,8 +497,18 @@ class RateModsPage:
                     shown.append(it)
             if not shown:
                 continue
-            cv.text(8, y + 8, title, F_CAP, fill=cv.c("text_muted"))
-            y += 28
+            if title == UNIQ_TITLE:                    # 3.3.0 owner: the uniques fold
+                folded = self.rm_uniq_folded() and not self.rm_qv.get().strip()
+                tag = "grp:uniq"
+                cv.text(8, y + 8, ("▸ " if folded else "▾ ") + title, F_CAP, fill=cv.c("text_muted"), tags=(tag,))
+                cv.acts[tag] = self.rm_uniq_flip
+                cv.tips[tag] = f"{'Open' if folded else 'Fold'} the uniques you've checked"
+                y += 28
+                if folded:
+                    continue
+            else:
+                cv.text(8, y + 8, title, F_CAP, fill=cv.c("text_muted"))
+                y += 28
             for it in shown:
                 if len(it) == 3:
                     y = self._rm_draw_kind(cv, it, y, w)
@@ -528,6 +540,17 @@ class RateModsPage:
             y = self._rm_set_row(cv, s, lab, 16, y, w)
         cv.create_line(10, top, 10, y - 4, fill=cv.c("border"))
         return y + 4
+
+    @staticmethod
+    def rm_uniq_folded():
+        from .config import SETTINGS
+        return bool(SETTINGS.get("rm_uniq_folded"))
+
+    def rm_uniq_flip(self):
+        from .config import SETTINGS, save_json
+        SETTINGS["rm_uniq_folded"] = not self.rm_uniq_folded()
+        save_json("settings.json", SETTINGS)
+        self.rm_setcv.later(0)
 
     def rm_fold_flip(self, kind):
         self.rm_fold.symmetric_difference_update({kind})
@@ -683,7 +706,11 @@ class RateModsPage:
         else:
             self._rm_btn(cv, bx + bw + gap, y, bw, 32, "Skip", "nav:skip", lambda: self.rm_step(1), off=last,
                          tip="The next mod, without rating this one. Key: →")
-        y += 32 + 16
+        nw = 150                                       # 3.3.0 owner: on the item, nothing to do with its price
+        self._rm_btn(cv, (x0 + x1) / 2 - nw / 2, y + 32 + 10, nw, 28, "Not a price mod", "nav:notprice",
+                     self.rm_not_price, font=F_SMALL,
+                     tip="On the item but doesn't change its price. It leaves the list")
+        y += 32 + 10 + 28 + 16
         rated, total = self.rm_counts.get(self.rm_set, (0, 0))
         if total and rated == total:
             cv.text((x0 + x1) / 2, y + 4, f"✓ All {total} rated - thanks!", F_SMALL, fill=cv.c("good"), anchor="n")
@@ -1117,6 +1144,27 @@ class RateModsPage:
             self.rm_i += 1
         self._rm_redraw()
         return grade
+
+    def rm_not_price(self):
+        """3.3.0 owner: this mod leaves the list - a toast can bring it back."""
+        e = self.rm_current()
+        if e is None:
+            return
+        RM.mark_not_price(e["keys"])
+        self.__dict__.pop("_rm_ent", None)
+        i = self.rm_i
+        self.rm_load()
+        self.rm_i = min(i, max(0, len(self.rm_q) - 1))
+        self._rm_redraw()
+        if hasattr(self, "app_toast"):
+            self.app_toast(f"{e['text']} left the list.", title="Not a price mod",
+                           actions=(("Undo", lambda k=e["keys"]: self.rm_not_price_undo(k)),))
+
+    def rm_not_price_undo(self, keys):
+        RM.mark_not_price(keys, on=False)
+        self.__dict__.pop("_rm_ent", None)
+        self.rm_load()
+        self._rm_redraw()
 
     def rm_step(self, d):
         if self.rm_view == "Table":
