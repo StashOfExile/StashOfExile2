@@ -557,25 +557,87 @@ class CampaignUI:
 
     # ---------------------------------------------------------------- 3.3.0 owner: which character is this?
     def camp_you_menu(self, e=None):
-        """A click on YOU: your characters (the current one ticked) and Not my character."""
+        """A click on YOU: your characters (the current one ticked) and Not my character, in a small window of the
+        overlay's own above the pointer - it never covers the bar. It closes on a pick, on ✕, on Esc, on a second
+        click on YOU, or a moment after the mouse leaves it."""
         from . import identity as ID
-        m = tk.Menu(self.root, tearoff=0)
+        from .overlaywin import pal
+        if self.camp_you_close():                            # (a second click on YOU closes it)
+            return
+        P = pal()
+        bg, fg, mut = P.get("bg", "#151311"), P.get("text", "#efe6d2"), P.get("muted", "#9a8f7a")
+        rim = P.get("rim") or P.get("line", "#3a3226")
+        font = P.get("body") or P.get("font") or "Segoe UI"
+        w = self._camp_you_win = tk.Toplevel(self.root)
+        w.overrideredirect(True)
+        try:
+            w.attributes("-topmost", True)
+        except tk.TclError:
+            pass
+        box = tk.Frame(w, bg=bg, highlightthickness=1, highlightbackground=rim, padx=8, pady=6)
+        box.pack()
+        head = tk.Frame(box, bg=bg)
+        head.pack(fill="x")
+        tk.Label(head, text="YOUR CHARACTER", bg=bg, fg=mut, font=(font, 8, "bold")).pack(side="left")
+        x = tk.Label(head, text="✕", bg=bg, fg=mut, font=(font, 10), cursor="hand2", padx=4)
+        x.pack(side="right", padx=(16, 0))
+        x.bind("<Button-1>", lambda ev: self.camp_you_close())
+
+        def row(text, fn, color=fg):
+            r = tk.Label(box, text=text, bg=bg, fg=color, font=(font, 10), anchor="w", cursor="hand2", padx=4, pady=2)
+            r.pack(fill="x")
+            r.bind("<Button-1>", lambda ev: (self.camp_you_close(), fn()))
+            r.bind("<Enter>", lambda ev: r.config(bg=P.get("cell_bg", rim)))
+            r.bind("<Leave>", lambda ev: r.config(bg=bg))
         cur = ID.current() if ID.known() else ""
         rows = ID.characters()
-        for name, cls, lvl in rows[:12]:
-            bits = " · ".join(x for x in (cls, f"level {lvl}" if lvl else "") if x)
-            m.add_command(label=("✓ " if name == cur else "    ") + name + (f"   {bits}" if bits else ""),
-                          command=lambda n=name: self.camp_you_pick(n))
+        for name, cls, lvl in rows[:16]:
+            bits = " · ".join(v for v in (cls, f"level {lvl}" if lvl else "") if v)
+            row(("✓ " if name == cur else "    ") + name + (f"   {bits}" if bits else ""),
+                lambda n=name: self.camp_you_pick(n))
         if not rows:
-            m.add_command(label="No character seen yet", state="disabled")
+            tk.Label(box, text="No character seen yet", bg=bg, fg=mut, font=(font, 10), anchor="w", padx=4,
+                     pady=2).pack(fill="x")
         if ID.current() and not ID.typed():
-            m.add_separator()
-            m.add_command(label=f"Not my character: {ID.current()}", command=self.camp_you_not_mine)
+            tk.Frame(box, bg=rim, height=1).pack(fill="x", pady=4)
+            row(f"Not my character: {ID.current()}", self.camp_you_not_mine, mut)
+        w.bind("<Escape>", lambda ev: self.camp_you_close())
+        w.bind("<Leave>", lambda ev: self._camp_you_leave())
+        w.bind("<Enter>", lambda ev: self._camp_you_stay())
+        w.update_idletasks()
+        px, py = (e.x_root, e.y_root) if e is not None else self.root.winfo_pointerxy()
+        ww, wh = w.winfo_reqwidth(), w.winfo_reqheight()
+        sw = w.winfo_screenwidth()
+        y = py - wh - 28                                     # above the pointer: the bar under it stays readable
+        if y < 0:
+            y = py + 28
+        w.geometry(f"+{max(0, min(int(px - ww // 2), sw - ww))}+{int(y)}")
+        self._camp_you_leave(8000)                           # never opened and left there: gone after 8 s untouched
+
+    def _camp_you_stay(self):
+        j, self._camp_you_job = getattr(self, "_camp_you_job", None), None
+        if j is not None:
+            try:
+                self.root.after_cancel(j)
+            except Exception:
+                pass
+
+    def _camp_you_leave(self, ms=1200):
+        self._camp_you_stay()
+        self._camp_you_job = self.root.after(ms, self.camp_you_close)
+
+    def camp_you_close(self):
+        """-> True when the list was open."""
+        w, self._camp_you_win = getattr(self, "_camp_you_win", None), None
+        if getattr(self, "_camp_you_job", None) is not None:
+            self._camp_you_stay()
+        if w is None:
+            return False
         try:
-            x, y = (e.x_root, e.y_root) if e is not None else self.root.winfo_pointerxy()
-            m.tk_popup(x, y)
-        finally:
-            m.grab_release()
+            w.destroy()
+        except tk.TclError:
+            pass
+        return True
 
     def camp_you_pick(self, name):
         from . import identity as ID
@@ -1165,7 +1227,7 @@ class CampaignUI:
         row = tk.Frame(body, bg=bg)
         row.pack(fill="x", pady=(8, 0))
         from .style import Tooltip
-        for k, label, style, tip in (("got", "Got it", "Primary.TButton", "Ticks it in Got so far"),
+        for k, label, style, tip in (("got", "Got it", "Primary.TButton", "Ticks it in Rewards"),
                                      ("not_yet", "Not yet", "TButton", "Leaves it open - asks once more next town")):
             b = ttk.Button(row, text=label, style=self.ov_btn(style), command=lambda k=k: self.camp_answer(r["id"], k))
             b.pack(side="left", padx=(0, 8))

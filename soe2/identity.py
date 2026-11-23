@@ -32,6 +32,8 @@ OTHERS = set()                     # lower-case names seen joining or leaving yo
 RIVERBANK = "G1_1"                 # the first zone of act 1: a level 1 area only a new character is made in
 EVIDENCE = ("level", "death", "gain")
 _JOIN = re.compile(rb"\] : (.+?) has (?:joined|left) the area\.")
+_LEVEL = re.compile(rb"\] : (.+?) \((.+?)\) is now level (\d+)")
+TAIL = 96 * 1024 * 1024
 
 
 def cfg():
@@ -197,8 +199,8 @@ def note(kind, data, ts=None):
             m["level"], m["cls"] = int(data.get("level") or 0), str(data.get("cls") or m.get("cls") or "")
         was, was_state = d["current"], d["state"]
         d["current"], d["state"] = who, "known"
-        if len(d["mine"]) > 60:
-            for k in sorted(d["mine"], key=lambda k: float(d["mine"][k].get("seen") or 0))[:-60]:
+        if len(d["mine"]) > 200:
+            for k in sorted(d["mine"], key=lambda k: float(d["mine"][k].get("seen") or 0))[:-200]:
                 d["mine"].pop(k)
         if was.lower() == who.lower():
             if was_state != "known":
@@ -240,25 +242,42 @@ def not_mine(name):
     return True
 
 
-def backfill(path, max_bytes=96 * 1024 * 1024):
-    """At each start: the names that joined or left your area in the last part of Client.txt - into memory only.
-    Only the file is read; nothing about them is saved. -> how many names. Safe on a background thread."""
+def backfill(path, max_bytes=None):
+    """At each start: the names that joined or left your area in Client.txt - into memory only; nothing about them
+    is saved. The first time the whole file is read, after that its last part (about 0.2 s). Your own characters -
+    names that leveled up and never joined an area - fill the YOU list with their class and last level.
+    -> how many other players' names. Safe on a background thread."""
     if not path or not os.path.exists(path):
         return 0
-    found = set()
+    d = cfg()
+    whole = not d.get("log_read")
+    found, leveled = set(), {}
     try:
         size = os.path.getsize(path)
         with open(path, "rb") as f:
-            f.seek(max(0, size - max_bytes))
-            for raw in f:
-                if b" the area." not in raw:
-                    continue
-                m = _JOIN.search(raw)
-                if m:
-                    found.add(m.group(1).decode("utf-8", "replace").strip())
+            f.seek(0 if whole else max(0, size - (max_bytes or TAIL)))
+            for n, raw in enumerate(f):
+                if b" the area." in raw:
+                    m = _JOIN.search(raw)
+                    if m:
+                        found.add(m.group(1).decode("utf-8", "replace").strip())
+                elif b" is now level " in raw:
+                    m = _LEVEL.search(raw)
+                    if m:
+                        leveled[m.group(1).decode("utf-8", "replace").strip()] = (
+                            m.group(2).decode("utf-8", "replace"), int(m.group(3)), n)
     except OSError:
         return 0
     for name in found:
         _other(name)
+    for name, (cls, lvl, n) in leveled.items():
+        if name and not is_other(name) and (not typed() or name.lower() == typed().lower()):
+            m = d["mine"].setdefault(name, {"cls": cls, "level": 0, "seen": 0})
+            m["cls"], m["level"] = cls or m.get("cls") or "", max(int(m.get("level") or 0), lvl)
+            m.setdefault("order", n)
+            if not m.get("seen"):
+                m["seen"] = n / 1e9                          # (older than anything played since: sorted after those)
+    d["log_read"] = True
     purge()
+    save()
     return len(found)

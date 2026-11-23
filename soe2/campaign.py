@@ -1087,7 +1087,7 @@ def line_text(run=None):
 
 
 def got_so_far(run=None):
-    """The Campaign Bar's Got so far -> {points: (have, of, [lines]), spirit: ..., res: ...} over the route's
+    """The Campaign Bar's Rewards -> {points: (have, of, [lines]), spirit: ..., res: ...} over the route's
     rewards; each line is how it was worked out (✓ got, ✕ missed, ○ to come)."""
     run = run or char()
     out = {}
@@ -1114,7 +1114,7 @@ def got_text(g):
 
 
 def got_how(g):
-    """Got so far's hover: each total and the rewards behind it."""
+    """Rewards's hover: each total and the rewards behind it."""
     out = []
     for name, title in (("points", "Passive points"), ("spirit", "Spirit"), ("res", "Resistances (%)")):
         have, of, lines = g[name]

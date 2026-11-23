@@ -132,6 +132,20 @@ class Privacy(Fresh):
         self.assertEqual(SETTINGS["campaign"]["char_levels"], {})
         self.assertNotIn("Fartz", json.dumps(SETTINGS))
 
+    def test_your_characters_come_from_the_log(self):
+        path = os.path.join(HOME, "Client2.txt")
+        pre = "2026/11/23 10:00:00 1 a [INFO Client 1] : "
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(pre + "Alt One (Monk) is now level 12\n" + pre + "Buddy (Druid) is now level 30\n"
+                    + pre + "Buddy has joined the area.\n" + pre + "Alt One (Monk) is now level 13\n"
+                    + pre + "Main (Stormweaver) is now level 97\n")
+        self.assertEqual(ID.backfill(path), 1)
+        self.assertEqual(sorted(ID.characters()), [("Alt One", "Monk", 13), ("Main", "Stormweaver", 97)])
+        self.assertTrue(ID.cfg()["log_read"], "the whole file is read once; after that its last part")
+        self.assertNotIn("Buddy", json.dumps(SETTINGS))
+        ID.note("level", {"who": "Alt One", "cls": "Monk", "level": 14})
+        self.assertEqual(ID.characters()[0][0], "Alt One", "the one played last is first")
+
     def test_the_log_parser_knows_the_lines(self):
         pre = "2026/11/23 10:00:00 123 abc [INFO Client 1] "
         self.assertEqual(GL.parse(pre + ": Bob has received +10% to [Resistances|Cold Resistance].")[0::2],
@@ -191,6 +205,38 @@ class Features(Fresh):
     def test_old_runs_count_as_from_the_start(self):
         SETTINGS["campaign"] = {"chars": {"Old": {"secs": {"1": 5.0}}}}
         self.assertTrue(CP.cfg()["chars"]["Old"]["from_start"])
+
+    def test_the_character_list_opens_and_closes(self):
+        if not (os.environ.get("DISPLAY") or sys.platform == "win32"):
+            self.skipTest("needs a display")
+        import tkinter as tk
+        from soe2.campaign_ui import CampaignUI
+        root = tk.Tk()
+        root.withdraw()
+        try:
+            h = CampaignUI.__new__(CampaignUI)
+            h.root, h.camp_refresh = root, mock.Mock()
+            ID.note("level", {"who": "Mine", "cls": "Monk", "level": 12})
+            self.assertFalse(h.camp_you_close())
+            h.camp_you_menu()
+            w = h._camp_you_win
+            self.assertTrue(w.winfo_exists())
+            texts = []
+
+            def walk(x):
+                if isinstance(x, tk.Label):
+                    texts.append(x.cget("text"))
+                for k in x.winfo_children():
+                    walk(k)
+            walk(w)
+            self.assertIn("✕", texts, "a way to close it")
+            self.assertIn("✓ Mine   Monk · level 12", texts)
+            self.assertIn("Not my character: Mine", texts)
+            h.camp_you_menu()                                 # a second click on YOU
+            self.assertFalse(w.winfo_exists())
+            self.assertIsNone(h._camp_you_win)
+        finally:
+            root.destroy()
 
     def test_you_shows_a_dash_until_named(self):
         from soe2.campaign_ui import CampaignUI

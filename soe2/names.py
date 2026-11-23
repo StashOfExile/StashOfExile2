@@ -63,7 +63,7 @@ FEATURES = (
     "Break reminders",          # 2.131.0 Overlay › Helpers: a kind nudge in long sessions
     "Campaign Helper",
     "Campaign Bar",             # the overlay in campaign zones: the line over the bar (what to do now) and the bar's
-                                # Zone · You · Got so far · Act time (the Panel: one card)
+                                # Zone · You · Rewards · Act time (the Panel: one card)
     "Clear All",                # Bulk Pricing › Items strip: empties the list shown
     "Community data sharing",
     "Error reports",            # 2.137.0 Settings › Privacy & community: what went wrong in the app, opt-in

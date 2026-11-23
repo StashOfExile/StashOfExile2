@@ -10,7 +10,7 @@ how it was worked out. Each style keeps its own frame, colors, fonts and divider
 
 In the campaign (the Campaign Bar, pack 4) the parts after the chip are the campaign's:
 
-  [● CAMPAIGN]  ZONE ⓘ          | YOU ⓘ         | GOT SO FAR ⓘ                          | ACT TIME ⓘ   ...  tools  clock
+  [● CAMPAIGN]  ZONE ⓘ          | YOU ⓘ         | REWARDS ⓘ                          | ACT TIME ⓘ   ...  tools  clock
                 Clearfell · lvl 2 | ✓ Lvl 4 · OK | Points 0/24 · Spirit 0/100 · Res 0/30% | 0:05:45
 
 each worked out on hover; the Panel shows them in its card under the campaign's line (act · zone, step, what to do
@@ -119,7 +119,7 @@ class _Mark(CanvasText):
 
 # the Campaign Bar's parts after the chip: (key, label, widest value)
 CAMP_PARTS = (("c_zone", "ZONE ⓘ", "Cemetery of the Eternals · lvl 99"), ("c_you", "YOU ⓘ", "! Lvl 99 · 9 under"),
-              ("c_got", "GOT SO FAR ⓘ", "Points 24/24 · Spirit 100/100 · Res 30/30%"),
+              ("c_got", "REWARDS ⓘ", "Points 24/24 · Spirit 100/100 · Res 30/30%"),
               ("c_act", "ACT TIME ⓘ", "0:00:00"))
 CAMP_GAP = 12                      # a divider's slot between the Campaign Bar's parts (the map parts' is 20)
 GOT_WIDE = {"full": "Points 24/24 · Spirit 100/100 · Res 30/30%", "mid": "Points 24/24 · Spirit 100/100",
@@ -311,8 +311,8 @@ class OverlayA8:
 
     def a8_camp_plan(self, cv, P, room):
         """Which of the Campaign Bar's parts fit in room px. A narrow bar leaves out, in turn: Res, Act time,
-        Spirit, then shortens the zone and You to their words - what's left out stays one hover away (Got so far's
-        and You's hovers have it all). -> ({key: width}, Got so far's mode, You's mode)."""
+        Spirit, then shortens the zone and You to their words - what's left out stays one hover away (Rewards's
+        and You's hovers have it all). -> ({key: width}, Rewards's mode, You's mode)."""
         u = self._u
         fl, fv = self._lt_fm(cv, P, 8, True), self._lt_fm(cv, P, 10, True)
         gap = u(CAMP_GAP)
@@ -327,7 +327,7 @@ class OverlayA8:
                                               (u(80), "short", False, "short")):
             zone = min(zone_need, cap)
             you = w("YOU ⓘ", "! Lvl 99 · 9 under" if you_mode == "full" else "! 9 under")
-            got = w("GOT SO FAR ⓘ", GOT_WIDE[mode])
+            got = w("REWARDS ⓘ", GOT_WIDE[mode])
             need = zone + gap + you + gap + got + ((gap + act) if show_act else 0)
             if room is None or need <= room:
                 break
@@ -337,7 +337,7 @@ class OverlayA8:
         return plan, mode, you_mode
 
     def a8_camp_bar(self, cv, P, x0, right, mid, ly, vy, sep):
-        """The Campaign Bar after the chip: ZONE | YOU | GOT SO FAR | ACT TIME, up to `right` (or as wide as they
+        """The Campaign Bar after the chip: ZONE | YOU | REWARDS | ACT TIME, up to `right` (or as wide as they
         need when right is None). -> the x it ended at."""
         u = self._u
         x = x0 + self._a8_chip(cv, P, x0, mid, u(18)) + u(10)
@@ -362,7 +362,7 @@ class OverlayA8:
 
     def a8_camp_card(self, cv, P, pad, R, y):
         """The Panel's campaign card under its chip: the line (act · zone, step, what to do now, then → next), a
-        rule, ZONE | YOU | ACT TIME, then GOT SO FAR. -> the y under it."""
+        rule, ZONE | YOU | ACT TIME, then REWARDS. -> the y under it."""
         u = self._u
         fh, fd, _fi, _fb = self._camp_fonts(P, cv)
         lh = fd.metrics("linespace") + u(2)
@@ -380,7 +380,7 @@ class OverlayA8:
             self._a8_camp_part(cv, P, pad + i * colw, ly, vy, key, label, colw - u(8), tips[key], size=10)
         y += u(40)
         self._camp_got_mode, self._camp_you_mode = "full", "full"
-        self._a8_camp_part(cv, P, pad, y + u(12), y + u(28), "c_got", "GOT SO FAR ⓘ", R - pad, tips["c_got"], size=10)
+        self._a8_camp_part(cv, P, pad, y + u(12), y + u(28), "c_got", "REWARDS ⓘ", R - pad, tips["c_got"], size=10)
         return y + u(40)
 
     def camp_bar_replan(self):
