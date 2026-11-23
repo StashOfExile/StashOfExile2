@@ -357,6 +357,13 @@ def ago(ts, now=None):
     return f"{n} day{'s' if n != 1 else ''} ago"
 
 
+def num(x):
+    """A number as people read it: 8,930 · 6.2 · 0.35 - never 8.93e+03."""
+    x = float(x)
+    t = f"{x:,.0f}" if abs(x) >= 100 else f"{x:.1f}" if abs(x) >= 1 else f"{x:.2f}"
+    return t.rstrip("0").rstrip(".") if "." in t else t
+
+
 def progress_text(g):
     """ "Level 74 of 90", "6.2 of 10 div", "Not yet" - or "" for a goal you tick."""
     p = progress(g)
@@ -379,10 +386,10 @@ def progress_text(g):
     if kind == "boss":
         return "Not yet" if not h and t <= 1 else f"{h:g} of {t:g}"
     if kind == "networth":
-        return f"{h:.3g} of {t:g} div" if net_worth()[0] is not None else "Nothing counted in Wealth yet"
+        return f"{num(h)} of {num(t)} div" if net_worth()[0] is not None else "Nothing counted in Wealth yet"
     if kind == "divhour":
         v, n = div_hour()
-        return f"{v:.2g} div an hour over your last {n} maps" if v is not None else "No maps in Map Profit yet"
+        return f"{num(v)} div an hour over your last {n} maps" if v is not None else "No maps in Map Profit yet"
     if kind == "farm":
         return f"{h:g} of {t:g} hours" if t else f"{h:g} hours so far"
     if kind == "stock":
@@ -725,7 +732,7 @@ def poke_text(poke):
                 [("plan", "Open League Plan"), ("ok", "Got it")])
     if k == "price":
         under = poke.get("under")
-        body = f"{poke['name']} is {poke['each']:.3g} div" + (f" (you buy under {under:g})." if under is not None else ".")
+        body = f"{poke['name']} is {num(poke['each'])} div" + (f", under your {num(under)}." if under is not None else ".")
         if poke.get("goal"):
             body += f"\nYou have {poke.get('have') if poke.get('have') is not None else '?'} of {poke['goal']}."
         return ("CHEAP NOW - YOUR STOCKPILE", body, "Why now: poe.ninja's price is under the one you set.",

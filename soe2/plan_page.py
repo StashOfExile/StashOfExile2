@@ -671,7 +671,7 @@ class GamePlanPage:
             tk.Label(hf, text=f" / {r['goal'] or '-'}", bg=P2, fg=C["muted"], font=("Segoe UI", 9)).pack(side="left")
             tk.Label(box, text=f"{r['under']:g} div" if r.get("under") is not None else "-", bg=P2, fg=C["muted"],
                      font=("Segoe UI", 9), anchor="w").grid(row=i, column=2, sticky="w", padx=(0, 12), pady=1)
-            now = (f"{each:.3g} div" if each is not None else "no price") + \
+            now = (f"{F.num(each)} div" if each is not None else "no price") + \
                   ("  · cheap" if st == "cheap" else "  · done" if st == "done" else "")
             tk.Label(box, text=now, bg=P2, fg=C["green"] if st in ("cheap", "done") else
                      (C["text"] if each is not None else C["muted"]),

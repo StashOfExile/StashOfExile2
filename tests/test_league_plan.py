@@ -132,6 +132,9 @@ class Goals(Fresh):
             self.assertEqual(F.progress_text(g), "6.2 of 10 div")
             self.assertEqual(F.source_text(g), "from Wealth · last read 2 hours ago")
             self.assertAlmostEqual(F.frac(g), 0.62)
+        with mock.patch.object(F, "net_worth", lambda: (8930.4, time.time())):
+            self.assertEqual(F.progress_text(g), "8,930 of 10 div", "never 8.93e+03")
+        self.assertEqual([F.num(x) for x in (0.35, 2.1, 50, 1234567)], ["0.35", "2.1", "50", "1,234,567"])
         with mock.patch.object(F, "net_worth", lambda: (12.0, time.time())):
             self.assertEqual(F.check_goals(), [g])
 
