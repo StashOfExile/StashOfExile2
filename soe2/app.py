@@ -650,7 +650,7 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
         self.limit_tip = Tooltip(self.limit_pill, "")
         _meter_ws.append(self.limit_pill)
         self.rates_lbl = tk.Label(strip, text="Rates: …", bg=C["bg"], fg=C["muted"], padx=8, cursor="hand2", font=("Segoe UI", 9))   # P1: one font in the bar
-        self.rates_lbl.pack(side="right")
+        # 3.3.0 owner: the Rates text is off the status bar - Exchange Rates says when they were read
         self.rates_lbl.bind("<Button-1>", self.open_rates)
         self.status = tk.Label(strip, text="Starting...", anchor="w", bg=C["bg"], fg=C["muted"], padx=16, pady=4)
         self.status.pack(side="left", fill="x", expand=True)
@@ -682,6 +682,11 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
         self.league_var.trace_add("write", lambda *a: self._league_chip())
         self._league_chip()
         self.build_feedback()                                  # 2.48.0: ⬆ Update badge, 🐞 Report a bug
+        # 3.3.0 owner: the online count is here, off the Dashboard; its hover says what it counts
+        self.online_chip = tk.Label(self.shell.task_right, text="", bg=C["bg"], fg=C["muted"], padx=8, pady=4,
+                                    font=("Segoe UI", 9))
+        self.online_tip = Tooltip(self.online_chip, "")
+        self.online_paint()
         self.shell.make_task_dots()
         # (2.97.3, feedback: no 📌 on the status bar - Always on top is in Settings › General › Window)
         self._top_label()
@@ -985,6 +990,28 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
         if lead_due(SETTINGS.get("whatsnew_lead"), APP_VERSION):     # (the quick start just closed: the lead next)
             self.root.after(300, self.show_whatsnew)
         self.root.after(400, self.features_maybe)              # 2.131.1: Setup next, one at a time
+
+    def online_paint(self):
+        """The status bar's online count: shown when the board has answered, hidden until then. Looked at again
+        every minute; only a changed word is drawn."""
+        from . import usage as US
+        try:
+            text = US.label()
+            chip = self.online_chip
+            if text:
+                if chip.cget("text") != "👤 " + text:
+                    chip.config(text="👤 " + text)
+                self.online_tip.text = US.tip()
+                if not chip.winfo_manager():
+                    chip.pack(in_=self.shell.task_right, side="left", padx=4, before=self.idea_btn)
+            elif chip.winfo_manager():
+                chip.pack_forget()
+        except Exception:
+            buglog.caught()
+        try:
+            self.root.after(60000, self.online_paint)
+        except Exception:
+            pass
 
     def _league_chip(self):
         self.league_chip.config(text="⚑ " + (self.league_var.get() or "pick a league"))

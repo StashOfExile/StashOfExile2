@@ -187,6 +187,10 @@ class SettingsPage:
             var.set(PC_SHOW.get(self.pc_show_get(), "In the app"))
         self.pc_where_paint()
 
+    def dash_worth_switch(self):
+        SETTINGS["dash_worth_off"] = not self.dash_worth_var.get()
+        save_json("settings.json", SETTINGS)             # (the Dashboard draws itself each time it is opened)
+
     def build_fine_tuning(self, row, keys=None, defaults=True):
         """The fine-tuning rows for `keys` (all when None); defaults: the Defaults button (for those rows)."""
         P2 = C["panel2"]
@@ -337,6 +341,13 @@ class SettingsPage:
                  font=("Segoe UI", 9)).pack(side="left", padx=(8, 0))
         from .style import flowify
         flowify(trow)                                   # D3: wraps at Drawer width
+        drow = tk.Frame(row.master, bg=P2)              # 3.3.0 owner: the Dashboard's Worth a look card
+        drow.pack(fill="x", pady=(8, 0))
+        self.dash_worth_var = tk.BooleanVar(value=not SETTINGS.get("dash_worth_off"))
+        ttk.Checkbutton(drow, text="Show Worth a look on the Dashboard", variable=self.dash_worth_var,
+                        command=self.dash_worth_switch).pack(side="left")
+        tk.Label(drow, text="Features you have off, or may not know.", bg=P2, fg=C["muted"],
+                 font=("Segoe UI", 9)).pack(side="left", padx=(8, 0))
         wrow = tk.Frame(row.master, bg=P2)              # 2.116.0 (P10): from Price checking › Advanced fine tuning -
         wrow.pack(fill="x", pady=(8, 0))                # they're about the app's windows, not prices
         self.build_fine_tuning(wrow, keys=self.FINE_WINDOW, defaults=False)

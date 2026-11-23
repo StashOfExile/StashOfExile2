@@ -12,6 +12,7 @@ from .config import SETTINGS
 
 PAD, GAP, R = 32, 16, 8           # page margin, gap between cards, card corner (rule 24: soft, smooth)
 TILE_H, START_H, LIST_H = 116, 150, 252
+MOVERS_H, WORTH_H = 252, 196
 
 
 def day_start(now=None):
@@ -82,6 +83,55 @@ def visible_parts(wealth_done, price_done, helper_done):
     return {"wealth": w, "price": p, "overlay": o, "map": mp,
             "start_price": p and not price_done, "start_wealth": w and not wealth_done,
             "start_overlay": o and not helper_done, "empty": not (w or p or o)}
+
+
+def share_prompt_due():
+    """The Dashboard asks once about Community data sharing: while it is off, and until you answer."""
+    return not SETTINGS.get("share_prices") and not SETTINGS.get("dash_share_asked")
+
+
+def share_prompt_answer(app, yes):
+    SETTINGS["dash_share_asked"] = True
+    if yes and hasattr(app, "cm_set_sharing"):
+        app.cm_set_sharing(True)                             # (saves the settings itself)
+    else:
+        from .config import save_json
+        save_json("settings.json", SETTINGS)
+
+
+WORTH = (   # things players miss: (page key, tab or None, name, one line)
+    ("regex", None, "Regex", "Build a stash search for the mods you want, and paste it in game."),
+    ("pricecheck", "Favorites", "Favorites", "Star an item on Price Checks to keep its search one click away."),
+    ("rates", "Stockpile", "Stockpile", "List what to buy early in a league, and what to pay for it."),
+    ("rates", "Exchange Helper", "Compare a currency", "See what one currency is worth in every other."),
+    ("plan", None, "League Plan", "Your league goals in one list, with the next one on the overlay."),
+    ("maps", None, "Map Library", "Rank maps by layout and boss, and see the community's ranks."),
+    ("leaderboards", None, "Leaderboards", "Your best map, boss and campaign times, against everyone's."),
+    ("ratemods", None, "Mod Lab", "Rate mods to make price checks more accurate."),
+    ("search", None, "Game Search", "Look up any skill, item or mod in the game's own data."),
+)
+
+
+def worth_items():
+    """Worth a look: what you have off first, then what players often miss. -> [(title, line, button, page, tab)]"""
+    from . import features as FEAT
+    out = []
+    for g in FEAT.ALL:
+        if not FEAT.on(g["key"]):
+            out.append((f"{g['name']} is off", g["what"], "Turn on in Settings", "settings", "General"))
+    if FEAT.on("overlay"):
+        for key, (_d, _k, name) in FEAT.HELPER_SWITCHES.items():
+            try:
+                if not FEAT.helper_on(key):
+                    out.append((f"{name} is off", "A helper over the game. Its switch is in Overlay › Helpers.",
+                                "Open Helpers", "tracker", "Helpers"))
+            except Exception:
+                buglog.caught()
+    mods = {m for g in FEAT.ALL if FEAT.on(g["key"]) for m in g.get("modules", ())}
+    for page, tab, name, line in WORTH:
+        if page in mods or page in ("rates", "plan", "maps", "leaderboards", "ratemods", "pricecheck"):
+            out.append((name, line, f"Open {name}", page, tab))
+    return out
 
 
 class Dashboard(tk.Canvas):
@@ -205,6 +255,180 @@ class Dashboard(tk.Canvas):
             self.tips[tag] = tip
         return x0
 
+    # ---- 3.3.0 owner: the one-time sharing question
+    def _share_prompt(self, x0, y, x1, narrow):
+        t = TH.ST.theme
+        h = 132 if narrow else 84
+        self._card(x0, y, x1, y + h)
+        self.create_text(x0 + 20, y + 16, text="Share anonymous data with the community?", anchor="nw",
+                         font=("Segoe UI", 12, "bold"), fill=t.c("text_strong"))
+        self.create_text(x0 + 20, y + 44, text="Mod prices and map ranks. No account or character names.", anchor="nw",
+                         font=("Segoe UI", 10), fill=t.c("text_muted"), width=(x1 - x0 - 40) if narrow else 0)
+        by = y + h - 44 - 20 if narrow else y + 20
+        bx = x1 - 20
+        lid = self.create_text(bx, by + 22, text="Learn more", anchor="e", font=("Segoe UI", 10, "underline"),
+                               fill=t.c("accent") if self.hover == "sh_more" else t.c("accent_2"), tags=("sh_more",))
+        self.acts["sh_more"] = lambda: self.app.cm_ask(info=True) if hasattr(self.app, "cm_ask") else None
+        self.tips["sh_more"] = "What is shared, and why"
+        bx = self.bbox(lid)[0] - 16
+        bx = self._button(bx, by, "No thanks", "sh_no", lambda: (share_prompt_answer(self.app, False), self.later()),
+                          tip="Nothing is shared. This is not asked again") - 12
+        self._button(bx, by, "Yes, share", "sh_yes", lambda: (share_prompt_answer(self.app, True), self.later()),
+                     tip="Turns on Share anonymous data with the community. Its switch is in Settings")
+        return y + h
+
+    # ---- 3.3.0 owner: Top Movers and Worth a look
+    def _pill(self, x, y, text, tag, on, fn, tip):
+        """A small choice: ✓ and a lit edge on the picked one. -> its right edge."""
+        t = TH.ST.theme
+        lab = ("✓ " if on else "") + text
+        tid = self.create_text(x + 12, y + 14, text=lab, anchor="w", font=("Segoe UI", 9, "bold" if on else "normal"),
+                               fill=t.c("text_strong") if on else t.c("text_muted"), tags=(tag,))
+        bx = self.bbox(tid)
+        TH.round_rect(self, x, y, bx[2] + 12, y + 28, 14, fill=t.c("surface_high") if on or self.hover == tag else "",
+                      outline=t.c("accent") if on else t.c("border"), tags=(tag,))
+        self.tag_raise(tid)
+        self.acts[tag], self.tips[tag] = fn, tip
+        return bx[2] + 12
+
+    def _extras(self, x0, y, x1, stack):
+        from . import features as FEAT
+        show_mv = FEAT.on("rates") if "rates" in FEAT.cfg() else True
+        show_tips = not SETTINGS.get("dash_worth_off")
+        if not (show_mv or show_tips):
+            return y
+        full = x1 - x0
+        both = show_mv and show_tips
+        mw = full if (stack or not both) else (full - GAP) * 0.62
+        if show_mv:
+            self._movers(x0, y, x0 + mw)
+            if stack and both:
+                y += MOVERS_H + GAP
+        if show_tips:
+            tx0 = x0 if (stack or not both) else x0 + mw + GAP
+            self._worth(tx0, y, x1, MOVERS_H if (both and not stack) else WORTH_H)
+            return y + (MOVERS_H if (both and not stack) else WORTH_H) + GAP
+        return y + MOVERS_H + GAP
+
+    def _movers(self, x0, y, x1):
+        from . import movers as MV
+        from .pricefmt import fmt_div
+        from .wealth import WPRICES
+        t = TH.ST.theme
+        head = TH.head_font(t)
+        mut, strong, txt = t.c("text_muted"), t.c("text_strong"), t.c("text")
+        self._card(x0, y, x1, y + MOVERS_H)
+        hid = self.create_text(x0 + 20, y + 18, text="Top Movers", anchor="nw", font=(head, 16), fill=strong)
+        iid = self.create_text(self.bbox(hid)[2] + 8, y + 24, text="ⓘ", anchor="nw", font=("Segoe UI Symbol", 10),
+                               fill=t.c("accent_2") if self.hover == "mv_info" else mut, tags=("mv_info",))
+        del iid
+        self.tips["mv_info"] = ("What went up and down the most on the Currency Exchange, from poe.ninja. Daily is "
+                                "yesterday against today. Hourly is the app's read an hour ago against now. Thinly "
+                                "traded items are left out.")
+        mode = SETTINGS.get("dash_movers") if SETTINGS.get("dash_movers") in ("daily", "hourly") else "daily"
+        px = x1 - 20
+        for key, lab, tip in (("hourly", "Hourly", "The last hour"), ("daily", "Daily", "Yesterday against today")):
+            probe = self.create_text(0, 0, text=("✓ " if key == mode else "") + lab,
+                                     font=("Segoe UI", 9, "bold" if key == mode else "normal"))
+            w = self.bbox(probe)[2] - self.bbox(probe)[0] + 24
+            self.delete(probe)
+            self._pill(px - w, y + 16, lab, "mv_" + key, key == mode, lambda k=key: self._movers_pick(k), tip)
+            px -= w + 8
+        league = SETTINGS.get("league")
+        age = WPRICES.age() if WPRICES.league == league else None
+        if league and (age is None or age > 3600) and time.time() - getattr(self, "_mv_asked", 0) > 600 \
+                and hasattr(self.app, "run_bg"):
+            self._mv_asked = time.time()                     # poe.ninja, at most hourly, off the window's thread
+            self.app.run_bg(lambda: WPRICES.ensure(league), lambda _r: self.later())
+        try:
+            data = (MV.hourly if mode == "hourly" else MV.daily)(WPRICES) if WPRICES.league == league else None
+        except Exception:
+            buglog.caught()
+            data = None
+        if not data or data["empty"]:
+            self.create_text(x0 + 20, y + 64, text=(data or {}).get("empty") or "Reading prices from poe.ninja…",
+                             anchor="nw", font=("Segoe UI", 10), fill=mut, width=x1 - x0 - 40)
+            return
+        cw = (x1 - x0 - 40 - GAP) / 2
+        for ci, (title, rows, col, mark) in enumerate((("Up", data["up"], t.c("good"), "▲"),
+                                                       ("Down", data["down"], t.c("bad"), "▼"))):
+            cx = x0 + 20 + ci * (cw + GAP)
+            self.create_text(cx, y + 56, text=f"{mark} {title}", anchor="nw", font=("Segoe UI", 9, "bold"), fill=col)
+            ry = y + 80
+            if not rows:
+                self.create_text(cx, ry + 8, text=f"Nothing went {title.lower()}.", anchor="nw", font=("Segoe UI", 10),
+                                 fill=mut)
+            for i, r in enumerate(rows):
+                tag = f"mv{ci}_{i}"
+                self.create_line(cx, ry, cx + cw, ry, fill=t.c("border"))
+                pid = self.create_text(cx + cw, ry + 16, text=f"{mark} {abs(r['pct']):.0f}%" if abs(r["pct"]) >= 10 else
+                                       f"{mark} {abs(r['pct']):.1f}%", anchor="e", font=("Segoe UI", 10, "bold"),
+                                       fill=col, tags=(tag,))
+                vid = self.create_text(self.bbox(pid)[0] - 12, ry + 16, text=fmt_div(r["div"]), anchor="e",
+                                       font=("Segoe UI", 9), fill=mut, tags=(tag,))
+                self.create_text(cx, ry + 16, text=r["name"], anchor="w", font=("Segoe UI", 10), fill=txt, tags=(tag,),
+                                 width=max(60, self.bbox(vid)[0] - cx - 8))
+                self.tips[tag] = r["how"]
+                ry += 32
+
+    def _movers_pick(self, key):
+        from .config import save_json
+        SETTINGS["dash_movers"] = key
+        save_json("settings.json", SETTINGS)
+        self.later()
+
+    def _worth(self, x0, y, x1, h):
+        t = TH.ST.theme
+        head = TH.head_font(t)
+        mut, strong = t.c("text_muted"), t.c("text_strong")
+        self._card(x0, y, x1, y + h)
+        self.create_text(x0 + 20, y + 18, text="Worth a look", anchor="nw", font=(head, 16), fill=strong)
+        hid = self.create_text(x1 - 20, y + 22, text="✕", anchor="ne", font=("Segoe UI", 10),
+                               fill=t.c("text") if self.hover == "wl_hide" else mut, tags=("wl_hide",))
+        del hid
+        self.acts["wl_hide"] = self._worth_hide
+        self.tips["wl_hide"] = "Hide Worth a look. Its switch is in Settings › General › Window"
+        try:
+            items = worth_items()
+        except Exception:
+            buglog.caught()
+            items = []
+        if not items:
+            self.create_text(x0 + 20, y + 60, text="Nothing new to show.", anchor="nw", font=("Segoe UI", 10), fill=mut)
+            return
+        i = self._wl_i = getattr(self, "_wl_i", int(time.time() // 86400)) % len(items)
+        title, line, btn, page, tab = items[i]
+        self.create_text(x0 + 20, y + 58, text=title, anchor="nw", font=("Segoe UI", 12, "bold"), fill=strong,
+                         width=x1 - x0 - 40)
+        self.create_text(x0 + 20, y + 86, text=line, anchor="nw", font=("Segoe UI", 10), fill=mut, width=x1 - x0 - 40)
+        sh = getattr(self.app, "shell", None)
+        by = y + h - 44 - 20
+        self._button(x1 - 20, by, btn, "wl_go",
+                     (lambda: (sh.open_tab(page, tab) if tab else sh.open(page)) if sh else None))
+        px = x0 + 20
+        for tag, glyph, step, tip in (("wl_prev", "‹", -1, "The one before"), ("wl_next", "›", 1, "The next one")):
+            lit = self.hover == tag
+            TH.round_rect(self, px, by + 6, px + 32, by + 38, 6, fill=t.c("surface_high") if lit else "",
+                          outline=t.c("border_light") if lit else t.c("border"), tags=(tag,))
+            self.create_text(px + 16, by + 21, text=glyph, font=("Segoe UI", 12, "bold"), fill=t.c("text"), tags=(tag,))
+            self.acts[tag] = lambda s=step, n=len(items): self._worth_step(s, n)
+            self.tips[tag] = tip
+            px += 40
+        self.create_text(px + 4, by + 22, text=f"{i + 1} of {len(items)}", anchor="w", font=("Segoe UI", 9), fill=mut)
+
+    def _worth_step(self, step, n):
+        self._wl_i = (getattr(self, "_wl_i", 0) + step) % max(1, n)
+        self.later()
+
+    def _worth_hide(self):
+        from .config import save_json
+        SETTINGS["dash_worth_off"] = True
+        save_json("settings.json", SETTINGS)
+        v = getattr(self.app, "dash_worth_var", None)
+        if v is not None:
+            v.set(False)
+        self.later()
+
     def _draw(self):
         t = TH.ST.theme
         if t is None:
@@ -263,34 +487,8 @@ class Dashboard(tk.Canvas):
         else:
             sub = "Where you stand, at a glance."
         sid = self.create_text(PAD, y + 50, text=sub, anchor="nw", font=("Segoe UI", 12), fill=mut)
-        try:                                                 # UI overhaul: the usage count (usage.py), else
-            from . import usage as US                        # the community count (About shows it too)
-            uc = US.counts()
-            if uc is None:
-                from .communitymods import installs
-                got = installs()
-                uc = (None, got[1] if got and got[1] is not None else (got[0] if got else None)) if got else None
-        except Exception:
-            uc = None
-        if uc and (uc[0] or uc[1]):
-            online, week = uc
-            label = f"{online:,} online now" if online else f"{week:,} this week"
-            sx = self.bbox(sid)[2] + 20
-            cy = y + 50 + 11
-            tag = "community"
-            lid = self.create_text(sx + 30, cy, text=label, anchor="w", font=("Segoe UI", 10), fill=txt, tags=(tag,))
-            bx = self.bbox(lid)
-            TH.round_rect(self, sx, cy - 14, bx[2] + 14, cy + 14, 14, fill=t.c("surface_raised"),
-                          outline=t.c("border_light") if self.hover == tag else t.c("border"), tags=(tag,))
-            hx = sx + 16                                     # a small person: head and shoulders
-            self.create_oval(hx - 4, cy - 9, hx + 4, cy - 1, fill=brass, outline="", tags=(tag,))
-            self.create_arc(hx - 8, cy + 1, hx + 8, cy + 15, start=0, extent=180, style="chord", fill=brass,
-                            outline="", tags=(tag,))
-            self.tag_raise(lid)
-            others = max(0, (online or 0) - 1)
-            self.tips[tag] = (f"{others:,} other people use Stash of Exile 2 right now" if online else
-                              f"{week:,} people used Stash of Exile 2 this week") + \
-                             (f" ({week:,} this week)." if online and week else ".")
+        # 3.3.0 owner: the online count is on the status bar (app.online_paint), not here
+        del sid
         pc_key = SETTINGS.get("pc_key") or "Ctrl+D"
         x = W - PAD
         if vis["price"]:
@@ -302,6 +500,8 @@ class Dashboard(tk.Canvas):
         y += 96
         look = getattr(self.app, "drawer_look_on", None)
         narrow = W < 900 or bool(look and look())            # D3: in the Drawer the tiles and Start cards wrap, 2 a row
+        if share_prompt_due():                               # 3.3.0 owner: asked once, here, while sharing is off
+            y = self._share_prompt(PAD, y, W - PAD, narrow) + GAP
 
         if vis["empty"]:                                     # every part is off: one line, one button
             self._card(PAD, y, W - PAD, y + 150)
@@ -404,6 +604,12 @@ class Dashboard(tk.Canvas):
                 self.acts[tag] = go(key)
             srows = -(-len(starts) // scols)
             y += srows * sh_ + (srows - 1) * GAP + GAP
+
+        # -- 3.3.0 owner: Top Movers, and Worth a look beside it (under it when the page is narrow)
+        try:
+            y = self._extras(PAD, y, W - PAD, narrow or bool(look and look()))
+        except Exception:
+            buglog.caught()
 
         # -- your last checks / helpers: one alone takes the full width
         stack = bool(look and look())                       # the Drawer: one column - Pick up, then Helpers under it

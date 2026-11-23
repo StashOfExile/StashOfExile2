@@ -26,7 +26,10 @@ VERSION HISTORY
        - League Plan redrawn: one ordered list with Next up first; goals count levels, acts, maps, tiers, boss arena
          runs, net worth from Wealth, div an hour from Map Profit, hours on a strat and the Stockpile; no phases and
          no Farm plan. The Stockpile is an Exchange Rates tab. The campaign route card counts steps done and filters
-         to rewards or bosses. Mod Lab: Not a price mod, a unique's fixed lines left out, uniques fold.
+         to rewards or bosses. Mod Lab: Doesn't affect price, a unique's fixed lines left out, uniques fold.
+       - Dashboard: Top Movers, Daily from poe.ninja's 7-day line and Hourly from the app's own reads; Worth a look;
+         the sharing question, asked once. The online count is on the status bar and counts only 3.1 and newer, on
+         the board too; the Rates text is off the bar; the clock sits on the bar's own color.
   3.2.0
        - Suggest a Feature next to Report a bug; Rate Mods is Mod Lab, with a bigger intro, pictures and a Next button
          for a mod rated by roll; League Plan's pokes are Reminders; an old page name still finds its page.

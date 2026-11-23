@@ -2090,13 +2090,15 @@ class Shell:
                 w.destroy()
             f = old
         else:
-            f = tk.Frame(self.task_right, bg="#111b30")
+            f = tk.Frame(self.task_right, bg=self.task_right["bg"])
             self._task_dot_frame = f
         self.task_dots = {}                  # 2.97.3: no "● Overlay" on the taskbar - the sidebar's dot shows it
         if old is not None:
             return
         f.pack(side="left", padx=8)
-        self.clock = tk.Label(self.task_right, text="", bg="#111b30", fg=C["text"], font=("Segoe UI", 9, "bold"),
+        # 3.3.0 owner: the clock's background is the bar's own, in every theme
+        self.clock = tk.Label(self.task_right, text="", bg=self.task_right["bg"], fg=C["text"],
+                              font=("Segoe UI", 9, "bold"),
                               justify="right")
         self.clock.pack(side="left", padx=(8, 2))
 

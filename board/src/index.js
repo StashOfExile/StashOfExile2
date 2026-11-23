@@ -331,6 +331,8 @@ let migrated = false;
 const MIGRATIONS = [
   // UI overhaul: the anonymous usage count - a hashed random id per install and when it was last seen, nothing else
   "CREATE TABLE IF NOT EXISTS usage_pings (pid TEXT PRIMARY KEY, last INTEGER NOT NULL)",
+  // 3.3.0: only versions that ask first are counted (3.1 and newer); rows from before stay out of the counts
+  "ALTER TABLE usage_pings ADD COLUMN ok INTEGER NOT NULL DEFAULT 0",
   "ALTER TABLE users ADD COLUMN reviewer INTEGER NOT NULL DEFAULT 0",     // 1 = reviews; -1 = an admin took it away
   "ALTER TABLE users ADD COLUMN last_seen INTEGER NOT NULL DEFAULT 0",
   "ALTER TABLE posts ADD COLUMN based_on INTEGER",
@@ -1312,16 +1314,24 @@ async function modStats(url, env) {
 
 // UI overhaul: the usage count. The app sends a random id made on that PC (not an account, name or address);
 // only its sha256 and the time it was last seen are kept; ids not seen for 30 days are dropped.
+// 3.3.0: an honest count - only the app at 3.1 or newer counts: those versions ping only after you say yes.
+function countedVersion(ua) {
+  const m = /^StashOfExile2\/(\d+)\.(\d+)/.exec(String(ua ?? ""));
+  return !!m && (Number(m[1]) > 3 || (Number(m[1]) === 3 && Number(m[2]) >= 1));
+}
+
 async function usagePing(req, env) {
   let body = {};
   try { body = await req.json(); } catch (_e) { return json({ error: "bad body" }, 400); }
   const raw = String(body?.id ?? "");
   if (!/^[0-9a-f]{32}$/.test(raw)) return json({ error: "bad id" }, 400);
+  if (!countedVersion(req.headers.get("User-Agent"))) return usageCount(env);       // an older app: not counted
   // a flood of made-up ids can't pad the count: 300 pings a day per internet address (about two PCs; kept hashed)
   if (!(await allowance(env, "usage", req.headers.get("CF-Connecting-IP") || "?", 300))) return usageCount(env);
   const t = now();
   await env.DB.batch([
-    env.DB.prepare(`INSERT INTO usage_pings (pid, last) VALUES (?1, ?2) ON CONFLICT(pid) DO UPDATE SET last = ?2`)
+    env.DB.prepare(`INSERT INTO usage_pings (pid, last, ok) VALUES (?1, ?2, 1)
+                    ON CONFLICT(pid) DO UPDATE SET last = ?2, ok = 1`)
       .bind(await sha256(raw), t),
     env.DB.prepare("DELETE FROM usage_pings WHERE last < ?").bind(t - 30 * 86400),
   ]);
@@ -1330,8 +1340,8 @@ async function usagePing(req, env) {
 
 async function usageCount(env) {
   const t = now();
-  const online = (await env.DB.prepare("SELECT COUNT(*) AS n FROM usage_pings WHERE last >= ?").bind(t - 15 * 60).first()).n;
-  const week = (await env.DB.prepare("SELECT COUNT(*) AS n FROM usage_pings WHERE last >= ?").bind(t - 7 * 86400).first()).n;
+  const online = (await env.DB.prepare("SELECT COUNT(*) AS n FROM usage_pings WHERE ok = 1 AND last >= ?").bind(t - 15 * 60).first()).n;
+  const week = (await env.DB.prepare("SELECT COUNT(*) AS n FROM usage_pings WHERE ok = 1 AND last >= ?").bind(t - 7 * 86400).first()).n;
   return json({ online, week });
 }
 

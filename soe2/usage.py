@@ -45,6 +45,24 @@ def counts():
     return num(d.get("online")), num(d.get("week"))
 
 
+def label():
+    """The status bar's words: "12 online", or "340 this week" when nobody is counted right now, or ""."""
+    c = counts()
+    if not c or not (c[0] or c[1]):
+        return ""
+    return f"{c[0]:,} online" if c[0] else f"{c[1]:,} this week"
+
+
+def tip():
+    """What the count counts, said plainly (3.3.0 owner: an honest online count)."""
+    c = counts() or (0, 0)
+    return ("People with Stash of Exile 2 open in the last 15 minutes. Only players who turned on Count me as a "
+            "user, on version 3.1 or newer."
+            + (f" {c[1]:,} this week." if c[1] else "")
+            + (" You are counted." if on() else " You are not counted. Its switch is in Settings › Privacy & "
+                                                "community."))
+
+
 def ping(call=None):
     """One ping (if on) and one count. Never raises. -> True when the board answered."""
     if not _lock.acquire(blocking=False):

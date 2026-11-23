@@ -51,12 +51,16 @@ NOTES = {
                 ("•", "Added base type images"),
                 ("•", "Added step count and filters to the campaign route"),
                 ("•", "Added option to skip mods that don't affect price in Mod Lab"),
+                ("•", "Added Top Movers to the Dashboard"),
+                ("•", "Added Worth a look to the Dashboard"),
+                ("•", "Added data sharing prompt to the Dashboard"),
             ]),
             ("▲", "Improved", [
                 ("•", "Reworked League Plan page to be a more streamlined user experience"),
                 ("•", "Moved Favorites into Price Checks"),
                 ("•", "Moved Stockpile into Exchange Rates"),
                 ("•", "Updated price filtering options"),
+                ("•", "Moved online count to the status bar"),
                 ("•", "Uniques list in Mod Lab can now be collapsed"),
             ]),
             ("✕", "Removed", [
