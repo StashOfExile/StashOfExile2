@@ -82,7 +82,9 @@ class FeedbackPage:
         """Every hour: is there a newer release? Shows the badge. 2.100.0 (feedback): it follows Preview builds (it
         only ever looked at full releases, so with previews on it never found one), and with Settings' update
         switches on, a newer version also gets a card - Install now, or it installs when the app next starts."""
-        from .config import SETTINGS
+        from .config import SETTINGS, TEST_BUILD
+        if TEST_BUILD:                                  # 3.3.0: a test build never updates itself
+            return
 
         def work():
             from .updates import latest_release

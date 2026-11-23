@@ -1345,6 +1345,9 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
         tells you (a card with Update now). Both stay quiet when you are up to date or GitHub can't be reached.
         2.100.0: every start looks once (closing and reopening the app checks again) - with both switches off it only
         lights the update badge; the hourly look (feedback_page.quiet_update_check) carries on from there."""
+        from .config import TEST_BUILD
+        if TEST_BUILD:                                  # 3.3.0: a test build never updates itself
+            return
         if SETTINGS.get("auto_update"):
             self.check_updates(mode="auto")
         elif SETTINGS.get("auto_check_updates"):

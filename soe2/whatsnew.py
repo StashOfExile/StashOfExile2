@@ -45,6 +45,18 @@ BETA_AREAS = ("Wealth", "Money Makers", "Game Search", "Market Insights", "Craft
 # repeats. Someone coming from rollup["since"] or older (or a fresh install) sees it instead of each version; someone
 # on a pre-release already saw them and gets only this version's own lines (notes_between).
 NOTES = {
+    "3.3.0": {
+        "lead": [
+            ("✦", "New", [
+                ("•", "Every item has a picture, before you price check it."),
+            ]),
+            ("↻", "Changed", [
+                ("•", "Favorites is a tab in Price Checks."),
+                ("•", "☆ Favorite replaces Add to favorites."),
+                ("•", "Prices in has the same choices as the trade filters."),
+            ]),
+        ],
+    },
     # 3.2.0: verified on the owner's PC; League Plan's rework waits for its own test round
     "3.2.0": {
         "lead": [

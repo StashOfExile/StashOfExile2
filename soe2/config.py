@@ -32,6 +32,9 @@ def pretty_version(v=None):
 TAGLINE = "One tool to rule them all."          # 2.73.2
 APP_TITLE = f"StashOfExile2 v{pretty_version()}  -  {TAGLINE}"
 UI_OVERHAUL = False       # True only in a local test build: no error reports (3.0.0: the release has them, opt-in)
+# 3.3.0 owner: a test build updated itself to the release. build_soe2.bat names it StashOfExile2-Test.exe - that one
+# never updates
+TEST_BUILD = "-test" in os.path.basename(sys.executable).lower()
 
 
 APP_DIR = os.path.dirname(sys.executable if getattr(sys, "frozen", False)     # the folder with the exe / launcher:

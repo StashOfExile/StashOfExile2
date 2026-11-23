@@ -2,7 +2,7 @@ r"""
 StashOfExile2 - a Path of Exile 2 price checker for tablets and jewels, with a window instead of a text dump.
 Free software under the GNU AGPL v3.0 (see LICENSE; up to 2.129.4: GNU GPL v3.0). Written by an AI (Claude, by Anthropic) under a human's direction.
 
-VERSION 3.2.0
+VERSION 3.3.0
   How versions are numbered (from 2.0.0 on):
     MAJOR.MINOR.PATCH.  The 22 betas ended here: this build is 2.0.0. From now on every build gets a plain number:
       2.0.1, 2.0.2 ...  fixes (nothing new to learn)
@@ -19,6 +19,10 @@ VERSION 3.2.0
   version (settings.json, session.json, modbook.json, mod_rules.json, wealth.json, tabs.txt ...).
 
 VERSION HISTORY
+  3.3.0
+       - Every equipment base has a picture link, from RePoE's export; currency and the rest from the trade site's
+         list. Favorites is a Price Checks tab; ☆ Favorite; Prices in has the trade filters' Priced in choices.
+       - Test builds never update themselves.
   3.2.0
        - Suggest a Feature next to Report a bug; Rate Mods is Mod Lab, with a bigger intro, pictures and a Next button
          for a mod rated by roll; League Plan's pokes are Reminders; an old page name still finds its page.
@@ -3960,7 +3964,7 @@ THE "LEARNING" PART
 import os
 import sys
 
-APP_VERSION = "3.2.0"  # bump this and __version__ in soe2/__init__.py together (see VERSION above)
+APP_VERSION = "3.3.0"  # bump this and __version__ in soe2/__init__.py together (see VERSION above)
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
