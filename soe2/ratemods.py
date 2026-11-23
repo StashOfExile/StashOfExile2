@@ -97,7 +97,7 @@ def apply(keys, grade):
 
 
 def not_price():
-    """3.3.0 owner: mods you marked Not a price mod - on the item but nothing to do with its price."""
+    """3.3.0 owner: mods you marked Doesn't affect price - on the item but nothing to do with its price."""
     from .config import SETTINGS
     v = SETTINGS.get("rm_not_price")
     return set(v) if isinstance(v, list) else set()
@@ -118,7 +118,7 @@ def fixed_line(set_name, text):
 
 def queue(set_name, gear_mods=None):
     """Mods to rate in one set, the ones you haven't rated first: [(keys, text)]. 3.3.0: without a unique's fixed
-    lines and the mods you marked Not a price mod."""
+    lines and the mods you marked Doesn't affect price."""
     out = []
     if set_name.startswith(("gear:", "unique:")):
         seen = set()

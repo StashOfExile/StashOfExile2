@@ -48,17 +48,20 @@ NOTES = {
     "3.3.0": {
         "lead": [
             ("✦", "New", [
-                ("•", "Every item has a picture, before you price check it."),
-                ("•", "League Plan goals for net worth, div an hour, bosses, map tiers and your Stockpile."),
-                ("•", "The campaign route shows steps done, and can list only rewards or bosses."),
+                ("•", "Added base type images"),
+                ("•", "Added step count and filters to the campaign route"),
+                ("•", "Added option to skip mods that don't affect price in Mod Lab"),
             ]),
-            ("↻", "Changed", [
-                ("•", "League Plan is one list of goals, with Next up on top."),
-                ("•", "Stockpile is a tab in Exchange Rates."),
-                ("•", "League Plan has no phases and no Farm plan."),
-                ("•", "Favorites is a tab in Price Checks."),
-                ("•", "☆ Favorite replaces Add to favorites."),
-                ("•", "Prices in has the same choices as the trade filters."),
+            ("▲", "Improved", [
+                ("•", "Reworked League Plan page to be a more streamlined user experience"),
+                ("•", "Moved Favorites into Price Checks"),
+                ("•", "Moved Stockpile into Exchange Rates"),
+                ("•", "Updated price filtering options"),
+                ("•", "Uniques list in Mod Lab can now be collapsed"),
+            ]),
+            ("✕", "Removed", [
+                ("•", "Removed League Plan phases and Farm plan"),
+                ("•", "Removed Favorites page"),
             ]),
         ],
     },

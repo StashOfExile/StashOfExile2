@@ -706,10 +706,10 @@ class RateModsPage:
         else:
             self._rm_btn(cv, bx + bw + gap, y, bw, 32, "Skip", "nav:skip", lambda: self.rm_step(1), off=last,
                          tip="The next mod, without rating this one. Key: →")
-        nw = 150                                       # 3.3.0 owner: on the item, nothing to do with its price
-        self._rm_btn(cv, (x0 + x1) / 2 - nw / 2, y + 32 + 10, nw, 28, "Not a price mod", "nav:notprice",
+        nw = 170                                       # 3.3.0 owner: on the item, nothing to do with its price
+        self._rm_btn(cv, (x0 + x1) / 2 - nw / 2, y + 32 + 10, nw, 28, "Doesn't affect price", "nav:notprice",
                      self.rm_not_price, font=F_SMALL,
-                     tip="On the item but doesn't change its price. It leaves the list")
+                     tip="Takes this mod out of the list")
         y += 32 + 10 + 28 + 16
         rated, total = self.rm_counts.get(self.rm_set, (0, 0))
         if total and rated == total:
@@ -1157,7 +1157,7 @@ class RateModsPage:
         self.rm_i = min(i, max(0, len(self.rm_q) - 1))
         self._rm_redraw()
         if hasattr(self, "app_toast"):
-            self.app_toast(f"{e['text']} left the list.", title="Not a price mod",
+            self.app_toast(f"{e['text']} left the list.", title="Doesn't affect price",
                            actions=(("Undo", lambda k=e["keys"]: self.rm_not_price_undo(k)),))
 
     def rm_not_price_undo(self, keys):

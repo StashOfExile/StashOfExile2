@@ -1,4 +1,4 @@
-"""3.3.0 owner, Mod Lab: a unique's fixed line - no number, on every copy - leaves the list; Not a price mod takes any
+"""3.3.0 owner, Mod Lab: a unique's fixed line - no number, on every copy - leaves the list; Doesn't affect price takes any
 mod out, with Undo; the uniques you've checked fold.
 
     DISPLAY=:99 python3.12 -m unittest tests.test_modlab_notprice          (or tests/runall.sh)"""
