@@ -10,6 +10,7 @@ from tkinter import ttk
 from . import buglog
 from . import focus as F
 from .chrome import section as chrome_section
+from . import inplace as IP
 from .style import C, FONT_TITLE, ScrollArea, SegBar, Tooltip, autowrap
 
 
@@ -135,18 +136,6 @@ class GamePlanPage:
         except Exception:
             buglog.caught()
 
-    def _gp_link(self, parent, g):
-        """ "Wealth ›" after a goal's count - one click to where the number is from."""
-        src = F.SOURCE.get(F.goal_target(g)[0] or "")
-        if not src:
-            return None
-        lk = tk.Label(parent, text=src[0] + " ›", bg=parent["bg"], fg=C["accent"], font=("Segoe UI", 9, "underline"),
-                      cursor="hand2")
-        lk.bind("<Button-1>", lambda e, p=src[1], k=F.goal_target(g)[0]: self.gp_open(p, "Stockpile" if k == "stock"
-                                                                                      else None))
-        Tooltip(lk, f"Open {src[0]}")
-        return lk
-
     # ---------------- first open: no plan yet
     def _gp_start(self, box):
         P2 = C["panel2"]
@@ -170,114 +159,190 @@ class GamePlanPage:
         self.gp_fill()
         self.gp_overlay()
 
-    # ---------------- Next up
-    def _gp_next(self):
+    def _gp_bar_set(self, cv, frac, w):
+        """A bar already on the page, drawn to a new length."""
+        key = None if frac is None else round(min(1.0, frac), 3)
+        if getattr(cv, "_frac", "?") == key:
+            return
+        cv._frac = key
+        cv.delete("all")
+        cv.create_rectangle(0, 1, w - 1, 5, fill=C["panel"], outline=C["line"])
+        if frac:
+            cv.create_rectangle(0, 1, int((w - 1) * min(1.0, frac)), 5, fill=C["green"] if frac >= 1 else C["accent"],
+                                outline="")
+
+    @staticmethod
+    def _gp_show(w, on, **pack):
+        """Pack or un-pack a widget that stays alive - only when that differs from now."""
+        if on and not w.winfo_manager():
+            w.pack(**pack)
+        elif not on and w.winfo_manager():
+            w.pack_forget()
+
+    def _gp_goal_link(self, parent):
+        """ "Wealth ›" after a goal's count - one click to where the number is from. Made once, aimed by _gp_link_set."""
+        lk = tk.Label(parent, text="", bg=parent["bg"], fg=C["accent"], font=("Segoe UI", 9, "underline"),
+                      cursor="hand2")
+        lk.tip = Tooltip(lk, "")
+        return lk
+
+    def _gp_link_set(self, lk, g, **pack):
+        kind = F.goal_target(g)[0] if g else None
+        src = F.SOURCE.get(kind or "")
+        self._gp_show(lk, bool(src) and not g["done"], **pack)
+        if src:
+            IP.set_cfg(lk, text=src[0] + " ›")
+            lk.tip.text = f"Open {src[0]}"
+            lk.bind("<Button-1>", lambda e, p=src[1], k=kind: self.gp_open(p, "Stockpile" if k == "stock" else None))
+
+    # ---------------- Next up: built once, its words and bar change in place
+    def _gp_next_build(self):
         P2 = C["panel2"]
         box = self.gp_next_box
-        for w in box.winfo_children():
-            w.destroy()
+        n = self._gp_nx = {}
+        n["all"] = tk.Label(box, text="", bg=P2, fg=C["good"], font=("Segoe UI", 12, "bold"), anchor="w")
+        n["card"] = tk.Frame(box, bg=P2)
+        n["pos"] = tk.Label(n["card"], text="", bg=P2, fg=C["muted"], font=("Segoe UI", 9), anchor="w")
+        n["pos"].pack(fill="x")
+        n["text"] = tk.Label(n["card"], text="", bg=P2, fg=C["text"], font=(FONT_TITLE, 16), anchor="w", justify="left")
+        n["text"].pack(fill="x", pady=(2, 4))
+        autowrap(n["text"])
+        meta = tk.Frame(n["card"], bg=P2)
+        meta.pack(fill="x")
+        n["bar"] = tk.Canvas(meta, width=120, height=6, bg=P2, highlightthickness=0)
+        n["prog"] = tk.Label(meta, text="", bg=P2, fg=C["text"], font=("Segoe UI", 10))
+        n["prog"].pack(side="left")
+        n["src"] = tk.Label(meta, text="", bg=P2, fg=C["muted"], font=("Segoe UI", 9))
+        n["src"].pack(side="left")
+        n["link"] = self._gp_goal_link(meta)
+        row = tk.Frame(n["card"], bg=P2)
+        row.pack(fill="x", pady=(8, 0))
+        n["done"] = ttk.Button(row, text="✓ Done", command=lambda: self.gp_goal_done(self._gp_nx["gid"], True))
+        n["skip"] = ttk.Button(row, text="Skip for now", style="Quiet.TButton",
+                               command=lambda: self.gp_skip(self._gp_nx["gid"]))
+        n["skip"].pack(side="left")
+        n["skip_tip"] = Tooltip(n["skip"], "")
+
+    def _gp_next(self):
+        if not hasattr(self, "_gp_nx") or not self._gp_nx["card"].winfo_exists():
+            self._gp_next_build()
+        n = self._gp_nx
         g = F.current()
-        done, n = F.counts()
+        done, total = F.counts()
+        self._gp_show(n["all"], g is None, fill="x")
+        self._gp_show(n["card"], g is not None, fill="x")
         if g is None:
-            tk.Label(box, text=f"✓ All {n} goals done." if n else "", bg=P2, fg=C["good"],
-                     font=("Segoe UI", 12, "bold"), anchor="w").pack(fill="x")
+            IP.set_cfg(n["all"], text=f"✓ All {total} goals done." if total else "")
             return
         gs = F.cfg()["goals"]
-        tk.Label(box, text=f"{gs.index(g) + 1} of {n}", bg=P2, fg=C["muted"], font=("Segoe UI", 9),
-                 anchor="w").pack(fill="x")
-        tk.Label(box, text=g["text"], bg=P2, fg=C["text"], font=(FONT_TITLE, 16), anchor="w", justify="left").pack(
-            fill="x", pady=(2, 4))
-        autowrap(box.pack_slaves()[-1])
-        meta = tk.Frame(box, bg=P2)
-        meta.pack(fill="x")
+        n["gid"] = g["id"]
+        IP.set_cfg(n["pos"], text=f"{gs.index(g) + 1} of {total}")
+        IP.set_cfg(n["text"], text=g["text"])
         fr = F.frac(g)
-        if fr is not None:
-            self._gp_bar(meta, fr, w=120).pack(side="left", padx=(0, 8))
-        pt = F.progress_text(g)
-        tk.Label(meta, text=pt or "You tick this one", bg=P2, fg=C["text"] if pt else C["muted"],
-                 font=("Segoe UI", 10)).pack(side="left")
-        src = F.source_text(g)
-        if src:
-            tk.Label(meta, text=" · " + src, bg=P2, fg=C["muted"], font=("Segoe UI", 9)).pack(side="left")
-        lk = self._gp_link(meta, g)
-        if lk is not None:
-            lk.pack(side="left", padx=(8, 0))
-        row = tk.Frame(box, bg=P2)
-        row.pack(fill="x", pady=(8, 0))
-        if not F.goal_target(g)[0] or F.goal_target(g) == ("farm", 0.0):
-            ttk.Button(row, text="✓ Done", command=lambda gid=g["id"]: self.gp_goal_done(gid, True)).pack(
-                side="left", padx=(0, 8))
+        self._gp_show(n["bar"], fr is not None, side="left", padx=(0, 8), before=n["prog"])
+        self._gp_bar_set(n["bar"], fr, 120)
+        pt, src = F.progress_text(g), F.source_text(g)
+        IP.set_cfg(n["prog"], text=pt or "You tick this one", fg=C["text"] if pt else C["muted"])
+        IP.set_cfg(n["src"], text=" · " + src if src else "")
+        self._gp_link_set(n["link"], g, side="left", padx=(8, 0))
+        mine = not F.goal_target(g)[0] or F.goal_target(g) == ("farm", 0.0)
+        self._gp_show(n["done"], mine, side="left", padx=(0, 8), before=n["skip"])
         more = sum(1 for x in gs if not x["done"]) > 1
-        sk = ttk.Button(row, text="Skip for now", style="Quiet.TButton", command=lambda gid=g["id"]: self.gp_skip(gid))
-        sk.pack(side="left")
-        if not more:
-            sk.state(["disabled"])
-        Tooltip(sk, "The goal after it is Next up until tomorrow" if more else "This is your only open goal")
+        n["skip"].state(["!disabled"] if more else ["disabled"])
+        n["skip_tip"].text = "The goal after it is Next up until tomorrow" if more else "This is your only open goal"
 
     def gp_skip(self, gid):
         F.skip(gid)
         self.gp_fill()
         self.gp_overlay()
 
-    # ---------------- your plan
-    def _gp_goal_rows(self):
+    # ---------------- your plan: one row per goal, kept; a tick, a move or a count changes it in place
+    def _gp_row_build(self, g):
         P2 = C["panel2"]
-        box = self.gp_goal_box
-        for w in box.winfo_children():
-            w.destroy()
+        gid = g["id"]
+        r = {"frame": tk.Frame(self.gp_goal_box, bg=P2)}
+        top = tk.Frame(r["frame"], bg=P2)
+        top.pack(fill="x", pady=(8, 0))
+        r["num"] = tk.Label(top, text="", bg=P2, font=("Segoe UI", 10, "bold"), width=3)
+        r["num"].pack(side="left")
+        r["text"] = tk.Label(top, text="", bg=P2, font=("Segoe UI", 10))
+        r["text"].pack(side="left")
+        r["chip"] = tk.Label(top, text=" NEXT UP ", bg=C["accent"], fg=C["bg"], font=("Segoe UI", 9, "bold"))
+        for key, txt, fn in (("x", "✕", lambda: F.remove_goal(gid)), ("down", "▼", lambda: F.move_goal(gid, 1)),
+                             ("up", "▲", lambda: F.move_goal(gid, -1))):
+            b = tk.Label(top, text=txt, bg=P2, fg=C["muted"], cursor="hand2", padx=4)
+            b.pack(side="right")
+            b.bind("<Button-1>", lambda e, fn=fn, b=b: None if getattr(b, "off", False) else (
+                fn(), self.gp_fill(), self.gp_overlay()))
+            b.tip = Tooltip(b, "Remove this goal")
+            r[key] = b
+        r["tick"] = tk.Label(top, bg=P2, cursor="hand2", font=("Segoe UI", 9), padx=8)
+        r["tick"].bind("<Button-1>", lambda e: self.gp_goal_done(gid, not (F.goal(gid) or {}).get("done")))
+        r["tick"].tip = Tooltip(r["tick"], "")
+        meta = tk.Frame(r["frame"], bg=P2)
+        meta.pack(fill="x", padx=(24, 0))
+        r["bar"] = tk.Canvas(meta, width=64, height=6, bg=P2, highlightthickness=0)
+        r["meta"] = tk.Label(meta, text="", bg=P2, font=("Segoe UI", 9))
+        r["meta"].pack(side="left")
+        r["link"] = self._gp_goal_link(meta)
+        return r
+
+    def _gp_row_set(self, r, g, i, n, cur):
+        done = g["done"]
+        IP.set_cfg(r["num"], text="✓" if done else str(i + 1), fg=C["good"] if done else C["muted"])
+        IP.set_cfg(r["text"], text=g["text"], fg=C["muted"] if done else C["text"],
+                   font=("Segoe UI", 10, "bold" if g is cur else "normal"))
+        self._gp_show(r["chip"], g is cur, side="left", padx=(8, 0))
+        for key, off, tip, why in (("up", i == 0, "Move up", "Already first"),
+                                   ("down", i == n - 1, "Move down", "Already last")):
+            r[key].off = off
+            IP.set_cfg(r[key], fg=C["line"] if off else C["muted"], cursor="arrow" if off else "hand2")
+            r[key].tip.text = why if off else tip
+        kind = F.goal_target(g)[0]
+        mine = not kind or done or F.goal_target(g) == ("farm", 0.0)
+        self._gp_show(r["tick"], mine, side="right")
+        self._gp_tick_paint(r["tick"], done)
+        r["tick"].tip.text = "Not done after all" if done else "Tick it when the goal is done"
+        fr = None if done or not kind else F.frac(g)
+        self._gp_show(r["bar"], fr is not None, side="left", padx=(0, 8), before=r["meta"])
+        self._gp_bar_set(r["bar"], fr, 64)
+        if done:
+            why = "you ticked it" if not g.get("auto_done") else (F.source_text(g).split(" · ")[0] or "counted")
+            IP.set_cfg(r["meta"], text="✓ Done · " + why, fg=C["good"])
+        elif kind:
+            IP.set_cfg(r["meta"], text=" · ".join(x for x in (F.progress_text(g), F.source_text(g)) if x),
+                       fg=C["muted"])
+        else:
+            IP.set_cfg(r["meta"], text="You tick this one", fg=C["muted"])
+        self._gp_link_set(r["link"], g, side="left", padx=(8, 0))
+
+    def _gp_goal_rows(self):
+        """Rows are kept by goal: a new goal adds one, a removed goal takes its own away, a move re-orders the same
+        rows, and everything else is a change of words and marks."""
+        rows = self.__dict__.setdefault("_gp_rows", {})
         gs = F.cfg()["goals"]
         cur = F.current()
         done, n = F.counts()
-        self._gp_done_lbl.config(text=f"{done} of {n} done")
+        IP.set_cfg(self._gp_done_lbl, text=f"{done} of {n} done")
+        ids = [g["id"] for g in gs]
+        for gid in [k for k in rows if k not in ids or not rows[k]["frame"].winfo_exists()]:
+            fr = rows.pop(gid)["frame"]
+            if fr.winfo_exists():
+                fr.destroy()
+        for g in gs:
+            if g["id"] not in rows:
+                rows[g["id"]] = self._gp_row_build(g)
+        if [w for w in self.gp_goal_box.pack_slaves()] != [rows[i]["frame"] for i in ids]:
+            for i in ids:                                   # the same rows, in the new order
+                rows[i]["frame"].pack_forget()
+            for i in ids:
+                rows[i]["frame"].pack(fill="x")
         for i, g in enumerate(gs):
-            r = tk.Frame(box, bg=P2)
-            r.pack(fill="x", pady=(8, 0))
-            tk.Label(r, text="✓" if g["done"] else str(i + 1), bg=P2, fg=C["good"] if g["done"] else C["muted"],
-                     font=("Segoe UI", 10, "bold"), width=3).pack(side="left")
-            tk.Label(r, text=g["text"], bg=P2, fg=C["muted"] if g["done"] else C["text"],
-                     font=("Segoe UI", 10, "bold" if g is cur else "normal")).pack(side="left")
-            if g is cur:
-                tk.Label(r, text=" NEXT UP ", bg=C["accent"], fg=C["bg"], font=("Segoe UI", 9, "bold")).pack(
-                    side="left", padx=(8, 0))
-            for txt, fn, tip, off in (
-                    ("✕", lambda gid=g["id"]: F.remove_goal(gid), "Remove this goal", False),
-                    ("▼", lambda gid=g["id"]: F.move_goal(gid, 1), "Move down", i == len(gs) - 1),
-                    ("▲", lambda gid=g["id"]: F.move_goal(gid, -1), "Move up", i == 0)):
-                b = tk.Label(r, text=txt, bg=P2, fg=C["line"] if off else C["muted"], cursor="arrow" if off else "hand2",
-                             padx=4)
-                b.pack(side="right")
-                if not off:
-                    b.bind("<Button-1>", lambda e, fn=fn: (fn(), self.gp_fill(), self.gp_overlay()))
-                Tooltip(b, "Already first" if off and txt == "▲" else "Already last" if off else tip)
-            kind = F.goal_target(g)[0]
-            if not kind or g["done"] or F.goal_target(g) == ("farm", 0.0):
-                tick = tk.Label(r, bg=P2, cursor="hand2", font=("Segoe UI", 9), padx=8)
-                tick.pack(side="right")
-                self._gp_tick_paint(tick, g["done"])
-                tick.bind("<Button-1>", lambda e, gid=g["id"], d=g["done"]: self.gp_goal_done(gid, not d))
-                Tooltip(tick, "Not done after all" if g["done"] else "Tick it when the goal is done")
-            meta = tk.Frame(box, bg=P2)
-            meta.pack(fill="x", padx=(24, 0))
-            if g["done"]:
-                why = "you ticked it" if not g.get("auto_done") else (F.source_text(g).split(" · ")[0] or "counted")
-                tk.Label(meta, text="✓ Done · " + why, bg=P2, fg=C["good"], font=("Segoe UI", 9)).pack(side="left")
-                continue
-            pt = F.progress_text(g)
-            if kind:
-                fr = F.frac(g)
-                if fr is not None:
-                    self._gp_bar(meta, fr).pack(side="left", padx=(0, 8))
-                bits = " · ".join(x for x in (pt, F.source_text(g)) if x)
-                tk.Label(meta, text=bits, bg=P2, fg=C["muted"], font=("Segoe UI", 9)).pack(side="left")
-                lk = self._gp_link(meta, g)
-                if lk is not None:
-                    lk.pack(side="left", padx=(8, 0))
-            else:
-                tk.Label(meta, text="You tick this one", bg=P2, fg=C["muted"], font=("Segoe UI", 9)).pack(side="left")
+            self._gp_row_set(rows[g["id"]], g, i, n, cur)
 
     @staticmethod
     def _gp_tick_paint(lbl, done):
-        lbl.config(text="☑ Done" if done else "☐ Done", fg=C["good"] if done else C["muted"])
+        IP.set_cfg(lbl, text="☑ Done" if done else "☐ Done", fg=C["good"] if done else C["muted"])
 
     def gp_goal_done(self, gid, done):
         F.set_done(gid, done)
@@ -798,14 +863,14 @@ class GamePlanPage:
         if sig == getattr(self, "_gp_sig", None) and self.gp_goal_box.winfo_exists():
             return                                          # no flicker: the same plan is not drawn again
         self._gp_sig = sig
-        for sec, show in ((self.gp_start_sec, not has), (self.gp_next_sec, has), (self.gp_plan_sec, has)):
-            sec.pack_forget()
-        for sec, show in ((self.gp_start_sec, not has), (self.gp_next_sec, has), (self.gp_plan_sec, has)):
-            if show:
+        want = [self.gp_next_sec, self.gp_plan_sec] if has else [self.gp_start_sec]
+        if [w for w in self.gp_list.pack_slaves()] != want:
+            for sec in (self.gp_start_sec, self.gp_next_sec, self.gp_plan_sec):
+                sec.pack_forget()
+            for sec in want:
                 sec.pack(fill="x", pady=(0, 12))
-        if has:
-            self._gp_next()
-            self._gp_goal_rows()
+        self._gp_next()
+        self._gp_goal_rows()
         self.gp_on.set(bool(F.cfg()["on"]))
 
 

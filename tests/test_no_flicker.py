@@ -379,30 +379,97 @@ class Settings(Tk):
 
 
 class Plan(Tk):
-    def test_the_same_plan_is_not_drawn_again(self):
+    """League Plan's list: a tick, a move, a skip or a new count changes the rows that are there; a new goal adds
+    one row and a removed goal takes only its own away."""
+
+    def setUp(self):
         from soe2 import focus as F
         from soe2.config import SETTINGS
         from soe2.plan_page import GamePlanPage
-        s = GamePlanPage.__new__(GamePlanPage)
+        self.F = F
+        self._old = SETTINGS.get("focus")
+        SETTINGS["focus"] = {}
+        self._p = mock.patch.object(F, "save", lambda: None)
+        self._p.start()
+        s = self.s = GamePlanPage.__new__(GamePlanPage)
         s.root, s.gp_overlay, s.shell = self.root, mock.Mock(), mock.Mock()
         s.focus_test = s.focus_history = lambda: None
-        old = SETTINGS.get("focus")
-        SETTINGS["focus"] = {}
-        try:
-            with mock.patch.object(F, "save", lambda: None):
-                F.add_goal("First goal"), F.add_goal("Second goal")
-                s.build_game_plan(self.frame()).pack()
-                kids = list(s.gp_goal_box.winfo_children()) + list(s.gp_next_box.winfo_children())
-                s.gp_fill()
-                self.assertEqual(list(s.gp_goal_box.winfo_children()) + list(s.gp_next_box.winfo_children()), kids)
-                s.gp_goal_done(F.cfg()["goals"][0]["id"], True)
-                self.assertEqual(s._gp_done_lbl.cget("text"), "1 of 2 done")
-                self.assertNotEqual(list(s.gp_goal_box.winfo_children()), kids, "a tick moves Next up on")
-        finally:
-            if old is None:
-                SETTINGS.pop("focus", None)
-            else:
-                SETTINGS["focus"] = old
+        self.a, self.b, self.c = F.add_goal("First goal"), F.add_goal("Second goal"), F.add_goal(kind="level",
+                                                                                                  target=90)
+        s.build_game_plan(self.frame()).pack()
+
+    def tearDown(self):
+        from soe2.config import SETTINGS
+        self._p.stop()
+        if self._old is None:
+            SETTINGS.pop("focus", None)
+        else:
+            SETTINGS["focus"] = self._old
+
+    def all_widgets(self):
+        out = []
+
+        def walk(w):
+            out.append(w)
+            for k in w.winfo_children():
+                walk(k)
+        walk(self.s.gp_goal_box), walk(self.s.gp_next_box)
+        return out
+
+    def test_a_tick_changes_marks_not_rows(self):
+        s, F = self.s, self.F
+        before = self.all_widgets()
+        s.gp_goal_done(self.a["id"], True)
+        self.assertEqual(self.all_widgets(), before, "no widget made or destroyed")
+        self.assertEqual(s._gp_done_lbl.cget("text"), "1 of 3 done")
+        rows = s._gp_rows
+        self.assertEqual(rows[self.a["id"]]["num"].cget("text"), "✓")
+        self.assertEqual(rows[self.a["id"]]["tick"].cget("text"), "☑ Done", "a mark and a word")
+        self.assertFalse(rows[self.a["id"]]["chip"].winfo_manager())
+        self.assertTrue(rows[self.b["id"]]["chip"].winfo_manager(), "Next up moved on")
+        self.assertEqual(s._gp_nx["text"].cget("text"), "Second goal")
+        s.gp_goal_done(self.a["id"], False)
+        self.assertEqual(self.all_widgets(), before)
+
+    def test_a_move_and_a_skip_keep_the_rows(self):
+        s, F = self.s, self.F
+        before = self.all_widgets()
+        F.move_goal(self.c["id"], -1)
+        s.gp_fill()
+        self.assertEqual(set(self.all_widgets()), set(before))
+        self.assertEqual(s.gp_goal_box.pack_slaves(),
+                         [s._gp_rows[g["id"]]["frame"] for g in F.cfg()["goals"]], "the same rows, re-ordered")
+        self.assertEqual(s._gp_rows[self.c["id"]]["num"].cget("text"), "2")
+        s.gp_skip(self.a["id"])
+        self.assertEqual(set(self.all_widgets()), set(before))
+        self.assertEqual(s._gp_nx["text"].cget("text"), "Level 90")
+
+    def test_a_new_count_changes_words_in_place(self):
+        s, F = self.s, self.F
+        before = self.all_widgets()
+        lbl = s._gp_rows[self.c["id"]]["meta"]
+        F.state()["levels"], F.state()["last_char"] = {"Me": 74}, "Me"
+        s.gp_fill()
+        self.assertEqual(lbl.cget("text"), "Level 74 of 90 · from the game's log")
+        self.assertEqual(self.all_widgets(), before)
+
+    def test_add_and_remove_touch_one_row(self):
+        s, F = self.s, self.F
+        keep = {g: s._gp_rows[g]["frame"] for g in (self.a["id"], self.c["id"])}
+        d = F.add_goal("Fourth goal")
+        s.gp_fill()
+        self.assertEqual(len(s._gp_rows), 4)
+        F.remove_goal(self.b["id"])
+        F.remove_goal(d["id"])
+        s.gp_fill()
+        self.assertEqual({g: r["frame"] for g, r in s._gp_rows.items()}, keep, "the other rows are the same widgets")
+        self.assertTrue(all(f.winfo_exists() for f in keep.values()))
+
+    def test_the_same_plan_is_not_drawn_again(self):
+        s = self.s
+        lbl = s._gp_done_lbl
+        lbl.config = mock.Mock(side_effect=AssertionError("drawn again"))
+        s.gp_fill()
 
 
 class Overlay2(Tk):
