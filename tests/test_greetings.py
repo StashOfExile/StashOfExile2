@@ -36,7 +36,7 @@ class Greetings(unittest.TestCase):
         self.assertIn("Oi bruv, did you eat today?", GR.MORNING)
         self.assertIn("Sleep? Nah, go off sis, get to mappin'", GR.LATE)
         for line in ("Sup baddie", "Haaaayyyyyyyyy girl haaaaaayyyyyyyyyy", "Yaas king let's get them divs",
-                     "That's a good exile.", "Now who's a good exile?"):
+                     "That's a good exile.", "Now who's a good exile?", "Orbe Divino!"):
             self.assertIn(line, GR.ANY)
         every = GR.MORNING + GR.AFTERNOON + GR.EVENING + GR.LATE + GR.ANY
         for dropped in ("Coffee first, maps second, {name}", "Mother is mothering. And mapping",

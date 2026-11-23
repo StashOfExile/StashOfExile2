@@ -124,6 +124,7 @@ ANY = (
     "That's a good exile.",
     "Now who's a good exile?",
     "This app is {name}'s biggest fan",
+    "Orbe Divino!",
 )
 
 PLAIN = {"morning": "Good morning, {name}", "afternoon": "Good afternoon, {name}", "evening": "Good evening, {name}",
