@@ -327,6 +327,15 @@ REMOVED = [
       "wealth_add_pc_tab", "wealth_pc_tab", "wealth_pc_refresh", "_wealth_add", "wealth_toggle_tab",
       "wealth_remove_tab", "wealth_open_trade", "wealth_buttons", "_w_tab_row", "_w_by_tab", "wealth_show_tab_result",
       "wealth_setup_layout", "wealth_save_account", "wealth_skip_tab")),
+    ("3.2.1", "League Plan's Remind me choice for a goal and the Reminds you line (owner: in town only, no choice)",
+     ("Once, when this phase starts", "Never, keep it on the plan", "Reminds you:"),
+     ("gp_new_trig",)),
+    ("3.2.1", "A farm's Goal: level, hours, maps or a date, its reminder to move on and its switch (owner: it didn't "
+              "fit - Done, next moves you on)",
+     ("I've played it for hours", "I've run maps of it", "I move on myself", "TIME TO MOVE ON",
+      "Moving on to your next farm", "its Goal was reached"),
+     ("FARM_GOALS", "check_farms", "farm_progress", "gp_farm_hint", "gp_farm_kind", "gp_f_kind", "gp_f_target",
+      "FARM_HINTS")),
     ("3.2.1", "The community name check against your own character names: That's your character name, too close to "
               "your character name (owner: reading your names to refuse one felt too invasive)",
      ("That's your character name", "too close to your character name"),

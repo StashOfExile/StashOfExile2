@@ -398,12 +398,14 @@ class Plan(Tk):
             s._gp_goal_rows()
             kids = list(s.gp_goal_box.winfo_children())
             self.assertEqual(s._gp_done_lbl.cget("text"), "0 / 2 done")
-            self.assertEqual(s._gp_now_btns[a["id"]].cget("text"), "✓ On the overlay")
+            self.assertTrue(s._gp_on_lbls[a["id"]].winfo_manager(), "the shown one: ✓ On the overlay in words")
+            self.assertFalse(s._gp_now_btns[a["id"]].winfo_manager())
             s.gp_goal_tick(a["id"], types.SimpleNamespace(get=lambda: True))
             self.assertEqual(list(s.gp_goal_box.winfo_children()), kids)
             self.assertEqual(s._gp_done_lbl.cget("text"), "1 / 2 done")
             self.assertFalse(s._gp_now_btns[a["id"]].winfo_manager(), "a done goal has no overlay button")
-            self.assertEqual(s._gp_now_btns[b["id"]].cget("text"), "✓ On the overlay")      # the next one is on the line
+            self.assertFalse(s._gp_on_lbls[a["id"]].winfo_manager())
+            self.assertTrue(s._gp_on_lbls[b["id"]].winfo_manager())                     # the next one is on the line
             s.gp_overlay.assert_called_once()
 
 

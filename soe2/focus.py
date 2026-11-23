@@ -21,8 +21,7 @@ import uuid
 from .config import SETTINGS, save_json
 
 PHASES = (("start", "League start"), ("maps", "When I reach maps"), ("long", "Long term"))
-TRIGGERS = (("town", "In town, now and then"), ("phase", "Once, when this phase starts"),
-            ("never", "Never, keep it on the plan"))
+TRIGGERS = (("town", "In town, now and then"),)     # 3.2.1 owner: in town only, no choice
 DEFAULTS = {
     "on": True,                     # the whole feature (Overlay › Helpers); 2.118.0: on for a new install
     "line": True,                   # the focus line on the overlay (I)
@@ -32,13 +31,13 @@ DEFAULTS = {
     "stockpile": [],                # [{name, goal, under, paid}]
     "farms": [],                    # [{strat, name, src, kind, target, started, maps_at, secs, done}]
     "pokes": {"per_hour": 2, "checkin_min": 45, "snooze_min": 60, "milestones": True, "prices": True,
-              "farms": True, "alert": True, "sound": True, "windows": False, "quiet_on": False, "quiet": [23, 8]},
+              "alert": True, "sound": True, "windows": False, "quiet_on": False, "quiet": [23, 8]},
     # (2.131.2: Map supplies moved to Top Up Reminders - supplies_out hands them over)
     "history": [],
 }
 
 
-GONE_POKES = ("tone", "town_only", "session_only", "why", "quieter")   # 3.2.0: always on, no switch
+GONE_POKES = ("tone", "town_only", "session_only", "why", "quieter", "farms")   # 3.2.0: always on, no switch
 
 
 def cfg():
@@ -60,6 +59,13 @@ def cfg():
         for r in f["farms"]:
             r.setdefault("kind", "none")
         f["lp_320"] = True
+    if not f.get("lp_321"):                              # 3.2.1 owner: in town only; a farm has no Goal
+        f["pokes"].pop("farms", None)
+        for g in f["goals"]:
+            g["trigger"] = "town"
+        for r in f["farms"]:
+            r["kind"], r["target"] = "none", None
+        f["lp_321"] = True
     return f
 
 
@@ -82,6 +88,8 @@ DONE_HINT = {"tick": "For anything the game's log can't see, like a drop or a cr
              "reach_maps": "Ticks itself in your first waystone map.",
              "maps": "Counted from the day you add it, from the game's log."}
 TARGETS = tuple((k, n, u.lower()) for k, n, u in DONE_WHEN if k != "tick")      # (older callers)
+# 3.2.1 owner: what each number can be - typed as digits only, or the acts picked from a list
+TARGET_RANGE = {"level": (1, 100), "act": (1, 6), "maps": (1, 1000)}
 AUTO_TARGETS = ("level", "act", "reach_maps", "maps")
 
 
@@ -284,28 +292,19 @@ def stock_status(row, have=None, each=None):
     return "cheap" if under is not None and each <= float(under) else "ok"
 
 
-# 3.2.0: a farm's Goal - when to move on to the next one. (kind, the words, what the number is)
-FARM_GOALS = (("level", "My character reaches level", "Level"), ("hours", "I've played it for hours", "Hours"),
-              ("maps", "I've run maps of it", "Maps"), ("date", "A date", "Date"), ("none", "I move on myself", ""))
-
-
-def add_farm(strat_id, name, kind="none", target=None, src="", until=None):
-    """strat_id: a Farming Strategies strat (src: Mine / Community / Official), or None for one of your own. kind /
-    target: its Goal (FARM_GOALS); a date is a timestamp. until: the 2.73 words, kept for older callers."""
+def add_farm(strat_id, name, src="", until=None):
+    """strat_id: a Farming Strategies strat - src: Mine / Community / Official. 3.2.1 owner: no Goal - you press
+    Done, next when you move on. until: the 2.73 words, kept for older callers."""
     f = cfg()
     name = (name or "").strip()
     if not name or any((strat_id and x["strat"] == strat_id) or x["name"].lower() == name.lower() for x in f["farms"]):
         return None
-    kind = kind if kind in dict((k, n) for k, n, _u in FARM_GOALS) else "none"
-    if kind != "none" and not target:
-        kind = "none"
-    row = {"strat": strat_id, "name": name, "src": src, "kind": kind,
-           "target": float(target) if kind != "none" and target else None,
+    row = {"strat": strat_id, "name": name, "src": src, "kind": "none", "target": None,
            "started": None, "maps_at": None, "secs": 0.0, "done": False}
     if until:
         row["until"] = until
     f["farms"].append(row)
-    farm_now()                                           # (the first one starts counting at once)
+    farm_now()                                           # the first one starts counting at once
     save()
     return row
 
@@ -320,49 +319,31 @@ def farm_now():
     return None
 
 
-def farm_progress(r):
-    """(have, target) of a farm's Goal, or None (I move on myself / not started yet)."""
-    kind, t = r.get("kind") or "none", r.get("target")
-    if kind == "none" or not t or r.get("started") is None:
+def farm_stats(r):
+    """(hours played, maps run) on a farm since it became NOW, or None before then."""
+    if r.get("started") is None:
         return None
-    if kind == "level":
-        return float(char_level() or 0), float(t)
-    if kind == "hours":
-        return round(float(r.get("secs") or 0) / 3600, 1), float(t)
-    if kind == "maps":
-        return float(state()["maps"] - int(r.get("maps_at") or 0)), float(t)
-    return (1.0 if time.time() >= float(t) else 0.0), 1.0                 # a date
+    return round(float(r.get("secs") or 0) / 3600, 1), max(0, int(state()["maps"] - int(r.get("maps_at") or 0)))
 
 
 def farm_text(r):
-    """ "Goal: level 95 · now 93" - the words for a farm's row."""
-    kind, t = r.get("kind") or "none", r.get("target")
-    if kind == "none":
-        return "Goal: I move on myself" + (f" · {r['until']}" if r.get("until") else "")
-    goal_words = {"level": f"level {t:g}", "hours": f"{t:g} hours of play", "maps": f"{t:g} maps",
-                  "date": time.strftime("%b %d", time.localtime(t))}[kind]
-    p = farm_progress(r)
+    """The quiet line under a farm: on the NOW one, how long you've been on it."""
+    old = r.get("until") or ""
+    p = farm_stats(r) if r is farm_now() else None
     if p is None:
-        return f"Goal: {goal_words} · counted once it's NOW"
-    have = {"level": f"now {p[0]:g}", "hours": f"{p[0]:g} hours so far", "maps": f"{p[0]:g} so far",
-            "date": "today" if p[0] else ""}[kind]
-    return f"Goal: {goal_words}" + (f" · {have}" if have else "") + " · from the game's log"
+        return old
+    return (f"{old} · " if old else "") + f"{p[0]:g} hours · {p[1]} maps on it so far · from the game's log"
 
 
-def check_farms(now=None):
-    """The farm you're on reached its Goal: it's moved on from and the next one starts. -> that farm or None."""
-    f, st = cfg(), state()
+def farm_done():
+    """Done, next ›: the NOW farm is moved on from; the next one starts. -> the next one or None."""
     r = farm_now()
-    p = farm_progress(r) if r else None
-    if not p or p[0] < p[1]:
+    if r is None:
         return None
     r["done"] = True
     nxt = farm_now()
-    if f["pokes"].get("farms"):
-        st["pending"].append({"kind": "farm", "name": r["name"], "next": nxt["name"] if nxt else None,
-                              "at": now or time.time()})
     save()
-    return r
+    return nxt
 
 
 def move_farm(i, step):
@@ -416,7 +397,7 @@ def supplies_out():
 # ---------------------------------------------------------------- 2.73.1: pokes
 # What each reminder is, in the order they win when several are due. "urgent" ones (milestones, a goal reached, a
 # farm to move on from) don't count toward the per-hour limit; every one waits for town or your hideout.
-KINDS = {"milestone": "urgent", "reached": "urgent", "farm": "urgent", "price": "normal", "checkin": "normal",
+KINDS = {"milestone": "urgent", "reached": "urgent", "price": "normal", "checkin": "normal",
          "nudge": "normal"}
 HEAD, ASK = "A nudge from your plan", "Still on plan?"           # (3.2.0: always gentle)
 PLAYING = 10 * 60          # the log showed you within this many seconds: you're playing
@@ -476,12 +457,10 @@ def log_event(kind, data, area_kind=None, now=None):
         if f["pokes"].get("milestones") and (moved or goals_of("maps")):
             st["pending"].append({"kind": "milestone", "id": "maps", "at": now})
         check_goals(now)
-        check_farms(now)
         save()
         return "milestone"
     if kind == "area":
         check_goals(now)
-        check_farms(now)
         save()
     if kind == "level":
         who, lvl = data.get("who", ""), int(data.get("level") or 0)
@@ -500,7 +479,6 @@ def log_event(kind, data, area_kind=None, now=None):
             for k in list(lv)[:-30]:
                 lv.pop(k, None)
         check_goals(now)
-        check_farms(now)
         save()
     return None
 
@@ -622,12 +600,6 @@ def poke_text(poke):
         g = goal(poke.get("goal")) or {"text": "?"}
         return ("GOAL REACHED", f"✓ {g['text']}\n{progress_text(g) or 'Done'}",
                 "Why now: the game's log shows you reached it, so it ticked itself.",
-                [("plan", "Open League Plan"), ("ok", "Got it")])
-    if k == "farm":
-        nxt = poke.get("next")
-        body = f"You reached the Goal for {poke.get('name', '?')}." + (f"\nNext on your plan: {nxt}." if nxt else
-                                                                    "\nThat was the last farm on your plan.")
-        return ("TIME TO MOVE ON", body, "Why now: the game's log shows the farm's Goal is reached.",
                 [("plan", "Open League Plan"), ("ok", "Got it")])
     if k == "milestone":
         lines = [g["text"] for g in goals_of("maps") if not g["done"]][:5]
