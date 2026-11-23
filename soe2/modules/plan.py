@@ -4,6 +4,7 @@ from . import Module
 class GamePlan(Module):
     key, title, short, icon, kind = "plan", "League Plan", "Plan", "🎯", "tool"
     parent = None                      # UI overhaul: its own page (was under Overlay - it isn't an overlay setting)
+    beta = True                        # 3.2.1 owner: beta until its full rework
     blurb = ("Your goals by phase, a stockpile to buy while it's cheap and your farm plan - set it once, the overlay "
              "brings it back when it matters.")
 
