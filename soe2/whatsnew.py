@@ -49,22 +49,16 @@ NOTES = {
     "3.2.0": {
         "lead": [
             ("✦", "New", [
-                ("•", "Suggest a Feature: a button next to Report a bug. You see every word before your idea is "
-                      "sent."),
-                ("•", "Report a bug can add your screen setup: screen size, scaling, HDR and the game window's mode. "
-                      "You see it before you send, and you can leave it out."),
+                ("•", "Suggest a Feature, next to Report a bug."),
+                ("•", "Report a bug can add your screen setup."),
             ]),
             ("↻", "Changed", [
-                ("•", "Rate Mods is now Mod Lab, with a bigger intro and a picture of each item."),
-                ("•", "Mod Lab asks How valuable is each roll? A mod rated by roll gets a Next button."),
-                ("•", "League Plan: pokes are now called Reminders."),
-                ("•", "Go to anything still finds a page by its old name."),
+                ("•", "Rate Mods is now Mod Lab, with item pictures and a Next button."),
+                ("•", "League Plan: pokes are now Reminders."),
             ]),
             ("▲", "Improved", [
-                ("•", "Map Profit and Top Up look for your inventory along the whole top of the game."),
-                ("•", "When your Read Key doesn't find your inventory, the app's log says what it saw, so a bug "
-                      "report shows why."),
-                ("•", "Settings and sessions still save when another program holds the file for a moment."),
+                ("•", "Map Profit and Top Up find your inventory on more setups."),
+                ("•", "Settings save reliably."),
             ]),
         ],
     },

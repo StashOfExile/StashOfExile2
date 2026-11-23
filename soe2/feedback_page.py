@@ -34,8 +34,7 @@ CLEAN_MSG = "Please keep it clean"          # the board's answer to a refused wo
 SETUP_LABEL = "Add your screen setup"
 SETUP_LINE = "Screen size, scaling, HDR, the game window's mode and the last missed inventory read."
 SETUP_TIP = ("Helps with bugs where the app doesn't read your screen. It comes from Windows' display settings and "
-             "the game window's size. Nothing is read from the game or its files, and no picture is taken or sent. "
-             "Untick it to leave it out. The box below shows it word for word.")
+             "the game window's size. Nothing is read from the game or its files, and no picture is taken or sent.")
 
 
 def os_line():

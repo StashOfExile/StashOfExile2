@@ -538,8 +538,7 @@ class GamePlanPage:
     def _gp_farms(self, parent):
         """3.2.1 owner: no Goal - two lists, the strats out there and your own, and Done, next on the farm you're on."""
         P2 = C["panel2"]
-        o, box = chrome_section(parent, "Farm plan", "The strats you mean to run, in order. Press Done, next › on "
-                                                      "the one you're on when you move on.", wrap=True)
+        o, box = chrome_section(parent, "Farm plan", "The strats you mean to run, in order.", wrap=True)
         o.pack(fill="x", pady=(0, 12))
         self.gp_farm_box = tk.Frame(box, bg=P2)
         self.gp_farm_box.pack(fill="x")
