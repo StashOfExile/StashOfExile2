@@ -21,7 +21,7 @@ RAIL = 96                              # drawer-look: the Drawer's rail - a bigg
 # Owner (Rate Mods redesign): a Mods group between Trade and Stash - Rate Mods, Insights and Craft Helper all answer
 # one question, which mods are worth money.
 GROUPS = ((None, ("dashboard", "tracker")),
-          ("Trade", ("pricecheck", "checks", "favorites", "rates")),
+          ("Trade", ("pricecheck", "checks", "rates")),
           ("Mods", ("ratemods", "insights", "crafthelper")),
           ("Stash", ("wealth", "regex")),
           ("League", ("plan", "mapprofit", "money", "maps", "leaderboards")),

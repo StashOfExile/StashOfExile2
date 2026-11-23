@@ -139,7 +139,7 @@ def _rail(cv, t, nw, y, acc, sel_bg, nav):
     y += 14
     imgs = cv._rail_imgs = []
     for i, (key, name) in enumerate((("pricecheck", "Price Checks"), ("checks", "Bulk Pricing"),
-                                     ("favorites", "Favorites"), ("rates", "Rates"))):
+                                     ("rates", "Rates"), ("plan", "League Plan"))):
         y0, y1 = y + i * 52, y + i * 52 + 48
         if i == 0:
             TH.round_rect(cv, 4, y0, nw - 4, y1, 6, fill=sel_bg, outline="")

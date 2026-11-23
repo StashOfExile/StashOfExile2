@@ -3,7 +3,7 @@
 then Re-price all and Pause; the list; the key bar. Items are added with Ctrl+Alt+C in game (Manually Add), to the tab
 shown.
 The picked item is shown as Price Checks shows one - the price card, the item card (Base and Properties, Mods,
-Augments, Item Flags), the cheapest listings, then Search again | Trade Site | Add to favorites - beside the list in a
+Augments, Item Flags), the cheapest listings, then Search again | Trade Site | ☆ Favorite - beside the list in a
 wide window, under it in a narrow one, about 10% smaller than Price Checks' card in the Drawer (cardscale.BULK; text
 never below the app's normal small size; a long card scrolls). It is always there: the first row is picked by itself; with no row picked it says what it
 is, with one button. UI rule 22: a new price paints the price card and the listings only."""
@@ -368,7 +368,7 @@ class BulkPage:
     def _bk_item_col(self, col):
         P1, P2 = C["panel"], C["panel2"]
         self.bk_price = self.price_card_build(col, BULK)    # the price, how sure, how it was worked out
-        # Search again | Trade Site | Add to favorites - at the bottom, always in view
+        # Search again | Trade Site | ☆ Favorite - at the bottom, always in view
         foot = self.bk_foot = tk.Frame(col, bg=P2, highlightthickness=1, highlightbackground=C["line"])
         foot.pack(side="bottom", fill="x", pady=(8, 0))
         f = self.bk_foot_row = tk.Frame(foot, bg=P2)
@@ -382,10 +382,10 @@ class BulkPage:
                                                                          state="disabled"))
         self.bk_trade_btn.pack(side="left", padx=(8, 0))
         Tooltip(self.bk_trade_btn, "Opens this search on the trade site (O)")
-        self.bk_fav_btn = ttk.Button(f, text="☆ Add to favorites", state="disabled",
+        self.bk_fav_btn = ttk.Button(f, text="☆ Favorite", state="disabled",
                                      command=lambda: self.shown_rec and self.pc_add_fav(self.shown_rec, self.bk_fav_btn))
         self.bk_fav_btn.pack(side="left", padx=(8, 0))
-        Tooltip(self.bk_fav_btn, "Keeps this item and its filters in Trade › Favorites")
+        Tooltip(self.bk_fav_btn, "Keeps this item and its filters in Price Checks › Favorites")
         self.item_trade_btn, self.item_mark_btn = self.bk_trade_btn, self.mark_btn     # (older callers)
         flowify(f)
         # no row picked: what this side is, and one button (it picks the first row)
@@ -598,7 +598,7 @@ class BulkPage:
 
     def show_detail(self, rec, card_only=False):
         """The picked item as Price Checks shows one: the price card, the item card with every filter, the cheapest
-        listings, Advanced; Search again | Trade Site | Add to favorites at the bottom. UI rule 22: the same item with
+        listings, Advanced; Search again | Trade Site | ☆ Favorite at the bottom. UI rule 22: the same item with
         the same card (a new price, its search starting) paints the price card and the listings only; another card is
         built beside the old one and swapped in at once, keeping the scroll for the same item."""
         if rec is not None and rec.get("src") == "pc":          # 2.80.0: the card on Price Checks

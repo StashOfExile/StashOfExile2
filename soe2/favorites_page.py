@@ -50,6 +50,10 @@ class FavoritesPage:
             self.fav_store = FV.FavStore()
         return self.fav_store
 
+    def fav_open_tab(self):
+        """3.3.0 owner: Favorites is a Price Checks tab."""
+        self.shell.open_tab("pricecheck", "Favorites")
+
     def build_favorites(self, body):
         from .pricecheck_page import PCView
         P1, P2 = C["panel"], C["panel2"]
@@ -125,7 +129,7 @@ class FavoritesPage:
         tv.bind("<<TreeviewOpen>>", lambda e: self.fav_group_open(True))
         tv.bind("<<TreeviewClose>>", lambda e: self.fav_group_open(False))
         from .chrome import EmptyState                    # 2.120.0: one empty look everywhere
-        self.fav_empty = EmptyState(wrap, "★", "No favorites yet\nPress ☆ Add to favorites on a price check, or paste "
+        self.fav_empty = EmptyState(wrap, "★", "No favorites yet\nPress ☆ Favorite on a price check, or paste "
                                               "a trade-site link above.",
                                     button=("Open Price Checks", lambda: self.shell.open("pricecheck")))
         # ---- the card
@@ -431,14 +435,14 @@ class FavoritesPage:
 
     # ---------------------------------------------------------------- adding
     def pc_add_fav(self, rec=None, btn=None):
-        """☆ Add to favorites on Price Checks (and Bulk Pricing's picked item: rec, its button): this item with your
+        """☆ Favorite on Price Checks (and Bulk Pricing's picked item: rec, its button): this item with your
         filters."""
         rec = rec or self.records.get(getattr(self, "pc_rid", None))
         if not rec:
             return
         st = self.favs()
         if rec.get("fav") and st.get(rec["fav"]):
-            self.shell.open(KEY)
+            self.fav_open_tab()
             return self.fav_pick(rec["fav"])
         f = st.add_item(rec)
         rec["fav"] = f["id"]
@@ -446,9 +450,9 @@ class FavoritesPage:
         self.fav_changed([f["id"]])
         self.pc_fav_state(rec, btn)
         try:
-            self.app_toast(f"\"{f['name']}\" is in Trade › Favorites.", title="Added to favorites",
-                           kind="success", actions=(("Open", lambda: (self.shell.open(KEY), self.fav_pick(f["id"]))),
-                                                    ("Rename", lambda: (self.shell.open(KEY), self.fav_pick(f["id"]),
+            self.app_toast(f"\"{f['name']}\" is in Price Checks › Favorites.", title="Added to favorites",
+                           kind="success", actions=(("Open", lambda: (self.fav_open_tab(), self.fav_pick(f["id"]))),
+                                                    ("Rename", lambda: (self.fav_open_tab(), self.fav_pick(f["id"]),
                                                                         self.fav_rename()))))
         except Exception:
             buglog.caught()
@@ -458,7 +462,7 @@ class FavoritesPage:
         if b is None:
             return
         on = bool(rec and rec.get("fav") and self.favs().get(rec["fav"]))
-        b.config(text="★ In favorites" if on else "☆ Add to favorites", state="normal" if rec else "disabled")
+        b.config(text="★ Favorited" if on else "☆ Favorite", state="normal" if rec else "disabled")
 
     def fav_paste(self, event):
         """Ctrl+V on the list: the trade link on the clipboard, read once for this key press."""

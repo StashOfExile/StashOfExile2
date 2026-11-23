@@ -51,9 +51,11 @@ def confidence(n_best, loosened, any_roll, ratio, unverifiable, dropped, age_h, 
     return ("High" if score >= 85 else "Medium" if score >= 55 else "Low"), why
 
 
-PRICE_UNITS = [("auto", "Auto"), ("divine", "Divine Orbs"), ("exalted", "Exalted Orbs"),
-               ("chaos", "Chaos Orbs"), ("vaal", "Vaal Orbs")]
-UNIT_NAMES = {"divine": "div", "exalted": "ex", "chaos": "chaos", "vaal": "vaal"}
+# 3.3.0 owner: the same choices as the trade filters' Priced in - Auto is Exalted Orb Equivalent; an old Vaal Orbs
+# setting falls back to it
+PRICE_UNITS = [("auto", "Exalted Orb Equivalent"), ("divine", "Divine Orbs"), ("exalted", "Exalted Orbs"),
+               ("chaos", "Chaos Orbs"), ("exalted_divine", "Exalted or Divine Orbs")]
+UNIT_NAMES = {"divine": "div", "exalted": "ex", "chaos": "chaos", "exalted_divine": "div"}
 
 
 def price_unit():
@@ -72,6 +74,11 @@ def fmt_div(x):
     if x is None:
         return "—"
     unit = price_unit()
+    if unit == "exalted_divine":                 # 3.3.0: a divine or more in divines, less in exalted
+        if x >= 1:
+            return f"{_num(x)} div"
+        r = RATES.value("exalted")
+        return f"{x / r:.2f} exalted" if r and x > 0 else f"{x:.3f} div"
     if unit not in ("auto", "divine"):
         r = RATES.value(unit)
         if r:

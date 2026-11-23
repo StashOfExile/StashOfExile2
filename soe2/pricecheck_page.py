@@ -5,7 +5,7 @@ card with every filter on the left, the trade site's listings as cards on the ri
 level, requirements, each mod with its tier, price, seller, when it was listed, the item's picture). Ctrl+Alt+C
 still adds to Bulk Pricing (the old Price checks page). Owner pick (mockup C): the price card first, then the item
 card (Base and Properties above Mods) and the cheapest listings as a table - beside the card in a wide window, under it
-in a narrow one (the Drawer); Search again | Trade Site | Add to favorites at the bottom. No seller names on the page.
+in a narrow one (the Drawer); Search again | Trade Site | ☆ Favorite at the bottom. No seller names on the page.
 
 The listings are the ones the price search already fetched (trade.RAW_LISTINGS) - no extra request. Pictures come
 from the trade site's own image server, cached in %APPDATA%/StashOfExile2/art.
@@ -23,7 +23,7 @@ from tkinter import ttk
 from . import buglog
 from .config import APP_UA, P, SETTINGS
 from .inplace import set_cfg, tv_sync
-from .style import C, Splitter, flowify, trade_icon
+from .style import C, Splitter, Tooltip, flowify, trade_icon
 from .trade import ago, RAW_LISTINGS, strip_markup
 
 PC_MAX = 20                  # items kept in Recent
@@ -184,7 +184,11 @@ TABLET_ICONS = {
 # own, learned from a listing, wins - art_url)
 WAYSTONE_ICON = ("https://web.poecdn.com/gen/image/WzI4LDE0LHsiZiI6IjJESXRlbXMvTWFwcy9FbmRnYW1lTWFwcy9FbmRnYW1lTWFwMTUi"
                  "LCJ3IjoxLCJoIjoxLCJzY2FsZSI6MSwicmVhbG0iOiJwb2UyIn1d/17149586aa/EndgameMap15.png")
-BUNDLED_ICONS = {**TABLET_ICONS, "Waystone": WAYSTONE_ICON}
+try:                                                     # 3.3.0: every base's picture link, shipped
+    from .class_icons import ART_ROOT, BASE_ART, CLASS_ICONS
+except Exception:
+    ART_ROOT, BASE_ART, CLASS_ICONS = "", {}, {}
+BUNDLED_ICONS = {**CLASS_ICONS, **TABLET_ICONS, "Waystone": WAYSTONE_ICON}
 _ICONS = None
 
 
@@ -216,7 +220,9 @@ def waystone_tier_icons():
 
 def art_url(base):
     """The picture for an item base (or a unique's name): its own (learned from listings), else a waystone's tier
-    picture (the trade site's static list), else the shipped waystone picture."""
+    picture (the trade site's static list), else the shipped waystone picture. 3.3.0: else, for currency, runes,
+    fragments and the rest, the trade site's static list; for an equipment base, its own shipped link, else its
+    class's picture."""
     ic = icons()
     base = str(base or "")
     if ic.get(base):
@@ -224,7 +230,58 @@ def art_url(base):
     if base.startswith("Waystone"):
         m = re.search(r"Tier (\d+)", base)
         return (waystone_tier_icons().get(int(m.group(1))) if m else None) or ic.get("Waystone")
-    return None
+    if base in BASE_ART and ART_ROOT:
+        return ART_ROOT + BASE_ART[base] + ".png"
+    return static_icons().get(base) or class_art(base)
+
+
+_STATIC = {"key": None, "urls": {}}
+
+
+def static_icons():
+    """3.3.0: {name: picture link} for everything in the trade site's static list - currency, runes, essences,
+    fragments, splinters - from trade_static.json, downloaded once a day."""
+    try:
+        from .config import P, load_json
+        path = P("trade_static.json")
+        key = os.path.getmtime(path) if os.path.exists(path) else None
+        if key != _STATIC["key"]:
+            urls = {}
+            for group in (load_json("trade_static.json", {}) or {}).get("result") or []:
+                for e in group.get("entries") or []:
+                    img, name = str(e.get("image") or ""), str(e.get("text") or "")
+                    if img and name:
+                        urls[name] = img if img.startswith("http") else "https://web.poecdn.com" + img
+            _STATIC.update(key=key, urls=urls)
+    except Exception:
+        buglog.caught()
+    return _STATIC["urls"]
+
+
+_CLASS_ART = {"n": -1, "by": {}}
+
+
+def class_art(base):
+    """3.3.0: an equipment base with no picture of its own -> its class's: one learned from a listing, else the
+    shipped one. Never a unique's art, and never for a unique's name."""
+    try:
+        from . import gamedata
+        bases = gamedata.load().get("bases") or {}
+        c = (bases.get(str(base or "")) or {}).get("class")
+        if not c:
+            return None
+        ic = icons()
+        if _CLASS_ART["n"] != len(ic):
+            by = {}
+            for b, url in ic.items():
+                bc = (bases.get(b) or {}).get("class")
+                if bc and str(url).startswith("https://") and not unique_art(url) and (bc not in by or b in CLASS_ICONS):
+                    by[bc] = url
+            _CLASS_ART.update(n=len(ic), by=by)
+        return _CLASS_ART["by"].get(c)
+    except Exception:
+        buglog.caught()
+        return None
 
 
 def unique_art(url):
@@ -482,7 +539,7 @@ class PriceCheckPage:
         """Price Checks (owner pick, mockup C), top to bottom: what your price check key does, your recent checks
         (a search box first), the price, then the item card (Base and Properties, Mods, Augments, Item Flags,
         Requirements) and the cheapest listings - beside the card in a wide window, under it in a narrow one (the
-        Drawer). Search again | Trade Site | Add to favorites stay at the bottom."""
+        Drawer). Search again | Trade Site | ☆ Favorite stay at the bottom."""
         self.pc_body = body
         self.pc_rid = None
         self._pc_art_init()
@@ -491,10 +548,12 @@ class PriceCheckPage:
         from .style import SegBar
         from .pclist import PCList
         page = body
-        self.pc_view = SegBar(page, ["Check", "History"], command=lambda v: self.pc_view_show())   # (not shown:
+        self.pc_view = SegBar(page, ["Check", "History", "Favorites"],                # 3.3.0 owner: Favorites is a tab
+                              command=lambda v: self.pc_view_show())                    # (not shown:
         if getattr(self, "shell", None) is not None:                                              # the sidebar is)
             self.shell.register_tabs("pricecheck", self.pc_view, home="Check")
         self.pc_hist_page = tk.Frame(page, bg=C["panel"])
+        self.pc_fav_page = tk.Frame(page, bg=C["panel"])          # built the first time the tab opens
         self.pc_listcol = PCList(self.pc_hist_page, self)
         self.pc_listcol.pack(fill="both", expand=True, padx=12, pady=(0, 12))
         body = self.pc_check_page = tk.Frame(page, bg=C["panel"])
@@ -511,7 +570,7 @@ class PriceCheckPage:
         left, right = wrap.left, wrap.right
         left.config(bg=C["panel"])
         right.config(bg=C["panel"])
-        # owner: the price card on top of the item card's column and Search again | Trade Site | Add to favorites at
+        # owner: the price card on top of the item card's column and Search again | Trade Site | ☆ Favorite at
         # its bottom - as wide as that column (the listings sit beside it in a wide window). Packed with an item.
         self._pc_verdict_row(left)                   # the price, how sure, how it was worked out
         self._pc_foot_build(left)
@@ -709,13 +768,22 @@ class PriceCheckPage:
         self.pc_recent_paint()
 
     def pc_view_show(self):
-        """UI overhaul: Price Checks (the check) or Price Checks › History."""
-        hist = self.pc_view.get() == "History"
-        (self.pc_check_page if hist else self.pc_hist_page).pack_forget()
-        (self.pc_hist_page if hist else self.pc_check_page).pack(fill="both", expand=True)
-        if hist:
+        """UI overhaul: Price Checks (the check), Price Checks › History or, 3.3.0, Price Checks › Favorites."""
+        v = self.pc_view.get()
+        pages = {"Check": self.pc_check_page, "History": self.pc_hist_page,
+                 "Favorites": getattr(self, "pc_fav_page", None)}
+        for name, fr in pages.items():
+            if fr is not None and name != v:
+                fr.pack_forget()
+        (pages.get(v) or self.pc_check_page).pack(fill="both", expand=True)
+        if v == "History":
             self.pc_listcol.paint()
             self.pc_listcol.entry.focus_set()
+        elif v == "Favorites" and hasattr(self, "build_favorites"):
+            if not getattr(self, "_pc_fav_built", False):
+                self._pc_fav_built = True
+                self.build_favorites(self.pc_fav_page)
+            self.fav_fill()
 
     def pc_hist_open(self, rec):
         """A row in History: back to the check, showing that item."""
@@ -832,7 +900,7 @@ class PriceCheckPage:
         return types.SimpleNamespace(frame=f, big=big, how=how, info=info, info_tip=info_tip, why=why, k=k)
 
     def _pc_foot_build(self, body):
-        """Search again (the page's one orange button) | Trade Site | Add to favorites, then Broaden Search (too many
+        """Search again (the page's one orange button) | Trade Site | ☆ Favorite, then Broaden Search (too many
         filters for one search); Clear on the right - at the bottom of the page, always in view."""
         from .style import Tooltip
         P2 = C["panel2"]
@@ -851,9 +919,10 @@ class PriceCheckPage:
                                                                      state="disabled"))
         self.pc_open_btn.pack(side="left", padx=(8, 0))
         Tooltip(self.pc_open_btn, "Opens this search on the trade site")
-        self.pc_fav_btn0 = self.pc_fav_btn = ttk.Button(f, text="☆ Add to favorites", command=self.pc_add_fav,
+        self.pc_fav_btn0 = self.pc_fav_btn = ttk.Button(f, text="☆ Favorite", command=self.pc_add_fav,
                                                         state="disabled")
         self.pc_fav_btn.pack(side="left", padx=(8, 0))
+        Tooltip(self.pc_fav_btn, "Keeps this item and its filters in Price Checks › Favorites")
         clear = self.pc_clear_lbl = tk.Label(f, text="Clear", bg=P2, fg=C["muted"], font=("Segoe UI", 9),
                                              cursor="hand2")
         clear.pack(side="right", padx=(8, 0))

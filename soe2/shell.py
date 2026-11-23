@@ -1876,6 +1876,9 @@ class Shell:
         if key == "calc" and hasattr(self.app, "calc_ov_toggle"):  # 2.74.0: the calculator is over the game now
             self.app.calc_ov_toggle(True)
             return
+        if key == "favorites" and "pricecheck" in self.windows:   # 3.3.0: Favorites is a Price Checks tab
+            self.open_tab("pricecheck", "Favorites")
+            return
         if key == "ovset" and "tracker" in self.windows:   # nav phase 2: that page is gone - the Overlay page's tabs
             self.open_tab("tracker", "Helpers")            # (an old saved page or link)
             return

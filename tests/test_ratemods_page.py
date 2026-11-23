@@ -51,7 +51,7 @@ class Sidebar(unittest.TestCase):
         self.assertEqual(names.index("Stash"), names.index("Mods") + 1)
         groups = dict(SB.GROUPS)
         self.assertEqual(groups["Mods"], ("ratemods", "insights", "crafthelper"))
-        self.assertEqual(groups["Trade"], ("pricecheck", "checks", "favorites", "rates"))
+        self.assertEqual(groups["Trade"], ("pricecheck", "checks", "rates"))
         self.assertEqual(groups["Stash"], ("wealth", "regex"))
 
     def test_caption_follows_the_group(self):

@@ -13,7 +13,6 @@ PAGES = {
     "dashboard": "Dashboard",           # UI overhaul: the first page
     "pricecheck": "Price Checks",
     "checks": "Bulk Pricing",
-    "favorites": "Favorites",
     "insights": "Market Insights",
     "library": "Under the Hood",
     "modbook": "Mod Book",
