@@ -79,18 +79,26 @@ class StatTiles(tk.Canvas):
         top = self._top()
         cw = (W - 2 * px) / n
         with TH.raw():
-            self.configure(bg=t.c(self.bg_role), height=self.h + py * 2 - 8 + top)
             num = TH.head_font(t, "num")
+            # 3.3.0 owner: the panel is as tall as the theme's number font needs, so the line under a number
+            # never sits on it
+            import tkinter.font as tkfont
+            nfont = (num, 18 if self.h < H else (22 if cw > 180 else 18))
+            ny = 28 if self.h < H else 36
+            lines = tkfont.Font(root=self, font=nfont).metrics("linespace") + 1 + \
+                tkfont.Font(root=self, font=("Segoe UI", 9)).metrics("linespace")
+            h = max(self.h, ny + lines + 10)
+            self.configure(bg=t.c(self.bg_role), height=h + py * 2 - 8 + top)
             mut, strong = t.c("text_muted"), t.c("text_strong")
             x0, y0 = px, py - 4
-            TH.box(self, t, x0, y0, W - px, y0 + top + self.h, R)
+            TH.box(self, t, x0, y0, W - px, y0 + top + h, R)
             if self.title:
                 TH.box_head(self, t, x0, y0, W - px, R, self.title)
             y0 += top
             for i, tl in enumerate(self.tiles):
                 x0 = px + i * cw
                 if i:
-                    self.create_line(x0, y0 + 12, x0, y0 + self.h - 12, fill=t.c("border"))
+                    self.create_line(x0, y0 + 12, x0, y0 + h - 12, fill=t.c("border"))
                 self.create_text(x0 + 18, y0 + 12, text=tl.label, anchor="nw", font=("Segoe UI", 10), fill=mut)
                 if tl.how:
                     iid = self.create_text(x0 + cw - 18, y0 + 12, text="ⓘ", anchor="ne", font=("Segoe UI Symbol", 10),
@@ -99,8 +107,11 @@ class StatTiles(tk.Canvas):
                 else:
                     self._info.append((-99, -99, -99, -99))
                 big = tl.big if len(str(tl.big)) < 14 else str(tl.big)[:13] + "…"
-                self.create_text(x0 + 18, y0 + (28 if self.h < H else 36), text=big, anchor="nw",
-                                 font=(num, 18 if self.h < H else (22 if cw > 180 else 18)),
-                                 fill=strong if tl.big not in ("—", "") else mut)
-                self.create_text(x0 + 18, y0 + self.h - 10, text=tl.foot, anchor="sw", font=("Segoe UI", 9),
-                                 fill=t.c(tl.foot_role or "text_muted", mut), width=cw - 36)
+                nid = self.create_text(x0 + 18, y0 + ny, text=big, anchor="nw", font=nfont,
+                                       fill=strong if tl.big not in ("—", "") else mut)
+                # 3.3.0 owner: the line under a number never sits on it, whatever the theme's font
+                fid = self.create_text(x0 + 18, y0 + h - 10, text=tl.foot, anchor="sw", font=("Segoe UI", 9),
+                                       fill=t.c(tl.foot_role or "text_muted", mut), width=cw - 36)
+                nb, fb = self.bbox(nid), self.bbox(fid)
+                if nb and fb and fb[1] < nb[3] + 1:
+                    self.move(fid, 0, nb[3] + 1 - fb[1])

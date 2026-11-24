@@ -63,7 +63,7 @@ class LeaderboardPage:
         self.lb_acct.pack(side="right")
         self.lb_share_var = tk.BooleanVar(value=bool(SETTINGS.get("lb_share", True)))
         ttk.Checkbutton(top, text="Share my times", variable=self.lb_share_var, command=self.lb_share_switch,
-                        style="Card.TCheckbutton").pack(side="right", padx=(0, 12))
+                        style="Bar.TCheckbutton").pack(side="right", padx=(0, 12))
         self.lb_who = SegBar(top2, ["Mine", "Everyone"], value="Everyone", command=lambda v: self.lb_refresh(), size=9,
                              pad=(12, 4))
         self.lb_who.pack(side="left")

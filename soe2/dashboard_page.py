@@ -320,6 +320,13 @@ class Dashboard(tk.Canvas):
         """A corner for a button or a chip: round only in a theme whose boxes are round."""
         return r if TH.box_look(TH.ST.theme)["shape"] == "round" else 0
 
+    def _line_h(self, font):
+        """One line's height in this font, as this screen draws it."""
+        import tkinter.font as tkfont
+        fonts = self.__dict__.setdefault("_line_fonts", {})
+        f = fonts.get(font) or fonts.setdefault(font, tkfont.Font(root=self, font=font))
+        return f.metrics("linespace")
+
     def _top(self):
         """How far a box's content starts under its top edge: under its title."""
         return TH.BOX_HEAD + 4 if TH.headed(TH.ST.theme) else 52
@@ -776,20 +783,27 @@ class Dashboard(tk.Canvas):
                           f"Items you priced with {pc_key} since midnight.", "pricecheck"))
         tcols = max(1, min(2 if narrow else 4, len(tiles)))
         cw = (W - 2 * PAD) / tcols
+        # 3.3.0 owner: the line under a number sat on the number in tall theme fonts. The row is as tall as the
+        # font needs: label, number, line under it.
+        lab = ("Segoe UI", 10)
+        wide = max([self._line_fonts[lab].measure(tl[0]) for tl in tiles if self._line_h(lab)] or [0])
+        lab_lines = 2 if wide > cw - 60 else 1               # a long name on a narrow column takes two lines
+        num_y, num_h = max(36, 14 + lab_lines * self._line_h(lab) + 2), self._line_h((num, 26))
+        tile_h = max(TILE_H, num_y + num_h + 2 + self._line_h(("Segoe UI", 9)) + 12)
         if tiles:                                            # 3.3.0 owner: one titled box, a column for each number
             trows = -(-len(tiles) // tcols)
             top = self._top()
-            self._card(PAD, y, W - PAD, y + top + trows * TILE_H)
+            self._card(PAD, y, W - PAD, y + top + trows * tile_h)
             self._head(PAD, y, W - PAD, "At a Glance")
         for i, (label, big, foot, foot_col, how, key) in enumerate(tiles):
             x0 = PAD + (i % tcols) * cw
-            ty = y + top + (i // tcols) * TILE_H
+            ty = y + top + (i // tcols) * tile_h
             tag = f"tile{i}"
             if self.hover == tag:
-                self.create_rectangle(x0 + 1, ty + 1, x0 + cw - 1, ty + TILE_H - 1, outline="", tags=(tag,),
+                self.create_rectangle(x0 + 1, ty + 1, x0 + cw - 1, ty + tile_h - 1, outline="", tags=(tag,),
                                       fill=t.c("hover", t.c("surface_high")))
             if i % tcols:
-                self.create_line(x0, ty + 14, x0, ty + TILE_H - 14, fill=t.c("border"))
+                self.create_line(x0, ty + 14, x0, ty + tile_h - 14, fill=t.c("border"))
             if i // tcols:
                 self.create_line(x0 + 20, ty, x0 + cw - 20, ty, fill=t.c("border"))
             self.create_text(x0 + 20, ty + 14, text=label, anchor="nw", font=("Segoe UI", 10), fill=mut, tags=(tag,),
@@ -798,12 +812,12 @@ class Dashboard(tk.Canvas):
             self.create_text(x0 + cw - 20, ty + 14, text="ⓘ", anchor="ne", font=("Segoe UI Symbol", 10),
                              fill=brass if self.hover == info else mut, tags=(info,))
             self.tips[info] = how
-            self.create_text(x0 + 20, ty + 36, text=big, anchor="nw", font=(num, 26), fill=strong, tags=(tag,))
-            self.create_text(x0 + 20, ty + TILE_H - 12, text=foot, anchor="sw", font=("Segoe UI", 9), fill=foot_col,
+            self.create_text(x0 + 20, ty + num_y, text=big, anchor="nw", font=(num, 26), fill=strong, tags=(tag,))
+            self.create_text(x0 + 20, ty + num_y + num_h + 2, text=foot, anchor="nw", font=("Segoe UI", 9), fill=foot_col,
                              tags=(tag,), width=cw - 40)
             self.acts[tag] = go(key)
         if tiles:
-            y += top + trows * TILE_H + GAP
+            y += top + trows * tile_h + GAP
 
         # -- start here: the things not done yet (each card goes once it's done)
         starts = [c for c in (
