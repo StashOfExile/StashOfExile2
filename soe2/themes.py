@@ -723,6 +723,11 @@ BOX = {"shape": ("round", "square", "flat"), "head": ("plain", "strip", "tint", 
 BOX_HEAD = 44                     # the height of a box's header strip
 
 
+def headed(t):
+    """True when the pack draws a box's title in a strip or over a rule: the box's content starts under it."""
+    return box_look(t)["head"] != "plain"
+
+
 def box_look(t):
     """The pack's box part with only known values -> {"shape", "head", "mark", "caps"}."""
     got = t.part("box") or {}
@@ -797,6 +802,15 @@ def box_head(cv, t, x0, y0, x1, r, title, sub=None, tags=()):
         i = max(edge, _inset(rr, row))
         cv.create_line(x0 + i, y0 + row, x1 - i + (0 if edge else 1), y0 + row,
                        fill=grad_at(stops, row / max(1, h - 1)), tags=tags)
+    if k["head"] == "strip":                              # the pack's own strip: its texture and edge lines too
+        tex = spec.get("texture", "none")
+        if tex and tex != "none":
+            texture(cv, t, tex, int(x0 + edge + rr), int(y0 + edge), int(x1 - edge - rr), int(y0 + h),
+                    grad_at(stops, .5), glow=t.c(spec["texture_color"]) if spec.get("texture_color") else None,
+                    tag=tags or "tex")
+        if spec.get("top"):
+            cv.create_line(x0 + max(edge, rr), y0 + edge, x1 - max(edge, rr), y0 + edge, fill=t.c(spec["top"]),
+                           tags=tags)
     cv.create_line(x0 + edge, y0 + h, x1 - edge + (0 if edge else 1), y0 + h, fill=t.c("border"), tags=tags)
     cv.create_rectangle(x0 + edge, y0 + max(edge, rr), x0 + edge + 4, y0 + h, fill=col, outline="", tags=tags)
     tid = cv.create_text(x0 + 20, mid, text=word, anchor="w", font=("Segoe UI", 10, "bold"), fill=ink, tags=tags)

@@ -275,8 +275,8 @@
   }
  },
  "box": {
-  "shape": "square",
-  "head": "tint",
+  "shape": "round",
+  "head": "strip",
   "mark": "edge",
   "caps": true
  }

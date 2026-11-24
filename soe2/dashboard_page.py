@@ -347,7 +347,7 @@ class Dashboard(tk.Canvas):
     def _extras(self, x0, y, x1, stack):
         from . import features as FEAT
         if not SETTINGS.get("dash_worth_off"):
-            h = WORTH_H_NARROW if stack else WORTH_H
+            h = (WORTH_H_NARROW if stack else WORTH_H) + (TH.BOX_HEAD - 12 if TH.headed(TH.ST.theme) else 0)
             self._worth(x0, y, x1, h, stack)
             y += h + GAP
         else:
@@ -445,21 +445,29 @@ class Dashboard(tk.Canvas):
         self._wl_n, self._wl_secs = n, worth_secs(it)
         side = 0 if stack else min(300, (x1 - x0) * 0.3)
         fx1 = x1 - side - (GAP if side else 0)
-        self._card(x0, y, fx1, y + h, sub="community")
-        hid = self.create_text(fx1 - 20, y + 16, text="✕", anchor="ne", font=("Segoe UI", 10),
+        hd_on = TH.headed(t)                                  # the theme gives boxes a title strip: this one too
+        top = TH.BOX_HEAD - 4 if hd_on else 0
+        self._card(x0, y, fx1, y + h, sub=None if hd_on else "community")
+        if hd_on:
+            _tid, _up = self._head(x0, y, fx1, "Worth a Look", "community")
+        xy = y + (TH.BOX_HEAD // 2 if hd_on else 24)
+        hid = self.create_text(fx1 - 20, xy, text="✕", anchor="e", font=("Segoe UI", 10),
                                fill=txt if self.hover == "wl_hide" else mut, tags=("wl_hide",))
-        del hid
+        self.create_text(self.bbox(hid)[0] - 16, xy, text=f"{i + 1} of {n}", anchor="e", font=("Segoe UI", 9), fill=mut)
         self.acts["wl_hide"] = self._worth_hide
         self.tips["wl_hide"] = "Hide Worth a look. Its switch is in Settings › General › Window"
-        TH.round_rect(self, x0 + 20, y + 20, x0 + 68, y + 68, 12, fill=t.c("surface_high"), outline="")
-        img = lineicons.icon(self, it["icon"], 26, acc)
+        cy = y + top
+        TH.round_rect(self, x0 + 20, cy + 20, x0 + 68, cy + 68, 12 if TH.box_look(t)["shape"] == "round" else 0,
+                      fill=t.c("surface_high"), outline="")
+        img = lineicons.icon(self, it["icon"], 26, TH.subject(t, "community") if hd_on else acc)
         if img:
             self._wl_imgs = [img]
-            self.create_image(x0 + 44, y + 44, image=img)
+            self.create_image(x0 + 44, cy + 44, image=img)
         tw = fx1 - x0 - 88 - 48
-        self.create_text(x0 + 88, y + 20, text=f"WORTH A LOOK  ·  {it['name'].upper()}", anchor="nw",
-                         font=("Segoe UI", 9, "bold"), fill=mut)
-        hd = self.create_text(x0 + 88, y + 38, text=it["head"], anchor="nw", font=(head, 16), fill=strong, width=tw)
+        kick = it["name"].upper() if hd_on else f"WORTH A LOOK  ·  {it['name'].upper()}"
+        self.create_text(x0 + 88, cy + 20, text=kick, anchor="nw", font=("Segoe UI", 9, "bold"),
+                         fill=TH.subject(t, "community") if hd_on else mut)
+        hd = self.create_text(x0 + 88, cy + 38, text=it["head"], anchor="nw", font=(head, 16), fill=strong, width=tw)
         by = self.bbox(hd)[3] + 8
         bd = self.create_text(x0 + 88, by, text=it["body"], anchor="nw", font=("Segoe UI", 10), fill=mut, width=tw)
         if it["punch"]:
@@ -468,28 +476,40 @@ class Dashboard(tk.Canvas):
         sh = getattr(self.app, "shell", None)
         self._button(fx1 - 20, y + h - 44 - 16, it["button"], "wl_go",
                      (lambda p=it["page"], tab=it["tab"]: (sh.open_tab(p, tab) if tab else sh.open(p)) if sh else None))
-        self.create_text(x0 + 88, y + h - 38, text=f"{i + 1} of {n}", anchor="w", font=("Segoe UI", 9), fill=mut)
         # the time left: a thin line along the bottom, moved by _worth_tick - nothing else is redrawn for it
         self._wl_bar = self.create_line(x0 + 12, y + h - 2, x0 + 12, y + h - 2, fill=acc, width=2)
         self._wl_span = (x0 + 12, fx1 - 12, y + h - 2)
         self._worth_bar()
         if side:                                             # up next: the two after it; a click jumps there
             sx0 = fx1 + GAP
-            rh = (h - GAP - 24) / 2
-            self.create_text(sx0, y + 4, text="UP NEXT", anchor="nw", font=("Segoe UI", 8, "bold"), fill=mut)
+            if hd_on:                                        # one box with the same title strip, two rows in it
+                self._card(sx0, y, x1, y + h)
+                self._head(sx0, y, x1, "Up Next", "community")
+                ry0, rh = y + TH.BOX_HEAD + 1, (h - TH.BOX_HEAD - 1) / 2
+            else:
+                self.create_text(sx0, y + 4, text="UP NEXT", anchor="nw", font=("Segoe UI", 8, "bold"), fill=mut)
+                ry0, rh = y + 24, (h - GAP - 24) / 2
             for k in (1, 2):
                 nx = items[(i + k) % n]
                 tag = f"wl_n{k}"
-                ry = y + 24 + (k - 1) * (rh + GAP)
+                ry = ry0 + (k - 1) * (rh + (0 if hd_on else GAP))
                 lit = self.hover == tag
-                TH.round_rect(self, sx0, ry, x1, ry + rh, 8, fill=t.c("surface_high") if lit else t.c("surface"),
-                              outline=t.c("border_light") if lit else t.c("border"), tags=(tag,))
+                if hd_on:
+                    self.create_rectangle(sx0 + 1, ry, x1 - 1, ry + rh - (2 if k == 2 else 0), outline="", tags=(tag,),
+                                          fill=t.c("hover", t.c("surface_high")) if lit else
+                                          t.c("surface" if TH.box_look(t)["shape"] == "flat" else "surface_raised"))
+                    if k == 2:
+                        self.create_line(sx0 + 20, ry, x1 - 20, ry, fill=t.c("border"))
+                else:
+                    TH.round_rect(self, sx0, ry, x1, ry + rh, 8, fill=t.c("surface_high") if lit else t.c("surface"),
+                                  outline=t.c("border_light") if lit else t.c("border"), tags=(tag,))
                 im = lineicons.icon(self, nx["icon"], 20, acc)
                 if im:
                     self._wl_imgs.append(im)
-                    self.create_image(sx0 + 24, ry + rh / 2, image=im, tags=(tag,))
-                self.create_text(sx0 + 48, ry + rh / 2, text=nx["name"], anchor="w", font=("Segoe UI", 10, "bold"),
-                                 fill=txt, width=x1 - sx0 - 60, tags=(tag,))
+                    self.create_image(sx0 + 30, ry + rh / 2, image=im, tags=(tag,))
+                self.create_text(sx0 + 56, ry + rh / 2, text=nx["name"], anchor="w", font=("Segoe UI", 10, "bold"),
+                                 fill=txt, width=x1 - sx0 - 90, tags=(tag,))
+                self.create_text(x1 - 20, ry + rh / 2, text="›", anchor="e", font=("Segoe UI", 12), fill=mut, tags=(tag,))
                 self.acts[tag] = lambda s=k: self._worth_step(s)
                 self.tips[tag] = "Show this one now"
         self._worth_arm()
