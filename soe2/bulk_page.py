@@ -362,7 +362,12 @@ class BulkPage:
                        "and press Ctrl+Alt+C. It shows up here and gets priced - tablets, jewels, waystones and gear.")
             if btn.winfo_manager():
                 btn.pack_forget()
-        e.place(relx=0.5, rely=0.45, anchor="center")
+        # 3.3.0 owner: it sat off-center. It goes in the middle of the list itself, under the column names.
+        try:
+            e.place(in_=self.tree, relx=0.5, rely=0.5, anchor="center", y=12)
+            e.lift()
+        except tk.TclError:
+            e.place(relx=0.5, rely=0.45, anchor="center")
 
     # ---------------------------------------------------------------- the picked item
     def _bk_item_col(self, col):

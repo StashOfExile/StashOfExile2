@@ -90,15 +90,16 @@ class LeaderboardPage:
         tb.bind("<<ComboboxSelected>>", lambda e: self.lb_top_pick())
         ttk.Button(top2, text="↻ Refresh", style="Quiet.TButton", command=lambda: self.lb_refresh(send=True)).pack(
             side="right")
-        # 2.138.0 (feedback: anywhere that saves player data should offer that option)
-        exb = ttk.Button(top2, text="Export my times…", style="Quiet.TButton", command=self.lb_export)
-        exb.pack(side="right", padx=(0, 8))
-        Tooltip(exb, "Your fastest maps, bosses, trials and acts to a CSV - from this PC, no character names")
         top3 = tk.Frame(body, bg=P1, padx=8)
         top3.pack(fill="x", pady=(0, 4))
         self.lb_rebuild_btn = ttk.Button(top3, text="Rebuild campaign times from the game's log", style="Quiet.TButton",
                                          command=self.lb_rebuild)
         self.lb_rebuild_btn.pack(side="left")
+        # 2.138.0 (feedback: anywhere that saves player data should offer that option). 3.3.0 owner: in the Drawer
+        # it was cut off beside Refresh; it sits on this row, packed before the gray line so it keeps its room.
+        exb = ttk.Button(top3, text="Export my times…", style="Quiet.TButton", command=self.lb_export)
+        exb.pack(side="right")
+        Tooltip(exb, "Your fastest maps, bosses, trials and acts to a CSV - from this PC, no character names")
         Tooltip(self.lb_rebuild_btn, "Reads the end of Client.txt, the game's log file, and works out your act and zone "
                                      "times again. It only reads that file - the game isn't touched. The faster of old and "
                                      "new is kept.")

@@ -27,13 +27,18 @@ class Veins(unittest.TestCase):
         cls.root.destroy()
 
     def strips(self, tops):
+        """Veins drawn the way a header strip draws them. Hollow Deep's own headers no longer have any."""
         cv = tk.Canvas(self.root, width=1400, height=900)
         out = []
         with TH.raw():
             for i, y in enumerate(tops):
-                TH.box_strip(cv, self.t, 20, y, 1320, 0, tags=("s%d" % i,))
+                TH.texture(cv, self.t, "veins", 29, y + 9, 1311, y + TH.BOX_HEAD - 8, "#120e1a", glow="#4ff0cf",
+                           tag="s%d" % i, salt="@20,%d" % y)
                 out.append(cv.bbox("s%d" % i))
         return cv, out
+
+    def test_hollow_deep_headers_have_no_squiggles(self):
+        self.assertEqual(self.t.part("bars", "section", "texture"), "none")
 
     def test_nothing_leaves_the_strip(self):
         tops = [40, 300, 560]

@@ -84,12 +84,12 @@ FEATURES = (
     "Reset position",           # Overlay › Options: the overlay back in its own place
     # nav phase 2 (the owner's words): Layout = the overlay's shape, Style = how the overlay looks, Theme = the whole
     # app's look. "Style" is never the app's look, "Theme" never the overlay's.
-    "Layout",                   # Overlay › Look and Quick settings: Bar | Panel | Split
+    "Layout",                   # Overlay › Appearance and Quick settings: Bar | Panel | Split
     "Split",                    # the Layout of two halves by the orbs (the run half, the tools half) - any Style
                                 # (was the "flanks" style, shown as Split)
     "Swap sides",               # Quick settings, shown only while the Layout is Split: shown as "⇄ Swap sides" -
                                 # the run half by the mana orb, the tools half by the life orb
-    "Style",                    # Overlay › Look: the overlay styles (Classic, Light, Ornate)
+    "Style",                    # Overlay › Appearance: the overlay styles (Classic, Light, Ornate)
     "Theme",                    # Settings › Appearance: the app's look
     "Scan stash",
     "Search Options",           # Settings › Price checking
@@ -178,7 +178,7 @@ OLD = {
     "Overlay Settings": "Overlay",
     "Overlay ↳ Settings": "Overlay",
     "Overlay › Settings": "Overlay",
-    "Overlay appearance": "Overlay › Look",          # (the button that opened Settings › Appearance › Overlay)
+    "Overlay appearance": "Overlay › Appearance",          # (the button that opened Settings › Appearance › Overlay)
     # page names before Title Case (2.120.0) and before their renames
     "Price checks": "Price Checks",
     "Mod book": "Mod Book",

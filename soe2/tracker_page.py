@@ -100,10 +100,10 @@ class TrackerPage:
     # Overlay, Look, Options - then Sessions, the Session timer's records (Map Runs takes them in nav phase 4).
     # Overlay Settings (a child page, 2.82.0 - 2.143.0) is gone: its parts are these tabs; the overlay's look moved
     # here from Settings › Appearance. The overlay's one on / off switch sits above every tab.
-    OVH_TABS = ("Helpers", "On the Overlay", "Look", "Options", "Sessions")
+    OVH_TABS = ("Helpers", "On the Overlay", "Appearance", "Options", "Sessions")
     # what older code and old links ask for -> the tab it is on now
     OVH_OLD = {"Mechanic Helper": "Helpers", "Settings": "Helpers", "Overlay": "Helpers", "Notes": "On the Overlay",
-               "Appearance": "Look", "Session timer": "Sessions"}
+               "Look": "Appearance", "Session timer": "Sessions"}       # 3.3.0 owner: Look is Appearance
 
     def build_overlays_hub(self, body):
         P1 = C["panel"]
@@ -166,7 +166,7 @@ class TrackerPage:
 
     def ovh_open(self, tab):
         """Open the Overlay page on one of its tabs (the ⚙ on the overlay, Quick settings' All settings…, old links:
-        "Mechanic Helper" / "Settings" -> Helpers, "Notes" -> On the Overlay, "Appearance" -> Look)."""
+        "Mechanic Helper" / "Settings" -> Helpers, "Notes" -> On the Overlay, "Look" -> Appearance)."""
         tab = self.OVH_OLD.get(tab, tab)
         if tab not in self.OVH_TABS:
             tab = self.OVH_TABS[0]
@@ -454,7 +454,7 @@ class TrackerPage:
         P1 = C["panel"]
         self.tk_ov_switches = {}
         self.ovh_areas = {}
-        for t in ("Helpers", "On the Overlay", "Look", "Options"):
+        for t in ("Helpers", "On the Overlay", "Appearance", "Options"):
             sa = ScrollArea(self.ovh_pages[t], bg=P1)
             sa.pack(fill="both", expand=True, padx=8, pady=8)
             self.ovh_areas[t] = sa
@@ -470,7 +470,7 @@ class TrackerPage:
         mo.pack(fill="x")
         self.look_needed(mb, C["panel2"]).pack(fill="x")      # (no Read Key yet: one line, Set the Read Key)
         self.build_alerts_panel(mb).pack(fill="x")
-        self.build_overlay_look(self.ovh_areas["Look"].inner)
+        self.build_overlay_look(self.ovh_areas["Appearance"].inner)
         self.tracker_campaign_card(self.ovh_areas["Options"].inner)        # 2.96.1: its own card, full width
 
     def _ov_rows(self, parent, items, prefix="", min_w=330):

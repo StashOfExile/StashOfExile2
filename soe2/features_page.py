@@ -309,7 +309,7 @@ class FeaturesPage:
             li = tk.Label(lr, text="ⓘ", bg=P2, fg=C["muted"], font=("Segoe UI", 9), cursor="question_arrow")
             li.pack(side="left", padx=8)
             Tooltip(li, "Bar: rests on the game's XP bar. Panel: a card you place anywhere. Split: two halves by the "
-                        "orbs. Overlay › Look changes it.")
+                        "orbs. Overlay › Appearance changes it.")
             w.seg_layout = seg
             back.pack(side="right", padx=(0, 8), before=nxt)
             back.config(command=lambda: go(1))

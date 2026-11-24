@@ -86,8 +86,11 @@ class GamePlanPage:
         self.gp_tabs = SegBar(top, list(self.VIEWS), command=self.gp_tab, size=10, pad=(16, 4), bg=P1)
         self.gp_tabs.pack(side="left")
         self.gp_on = tk.BooleanVar(value=bool(f["on"]))
-        ttk.Checkbutton(top, text="Next up on the overlay, and reminders", variable=self.gp_on,
-                        command=self.gp_switch).pack(side="right")
+        # 3.3.0 owner: the old words read badly and its background did not match the bar
+        sw = ttk.Checkbutton(top, text="Overlay and reminders", variable=self.gp_on, style="Bar.TCheckbutton",
+                             command=self.gp_switch)
+        sw.pack(side="right")
+        Tooltip(sw, "On: your Next up goal shows on the Overlay, and the plan sends its reminders.")
         sa = ScrollArea(page, bg=P1)
         sa.pack(fill="both", expand=True)
         hold = tk.Frame(sa.inner, bg=P1, padx=16)
@@ -760,14 +763,18 @@ class GamePlanPage:
         self.gp_poke_vars = {}
         self._gp_head(box, "HOW OFTEN", top=0)
         for key, before, after, note, lo, hi in (
-                ("per_hour", "At most", "reminders an hour", "0 turns them off", 0, 12),
-                ("checkin_min", "A check-in every", "minutes of play", "", 0, 240),
-                ("snooze_min", "Snooze lasts", "minutes", "the Snooze button on a reminder", 5, 480)):
+                ("per_hour", "At most", "reminders an hour", "0 turns them off, 12 at most", 0, 12),
+                ("checkin_min", "A check-in every", "minutes of play", "240 at most", 0, 240),
+                ("snooze_min", "Snooze lasts", "minutes", "the Snooze button on a reminder, 480 at most", 5, 480)):
             row = tk.Frame(box, bg=P2)
             row.pack(fill="x", pady=2)
             tk.Label(row, text=before, bg=P2, fg=C["text"]).pack(side="left")
             v = tk.StringVar(value=str(pk[key]))
-            ttk.Spinbox(row, from_=lo, to=hi, textvariable=v, width=5).pack(side="left", padx=8)
+            sp = ttk.Spinbox(row, from_=lo, to=hi, textvariable=v, width=5)
+            sp.pack(side="left", padx=8)
+            self.GP_LIMITS[key] = (lo, hi)                  # 3.3.0 owner: a typed number can't pass the limit
+            for ev in ("<FocusOut>", "<Return>"):
+                sp.bind(ev, lambda e, k=key, var=v: self._gp_limit_show(k, var), add="+")
             tk.Label(row, text=after, bg=P2, fg=C["text"]).pack(side="left")
             if note:
                 tk.Label(row, text=" · " + note, bg=P2, fg=C["muted"], font=("Segoe UI", 9)).pack(side="left")
@@ -831,6 +838,18 @@ class GamePlanPage:
         messagebox.showinfo("Reminder history", "\n".join(lines), parent=self.root)
         return lines
 
+    GP_LIMITS = {}
+
+    def _gp_limit_show(self, key, var):
+        """The box shows the number that was kept, when what was typed is past its limit."""
+        lo, hi = self.GP_LIMITS.get(key, (None, None))
+        n = _num(var.get())
+        if lo is None or n is None:
+            return
+        kept = max(lo, min(hi, int(n)))
+        if str(kept) != var.get().strip():
+            var.set(str(kept))
+
     def gp_pokes_save(self):
         pk = F.cfg()["pokes"]
         for k, v in self.gp_poke_vars.items():
@@ -839,7 +858,8 @@ class GamePlanPage:
             else:
                 n = _num(v.get())
                 if n is not None:
-                    pk[k] = int(n)
+                    lo, hi = self.GP_LIMITS.get(k, (None, None))
+                    pk[k] = int(n) if lo is None else max(lo, min(hi, int(n)))
         q = getattr(self, "gp_quiet", None)
         if q:
             try:
@@ -863,7 +883,7 @@ class GamePlanPage:
         if sig == getattr(self, "_gp_sig", None) and self.gp_goal_box.winfo_exists():
             return                                          # no flicker: the same plan is not drawn again
         self._gp_sig = sig
-        want = [self.gp_next_sec, self.gp_plan_sec] if has else [self.gp_start_sec]
+        want = [self.gp_plan_sec, self.gp_next_sec] if has else [self.gp_start_sec]   # 3.3.0 owner: the plan first
         if [w for w in self.gp_list.pack_slaves()] != want:
             for sec in (self.gp_start_sec, self.gp_next_sec, self.gp_plan_sec):
                 sec.pack_forget()

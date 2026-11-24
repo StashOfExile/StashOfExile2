@@ -442,11 +442,11 @@ class SettingsPage:
         # 2.119.0 (UX pass): Accent color, Text size and the start-up screen switch are gone - a theme keeps its
         # own colors and the start-up screen always shows
 
-        # 2.58.0 - 2.143.0: the overlay's look was here too. Nav phase 2: it lives on Overlay › Look (one place);
+        # 2.58.0 - 2.143.0: the overlay's look was here too. Nav phase 2: it lives on Overlay › Appearance (one place);
         # Appearance is the app's own look - this line points the way
         self.ov_look_top = self.settings_group("Appearance", "OVER THE GAME")
-        row = section("Appearance", "Overlay", "The overlay's Layout, Style and Opacity are on Overlay › Look.")
-        ttk.Button(row, text="Open Overlay › Look", command=lambda: self.ovh_open("Look")).pack(side="left")
+        row = section("Appearance", "Overlay", "The overlay's Layout, Style and Opacity are on Overlay › Appearance.")
+        ttk.Button(row, text="Open Overlay › Appearance", command=lambda: self.ovh_open("Appearance")).pack(side="left")
 
         # ======== Keys (2.116.0, P10: Hotkeys and Chat commands on one tab)
         row = section("Keybinds", "Hotkeys", "Every key the app listens for. Click a box and press the key, with Ctrl, "
@@ -841,10 +841,10 @@ class SettingsPage:
         if getattr(self, "tk_overlay", None) is not None:              # 2.39.0: the timer's clock follows it too
             self.tracker_overlay_draw(self.tracker_numbers())
 
-    # ---- 2.43.0: the look of the windows over the game (2.44.0: Overlays › Look; 2.49.0: › Appearance; nav phase 2:
-    # Overlay › Look again - Layout, Style and Opacity, one section each)
+    # ---- 2.43.0: the look of the windows over the game (2.44.0: Overlays › Appearance; 2.49.0: › Appearance; nav phase 2:
+    # Overlay › Appearance again - Layout, Style and Opacity, one section each)
     def build_overlay_look(self, parent):
-        """Overlay › Look. Layout = Bar | Panel | Split (the overlay's shape), Style = how it looks (the 12 overlay styles),
+        """Overlay › Appearance. Layout = Bar | Panel | Split (the overlay's shape), Style = how it looks (the 12 overlay styles),
         Opacity. Theme is the app's own look (Settings › Appearance). Notes, the calculator and the remnant price tags
         use the theme's colors."""
         P2 = C["panel2"]
@@ -900,12 +900,12 @@ class SettingsPage:
         # (2.135.1: no Motion section - nothing fades any more, so Reduce motion is gone)
 
     def on_ov_look(self, style=None, colors=None):
-        """2.101.0: Overlay › Look › Style - saved and shown at once."""
+        """2.101.0: Overlay › Appearance › Style - saved and shown at once."""
         self.ov_look_set(style=style, colors=colors)
         self._ov_look_paint()
 
     def _ov_look_paint(self):
-        """Keep Overlay › Look's style picker in step (2.116.0: picked from the cog's list too)."""
+        """Keep Overlay › Appearance's style picker in step (2.116.0: picked from the cog's list too)."""
         pk = getattr(self, "ov_style_pick", None)
         if pk is not None:
             try:
@@ -922,8 +922,8 @@ class SettingsPage:
         return "#e0a352" if P.get("texture") else P.get("warn") or "#ffd25a"
 
     def appearance_open(self):
-        """2.58.0: the overlay's look (nav phase 2: Overlay › Look - it was Settings › Appearance › Over the game)."""
-        self.ovh_open("Look")
+        """2.58.0: the overlay's look (nav phase 2: Overlay › Appearance - it was Settings › Appearance › Over the game)."""
+        self.ovh_open("Appearance")
 
     def ov_opacity_get(self, key="session"):
         """The opacity of the windows over the game (2.56.1: one for all; the timer's is the one kept)."""
