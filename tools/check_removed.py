@@ -338,6 +338,10 @@ REMOVED = [
      ("gp_phase_pick", "gp_view_pick", "gp_farm_next", "_gp_farms", "_gp_farm_rows", "gp_add_farm", "gp_farm_choices",
       "add_farm", "farm_now", "farm_done", "farm_text", "move_farm", "remove_farm", "gp_set_now", "set_phase",
       "goals_of", "gp_summary_text", "phase_name", "gp_target_hint", "DONE_WHEN")),
+    ("3.3.0", "Market Insights' Mods worth the most table, its Delete and its list of hidden mods (owner: removed; "
+              "Mod Lab is where mods are rated)",
+     ("Mods worth the most", "the top mods", "the mods worth the most"),
+     ("ins_forget_mods", "ins_modmap", "_ins_rated_mods", "ins_hidden_mods")),
     ("3.3.0", "Favorites as its own page and the Add to favorites button (owner: a Price Checks tab and ☆ Favorite); "
               "Vaal Orbs in Prices in (owner: the same choices as the trade filters' Priced in)",
      ("Add to favorites", "★ In favorites", "Trade › Favorites", "Vaal Orbs"),

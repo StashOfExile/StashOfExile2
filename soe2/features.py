@@ -34,8 +34,8 @@ GROUPS = (
              "each scan adds a point to your worth over time.",
      "modules": ("wealth",)},
     {"key": "insights", "name": "Market Insights",
-     "what": "From your own price checks: your most valuable items, the mods worth the most and the priciest listings "
-             "seen - by kind of item. Nothing extra is searched.",
+     "what": "From your own price checks: your most valuable items and the priciest listings seen - by kind of "
+             "item. Nothing extra is searched.",
      "modules": ("insights",)},
     {"key": "search", "name": "Game Search",                  # (2.143.0: these three out of BETA)
      "what": "Look up any skill, item, mod or keyword in the game's own data, on your PC.", "modules": ("search",)},

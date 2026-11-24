@@ -111,6 +111,8 @@ class LeaderboardPage:
         left = tk.Frame(split, bg=P1, width=380)
         left.pack(side="left", fill="y")
         left.pack_propagate(False)
+        from .chrome import PanelHead, SectionBar          # 3.3.0 look pass: two titled panels
+        SectionBar(left, "Boards").pack(fill="x")
         kv = ttk.Treeview(left, columns=("mine", "best", "n"), show="tree headings", selectmode="browse")
         self.lb_sort = {}                                   # 3.1.0: table -> (column, descending), kept across tabs
         self.lb_titles = {"keys": {"#0": "Act / map", "mine": "My best", "best": "Best", "n": "Players"}}
@@ -129,7 +131,7 @@ class LeaderboardPage:
         self.lb_keys_tv = kv
         right = tk.Frame(split, bg=P1)
         right.pack(side="left", fill="both", expand=True, padx=(8, 0))
-        self.lb_title = tk.Label(right, text="", bg=P1, fg=C["accent"], font=("Segoe UI", 12, "bold"), anchor="w")
+        self.lb_title = PanelHead(right, "")              # (the board's name, then its class and league at the right)
         self.lb_title.pack(fill="x")
         cols = (("rank", "#", 40, "e"), ("name", "Player", 170, "w"), ("time", "Time", 80, "e"), ("cls", "Class", 120, "w"),
                 ("lvl", LEVEL_HEADER, 84, "e"), ("deaths", "Deaths", 66, "e"), ("league", "League", 120, "w"),

@@ -1,5 +1,5 @@
 """Market Insights (2.12.1; was Top value, 2.1.0, a Labs tool): the most valuable things the app has seen, per kind of item - your own priced items
-(Price checks), the mods worth the most (what the Mod book learned from listings) and the most expensive listings it looked
+(Price checks) and the most expensive listings it looked
 at on the trade site. Nothing is searched for this window: it only shows what earlier price checks found."""
 import re
 import time
@@ -11,7 +11,7 @@ from . import buglog
 from .config import SETTINGS, save_json
 from .market import MARKET
 from .valuelog import VALUE_LOG, sig_of
-from .mods import impact_key, JEWEL_BASE, norm, SIDTEXT
+from .mods import JEWEL_BASE, SIDTEXT
 from .pricefmt import fmt_div
 from .style import C, SegBar, trade_icon
 from .chrome import section as chrome_section
@@ -146,15 +146,13 @@ class InsightsPage:
             return tv
         mine = table(0, 0, "mine", "Your most valuable", "Everything you've priced. Delete hides a row here; Ctrl+Z "
                                                          "brings it back.",
-                     (("name", "Item", 120, "w"), ("base", "Type", 110, "w"), ("est", "Worth", 72, "e")))
+                     (("name", "Item", 120, "w"), ("base", "Type", 110, "w"), ("est", "Worth", 72, "e")),
+                     colspan=2)
         mine.bind("<Double-1>", lambda e: self.ins_open_record())
         self.list_register("insights", mine, delete=self.ins_forget)
         mine.menu_actions = lambda sel: [("Show in Bulk Pricing", lambda: (self.ins_show("mine"), self.ins_open_record())),
                                          ("Price it again", lambda: (self.ins_show("mine"), self.ins_price_again())),
                                          ("Remove", lambda: self.ins_forget(sel), bool(sel), "Del")]
-        table(0, 1, "mods", "Mods worth the most", "What the Mod Book learned: the typical asking price of listings "
-                                                    "with this mod. ★ marks a mod that is valuable in your Mod Book.",
-              (("mod", "Mod", 120, "w"), ("base", "On", 76, "w"), ("med", "Typical", 76, "e"), ("n", "Seen", 52, "e")))
         table(1, 0, "seen", "Most expensive listings seen", "The priciest listings your checks came across on the "
                                                      "trade site.",
               (("price", "Asking", 90, "e"), ("name", "Item", 200, "w"), ("mods", "Mods", 360, "w"),
@@ -164,10 +162,6 @@ class InsightsPage:
             ("Trade Site", lambda: (self.ins_show("seen"), self.ins_open_search())),
             ("Remove", lambda: self.ins_forget_seen(sel), bool(sel), "Del")]
         body.bind("<Unmap>", lambda e: self.ins_preview_close(), add="+")
-        self.list_register("insights", self.ins_tables["mods"][0], delete=self.ins_forget_mods)   # 2.73.2: Delete
-        self.ins_tables["mods"][0].menu_actions = lambda sel: [
-            ("Remove", lambda: self.ins_forget_mods(sel), bool(sel), "Del")]
-        self.ins_modmap = {}
         self.ins_rowmap, self.ins_seenmap = {}, {}
         self.refresh_insights()
 
@@ -208,55 +202,7 @@ class InsightsPage:
             iid = tv.insert("", "end", values=(e["name"], e["base"], fmt_div(e["est"])))
             self.ins_rowmap[iid] = e
         self._ins_empty(empty, not recs, f"No priced {ONE[kind]}s yet.\nPrice some on Price Checks or Bulk Pricing.")
-        # ---- mods worth the most (the Mod book's data)
-        tv, empty = self.ins_tables["mods"]
-        tv.delete(*tv.get_children())
-        if kind in ("Waystones", "Relics"):                 # 2.6.0: your ★ rules for these (nothing is learned)
-            self._ins_rated_mods(tv, empty, kind)
-            return self._ins_fill_seen(kind)
-        stats = MARKET.cached_stats()
-        hid = set(SETTINGS.get("ins_hidden_mods") or [])           # 2.73.2: removed by you
-        rows = [(base, sid, st) for (base, sid), st in stats.items()
-                if self.ins_kind_fn(kind)(base) == kind and st.get("n", 0) >= 3 and st.get("med") is not None
-                and f"{base}|{sid}" not in hid]
-        self.ins_modmap = {}
-        rows.sort(key=lambda r: -r[2]["med"])
-        for base, sid, st in rows[:50]:
-            text = _mod_text(sid)
-            star = impact_key(norm(text)) == "high"
-            iid = tv.insert("", "end", values=(("★ " if star else "") + text[:1].upper() + text[1:],
-                                               base.replace(" Tablet", ""), fmt_div(st["med"]), st["n"]),
-                            tags=("star",) if star else ())
-            self.ins_modmap[iid] = f"{base}|{sid}"
-        why = (f"Nothing learned about {ONE[kind]} mods yet.\nPrice a few {ONE[kind]}s (Price Checks or Bulk Pricing) -\n"
-               f"each one teaches the Mod Book.")
-        self._ins_empty(empty, not rows, why)
         self._ins_fill_seen(kind)
-
-    def _ins_rated_mods(self, tv, empty, kind):
-        """Waystones / Relics: the mods you rate ★ in the Mod book, and the best one you've priced with each."""
-        from . import regex as R
-        from .mods import impact_key, rule_key
-        cat = "waystone" if kind == "Waystones" else "relic"
-        league = SETTINGS.get("league")
-        priced = VALUE_LOG.top(league, kind_match(kind), kind, limit=3000)
-        have = [({norm(t) for t in e.get("mods") or []}, e) for e in priced]
-        rows = []
-        for m in R.mods(cat):
-            lines = m.get("lines") or [m["line"]]
-            keys = [norm(l) for l in lines]
-            if not any(impact_key(rule_key(cat, k)) == "high" for k in keys):
-                continue
-            with_it = [e for ks, e in have if any(k in ks for k in keys)]
-            best = max((e["est"] for e in with_it if e.get("est") is not None), default=None)
-            text = " / ".join(l[:1].upper() + l[1:] for l in lines)
-            rows.append((best if best is not None else -1, text, len(with_it), best))
-        rows.sort(key=lambda r: (-r[0], r[1]))
-        for _o, text, n, best in rows:
-            tv.insert("", "end", values=("★ " + text, kind[:-1], fmt_div(best) if best is not None else "-",
-                                         n or "-"), tags=("star",))
-        self._ins_empty(empty, not rows, f"No ★ {kind[:-1].lower()} mods yet.\nRate them in Mod Book › "
-                                         f"{kind[:-1]} rules,\nor right-click a mod in Regex.")
 
     def _ins_fill_seen(self, kind):
         # ---- most expensive listings seen
@@ -337,20 +283,6 @@ class InsightsPage:
                 self.ins_det_btns["trade"].config(style="Primary.TButton")
                 self.ins_det_btns["trade"].pack(fill="x")
             self.ins_det_btns["remove"].pack(fill="x", pady=(8, 0))
-        else:
-            self.ins_pick = None
-            vals = tv.item(sel[0], "values")
-            if self.ins_kind.get() in ("Waystones", "Relics"):
-                self.ins_det.config(fg=C["text"], text=(
-                    f"{vals[0]}  - rated valuable in your Mod Book. "
-                    + (f"You've priced {vals[3]} with it; the best was worth {vals[2]}." if vals[3] != "-" else
-                       "None priced with it yet.")))
-            else:
-                self.ins_det.config(text=f"{vals[0]}  on {vals[1]}: listings with this mod typically ask {vals[2]} "
-                                         f"({vals[3]} seen).", fg=C["text"])
-
-    # ---------------- 2.18.0: click a row -> the item, drawn like the game's tooltip
-    RARITY_FG = {"Unique": "#af6025", "Rare": "#ffff77", "Magic": "#8888ff", "Normal": "#c8c8c8"}
 
     def ins_preview_item(self, key, obj):
         """-> (name lines, rarity, mod lines, price text, footnote) for a row of Your most valuable / listings seen,
@@ -584,27 +516,6 @@ class InsightsPage:
         self._say(f"Removed {label} from Market Insights. Ctrl+Z or Undo puts them back.", 8)
         self.refresh_insights()
         return len(xs)
-
-    def ins_forget_mods(self, rows):
-        """2.73.2: Delete in Mods worth the most: hide those mods here (the Mod book keeps what it learned)."""
-        keys = [self.ins_modmap[r] for r in rows if r in getattr(self, "ins_modmap", {})]
-        if not keys:
-            return None
-        hidden = SETTINGS.setdefault("ins_hidden_mods", [])
-        hidden.extend(k for k in keys if k not in hidden)
-        save_json("settings.json", SETTINGS)
-
-        def restore():
-            for k in keys:
-                if k in SETTINGS.get("ins_hidden_mods", []):
-                    SETTINGS["ins_hidden_mods"].remove(k)
-            save_json("settings.json", SETTINGS)
-            self.refresh_insights()
-        label = f"{len(keys)} mod{'s' if len(keys) != 1 else ''}"
-        self.push_undo("insights", label, restore)
-        self._say(f"Removed {label} from Market Insights. Ctrl+Z or Undo puts them back.", 8)
-        self.refresh_insights()
-        return len(keys)
 
     @staticmethod
     def ins_seen_key(x):

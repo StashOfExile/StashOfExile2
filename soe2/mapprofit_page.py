@@ -733,10 +733,15 @@ class MapProfitPage:
         # can't be counted - say so, and how to teach them
         self.mp_hint = tk.Label(body, text="", bg=P1, fg=C["warn"] if "warn" in C else C["muted"], anchor="w", padx=12,
                                 justify="left")
+        from .chrome import SectionBar                    # 3.3.0 look pass: two titled panels - the chart, the list
+        self.mp_chart_head = SectionBar(body, "Profit")
+        self.mp_chart_head.pack(fill="x", padx=8, pady=(8, 0))
         self.mp_chart = tk.Canvas(body, bg=P2, height=150, highlightthickness=0)
-        self.mp_chart.pack(fill="x", padx=8, pady=(8, 8))
+        self.mp_chart.pack(fill="x", padx=8, pady=(0, 8))
         self.mp_chart.bind("<Configure>", lambda e: self.mp_chart_draw())
         self.mp_chart.bind("<Leave>", lambda e: self.mp_hover_hide())
+        self.mp_list_head = SectionBar(body, "Maps")
+        self.mp_list_head.pack(fill="x", padx=8)
         box = tk.Frame(body, bg=P1)
         box.pack(fill="both", expand=True, padx=8, pady=(0, 8))
         tv = self.mp_tv = ttk.Treeview(box, columns=("a", "b", "c", "d", "e"), show="headings", selectmode="extended")

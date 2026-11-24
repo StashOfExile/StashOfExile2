@@ -468,12 +468,16 @@ class RatesList(tk.Frame):
             cols = (56, W * 0.34, W * 0.48, W * 0.76, W * 0.64)   # name, worth, 1 div buys, traded; 7 days (3.0.4)
             from .wealth import WPRICES
             trends = getattr(WPRICES, "trend_by_slug", {}) if WPRICES.for_league() else {}
-            hd = self.head
+            hd = self.head                                # 3.3.0 look pass: the columns' names on the theme's strip
             hd.delete("all")
+            hh = TH.BOX_HEAD
+            if int(hd.cget("height")) != hh:
+                hd.configure(height=hh)
+            ink = TH.bar_into(hd, t, "section", 0, 0, max(hd.winfo_width(), W), hh, tag="bar")
             for x0, label, anchor in ((cols[0], "Item", "w"), (cols[2] - 16, "1 is worth", "e"),
                                       (cols[4] - 16, "7 days", "e"),
                                       (cols[3] - 16, "1 divine buys", "e"), (W - 8, "Traded (div)", "e")):
-                hd.create_text(x0, 14, text=label.upper(), anchor=anchor, font=("Segoe UI", 8, "bold"), fill=mut)
+                hd.create_text(x0, hh // 2, text=label.upper(), anchor=anchor, font=("Segoe UI", 9, "bold"), fill=ink)
             cv = self.cv
             cv.delete("all")
             if not rows:

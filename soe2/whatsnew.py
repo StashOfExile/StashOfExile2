@@ -75,6 +75,7 @@ NOTES = {
                 ("•", "Removed League Plan phases and Farm plan"),
                 ("•", "Removed Favorites page"),
                 ("•", "Removed Must match stars from Price Checks"),
+                ("•", "Removed Mods worth the most from Market Insights"),
             ]),
         ],
     },

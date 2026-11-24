@@ -43,10 +43,11 @@ class MapLibraryPage:
             side="right", padx=(0, 8))
         grp = tk.Frame(bar, bg=C["line"], padx=1, pady=1)
         grp.pack(side="right", padx=(0, 8))
-        cols = {"S": "#ffcf40", "A": "#ffd9a8", "B": C["text"], "C": C["text"], "D": C["muted"], "Avoid": C["red"]}
+        cols = {}                                         # 3.3.0 owner: one quiet color - six bright ones were hard to
+                                                          # look at; each still says what it is, letter and tooltip
         self.ml_rank_btns = {}
         for i, r in enumerate(ML.RANKS):
-            lab = tk.Label(grp, text="✖" if r == "Avoid" else r, bg=C["panel2"], fg=cols.get(r, C["text"]),
+            lab = tk.Label(grp, text="✕" if r == "Avoid" else r, bg=C["panel2"], fg=cols.get(r, C["text"]),
                            font=("Segoe UI", 10, "bold"), width=3, pady=4, cursor="hand2")
             lab.pack(side="left", padx=(1 if i else 0, 0))
             lab.bind("<Button-1>", lambda e, rr=r: self.ml_set(rr))

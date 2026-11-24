@@ -707,6 +707,7 @@ def round_rect(cv, x0, y0, x1, y1, r, **kw):
     from . import soft
     if r > 0 and not soft.radius() and not getattr(cv.winfo_toplevel(), "keeps_round", False):
         r = 0                                             # 3.3.0 look pass: a square theme draws square boxes
+        soft._install()                                   # (a box resized later with a round box's points: taken)
     if r <= 0:
         return cv.create_rectangle(x0, y0, x1, y1, **kw)
     got = soft.canvas_round_rect(cv, x0, y0, x1, y1, r, **kw)
@@ -764,22 +765,14 @@ def head_title(t, title):
     return title, (head_font(t), 11, "bold")
 
 
-def box_head(cv, t, x0, y0, x1, r, title, tags=()):
-    """A box's title in the pack's style, drawn over a box() at the same corner. -> (the title's id, how far the
-    controls at its right move up: 0 for a plain title)."""
+def box_strip(cv, t, x0, y0, x1, r, tags=()):
+    """The pack's header strip across the top of a box() at the same corner -> its text color, or None when the
+    pack doesn't draw one (a plain title, or a title over a rule)."""
     k = box_look(t)
-    word = title.upper() if k["caps"] else title
-    if k["head"] == "plain":
-        return cv.create_text(x0 + 20, y0 + 18, text=title, anchor="nw", font=(head_font(t), 16),
-                              fill=t.c("text_strong"), tags=tags), 0
+    if k["head"] != "strip":
+        return None
     rr = r if k["shape"] == "round" else 0
-    h, mid = BOX_HEAD, y0 + BOX_HEAD // 2
-    if k["head"] == "rule":
-        tid = cv.create_text(x0 + 20, mid, text=word, anchor="w", font=(head_font(t), 13 if k["caps"] else 15),
-                             fill=t.c("text_strong"), tags=tags)
-        inset = 0 if k["shape"] == "flat" else 20
-        cv.create_line(x0 + inset, y0 + h, x1 - inset, y0 + h, fill=t.c("border_light"), tags=tags)
-        return tid, 15
+    h = BOX_HEAD
     spec = t.part("bars", "section") or t.part("bars", "title")
     stops, ink = t.grad(spec["fill"]), t.c(spec.get("text", "text_strong"))
     edge = 0 if k["shape"] == "flat" else 1               # (inside the box's own 1 px outline)
@@ -796,6 +789,26 @@ def box_head(cv, t, x0, y0, x1, r, title, tags=()):
     if spec.get("top"):
         cv.create_line(x0 + max(edge, rr), y0 + edge, x1 - max(edge, rr), y0 + edge, fill=t.c(spec["top"]), tags=tags)
     cv.create_line(x0 + edge, y0 + h, x1 - edge + (0 if edge else 1), y0 + h, fill=t.c("border"), tags=tags)
+    return ink
+
+
+def box_head(cv, t, x0, y0, x1, r, title, tags=()):
+    """A box's title in the pack's style, drawn over a box() at the same corner. -> (the title's id, how far the
+    controls at its right move up: 0 for a plain title)."""
+    k = box_look(t)
+    word = title.upper() if k["caps"] else title
+    if k["head"] == "plain":
+        return cv.create_text(x0 + 20, y0 + 18, text=title, anchor="nw", font=(head_font(t), 16),
+                              fill=t.c("text_strong"), tags=tags), 0
+    rr = r if k["shape"] == "round" else 0
+    h, mid = BOX_HEAD, y0 + BOX_HEAD // 2
+    if k["head"] == "rule":
+        tid = cv.create_text(x0 + 20, mid, text=word, anchor="w", font=(head_font(t), 13 if k["caps"] else 15),
+                             fill=t.c("text_strong"), tags=tags)
+        inset = 0 if k["shape"] == "flat" else 20
+        cv.create_line(x0 + inset, y0 + h, x1 - inset, y0 + h, fill=t.c("border_light"), tags=tags)
+        return tid, 15
+    ink = box_strip(cv, t, x0, y0, x1, r, tags)
     word, font = head_title(t, title)
     tid = cv.create_text(x0 + 20, mid, text=word, anchor="w", font=font, fill=ink, tags=tags)
     return tid, 15

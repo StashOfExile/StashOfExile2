@@ -59,7 +59,7 @@ This product isn't affiliated with or endorsed by Grinding Gear Games in any way
 
 **Mods**
 - **Mod Lab** - rate mods One at a Time or in a Table; your ratings tune your price checks. A mod that rolls in tiers can have a letter for its top, middle and low rolls (By roll).
-- **Market Insights** - your most valuable items, the top mods and the priciest listings seen.
+- **Market Insights** - your most valuable items and the priciest listings seen.
 - **Craft Helper** (BETA) - each mod of a tablet or jewel rated S to F, and a next step.
 
 **Stash**
