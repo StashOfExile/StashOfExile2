@@ -13,8 +13,6 @@ from .config import SETTINGS
 PAD, GAP, R = 32, 16, 8           # page margin, gap between cards, card corner (rule 24: soft, smooth)
 TILE_H, START_H, LIST_H = 116, 150, 252
 MOVERS_H, WORTH_H, WORTH_H_NARROW = 252, 196, 260
-# the subject of each number tile: the theme gives every subject one color, on every page
-TILE_SUBJECT = {"Stash worth": "wealth", "Today": "profit", "Last map": "profit", "Items price checked today": "price"}
 
 
 def day_start(now=None):
@@ -278,13 +276,13 @@ class Dashboard(tk.Canvas):
             except Exception:
                 buglog.caught()
 
-    def _card(self, x0, y0, x1, y1, tag=None, lit=False, sub=None):
-        """A box in the theme's shape. sub: its subject, for the theme's color mark."""
-        TH.box(self, TH.ST.theme, x0, y0, x1, y1, R, sub=sub, lit=lit, tags=(tag,) if tag else ())
+    def _card(self, x0, y0, x1, y1, tag=None, lit=False):
+        """A box in the theme's shape."""
+        TH.box(self, TH.ST.theme, x0, y0, x1, y1, R, lit=lit, tags=(tag,) if tag else ())
 
-    def _head(self, x0, y, x1, title, sub):
+    def _head(self, x0, y, x1, title):
         """A box's title in the theme's style. -> (the title's id, how far the controls beside it move up)."""
-        return TH.box_head(self, TH.ST.theme, x0, y, x1, R, title, sub)
+        return TH.box_head(self, TH.ST.theme, x0, y, x1, R, title)
 
     def _button(self, x1, y, text, tag, fn, primary=False, tip=None):
         """A button drawn right-aligned at x1. -> its left edge."""
@@ -365,7 +363,7 @@ class Dashboard(tk.Canvas):
         head = TH.head_font(t)
         mut, strong, txt = t.c("text_muted"), t.c("text_strong"), t.c("text")
         self._card(x0, y, x1, y + MOVERS_H)
-        hid, up = self._head(x0, y, x1, "Top Movers", "market")
+        hid, up = self._head(x0, y, x1, "Top Movers")
         hb = self.bbox(hid)
         iid = self.create_text(hb[2] + 8, (hb[1] + hb[3]) // 2, text="ⓘ", anchor="w", font=("Segoe UI Symbol", 10),
                                fill=t.c("accent_2") if self.hover == "mv_info" else mut, tags=("mv_info",))
@@ -447,9 +445,9 @@ class Dashboard(tk.Canvas):
         fx1 = x1 - side - (GAP if side else 0)
         hd_on = TH.headed(t)                                  # the theme gives boxes a title strip: this one too
         top = TH.BOX_HEAD - 4 if hd_on else 0
-        self._card(x0, y, fx1, y + h, sub=None if hd_on else "community")
+        self._card(x0, y, fx1, y + h)
         if hd_on:
-            _tid, _up = self._head(x0, y, fx1, "Worth a Look", "community")
+            _tid, _up = self._head(x0, y, fx1, "Worth a Look")
         xy = y + (TH.BOX_HEAD // 2 if hd_on else 24)
         hid = self.create_text(fx1 - 20, xy, text="✕", anchor="e", font=("Segoe UI", 10),
                                fill=txt if self.hover == "wl_hide" else mut, tags=("wl_hide",))
@@ -459,14 +457,14 @@ class Dashboard(tk.Canvas):
         cy = y + top
         TH.round_rect(self, x0 + 20, cy + 20, x0 + 68, cy + 68, 12 if TH.box_look(t)["shape"] == "round" else 0,
                       fill=t.c("surface_high"), outline="")
-        img = lineicons.icon(self, it["icon"], 26, TH.subject(t, "community") if hd_on else acc)
+        img = lineicons.icon(self, it["icon"], 26, acc)
         if img:
             self._wl_imgs = [img]
             self.create_image(x0 + 44, cy + 44, image=img)
         tw = fx1 - x0 - 88 - 48
         kick = it["name"].upper() if hd_on else f"WORTH A LOOK  ·  {it['name'].upper()}"
         self.create_text(x0 + 88, cy + 20, text=kick, anchor="nw", font=("Segoe UI", 9, "bold"),
-                         fill=TH.subject(t, "community") if hd_on else mut)
+                         fill=mut)
         hd = self.create_text(x0 + 88, cy + 38, text=it["head"], anchor="nw", font=(head, 16), fill=strong, width=tw)
         by = self.bbox(hd)[3] + 8
         bd = self.create_text(x0 + 88, by, text=it["body"], anchor="nw", font=("Segoe UI", 10), fill=mut, width=tw)
@@ -484,7 +482,7 @@ class Dashboard(tk.Canvas):
             sx0 = fx1 + GAP
             if hd_on:                                        # one box with the same title strip, two rows in it
                 self._card(sx0, y, x1, y + h)
-                self._head(sx0, y, x1, "Up Next", "community")
+                self._head(sx0, y, x1, "Up Next")
                 ry0, rh = y + TH.BOX_HEAD + 1, (h - TH.BOX_HEAD - 1) / 2
             else:
                 self.create_text(sx0, y + 4, text="UP NEXT", anchor="nw", font=("Segoe UI", 8, "bold"), fill=mut)
@@ -714,12 +712,9 @@ class Dashboard(tk.Canvas):
             x0 = PAD + (i % tcols) * (cw + GAP)
             ty = y + (i // tcols) * (TILE_H + GAP)
             tag = f"tile{i}"
-            sub = TILE_SUBJECT.get(label, "price")
-            self._card(x0, ty, x0 + cw, ty + TILE_H, tag, lit=self.hover == tag, sub=sub)
-            caps = TH.box_look(t)["caps"]
-            self.create_text(x0 + 18, ty + 16, text=label.upper() if caps else label, anchor="nw",
-                             font=("Segoe UI", 9, "bold") if caps else ("Segoe UI", 10),
-                             fill=TH.subject(t, sub) if caps else mut, tags=(tag,), width=cw - 56)
+            self._card(x0, ty, x0 + cw, ty + TILE_H, tag, lit=self.hover == tag)
+            self.create_text(x0 + 18, ty + 16, text=label, anchor="nw", font=("Segoe UI", 10), fill=mut, tags=(tag,),
+                             width=cw - 56)
             info = f"info{i}"
             self.create_text(x0 + cw - 18, ty + 16, text="ⓘ", anchor="ne", font=("Segoe UI Symbol", 10),
                              fill=brass if self.hover == info else mut, tags=(info,))
@@ -757,7 +752,7 @@ class Dashboard(tk.Canvas):
                 sy = y + (i // scols) * (sh_ + GAP)
                 tag = f"start{i}"
                 lit = self.hover == tag
-                self._card(x0, sy, x0 + sw, sy + sh_, tag, lit, sub="start")
+                self._card(x0, sy, x0 + sw, sy + sh_, tag, lit)
                 TH.round_rect(self, x0 + ip, sy + ip, x0 + ip + ic, sy + ip + ic, 6, fill=t.c("surface_sunken"),
                               outline=TH.mix(brass, t.c("surface_raised"), .6), tags=(tag,))
                 self.create_text(x0 + ip + ic / 2, sy + ip + ic / 2, text=glyph,
@@ -785,7 +780,7 @@ class Dashboard(tk.Canvas):
         lw = full if (stack or not both) else (W - 2 * PAD - GAP) * 0.62
         if vis["price"]:
             self._card(PAD, y, PAD + lw, y + LIST_H)
-            _hid, up = self._head(PAD, y, PAD + lw, "Pick up where you left off", "price")
+            _hid, up = self._head(PAD, y, PAD + lw, "Pick up where you left off")
             self.create_text(PAD + lw - 20, y + 22 - up, text="All Price Checks", anchor="ne", font=("Segoe UI", 10),
                              fill=acc if self.hover == "allpc" else brass, tags=("allpc",))
             self.acts["allpc"] = go("pricecheck")
@@ -830,7 +825,7 @@ class Dashboard(tk.Canvas):
         hw = full if (stack or not both) else W - PAD - hx0
         if vis["overlay"]:
             self._card(hx0, y, hx0 + hw, y + LIST_H)
-            _hid, up = self._head(hx0, y, hx0 + hw, "Helpers", "helpers")
+            _hid, up = self._head(hx0, y, hx0 + hw, "Helpers")
             # nav phase 2: every helper is on Overlay › Helpers (was the Overlay Settings page)
             self.create_text(hx0 + hw - 20, y + 22 - up, text="All helpers", anchor="ne", font=("Segoe UI", 10),
                              fill=acc if self.hover == "ovhelpers" else brass, tags=("ovhelpers",))

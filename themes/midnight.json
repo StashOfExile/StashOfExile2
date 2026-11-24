@@ -106,7 +106,6 @@
  "box": {
   "shape": "round",
   "head": "strip",
-  "mark": "side",
   "caps": false
  }
 }

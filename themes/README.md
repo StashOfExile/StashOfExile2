@@ -20,8 +20,7 @@ so you can add your own without touching the app. A pack lists only what it chan
 | `buttons.normal` / `primary` / `heading` | bevelled faces: `fill` / `hover` / `pressed` gradients, `border`, `hover_border`, `inner` (the light top edge), `radius`, `text`, `text_hover`. Primary / danger are made from the accent / red when a pack leaves them out. |
 | `card` | the item card in Price checks: `header` (plate, glass, ornate, notch, stepped, rite), `border`, `sep` |
 | `meter` | trade limits and mod rolls: `style` (segments, bar, runes, ticks, orbs), `on`, `off`, `lcd_bg` |
-| `box` | the boxes on a page: `shape` (round, square, flat), `head` (plain, strip, tint, rule), `mark` (none, edge, side), `caps` (true, false) |
-| `subjects` | the color each subject keeps on every page: wealth, profit, market, community, price, helpers, start, league. Each names a color role |
+| `box` | the boxes on a page: `shape` (round, square, flat), `head` (plain, strip, rule), `caps` (true, false) |
 
 Rules: the app's icons and layout are the same in every theme (no per-theme icons); rarity colors stay the game's
 on dark themes; `tools/check_contrast.py` must pass (WCAG AA 4.5 : 1) for every pack with every accent.

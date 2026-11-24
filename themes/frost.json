@@ -341,7 +341,6 @@
  "box": {
   "shape": "flat",
   "head": "rule",
-  "mark": "edge",
   "caps": false
  }
 }

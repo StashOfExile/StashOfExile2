@@ -277,7 +277,6 @@
  "box": {
   "shape": "round",
   "head": "strip",
-  "mark": "edge",
   "caps": true
  }
 }

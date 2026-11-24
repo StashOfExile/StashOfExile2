@@ -70,10 +70,8 @@ DEFAULTS = {
     },
     "card": {"header": "plate", "border": "border_light", "sep": "border"},
     "meter": {"style": "bar", "on": "good", "off": "surface_high"},
-    # 3.3.0 look pass: how a page draws its boxes, and the color each subject keeps on every page
-    "box": {"shape": "round", "head": "plain", "mark": "none", "caps": False},
-    "subjects": {"wealth": "money", "profit": "good", "market": "link", "community": "purple", "price": "accent",
-                 "helpers": "accent_2", "start": "accent_2", "league": "orange"},
+    # 3.3.0 look pass: how a page draws its boxes
+    "box": {"shape": "round", "head": "plain", "caps": False},
 }
 
 
@@ -718,8 +716,7 @@ def round_rect(cv, x0, y0, x1, y1, r, **kw):
 
 
 # ------------------------------------------------------------------ boxes on a page (3.3.0 look pass)
-BOX = {"shape": ("round", "square", "flat"), "head": ("plain", "strip", "tint", "rule"),
-       "mark": ("none", "edge", "side")}
+BOX = {"shape": ("round", "square", "flat"), "head": ("plain", "strip", "rule")}
 BOX_HEAD = 44                     # the height of a box's header strip
 
 
@@ -729,16 +726,11 @@ def headed(t):
 
 
 def box_look(t):
-    """The pack's box part with only known values -> {"shape", "head", "mark", "caps"}."""
+    """The pack's box part with only known values -> {"shape", "head", "caps"}."""
     got = t.part("box") or {}
     out = {k: got.get(k) if got.get(k) in v else v[0] for k, v in BOX.items()}
     out["caps"] = bool(got.get("caps"))
     return out
-
-
-def subject(t, name, fallback="accent_2"):
-    """The color a subject keeps on every page: wealth, profit, market, community, price, helpers, start, league."""
-    return t.c((t.part("subjects") or {}).get(name, fallback), t.c(fallback))
 
 
 def _inset(r, row):
@@ -749,36 +741,24 @@ def _inset(r, row):
     return int(round(r - (max(0.0, r * r - d * d)) ** .5))
 
 
-def box(cv, t, x0, y0, x1, y1, r, sub=None, lit=False, tags=()):
-    """A box on a page canvas, in the pack's shape, with its subject's mark. -> its corner radius as drawn."""
+def box(cv, t, x0, y0, x1, y1, r, lit=False, tags=()):
+    """A box on a page canvas, in the pack's shape. -> its corner radius as drawn."""
     k = box_look(t)
     fill = t.c("hover", t.c("surface_high")) if lit else t.c("surface_raised")
     line = t.c("border_light") if lit else t.c("border")
-    col = subject(t, sub) if sub else None
     if k["shape"] == "flat":
-        rr = 0
-        if lit:
-            cv.create_rectangle(x0, y0, x1, y1, fill=fill, outline="", tags=tags)
-        else:                                             # (a see-through body that still takes the pointer)
-            cv.create_rectangle(x0, y0, x1, y1, fill=t.c("surface"), outline="", tags=tags)
+        cv.create_rectangle(x0, y0, x1, y1, fill=fill if lit else t.c("surface"), outline="", tags=tags)
         cv.create_line(x0, y0, x1, y0, fill=line, tags=tags)
-    else:
-        rr = r if k["shape"] == "round" else 0
-        round_rect(cv, x0, y0, x1, y1, rr, fill=fill, outline=line, tags=tags)
-    if col and k["mark"] == "edge":
-        for row in range(3):
-            i = _inset(rr, row)
-            cv.create_line(x0 + i, y0 + row, x1 - i + 1, y0 + row, fill=col, tags=tags)
-    elif col and k["mark"] == "side":
-        cv.create_rectangle(x0, y0 + rr, x0 + 3, y1 - rr, fill=col, outline="", tags=tags)
+        return 0
+    rr = r if k["shape"] == "round" else 0
+    round_rect(cv, x0, y0, x1, y1, rr, fill=fill, outline=line, tags=tags)
     return rr
 
 
-def box_head(cv, t, x0, y0, x1, r, title, sub=None, tags=()):
+def box_head(cv, t, x0, y0, x1, r, title, tags=()):
     """A box's title in the pack's style, drawn over a box() at the same corner. -> (the title's id, how far the
     controls at its right move up: 0 for a plain title)."""
     k = box_look(t)
-    col = subject(t, sub) if sub else t.c("accent_2")
     word = title.upper() if k["caps"] else title
     if k["head"] == "plain":
         return cv.create_text(x0 + 20, y0 + 18, text=title, anchor="nw", font=(head_font(t), 16),
@@ -788,31 +768,24 @@ def box_head(cv, t, x0, y0, x1, r, title, sub=None, tags=()):
     if k["head"] == "rule":
         tid = cv.create_text(x0 + 20, mid, text=word, anchor="w", font=(head_font(t), 13 if k["caps"] else 15),
                              fill=t.c("text_strong"), tags=tags)
-        cv.create_rectangle(x0 + (0 if k["shape"] == "flat" else 20), y0 + h - 2,
-                            x1 - (0 if k["shape"] == "flat" else 20), y0 + h, fill=col, outline="", tags=tags)
+        inset = 0 if k["shape"] == "flat" else 20
+        cv.create_line(x0 + inset, y0 + h, x1 - inset, y0 + h, fill=t.c("border_light"), tags=tags)
         return tid, 8
-    if k["head"] == "tint":
-        stops = [(0.0, mix(t.c("surface_raised"), col, .26)), (1.0, mix(t.c("surface_raised"), col, .14))]
-        ink = t.c("text_strong")
-    else:
-        spec = t.part("bars", "section") or t.part("bars", "title")
-        stops, ink = t.grad(spec["fill"]), t.c(spec.get("text", "text_strong"))
+    spec = t.part("bars", "section") or t.part("bars", "title")
+    stops, ink = t.grad(spec["fill"]), t.c(spec.get("text", "text_strong"))
     edge = 0 if k["shape"] == "flat" else 1               # (inside the box's own 1 px outline)
     for row in range(edge, h):
         i = max(edge, _inset(rr, row))
         cv.create_line(x0 + i, y0 + row, x1 - i + (0 if edge else 1), y0 + row,
                        fill=grad_at(stops, row / max(1, h - 1)), tags=tags)
-    if k["head"] == "strip":                              # the pack's own strip: its texture and edge lines too
-        tex = spec.get("texture", "none")
-        if tex and tex != "none":
-            texture(cv, t, tex, int(x0 + edge + rr), int(y0 + edge), int(x1 - edge - rr), int(y0 + h),
-                    grad_at(stops, .5), glow=t.c(spec["texture_color"]) if spec.get("texture_color") else None,
-                    tag=tags or "tex")
-        if spec.get("top"):
-            cv.create_line(x0 + max(edge, rr), y0 + edge, x1 - max(edge, rr), y0 + edge, fill=t.c(spec["top"]),
-                           tags=tags)
+    tex = spec.get("texture", "none")                     # the pack's own strip: its texture and top line too
+    if tex and tex != "none":
+        texture(cv, t, tex, int(x0 + edge + rr), int(y0 + edge), int(x1 - edge - rr), int(y0 + h),
+                grad_at(stops, .5), glow=t.c(spec["texture_color"]) if spec.get("texture_color") else None,
+                tag=tags or "tex")
+    if spec.get("top"):
+        cv.create_line(x0 + max(edge, rr), y0 + edge, x1 - max(edge, rr), y0 + edge, fill=t.c(spec["top"]), tags=tags)
     cv.create_line(x0 + edge, y0 + h, x1 - edge + (0 if edge else 1), y0 + h, fill=t.c("border"), tags=tags)
-    cv.create_rectangle(x0 + edge, y0 + max(edge, rr), x0 + edge + 4, y0 + h, fill=col, outline="", tags=tags)
     tid = cv.create_text(x0 + 20, mid, text=word, anchor="w", font=("Segoe UI", 10, "bold"), fill=ink, tags=tags)
     return tid, 8
 
