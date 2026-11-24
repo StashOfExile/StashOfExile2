@@ -133,6 +133,34 @@ class SectionBar(tk.Canvas):
                 self.delete(nid)
 
 
+class PanelHead(SectionBar):
+    """3.3.0 look pass: a panel's header strip that takes a label's calls, so a heading that was a line of text can
+    become a strip with no change to the code that writes it. config(text="CHEAPEST LISTINGS · 4 of 5") shows
+    Cheapest Listings on the left and 4 of 5 on the right."""
+
+    def __init__(self, parent, title=""):
+        super().__init__(parent, title)
+        self._text = title
+
+    def config(self, cnf=None, **kw):
+        kw = dict(cnf or {}, **kw)
+        if "text" in kw:
+            text = str(kw.pop("text") or "")
+            if text != self._text:
+                self._text = text
+                head, _dot, rest = text.partition(" · ")
+                self.title = head.title() if head.isupper() else head
+                self._note = rest
+                self.redraw()
+        if kw:
+            return super().config(**kw)
+
+    configure = config
+
+    def cget(self, key):
+        return self._text if key == "text" else super().cget(key)
+
+
 class Viewport(tk.Frame):
     """A sunken frame for a list or a preview. Put children in .body."""
 

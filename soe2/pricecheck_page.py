@@ -579,8 +579,16 @@ class PriceCheckPage:
         self.pc_hist_cb.bind("<<ComboboxSelected>>", lambda e: self.pc_pick_hist())
         # ---- left: the item card; in a narrow window the listings follow it in the same column
         self.pc_lcanvas, inner = self._pc_scroller(left, bg_key="panel")
-        self.pc_left = tk.Frame(inner, bg=C["panel2"], padx=16, pady=12, highlightthickness=1,
-                                highlightbackground=C["line"])
+        # 3.3.0 look pass: a titled panel - the Item strip, with Fold all at its right, over the card
+        from .chrome import PanelHead
+        self.pc_item_box = tk.Frame(inner, bg=C["panel2"], highlightthickness=1, highlightbackground=C["line"])
+        self.pc_item_box.pack(fill="x")
+        self.pc_item_head = PanelHead(self.pc_item_box, "Item")
+        self.pc_item_head.pack(fill="x")
+        self.pc_fold_lbl = tk.Label(self.pc_item_head, text="", fg=C["muted"], font=("Segoe UI", 9), cursor="hand2",
+                                    bd=0, padx=0, pady=0)
+        self.pc_item_head.add_right(self.pc_fold_lbl)
+        self.pc_left = tk.Frame(self.pc_item_box, bg=C["panel2"], padx=16, pady=12, highlightthickness=0)
         self.pc_left.pack(fill="x")
         self.pc_nlist_box = tk.Frame(inner, bg=C["panel"])          # (packed in a narrow window: pc_layout)
         self.pc_ncount = self._pc_list_head(self.pc_nlist_box)
@@ -601,10 +609,19 @@ class PriceCheckPage:
         self.pc_show(recs[0] if recs else None)
 
     def _pc_list_head(self, parent, padx=0):
-        """CHEAPEST LISTINGS · 6 of 37 - the listings' heading, as the card's section heads."""
-        lab = tk.Label(parent, text="", bg=C["panel"], fg=C["muted"], font=("Segoe UI", 9, "bold"), anchor="w")
-        lab.pack(fill="x", padx=padx, pady=(0, 8))
+        """CHEAPEST LISTINGS · 6 of 37 - the listings' heading: a panel's header strip, the count at its right."""
+        from .chrome import PanelHead
+        lab = PanelHead(parent, "")
+        lab.pack(fill="x", padx=padx, pady=(0, 0))
         return lab
+
+    def pc_fold_label(self, d):
+        """The Fold all link in the Item strip, when d is Price Checks' own card (else None: the card draws its own)."""
+        left = getattr(self, "pc_left", None)
+        lab = getattr(self, "pc_fold_lbl", None)
+        if left is None or lab is None or d is None:
+            return None
+        return lab if (d is left or getattr(d, "master", None) is left) else None
 
     def pc_layout(self, width=None, check=False):
         """The page's layout for its width: wide (WIDE_PX and up) - the listings beside the item card; narrow (the
@@ -859,8 +876,14 @@ class PriceCheckPage:
     def _pc_verdict_row(self, body):
         """The price, big; how sure beside it (a mark and a word, plain); ⓘ how it was worked out (one hover); one line
         under it (while searching: the last price and when). As tall in every state - nothing below it jumps."""
-        ns = self._pc_vns = self.price_card_build(body)
-        self.pc_verdict, self.pc_v_big, self.pc_v_how = ns.frame, ns.big, ns.how
+        from .chrome import PanelHead                     # 3.3.0 look pass: a titled panel - Price, how sure at its right
+        box = tk.Frame(body, bg=C["panel2"], highlightthickness=1, highlightbackground=C["line"])
+        self.pc_price_head = PanelHead(box, "Price")
+        self.pc_price_head.pack(fill="x")
+        ns = self._pc_vns = self.price_card_build(box)
+        ns.frame.config(highlightthickness=0)
+        ns.frame.pack(fill="x")
+        self.pc_verdict, self.pc_v_big, self.pc_v_how = box, ns.big, ns.how
         self.pc_v_info, self.pc_v_info_tip, self.pc_v_why = ns.info, ns.info_tip, ns.why
 
     def price_card_build(self, parent, k=1.0):
@@ -965,6 +988,14 @@ class PriceCheckPage:
         if not f.winfo_manager():
             f.pack(side="top", fill="x", pady=(0, 12), padx=(0, gap), **({"before": box} if box is not None else {}))
         fewer = self.price_card_paint(self._pc_vns, rec)
+        try:                                             # how sure: said in the Price strip, not beside the price
+            how = self._pc_vns.how
+            shown = bool(how.winfo_manager())
+            self.pc_price_head.config(text="Price" + (" · " + how.cget("text") if shown else ""))
+            if shown:
+                how.pack_forget()
+        except tk.TclError:
+            pass
         try:                                             # the footer's buttons follow the check
             self.pc_search_paint(self.pc_search_btn, rec)
             self._pc_foot_show(self.pc_fewer_btn, fewer)
@@ -1644,7 +1675,8 @@ class PriceCheckPage:
             except tk.TclError:
                 pass
         pad = int(self.pc_left.cget("pady") or 0)
-        return max(0, h - 2 * 4 - 2 * pad - 2)
+        from . import themes as _th
+        return max(0, h - 2 * 4 - 2 * pad - 2 - _th.BOX_HEAD)      # (the Item strip over the card)
 
     def pc_scale_off(self, v):
         """Is the card's scale wrong for the room it has now (a window made taller or shorter)? Only a wide window

@@ -74,5 +74,28 @@ class BoxDraws(unittest.TestCase):
             root.destroy()
 
 
+class PanelHeadTakesALabelsCalls(unittest.TestCase):
+    """3.3.0 look pass: Price Checks' headings are header strips that the old label code still writes to."""
+
+    def test_text_splits_into_title_and_count(self):
+        import tkinter as tk
+        from soe2 import chrome
+        try:
+            root = tk.Tk()
+        except tk.TclError:
+            self.skipTest("no display")
+        try:
+            h = chrome.PanelHead(root, "")
+            h.config(text="CHEAPEST LISTINGS · 4 of 5")
+            self.assertEqual((h.title, h.note()), ("Cheapest Listings", "4 of 5"))
+            self.assertEqual(h.cget("text"), "CHEAPEST LISTINGS · 4 of 5")
+            h.configure(text="No listings found")
+            self.assertEqual((h.title, h.note()), ("No listings found", ""))
+            h.config(bg="#000000")                      # (a canvas option still goes to the canvas)
+            self.assertEqual(h.cget("bg"), "#000000")
+        finally:
+            root.destroy()
+
+
 if __name__ == "__main__":
     unittest.main()

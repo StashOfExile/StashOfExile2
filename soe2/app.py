@@ -4867,10 +4867,16 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
             # fold all / unfold all (Price Checks: a plain muted link, top right)
             keys_all = ("props", "req", "misc", "aug", "stats", "pseudo", "trade")
             all_open = any(not fold.get(k, k == "req") for k in keys_all)    # (any open: "Fold all")
-            cv.create_text(w - 4 if dl else w - 16, 2 if dl else y - 2, text="Fold all ▴" if all_open else
-                           "Unfold all ▾", anchor="ne" if dl else "e", font=_f(cv, 9),
-                           fill=C["muted"] if dl else C["accent"], tags=("cardfoldall",))
-            self._card_click(cv, "cardfoldall", lambda: self.card_fold_all(rec, all_open))
+            fold_lbl = self.pc_fold_label(d) if hasattr(self, "pc_fold_label") else None
+            if fold_lbl is not None:                           # 3.3.0: Price Checks has it in the Item strip
+                fold_lbl.config(text="Fold all ▴" if all_open else "Unfold all ▾")
+                fold_lbl.bind("<Button-1>", lambda e: self.card_fold_all(rec, all_open))
+                self.pc_item_head.redraw()                     # (its width changed: placed again at the right)
+            else:
+                cv.create_text(w - 4 if dl else w - 16, 2 if dl else y - 2, text="Fold all ▴" if all_open else
+                               "Unfold all ▾", anchor="ne" if dl else "e", font=_f(cv, 9),
+                               fill=C["muted"] if dl else C["accent"], tags=("cardfoldall",))
+                self._card_click(cv, "cardfoldall", lambda: self.card_fold_all(rec, all_open))
 
             def section(title, key, count=None, boxes=False, summary=""):
                 """▾ TITLE (n) ─── MIN MAX: a click folds / unfolds it. -> open?"""

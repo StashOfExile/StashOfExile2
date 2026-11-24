@@ -378,7 +378,7 @@ class Layout(unittest.TestCase):
         for w in (self.app.pc_verdict, self.app.pc_foot):
             self.assertIs(w.master, col)
             self.assertLess(w.winfo_width(), page.winfo_width() - 300, "not the whole page")
-        v, card, foot = self.app.pc_verdict, self.app.pc_left, self.app.pc_foot
+        v, card, foot = self.app.pc_verdict, self.app.pc_item_box, self.app.pc_foot       # (the two panels' edges)
         self.assertEqual(foot.winfo_width(), col.winfo_width())
         # owner (round 2): the price box has exactly the card's left and right edges (not over the scroll bar's strip)
         self.assertEqual(v.winfo_rootx(), card.winfo_rootx())
@@ -392,7 +392,7 @@ class Layout(unittest.TestCase):
     # ---- owner: the card fits the window (one scale for the whole card), the price card is tight
     def scroller_needed(self):
         cv = self.app.pc_lcanvas
-        inner = self.app.pc_left.master
+        inner = self.app.pc_item_box.master
         return inner.winfo_reqheight() > cv.winfo_height() + 1, cv._sb.winfo_ismapped()
 
     def test_card_fits_a_full_window(self):
@@ -480,7 +480,7 @@ class Layout(unittest.TestCase):
         self.assertEqual(self.card()._k, 1.0, "the Drawer: the listings follow the card - it scrolls")
         lc = next(w for w in self.app.pcv.lst.winfo_children() if hasattr(w, "_lc_ids"))
         self.assertEqual(lc._lc_k, 1.0, "the Drawer's text as it was")
-        v, card = self.app.pc_verdict, self.app.pc_left
+        v, card = self.app.pc_verdict, self.app.pc_item_box
         self.assertEqual(v.winfo_rootx() + v.winfo_width(), card.winfo_rootx() + card.winfo_width(),
                          "the price box: the card's edges in the Drawer too")
 
@@ -520,14 +520,15 @@ class Layout(unittest.TestCase):
 
     def test_price_card_is_tight_and_how_sure_is_plain(self):
         self.show("rare_gloves_quality_sockets")
-        f, how = self.app.pc_verdict, self.app.pc_v_how
+        f, how = self.app._pc_vns.frame, self.app.pc_v_how
         self.assertLessEqual(int(str(f.cget("padx"))), 12)
         self.assertLessEqual(int(str(f.cget("pady"))), 8)
         self.assertEqual(int(str(how.cget("highlightthickness"))), 0, "how sure: no box")
         self.assertEqual(how.cget("text"), "~ Medium confidence", "a mark and a word")
-        self.assertTrue(how.winfo_viewable())
-        big = self.app.pc_v_big
-        self.assertGreaterEqual(how.winfo_rootx(), big.winfo_rootx() + big.winfo_width(), "beside the price")
+        # 3.3.0 look pass: how sure is said in the Price strip, at its right - not beside the price
+        self.assertFalse(how.winfo_viewable())
+        self.assertEqual(self.app.pc_price_head.cget("text"), "Price · ~ Medium confidence")
+        self.assertEqual(self.app.pc_price_head.note(), "~ Medium confidence")
         self.assertLess(f.winfo_height(), 100)
         from soe2.pricecheck_page import CONF_CHIP
         self.assertEqual(CONF_CHIP["medium"][:2], ("~", "Medium confidence"), "the words themselves are the owner's")
