@@ -156,3 +156,6 @@ CREATE TABLE IF NOT EXISTS app_errors (
 CREATE TABLE IF NOT EXISTS app_error_installs (sig TEXT NOT NULL, cid TEXT NOT NULL, last INTEGER NOT NULL, PRIMARY KEY (sig, cid));
 -- UI overhaul: the anonymous usage count (sha256 of a random id per install, when it was last seen)
 CREATE TABLE IF NOT EXISTS usage_pings (pid TEXT PRIMARY KEY, last INTEGER NOT NULL);
+-- 3.3.0: how often the shared data is downloaded: a count per day, kind and app version, nothing about who
+CREATE TABLE IF NOT EXISTS downloads (day TEXT NOT NULL, what TEXT NOT NULL, v TEXT NOT NULL DEFAULT '',
+  n INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (day, what, v));

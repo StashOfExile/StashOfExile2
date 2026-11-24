@@ -311,6 +311,7 @@ async function housekeeping(env) {
     env.DB.prepare("DELETE FROM bug_limits WHERE day <> ?").bind(day),
     env.DB.prepare("DELETE FROM sessions WHERE expires < ?").bind(now()),
     env.DB.prepare("DELETE FROM app_error_installs WHERE last < ?").bind(now() - 30 * 86400),     // 2.137.0
+    env.DB.prepare("DELETE FROM downloads WHERE day < date('now', ?)").bind(`-${DOWNLOAD_DAYS} days`),     // 3.3.0
     // 2.137.0: a flood of made-up errors can't fill the database - the newest 5,000 kinds stay
     env.DB.prepare("DELETE FROM app_errors WHERE sig NOT IN (SELECT sig FROM app_errors ORDER BY last DESC LIMIT 5000)"),
     env.DB.prepare(`DELETE FROM images WHERE created < ? AND NOT EXISTS (SELECT 1 FROM posts p WHERE instr(p.data, '"b:' || images.key || '"') > 0)
@@ -329,6 +330,9 @@ function sameText(a, b) {                  // constant-time compare for the admi
 // 2.85.0: new columns and tables on an existing database (each statement fails harmlessly once it's done)
 let migrated = false;
 const MIGRATIONS = [
+  // 3.3.0: how often the shared data is downloaded: a count per day, kind and app version, nothing about who
+  `CREATE TABLE IF NOT EXISTS downloads (day TEXT NOT NULL, what TEXT NOT NULL, v TEXT NOT NULL DEFAULT '',
+    n INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (day, what, v))`,
   // UI overhaul: the anonymous usage count - a hashed random id per install and when it was last seen, nothing else
   "CREATE TABLE IF NOT EXISTS usage_pings (pid TEXT PRIMARY KEY, last INTEGER NOT NULL)",
   // 3.3.0: only versions that ask first are counted (3.1 and newer); rows from before stay out of the counts
@@ -1315,6 +1319,36 @@ async function modStats(url, env) {
 // UI overhaul: the usage count. The app sends a random id made on that PC (not an account, name or address);
 // only its sha256 and the time it was last seen are kept; ids not seen for 30 days are dropped.
 // 3.3.0: an honest count - only the app at 3.1 or newer counts: those versions ping only after you say yes.
+// 3.3.0: the download count. One row per day, kind and app version; no id, no address, so it can't point at anyone.
+const DOWNLOADS = { "/mods/stats": "mod prices", "/mods/ratings": "mod ratings", "/maps/ratings": "map ranks",
+  "/gems": "gem prices", "/official": "official strats", "/campaign/zones": "campaign zones", "/lb": "leaderboards" };
+const DOWNLOAD_DAYS = 90, DOWNLOAD_VERSIONS = 40;      // made-up version names can't fill the table
+function appVersion(ua) {
+  const m = /^StashOfExile2\/(\d{1,2}\.\d{1,3}\.\d{1,3})(?!\d)/.exec(String(ua ?? ""));
+  return m ? m[1] : "other";
+}
+async function countDownload(req, env, path) {
+  const what = DOWNLOADS[path];
+  if (!what || req.method !== "GET") return false;
+  try {
+    const day = today();
+    let v = appVersion(req.headers.get("User-Agent"));
+    if (v !== "other") {                           // a version not seen today counts as "other" once the day is full
+      const seen = await env.DB.prepare(`SELECT (SELECT COUNT(*) FROM downloads WHERE day = ?1 AND what = ?2 AND v = ?3) AS has,
+        (SELECT COUNT(*) FROM downloads WHERE day = ?1 AND what = ?2) AS n`).bind(day, what, v).first();
+      if (!seen?.has && (seen?.n ?? 0) >= DOWNLOAD_VERSIONS) v = "other";
+    }
+    await env.DB.prepare(`INSERT INTO downloads (day, what, v, n) VALUES (?1, ?2, ?3, 1)
+      ON CONFLICT(day, what, v) DO UPDATE SET n = n + 1`).bind(day, what, v).run();
+  } catch (_e) { return false; }                  // counting never stops a download
+  return true;
+}
+async function downloadList(env, me) {
+  if (!me?.admin) return fail(403, "not allowed");
+  const rows = await env.DB.prepare("SELECT day, what, v, n FROM downloads ORDER BY day DESC, what, v LIMIT 2000").all();
+  return json({ downloads: rows.results });
+}
+
 function countedVersion(ua) {
   const m = /^StashOfExile2\/(\d+)\.(\d+)/.exec(String(ua ?? ""));
   return !!m && (Number(m[1]) > 3 || (Number(m[1]) === 3 && Number(m[2]) >= 1));
@@ -1526,6 +1560,7 @@ export default {
       await migrate(env);
       try { await housekeeping(env); } catch (_e) { /* next request */ }
       if (path === "/" || path === "/health") return json({ ok: true, schema: RULES.schema });
+      await countDownload(req, env, path);                                                  // 3.3.0
       if (path === "/auth/join" && req.method === "POST") return join(req, env);
       if (path === "/official") return official(env);
       if (path === "/usage/ping" && req.method === "POST") return usagePing(req, env);      // UI overhaul
@@ -1566,6 +1601,7 @@ export default {
       if (path === "/auth/admin" && req.method === "POST") return becomeAdmin(req, env, me);
       if (path === "/me/inbox" && req.method === "GET") return inbox(env, me);
       if (path === "/errors" && req.method === "GET") return errorList(env, me, url);          // 2.137.0: admins
+      if (path === "/downloads" && req.method === "GET") return downloadList(env, me);         // 3.3.0: admins
       if (path === "/admin/names/sweep" && req.method === "POST") return sweepNames(env, me);
       if (path === "/review" && req.method === "GET") return reviewQueue(env, me);
       if (me.banned) return fail(403, "This account can't post on the board.");
