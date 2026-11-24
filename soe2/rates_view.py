@@ -489,14 +489,11 @@ class RatesList(tk.Frame):
             for i in range(first, last):
                 typ, cid, name, v, vol, url = rows[i]
                 y0 = i * ROW_H
-                if dl:
-                    if i == self.hover:
-                        cv.create_rectangle(0, y0, W, y0 + ROW_H - 1, fill=t.c("hover", t.c("surface_high")),
-                                            outline="")
-                    cv.create_line(0, y0 + ROW_H - 1, W, y0 + ROW_H - 1, fill=line)
-                else:
-                    TH.round_rect(cv, 0, y0 + 3, W, y0 + ROW_H - 3, 10,
-                                  fill=t.c("hover", t.c("surface_high")) if i == self.hover else raised, outline=line)
+                # 3.3.0 look pass: one list, a line under each row (no box round each one), at every width
+                if i == self.hover:
+                    cv.create_rectangle(0, y0, W, y0 + ROW_H - 1, fill=t.c("hover", t.c("surface_high")),
+                                        outline="")
+                cv.create_line(0, y0 + ROW_H - 1, W, y0 + ROW_H - 1, fill=line)
                 cy = y0 + ROW_H // 2
                 img = self.icons.get(url)                  # poe.ninja's picture (art cache); its first letter until
                 #                                            it's downloaded (3.1: no pictures ship with the app)

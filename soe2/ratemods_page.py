@@ -949,11 +949,15 @@ class RateModsPage:
                 cv.tips[tag] = tip
                 y += 30 + 6
             return y + 10
-        fw = (x1 - x0 - 2 * gap) / 3
+        fw = (x1 - x0) / 3                                # 3.3.0 look pass: one box, a column each (no box each)
+        del gap
+        cv.card(x0, y, x1, y + 52, fill=cv.c("surface"), outline=cv.c("border"), r=8, lift=False)
         for i, (lab, val, tip) in enumerate(facts):
             tag = f"fact:{i}"
-            fx = x0 + i * (fw + gap)
-            cv.card(fx, y, fx + fw, y + 52, tag=tag, fill=cv.c("surface"), outline=cv.c("border"), r=8, lift=False)
+            fx = x0 + i * fw
+            if i:
+                cv.create_line(fx, y + 8, fx, y + 44, fill=cv.c("border"))
+            cv.create_rectangle(fx + 1, y + 1, fx + fw - 1, y + 51, fill="", outline="", tags=(tag,))
             cv.text(fx + 12, y + 9, lab, F_CAP, fill=cv.c("text_muted"), tags=(tag,))
             cv.text(fx + 12, y + 27, cv.fit(val, F_BODY, fw - 24), F_BODY, tags=(tag,))
             cv.tips[tag] = tip
@@ -1078,8 +1082,8 @@ class RateModsPage:
         return y + 28 + bh + 6 + 20 + 16
 
     def _rm_letter(self, cv, x, y, w, h, g, on, font, tip, fn=None, tag=None):
-        """A letter button: the letter's own color strip along its top (filled with that color when it's yours, with a
-        ✓) - the group's word stays under it, so the color is never alone."""
+        """A letter button: the letter drawn in its own color (the button filled with that color when it's yours, with
+        a ✓) - the group's word stays under it, so the color is never alone. 3.3.0 owner: no color strip on it."""
         col = letter_color(g)
         tag = tag or f"rate:{g}"
         if on:
@@ -1087,8 +1091,7 @@ class RateModsPage:
             ink = text_on(col)
         else:
             cv.card(x, y, x + w, y + h, tag=tag, fill=cv.c("surface_raised"), outline=cv.c("border_light"), r=8)
-            cv.create_rectangle(x + 6, y + 3, x + w - 6, y + 6, fill=col, outline="", tags=(tag,))
-            ink = cv.c("text")
+            ink = letter_color(g, cv.c("surface_raised"))
         cv.text(x + w / 2, y + h / 2 + 1, _letter(g), font, fill=ink, anchor="center", tags=(tag,))
         if on:
             cv.text(x + w - 6, y + 4, "✓", F_SMALL, fill=ink, anchor="ne", tags=(tag,))

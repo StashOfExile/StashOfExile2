@@ -1,4 +1,4 @@
-"""Stat tiles (UI overhaul): a row of number cards - a label, a big number, one line under it and an ⓘ that says how
+"""Stat tiles (UI overhaul; 3.3.0: one titled panel, a column each): a row of numbers - a label, a big number, one line under it and an ⓘ that says how
 the number was worked out (UX rule: "show how a number was worked out, one hover away at most"). Drawn on one canvas
 from the theme pack, so they look the same on Dashboard, Wealth and anywhere else.
 
@@ -16,14 +16,22 @@ H, GAP, R = 112, 16, 12
 
 
 class StatTiles(tk.Canvas):
-    def __init__(self, parent, bg_role="surface", pad=(16, 16), h=H):
-        super().__init__(parent, height=h + pad[1] * 2 - 8, highlightthickness=0, bd=0)
+    def __init__(self, parent, bg_role="surface", pad=(16, 16), h=H, title="At a Glance"):
+        self.title = title                              # 3.3.0 look pass: one titled panel, a column for each number
+        super().__init__(parent, height=h + pad[1] * 2 - 8 + self._top(), highlightthickness=0, bd=0)
         self.tiles, self.bg_role, self.pad, self.hover, self.h = [], bg_role, pad, None, h
         TH.self_painted(self)
         TH.subscribe(lambda t: self.redraw(), owner=self)
         self.bind("<Configure>", lambda e: self.redraw())
         self.bind("<Motion>", self._motion)
         self.bind("<Leave>", lambda e: self._tip(None))
+
+    def _top(self):
+        """How far the numbers start under the panel's top edge: under its title."""
+        t = TH.ST.theme
+        if not self.title:
+            return 0
+        return TH.BOX_HEAD if t is None or TH.headed(t) else 44
 
     def set(self, tiles):
         tiles = list(tiles)
@@ -52,7 +60,7 @@ class StatTiles(tk.Canvas):
             bx = self.bbox(tid)
             w, h = bx[2] - bx[0] + 20, bx[3] - bx[1] + 14
             x = min(max(4, x - w // 2), self.winfo_width() - w - 4)
-            y = 40
+            y = 40 + self._top()
             TH.round_rect(self, x, y, x + w, y + h, 8, fill=t.c("surface_high"), outline=t.c("border_light"), tags="tip")
             self.coords(tid, x + 10, y + 7)
             self.tag_raise(tid)
@@ -68,23 +76,31 @@ class StatTiles(tk.Canvas):
             return
         W = max(self.winfo_width(), 200)
         px, py = self.pad
-        cw = (W - 2 * px - (n - 1) * GAP) / n
+        top = self._top()
+        cw = (W - 2 * px) / n
         with TH.raw():
-            self.configure(bg=t.c(self.bg_role))
+            self.configure(bg=t.c(self.bg_role), height=self.h + py * 2 - 8 + top)
             num = TH.head_font(t, "num")
             mut, strong = t.c("text_muted"), t.c("text_strong")
+            x0, y0 = px, py - 4
+            TH.box(self, t, x0, y0, W - px, y0 + top + self.h, R)
+            if self.title:
+                TH.box_head(self, t, x0, y0, W - px, R, self.title)
+            y0 += top
             for i, tl in enumerate(self.tiles):
-                x0, y0 = px + i * (cw + GAP), py - 4
-                TH.round_rect(self, x0, y0, x0 + cw, y0 + self.h, R, fill=t.c("surface_raised"), outline=t.c("border"))
-                self.create_text(x0 + 18, y0 + 16, text=tl.label, anchor="nw", font=("Segoe UI", 10), fill=mut)
+                x0 = px + i * cw
+                if i:
+                    self.create_line(x0, y0 + 12, x0, y0 + self.h - 12, fill=t.c("border"))
+                self.create_text(x0 + 18, y0 + 12, text=tl.label, anchor="nw", font=("Segoe UI", 10), fill=mut)
                 if tl.how:
-                    iid = self.create_text(x0 + cw - 18, y0 + 16, text="ⓘ", anchor="ne", font=("Segoe UI Symbol", 10),
+                    iid = self.create_text(x0 + cw - 18, y0 + 12, text="ⓘ", anchor="ne", font=("Segoe UI Symbol", 10),
                                            fill=mut)
                     self._info.append(self.bbox(iid))
                 else:
                     self._info.append((-99, -99, -99, -99))
                 big = tl.big if len(str(tl.big)) < 14 else str(tl.big)[:13] + "…"
-                self.create_text(x0 + 18, y0 + (30 if self.h < H else 38), text=big, anchor="nw", font=(num, 18 if self.h < H else (22 if cw > 180 else 18)),
+                self.create_text(x0 + 18, y0 + (28 if self.h < H else 36), text=big, anchor="nw",
+                                 font=(num, 18 if self.h < H else (22 if cw > 180 else 18)),
                                  fill=strong if tl.big not in ("—", "") else mut)
-                self.create_text(x0 + 18, y0 + self.h - 12, text=tl.foot, anchor="sw", font=("Segoe UI", 9),
+                self.create_text(x0 + 18, y0 + self.h - 10, text=tl.foot, anchor="sw", font=("Segoe UI", 9),
                                  fill=t.c(tl.foot_role or "text_muted", mut), width=cw - 36)
