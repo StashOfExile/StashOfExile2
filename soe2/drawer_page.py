@@ -676,8 +676,25 @@ class DrawerHost:
         self.drawer_st.side = c["side"]
         save_json("settings.json", SETTINGS)
         self._drawer_side_now = c["side"]
+        if not self.drawer_game_rect():                   # 3.3.0 owner: no game - that side of the monitor it is on
+            self.drawer_free_side(c["side"])
         self.drawer_redock(force=True)
         self.drawer_strip_paint()
+
+    def drawer_free_side(self, side):
+        """The game is closed: your Drawer, at its size, on that side of the monitor it is on. Kept as your place."""
+        try:
+            cur = self.drawer_ad.outer_rect()
+            if not cur:
+                return
+            x, y, w, h = (int(v) for v in cur)
+            from .style import monitor_rect
+            with D.root_dpi(self.drawer_ad.hwnd()):
+                left, _top, right, _bottom = monitor_rect(self.root, x + w // 2, y + 20)
+            self.drawer_cfg()["free"] = [left if side == "left" else right - w, y, w, h]
+            save_json("settings.json", SETTINGS)
+        except Exception:
+            buglog.caught()
 
     def _drawer_save_shape(self):
         self.drawer_cfg()["shape"] = self.drawer_st.shape

@@ -83,6 +83,19 @@ class Free(unittest.TestCase):
         h.drawer_redock()
         self.assertEqual(h.placed, [want])
 
+    def test_no_game_the_side_button_still_moves_it(self):
+        h = Host((300, 0, 900, 1400))
+        h.drawer_redock()                                   # (your place: kept)
+        h.drawer_strip_paint = lambda: None
+        h.drawer_st.side = "right"
+        h.cfg["side"] = "right"
+        h.drawer_flip_side()
+        self.assertEqual(h.placed[-1], (0, 0, 900, 1400))   # the left edge of the monitor it is on, same size
+        h.cur = h.placed[-1]
+        h.drawer_flip_side()
+        self.assertEqual(h.placed[-1], (2560 - 900, 0, 900, 1400))
+        self.assertEqual(h.cfg["free"], [1660, 0, 900, 1400])
+
     def test_on_top_over_the_game_only(self):
         h = Host((0, 0, 900, 1000))
         with mock.patch.object(D, "GAME_CLOSED", [True]):
