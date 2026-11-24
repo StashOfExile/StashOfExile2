@@ -124,30 +124,49 @@ def breach_level(text):
 # 2.119.0 (UX pass): what each helper does, in one line - under its name on Helpers, and (2.124.0) the tip on its
 # Quick settings chip
 LOOK = "{look}"                     # GGG policy (Nov 2026): the Read Key's name goes here (look_page.LookPage)
-HELPER_BLURBS = {"breach": "An alert card when your Hiveblood is almost full, and when it's full.",
-                 "ritual": f"Press {LOOK} with a Ritual altar's Favours window open: prices each reward once.",
-                 "remnant": f"Press {LOOK} with an Expedition remnant's book open: prices each reward once, beside its "
-                            f"line.",
-                 "focus": "Your League Plan over the game: the goal you're on, and reminders when it matters.",
-                 "campaign": "Where you are in the campaign, what's next and rewards you missed - from the game's log.",
-                 "whispers": "A card over the game when someone whispers to buy your item: what, for how much, where.",
-                 "desecrate": f"Press {LOOK} at The Well of Souls: reads the tier of each Desecration option once.",
-                 "topup": f"Back from a map, open your inventory and press {LOOK}: says what's running low.",
-                 "breaks": "An alert card after a long stretch of play, in a hideout or town.",
-                 "mapprofit": f"What each map earned: back from a map, open your inventory and press {LOOK}.",
-                 "temple": f"Press {LOOK} with the Temple Console open in Vaal Ruins: reads the board and your crystals "
-                           f"once, and marks the best rooms.",
-                 "music": "Previous, play / pause and next for any music player, in a small window.",   # 2.134.0
-                 "sekhemas": f"Press {LOOK} on the trial map: shows what to avoid and what to take."}
+# 3.3.0 owner: each line was long and said "Press your Read Key" again and again. A helper's line now says only
+# what it does, in his words. Where to press is said once, in its status line on Helpers, and in HELPER_HOW for
+# the tooltips that have no status line.
+HELPER_BLURBS = {"breach": "Better alerts for full Hiveblood.",
+                 "ritual": "Ritual price checker for the Favours window.",
+                 "remnant": "Remnant price checker, Runeshape tooltips and rumor help.",
+                 "focus": "Your League Plan goal and its reminders, over the game.",
+                 "campaign": "Campaign route, next step and missed rewards.",
+                 "whispers": "A card when someone whispers to buy your item.",
+                 "desecrate": "Shows mod tiers over the Desecration options.",
+                 "topup": "Says what is running low after a map.",
+                 "breaks": "A nudge to rest after a long stretch of play.",
+                 "mapprofit": "What each map earned.",
+                 "temple": "Helps place Temple Console rooms for Atziri rushing.",
+                 "music": "Previous, play, pause and next for any music player.",   # 2.134.0
+                 "sekhemas": "Room, affliction and boon legend."}
+HELPER_HOW = {"ritual": f"Press {LOOK} with a Ritual altar's Favours window open.",
+              "remnant": f"Press {LOOK} with an Expedition remnant's book open.",
+              "desecrate": f"Press {LOOK} at The Well of Souls.",
+              "topup": f"Back from a map, open your inventory and press {LOOK}.",
+              "mapprofit": f"Back from a map, open your inventory and press {LOOK}.",
+              "temple": f"Press {LOOK} with the Temple Console open in Vaal Ruins.",
+              "sekhemas": f"Press {LOOK} on the trial map."}
 
 
 from .look_page import UNSET_STATUS  # noqa: E402  (the helpers' status line while no Read Key is set)
-LOOK_HELPERS = tuple(k for k, v in HELPER_BLURBS.items() if LOOK in v)   # the helpers that need the Read Key
+LOOK_HELPERS = tuple(HELPER_HOW)                    # the helpers that need the Read Key
 
 
 def helper_blurb(key, look="your Read Key"):
-    """A helper's one line, with the Read Key's name in it."""
+    """A helper's one line: what it does."""
     return HELPER_BLURBS[key].replace(LOOK, look)
+
+
+def helper_tip(key, look="your Read Key"):
+    """What a helper does and, for one that reads the screen, where to press the Read Key."""
+    how = HELPER_HOW.get(key)
+    return helper_blurb(key, look) + (" " + how.replace(LOOK, look) if how else "")
+
+
+def helper_short(name):
+    """A helper's name on the Helpers list, where the word Helper is already the page's title."""
+    return name[:-len(" Helper")] if name.endswith(" Helper") else name
 
 
 class AlertsPage:
@@ -455,9 +474,9 @@ class AlertsPage:
                 cell.grid(row=r, column=1, sticky="w", padx=(0, 12), pady=4)
                 head = tk.Frame(cell, bg=P2)
                 head.pack(anchor="w")
-                nl = tk.Label(head, text=names[key], bg=P2, fg=C["text"], font=("Segoe UI", 10, "bold"), anchor="w")
+                nl = tk.Label(head, text=helper_short(names[key]), bg=P2, fg=C["text"], font=("Segoe UI", 10, "bold"), anchor="w")
                 nl.pack(side="left")
-                Tooltip(nl, what[key])
+                Tooltip(nl, helper_tip(key, self.look_key_text()))
                 if names[key] in _NEW.FEATURES:                 # 3.0.0: NEW until opened or used (newchip.py)
                     _NEW.chip(head, names[key]).pack(side="left", padx=(8, 0))
                 bl = tk.Label(cell, text=blurb[key], bg=P2, fg=C["muted"], font=sm, anchor="w", justify="left",

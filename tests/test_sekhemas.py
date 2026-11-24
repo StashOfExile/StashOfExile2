@@ -433,9 +433,9 @@ class LookKeyOnly(unittest.TestCase):
 class Wiring(unittest.TestCase):
     def test_helpers_row(self):
         from soe2 import alerts_page as AP, features as FEAT, names
-        line = AP.helper_blurb("sekhemas", "your Read Key (Ctrl+Shift+R)")
-        self.assertEqual(line, "Press your Read Key (Ctrl+Shift+R) on the trial map: shows what to avoid and what "
-                               "to take.")
+        line = AP.helper_tip("sekhemas", "your Read Key (Ctrl+Shift+R)")
+        self.assertEqual(line, "Room, affliction and boon legend. Press your Read Key (Ctrl+Shift+R) on the trial "
+                               "map.")
         self.assertIn("sekhemas", AP.LOOK_HELPERS)
         self.assertIn("sekhemas", dict(AP.AlertsPage.HELPER_GROUPS)["In maps"])
         self.assertEqual(AP.AlertsPage.HELPER_NAMES["sekhemas"], "Trial of the Sekhemas")

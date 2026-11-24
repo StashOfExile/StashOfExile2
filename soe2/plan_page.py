@@ -619,6 +619,14 @@ class GamePlanPage:
         Tooltip(self.gp_stock_plan, "Open League Plan")
         self.gp_stock_box = tk.Frame(box, bg=P2)
         self.gp_stock_box.pack(fill="x")
+        # 3.3.0 owner: this switch was on League Plan's Reminders. It belongs with the Stockpile, and it works
+        # whether League Plan's own switch is on or off.
+        self.gp_stock_remind = tk.BooleanVar(value=bool(F.cfg()["pokes"].get("prices", True)))
+        sw = ttk.Checkbutton(box, text="Tell me when an item drops under my price", variable=self.gp_stock_remind,
+                             style="Card.TCheckbutton", command=self.gp_stock_remind_save)
+        sw.pack(anchor="w", pady=(8, 0))
+        Tooltip(sw, "A reminder over the game, in town or your hideout, once a day for each item. "
+                    "How often and quiet hours are set in League Plan, Reminders.")
         form = self._gp_add_area(box, "ADD TO STOCKPILE")
         self.gp_s_name, self.gp_s_goal, self.gp_s_under = tk.StringVar(), tk.StringVar(), tk.StringVar()
         self.gp_s_cat, self.gp_s_pick = tk.StringVar(value="All"), tk.StringVar()
@@ -705,6 +713,10 @@ class GamePlanPage:
             F.set_stock_have(name, n)
             self.gp_fill()
 
+    def gp_stock_remind_save(self):
+        F.cfg()["pokes"]["prices"] = bool(self.gp_stock_remind.get())
+        F.save()
+
     def _gp_stock_rows(self):
         P2 = C["panel2"]
         box = self.gp_stock_box
@@ -779,9 +791,11 @@ class GamePlanPage:
             if note:
                 tk.Label(row, text=" · " + note, bg=P2, fg=C["muted"], font=("Segoe UI", 9)).pack(side="left")
             v.trace_add("write", lambda *a: self.gp_pokes_save())
+            # 3.3.0 owner: a number over the limit stayed in the box until another box was clicked. Over the top
+            # it is cut at once; under the bottom, a moment after typing stops, so "45" can still be typed.
+            v.trace_add("write", lambda *a, k=key, var=v, w=sp: self._gp_limit_typed(k, var, w))
             self.gp_poke_vars[key] = v
-        for head, keys in (("REMIND ME ABOUT", (("milestones", "Goals the game's log ticks off, like a level"),
-                                                ("prices", "Stockpile items under your price"))),
+        for head, keys in (("REMIND ME ABOUT", (("milestones", "Goals the game's log ticks off, like a level"),)),
                            ("HOW", (("alert", "An alert in-game"), ("sound", "A soft sound"),
                                     ("windows", "A Windows notification when the game isn't in front")))):
             self._gp_head(box, head)
@@ -849,6 +863,22 @@ class GamePlanPage:
         kept = max(lo, min(hi, int(n)))
         if str(kept) != var.get().strip():
             var.set(str(kept))
+
+    def _gp_limit_typed(self, key, var, box):
+        lo, hi = self.GP_LIMITS.get(key, (None, None))
+        n = _num(var.get())
+        if lo is None or n is None:
+            return
+        if n > hi:
+            return var.set(str(hi))
+        job = getattr(box, "_limit_job", None)
+        if job:
+            try:
+                box.after_cancel(job)
+            except tk.TclError:
+                pass
+        if n < lo:
+            box._limit_job = box.after(1200, lambda: self._gp_limit_show(key, var))
 
     def gp_pokes_save(self):
         pk = F.cfg()["pokes"]

@@ -327,10 +327,17 @@ class RegexPage:
             f.pack(side="left", fill="x", expand=True)
             return f
 
-        def check(parent, key, label, value=None):
+        # 3.3.0 owner: "Round down to 10" meant nothing. It is named for what it gives, and says how on hover.
+        ROUND_TIP = ("Rounds each number you set down to the nearest 10, so 37 becomes 30. The search gets shorter "
+                     "and also matches items a little under your number.")
+
+        def check(parent, key, label, value=None, tip=None):
             v = tk.BooleanVar(value=bool(o.get(key)) if value is None else value)
             self.rx_vars[key] = v
-            self.rx_chip(parent, label, v, changed).pack(side="left", padx=(0, 8), pady=2)
+            chip = self.rx_chip(parent, label, v, changed)
+            chip.pack(side="left", padx=(0, 8), pady=2)
+            if tip:
+                Tooltip(chip, tip)
 
         def number(parent, key, label):
             tk.Label(parent, text=label, bg=P2, fg=C["text"]).pack(side="left", padx=(0, 4), pady=2)
@@ -356,7 +363,7 @@ class RegexPage:
             rows.append(chips("Type", "type:", R.TABLET_TYPES, set(o.get("types") or [])))
             f = row("Uses remaining")
             number(f, "uses", "At least")
-            check(f, "round10", "Round down to 10")
+            check(f, "round10", "Shorter search", tip=ROUND_TIP)
             rows.append(f)
         elif kind == "waystone":
             f = chips("Rarity", "rar:", R.RARITIES, rarity)
@@ -371,7 +378,7 @@ class RegexPage:
             f = row("Quantity & yield")
             for key, label, _w in R.WAYSTONE_PROPS:
                 number(f, key, label + " at least")
-            check(f, "round10", "Round down to 10")
+            check(f, "round10", "Shorter search", tip=ROUND_TIP)
             rows.append(f)
         elif kind == "jewel":
             f = chips("Rarity", "rar:", R.RARITIES, rarity)
@@ -379,18 +386,18 @@ class RegexPage:
             check(f, "cor_not", "Not corrupted", value=o.get("corrupted") == "not")
             rows.append(f)
             f = chips("Type", "type:", R.JEWEL_TYPES, set(o.get("types") or []))
-            check(f, "round10", "Round down to 10")
+            check(f, "round10", "Shorter search", tip=ROUND_TIP)
             rows.append(f)
         elif kind == "gear":
             f = chips("Rarity", "rar:", R.RARITIES, rarity)
             check(f, "cor_only", "Corrupted", value=o.get("corrupted") == "only")
             check(f, "cor_not", "Not corrupted", value=o.get("corrupted") == "not")
-            check(f, "round10", "Round down to 10")
+            check(f, "round10", "Shorter search", tip=ROUND_TIP)
             rows.append(f)
             rows.append(chips("Show mods for", "slot:", R.GEAR_SLOTS, set(o.get("slots") or [])))
         else:
             f = chips("Rarity", "rar:", R.RARITIES, rarity)
-            check(f, "round10", "Round down to 10")
+            check(f, "round10", "Shorter search", tip=ROUND_TIP)
             rows.append(f)
             rows.append(chips("Size", "size:", list(R.RELIC_SIZES), set(o.get("sizes") or []),
                               text=lambda sz: f"{sz}  ({', '.join(R.RELIC_SIZES[sz])})"))

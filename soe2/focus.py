@@ -635,17 +635,18 @@ def due(now=None, in_town=True, session=True, played=0.0, prices=None, have=None
     """The poke to show now, or None. prices(name) -> divines each or None; have(name) -> count or None.
     played: seconds of play since the last call (for the check-in)."""
     f, st = cfg(), state()
-    if not f["on"]:
-        return None
-    now = now or time.time()
     pk = f["pokes"]
+    plan_on = bool(f["on"])
+    if not plan_on and not (pk.get("prices") and f["stockpile"]):
+        return None                                        # 3.3.0 owner: the Stockpile reminds with League Plan off
+    now = now or time.time()
     st["played"] += max(0.0, played)
     playing = session or now - float(st.get("seen") or 0) <= PLAYING      # (3.2.0: always only while you play,
     if st.get("where") in ("town", "hideout", "map", "other") and not session:   # always only in town or hideout)
         in_town = st["where"] in ("town", "hideout")
     if not playing or _quiet(pk, now) or not in_town:
         return None
-    if st["pending"]:
+    if plan_on and st["pending"]:
         return st["pending"].pop(0)
     if not _room(pk, st, now):
         return None
@@ -659,6 +660,8 @@ def due(now=None, in_town=True, session=True, played=0.0, prices=None, have=None
                 st["price_day"][row["name"]] = today(now)
                 return {"kind": "price", "name": row["name"], "each": each, "have": h, "goal": row.get("goal"),
                         "under": row.get("under")}
+    if not plan_on:
+        return None
     cm = int(pk.get("checkin_min") or 0)
     if cm and st["played"] >= cm * 60 and now >= st["checkin_snooze"] and current():
         st["played"] = 0.0

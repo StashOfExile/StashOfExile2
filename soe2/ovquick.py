@@ -268,8 +268,8 @@ class OverlayQuick:
                              highlightthickness=1)
                 b.grid(row=i // 4, column=i % 4, sticky="ew", padx=(0, 4), pady=(0, 4))
                 b.bind("<Button-1>", lambda _e, k=key: self._ovq_chip(k))
-                from .alerts_page import HELPER_BLURBS, helper_blurb
-                Tooltip(b, helper_blurb(key, self.look_key_text()) if key in HELPER_BLURBS else QUICK_TIPS.get(key, ""))
+                from .alerts_page import HELPER_BLURBS, helper_tip
+                Tooltip(b, helper_tip(key, self.look_key_text()) if key in HELPER_BLURBS else QUICK_TIPS.get(key, ""))
                 b.label = label
                 self.ovq_chips[key] = b
                 self._ovq_paint(key)

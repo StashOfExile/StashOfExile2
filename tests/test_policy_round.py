@@ -57,8 +57,8 @@ class TempleConsoleOnly(unittest.TestCase):
 
     def test_helpers_line_has_no_crystals(self):
         self.assertFalse(hasattr(AP.AlertsPage, "_temple_part"))
-        self.assertIn("Temple Console", AP.HELPER_BLURBS["temple"])
-        self.assertNotIn("Beacon", AP.HELPER_BLURBS["temple"])
+        self.assertIn("Temple Console", AP.helper_tip("temple"))
+        self.assertNotIn("Beacon", AP.helper_tip("temple"))
 
 
 class NoMapContent(unittest.TestCase):
@@ -163,7 +163,8 @@ class LookKeyOnly(unittest.TestCase):
 class LookKeyNamed(unittest.TestCase):
     def test_every_reading_helper_names_the_key(self):
         for k in AP.LOOK_HELPERS:
-            self.assertIn("Ctrl+Shift+R", AP.helper_blurb(k, "your Read Key (Ctrl+Shift+R)"), k)
+            self.assertIn("Ctrl+Shift+R", AP.helper_tip(k, "your Read Key (Ctrl+Shift+R)"), k)
+            self.assertNotIn("Read Key", AP.helper_blurb(k), "3.3.0 owner: a helper's line says what, not how")
         for k in ("ritual", "remnant", "desecrate", "topup", "mapprofit", "temple"):
             self.assertIn(k, AP.LOOK_HELPERS)
 
