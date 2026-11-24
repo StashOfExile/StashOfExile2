@@ -279,8 +279,10 @@ class DrawerHost:
 
     def drawer_topmost_wanted(self):
         """Is the app's window on top now? (apply_topmost's rule - Windows' own answer isn't read back: on Linux
-        it depends on the window manager.) The Drawer always; a Full window with Keep on top."""
-        return bool(SETTINGS.get("on_top", True)) or self.drawer_shown_as_drawer()
+        it depends on the window manager.) The Drawer unless the game is known to be closed; a Full window with Keep on top."""
+        if self.drawer_shown_as_drawer():                 # 3.3.0 owner: the Drawer is on top over the game only
+            return not D.GAME_CLOSED[0]
+        return bool(SETTINGS.get("on_top", True))
 
     def drawer_lift_dialogs(self):
         """After the app's window was put on top again (shown, re-docked): its open pop-ups go over it."""
@@ -346,8 +348,48 @@ class DrawerHost:
         st = self.drawer_st
         g = self.drawer_game_rect()
         c = self.drawer_cfg()
+        if not g:                                         # 3.3.0 owner: no game - where you last put it, if you did
+            free = self.drawer_free_rect()
+            if free:
+                return free
         return D.drawer_rect(g, None if g else self.drawer_work_area(), side or st.side, c["share"],
                              cap=not c.get("share_set"))
+
+    def drawer_free_rect(self):
+        """The place and size you gave the Drawer while the game was closed, if it is still on a monitor."""
+        r = self.drawer_cfg().get("free")
+        try:
+            x, y, w, h = (int(v) for v in r)
+        except (TypeError, ValueError):
+            return None
+        if w < 300 or h < 200:
+            return None
+        try:
+            from .style import monitor_rect
+            with D.root_dpi(self.drawer_ad.hwnd()):
+                left, top, right, bottom = monitor_rect(self.root, x + w // 2, y + 20)
+        except Exception:
+            buglog.caught()
+            return None
+        if not (left <= x + w // 2 < right and top <= y + 20 < bottom):
+            return None
+        return x, y, w, h
+
+    def drawer_free_keep(self):
+        """The game is closed and you moved or sized the Drawer: that place is kept. -> True when it was kept."""
+        try:
+            cur = self.drawer_ad.outer_rect()
+        except Exception:
+            buglog.caught()
+            return False
+        if not cur or self.drawer_wm_state() != "normal":
+            return False
+        cur = tuple(int(v) for v in cur)
+        if list(cur) != list(self.drawer_cfg().get("free") or ()):
+            self.drawer_cfg()["free"] = list(cur)
+            save_json("settings.json", SETTINGS)
+        self._drawer_rect_now = cur
+        return True
 
     def drawer_key_label(self):
         from .overlay import key_label
@@ -401,7 +443,7 @@ class DrawerHost:
             self.root.minsize(*D.DRAWER_MIN)
             self._drawer_geom = "drawer"
         D.SHOWN_DRAWER[0] = shape == "drawer"
-        topmost = shape == "drawer" or bool(SETTINGS.get("on_top", True))
+        topmost = not D.GAME_CLOSED[0] if shape == "drawer" else bool(SETTINGS.get("on_top", True))
         fg = None
         if focus:
             self.drawer_ad.show_focused(rect)
@@ -648,6 +690,9 @@ class DrawerHost:
             return
         if self.drawer_wm_state() == "zoomed":            # (maximized: the Full window now - _drawer_maximized)
             return
+        if not force and not self.drawer_game_rect():      # 3.3.0 owner: no game to follow - it stays where you
+            self.drawer_free_keep()                       # put it, at the size you gave it
+            return
         if not force:
             self._drawer_note_width()                     # Round 18: the width you set is the latest - kept
         rect = self.drawer_target(self._drawer_side_now or st.side)
@@ -852,6 +897,9 @@ class DrawerHost:
             self._drawer_cfg_job = self.root.after(400, self._drawer_resized)
             return
         self._drawer_drag_profile(False)
+        if not self.drawer_game_rect():                   # (no game: your place and size, kept as they are)
+            self.drawer_free_keep()
+            return
         self._drawer_note_width()
         if getattr(self, "_drawer_share_dirty", False):
             self._drawer_share_dirty = False
@@ -896,7 +944,12 @@ class DrawerHost:
         try:
             self._drawer_n = n = getattr(self, "_drawer_n", 0) + 1
             if n % 3 == 1:
+                was = D.GAME_CLOSED[0]
                 D.GAME_OPEN[0] = D.game_open_now(self.drawer_title())
+                D.GAME_CLOSED[0] = D.game_closed_now(self.drawer_title())
+                if was != D.GAME_CLOSED[0] and self.drawer_st.as_drawer():
+                    self.apply_topmost()                  # (the game opened or closed: on top over the game only)
+                    self.drawer_lift_dialogs()
             st = self.drawer_st
             if st.as_drawer():
                 self._drawer_click_away()

@@ -27,7 +27,7 @@ VERSION HISTORY
          runs, net worth from Wealth, div an hour from Map Profit, hours on a strat and the Stockpile; no phases and
          no Farm plan. The Stockpile is an Exchange Rates tab. The campaign route card counts steps done and filters
          to rewards or bosses. Mod Lab: Doesn't affect price, a unique's fixed lines left out, uniques fold.
-       - Dashboard: Top Movers, Daily from poe.ninja's 7-day line and Hourly from the app's own reads; Worth a look;
+       - Dashboard: Top Movers, Daily from poe.ninja's 7-day line and Hourly from the app's own reads; Feature Spotlight;
          the sharing question, asked once. The online count is a badge on the title bar's chest mark and a
          line under the Dashboard's greeting, and counts only 3.1 and newer, on
          the board too; the Rates text is off the bar; the clock sits on the bar's own color.

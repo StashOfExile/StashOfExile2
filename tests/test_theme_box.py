@@ -49,7 +49,7 @@ class BoxDraws(unittest.TestCase):
                     TH.box(cv, t, 10, 10, 390, 190, 8)
                     tid, up = TH.box_head(cv, t, 10, 10, 390, 8, "Top Movers")
                     self.assertEqual(cv.type(tid), "text")
-                    self.assertEqual(up, 0 if head == "plain" else 8)
+                    self.assertEqual(up, 0 if head == "plain" else 14)
                     self.assertEqual(cv.itemcget(tid, "text"), "Top Movers" if head == "plain" else "TOP MOVERS")
         finally:
             root.destroy()

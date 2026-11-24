@@ -121,40 +121,56 @@ def share_prompt_answer(app, yes):
         save_json("settings.json", SETTINGS)
 
 
-# 3.3.0 owner: Worth a look as a carousel. Each card: the surprising part first, then how it works, then the best
+# 3.3.0 owner: Feature Spotlight as a carousel. Each card: the surprising part first, then how it works, then the best
 # bit - told the way you'd show a friend something cool. No sales words, nothing telling you what to do.
 # (page, tab, line icon, name, headline, how it works, the best bit)
 WORTH = (
-    ("leaderboards", None, "trophy", "Leaderboards", "You already have a best time. You just haven't seen it.",
-     "The game writes down every zone you enter. So the app already knows how long each map, boss and act took "
+    ("leaderboards", None, "trophy", "Leaderboards", "You already have a *best time*. You just haven't seen it.",
+     "The game writes down every zone you enter. So the app already knows how long each *map*, *boss* and *act* took "
      "you, without you pressing anything.", "Your best sits next to everyone else's."),
-    ("regex", None, "regex", "Regex", "Stop reading 60 items one by one.",
-     "Tick the mods you care about and Regex writes the stash search for you. Paste it into the game's search box.",
+    ("regex", None, "regex", "Regex", "Stop reading *60 items* one by one.",
+     "Tick the mods you care about and Regex *writes the stash search* for you. Paste it into the game's search box.",
      "Every item that matches lights up. One paste, whole tab."),
-    ("plan", None, "flag", "League Plan", "Got ADHD? Lose track of your goals?",
-     "League Plan keeps your league goals in one list and puts the next one on the overlay, so it's always in the "
+    ("plan", None, "flag", "League Plan", "Got ADHD? *Lose track* of your goals?",
+     "League Plan keeps your league goals in one list and puts the *next one on the overlay*, so it's always in the "
      "corner of your eye. It reads levels, maps and boss runs from the game's log, and your net worth from Wealth.",
      "Type \"Level 90\" once. The bars fill themselves."),
-    ("rates", "Stockpile", "coins", "Stockpile", "It watches the price so you don't have to.",
-     "Put an item on your Stockpile with the most you'd pay. The app checks poe.ninja for you.",
+    ("rates", "Stockpile", "coins", "Stockpile", "It *watches the price* so you don't have to.",
+     "Put an item on your Stockpile with *the most you'd pay*. The app checks poe.ninja for you.",
      "When the price drops under your number, it tells you next time you're back in town."),
-    ("pricecheck", "Favorites", "star", "Favorites", "Checking the same item every day? Star it.",
-     "A starred item keeps its whole trade search, filters and all. One click runs it again at today's prices.",
+    ("pricecheck", "Favorites", "star", "Favorites", "Checking the same item every day? *Star it*.",
+     "A starred item keeps its whole trade search, filters and all. *One click* runs it again at today's prices.",
      "No retyping anything."),
-    ("maps", None, "map", "Map Library", "Not every map is worth your waystone.",
-     "Map Library ranks maps by layout and boss. Add your own ranks, and see how everyone else ranked them.",
+    ("maps", None, "map", "Map Library", "Not every map is *worth your waystone*.",
+     "Map Library *ranks maps* by layout and boss. Add your own ranks, and see how everyone else ranked them.",
      "Know before you slot it."),
-    ("ratemods", None, "rate", "Mod Lab", "You know which mods are good. Tell the price checker.",
-     "Rate mods from S to F. Your ratings join everyone else's, and price checks learn which mods buyers pay for.",
+    ("ratemods", None, "rate", "Mod Lab", "You know which mods are good. *Tell the price checker*.",
+     "Rate mods from *S to F*. Your ratings join everyone else's, and price checks learn which mods buyers pay for.",
      "A few minutes makes every price check sharper."),
-    ("search", None, "search", "Game Search", "Every skill, item and mod in the game, one search box.",
-     "Game Search looks through the game's own data, thousands of entries, as fast as you type.",
+    ("search", None, "search", "Game Search", "*Every skill, item and mod* in the game, one search box.",
+     "Game Search looks through the game's own data, *thousands of entries*, as fast as you type.",
      "No wiki tab needed."),
 )
 
 
+def marked(text):
+    """A line with *key words* -> [(word, is a key word, joined to the word before it)], for drawing the key words
+    in the accent color. A full stop right after a key word stays against it."""
+    out = []
+    for i, part in enumerate(text.split("*")):
+        words = part.split()
+        for j, w in enumerate(words):
+            glued = j == 0 and bool(out) and not part[:1].isspace() and not text.split("*")[i - 1][-1:].isspace()
+            out.append((w, bool(i % 2), glued))
+    return out
+
+
+def plain(text):
+    return text.replace("*", "")
+
+
 def worth_items():
-    """Worth a look's cards: what players often miss, then what you have switched off.
+    """Feature Spotlight's cards: what players often miss, then what you have switched off.
     -> [{page, tab, icon, name, head, body, punch, button}]"""
     from . import features as FEAT
     out = [{"page": p, "tab": tab, "icon": ic, "name": name, "head": head, "body": body, "punch": punch,
@@ -178,7 +194,7 @@ def worth_items():
 
 def worth_secs(item):
     """How long a card stays up: long enough to read all of it at an easy pace, never under 14 seconds."""
-    words = len(" ".join((item["head"], item["body"], item["punch"])).split())
+    words = len(plain(" ".join((item["head"], item["body"], item["punch"]))).split())
     return max(14.0, 6.0 + words / 2.6)
 
 
@@ -280,19 +296,38 @@ class Dashboard(tk.Canvas):
         """A box in the theme's shape."""
         TH.box(self, TH.ST.theme, x0, y0, x1, y1, R, lit=lit, tags=(tag,) if tag else ())
 
+    def _rich(self, x, y, text, font, fill, hi, width, hi_font=None):
+        """A wrapped line whose *key words* are drawn in the accent color. -> its bottom."""
+        import tkinter.font as tkfont
+        fonts = self.__dict__.setdefault("_fonts", {})
+        f = fonts.get(font) or fonts.setdefault(font, tkfont.Font(root=self, font=font))
+        hf_key = hi_font or font
+        hf = fonts.get(hf_key) or fonts.setdefault(hf_key, tkfont.Font(root=self, font=hf_key))
+        space, lh = f.measure(" "), f.metrics("linespace") + 3
+        cx, cy = x, y
+        for word, key, glued in marked(text):
+            w = (hf if key else f).measure(word)
+            if glued:
+                cx -= space
+            elif cx > x and cx + w > x + width:
+                cx, cy = x, cy + lh
+            self.create_text(cx, cy, text=word, anchor="nw", font=hf_key if key else font, fill=hi if key else fill)
+            cx += w + space
+        return cy + lh
+
     def _r(self, r):
         """A corner for a button or a chip: round only in a theme whose boxes are round."""
         return r if TH.box_look(TH.ST.theme)["shape"] == "round" else 0
 
     def _top(self):
         """How far a box's content starts under its top edge: under its title."""
-        return TH.BOX_HEAD if TH.headed(TH.ST.theme) else 52
+        return TH.BOX_HEAD + 4 if TH.headed(TH.ST.theme) else 52
 
     def _head(self, x0, y, x1, title):
         """A box's title in the theme's style. -> (the title's id, how far the controls beside it move up)."""
         return TH.box_head(self, TH.ST.theme, x0, y, x1, R, title)
 
-    def _button(self, x1, y, text, tag, fn, primary=False, tip=None):
+    def _button(self, x1, y, text, tag, fn, primary=False, tip=None, strong=False):
         """A button drawn right-aligned at x1. -> its left edge."""
         from .style import text_on
         t = TH.ST.theme
@@ -307,6 +342,8 @@ class Dashboard(tk.Canvas):
             fill, line, ink = (TH.mix(acc, "#ffffff", .15) if lit else acc), acc, text_on(acc)
         else:
             fill, line, ink = (t.c("hover", t.c("surface_high")) if lit else t.c("surface")), t.c("border_light"), t.c("text")
+            if strong:                                       # a second button that asks to be pressed: the accent edge
+                line, ink = acc, t.c("text_strong")
         TH.round_rect(self, x0, y, x1, y + h, self._r(6), fill=fill, outline=line, tags=(tag,))
         self.create_text((x0 + x1) // 2, y + h // 2, text=text, font=f, fill=ink, tags=(tag,))
         self.acts[tag] = fn
@@ -336,7 +373,7 @@ class Dashboard(tk.Canvas):
                      tip="Turns on Share anonymous data with the community. Its switch is in Settings")
         return y + h
 
-    # ---- 3.3.0 owner: Top Movers and Worth a look
+    # ---- 3.3.0 owner: Top Movers and Feature Spotlight
     def _pill(self, x, y, text, tag, on, fn, tip):
         """A small choice: ✓ and a lit edge on the picked one. -> its right edge."""
         t = TH.ST.theme
@@ -432,7 +469,7 @@ class Dashboard(tk.Canvas):
         self.later()
 
     def _worth(self, x0, y, x1, h, stack=False):
-        """Worth a look (owner's pick D): one card featured, the next two beside it. It moves on by itself."""
+        """Feature Spotlight (owner's pick D): one card featured, the next two beside it. It moves on by itself."""
         from . import lineicons
         t = TH.ST.theme
         head = TH.head_font(t)
@@ -455,29 +492,28 @@ class Dashboard(tk.Canvas):
         top = TH.BOX_HEAD if hd_on else 0
         self._card(x0, y, x1, y + h)
         if hd_on:
-            self._head(x0, y, x1, "Worth a Look")
+            self._head(x0, y, x1, "Feature Spotlight")
         xy = y + (TH.BOX_HEAD // 2 if hd_on else 24)
         hid = self.create_text((x1 if hd_on else fx1) - 20, xy, text="✕", anchor="e", font=("Segoe UI", 10),
                                fill=txt if self.hover == "wl_hide" else mut, tags=("wl_hide",))
         self.create_text(self.bbox(hid)[0] - 16, xy, text=f"{i + 1} of {n}", anchor="e", font=("Segoe UI", 9), fill=mut)
         self.acts["wl_hide"] = self._worth_hide
-        self.tips["wl_hide"] = "Hide Worth a look. Its switch is in Settings › General › Window"
+        self.tips["wl_hide"] = "Hide Feature Spotlight. Its switch is in Settings › General › Window"
         cy = y + top
         img = lineicons.icon(self, it["icon"], 28, acc)
         if img:
             self._wl_imgs = [img]
             self.create_image(x0 + 40, cy + 40, image=img)
         tw = fx1 - x0 - 76 - 24
-        kick = it["name"].upper() if hd_on else f"WORTH A LOOK  ·  {it['name'].upper()}"
-        self.create_text(x0 + 76, cy + 18, text=kick, anchor="nw", font=("Segoe UI", 9, "bold"), fill=mut)
-        hd = self.create_text(x0 + 76, cy + 36, text=it["head"], anchor="nw", font=(head, 16), fill=strong, width=tw)
-        by = self.bbox(hd)[3] + 8
-        bd = self.create_text(x0 + 76, by, text=it["body"], anchor="nw", font=("Segoe UI", 10), fill=mut, width=tw)
+        kick = it["name"].upper() if hd_on else f"FEATURE SPOTLIGHT  ·  {it['name'].upper()}"
+        self.create_text(x0 + 76, cy + 16, text=kick, anchor="nw", font=("Segoe UI", 9, "bold"), fill=acc)
+        by = self._rich(x0 + 76, cy + 36, it["head"], (head, 18), strong, acc, tw) + 6
+        by = self._rich(x0 + 76, by, it["body"], ("Segoe UI", 10), txt, acc, tw, ("Segoe UI", 10, "bold")) + 4
         if it["punch"]:
-            self.create_text(x0 + 76, self.bbox(bd)[3] + 4, text=it["punch"], anchor="nw",
-                             font=("Segoe UI", 10, "bold"), fill=txt, width=tw)
+            self.create_text(x0 + 76, by, text=it["punch"], anchor="nw", font=("Segoe UI", 10, "bold"), fill=strong,
+                             width=tw)
         sh = getattr(self.app, "shell", None)
-        self._button(fx1 - 20, y + h - 44 - 16, it["button"], "wl_go",
+        self._button(fx1 - 20, y + h - 44 - 16, it["button"], "wl_go", strong=True, fn=
                      (lambda p=it["page"], tab=it["tab"]: (sh.open_tab(p, tab) if tab else sh.open(p)) if sh else None))
         # the time left: a thin line along the bottom, moved by _worth_tick - nothing else is redrawn for it
         self._wl_bar = self.create_line(x0 + 12, y + h - 2, x0 + 12, y + h - 2, fill=acc, width=2)
@@ -764,7 +800,7 @@ class Dashboard(tk.Canvas):
                 self.acts[tag] = go(key)
             y += top + len(starts) * rh + GAP
 
-        # -- 3.3.0 owner: Top Movers, and Worth a look beside it (under it when the page is narrow)
+        # -- 3.3.0 owner: Top Movers, and Feature Spotlight beside it (under it when the page is narrow)
         try:
             y = self._extras(PAD, y, W - PAD, narrow or bool(look and look()))
         except Exception:

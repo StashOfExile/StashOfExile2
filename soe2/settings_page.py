@@ -341,14 +341,14 @@ class SettingsPage:
         self.top_btn = ttk.Checkbutton(trow, text="Keep the full window on top", variable=self.top_var,
                                        command=self.on_top_toggle)
         self.top_btn.pack(side="left")
-        tk.Label(trow, text="The Drawer is always on top while it's open.", bg=P2, fg=C["muted"],
+        tk.Label(trow, text="The Drawer is on top while the game is open.", bg=P2, fg=C["muted"],
                  font=("Segoe UI", 9)).pack(side="left", padx=(8, 0))
         from .style import flowify
         flowify(trow)                                   # D3: wraps at Drawer width
-        drow = tk.Frame(row.master, bg=P2)              # 3.3.0 owner: the Dashboard's Worth a look card
+        drow = tk.Frame(row.master, bg=P2)              # 3.3.0 owner: the Dashboard's Feature Spotlight card
         drow.pack(fill="x", pady=(8, 0))
         self.dash_worth_var = tk.BooleanVar(value=not SETTINGS.get("dash_worth_off"))
-        ttk.Checkbutton(drow, text="Show Worth a look on the Dashboard", variable=self.dash_worth_var,
+        ttk.Checkbutton(drow, text="Show Feature Spotlight on the Dashboard", variable=self.dash_worth_var,
                         command=self.dash_worth_switch).pack(side="left")
         tk.Label(drow, text="Features you have off, or may not know.", bg=P2, fg=C["muted"],
                  font=("Segoe UI", 9)).pack(side="left", padx=(8, 0))

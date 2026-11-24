@@ -536,8 +536,8 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
                   "Esc) and it will stay minimized.", 10)
 
     def apply_topmost(self):
-        # drawer build: the Drawer is always on top while shown (SETTINGS["on_top"] = the Full window's own setting)
-        on = bool(SETTINGS.get("on_top", True)) or self.drawer_shown_as_drawer()
+        # drawer build: the Drawer is on top while the game is open (SETTINGS["on_top"] = the Full window's own setting)
+        on = self.drawer_topmost_wanted()
         try:
             self.root.attributes("-topmost", on)
             from .overlaywin import OverlayWindow

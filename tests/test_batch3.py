@@ -1,4 +1,4 @@
-"""3.3.0 batch 3 (owner): the honest online count on the status bar, Top Movers, Worth a look and the one-time
+"""3.3.0 batch 3 (owner): the honest online count on the status bar, Top Movers, Feature Spotlight and the one-time
 sharing question on the Dashboard.
 
     DISPLAY=:99 python3.12 -m unittest tests.test_batch3          (or tests/runall.sh)"""
@@ -143,7 +143,7 @@ class Worth(unittest.TestCase):
         self.assertEqual(len(items), len(DP.WORTH))
         self.assertEqual(items[0]["button"], "Open Leaderboards")
         plan = next(i for i in items if i["name"] == "League Plan")
-        self.assertEqual(plan["head"], "Got ADHD? Lose track of your goals?")
+        self.assertEqual(DP.plain(plan["head"]), "Got ADHD? Lose track of your goals?")
         self.assertIn("one list", plan["body"])
         for it in items:
             text = " ".join((it["head"], it["body"], it["punch"], it["button"]))
@@ -155,6 +155,16 @@ class Worth(unittest.TestCase):
             more = DP.worth_items()
         heads = [i["head"] for i in more[len(DP.WORTH):]]
         self.assertIn(f"{FEAT.ALL[0]['name']} is switched off.", heads)
+
+    def test_key_words_are_marked_and_keep_their_full_stop(self):
+        got = DP.marked("Not every map is *worth your waystone*.")
+        self.assertEqual([w for w, key, _g in got if key], ["worth", "your", "waystone"])
+        self.assertEqual(got[-1], (".", False, True))             # drawn against the word before it
+        self.assertEqual(DP.marked("a *b* c")[-1], ("c", False, False))
+        for it in DP.WORTH:
+            self.assertEqual(it[4].count("*") % 2, 0, it[3])
+            self.assertEqual(it[5].count("*") % 2, 0, it[3])
+            self.assertIn("*", it[4], it[3])                      # every card has key words in its first line
 
     def test_a_card_stays_long_enough_to_read(self):
         for it in DP.worth_items():

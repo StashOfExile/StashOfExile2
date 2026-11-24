@@ -717,7 +717,7 @@ def round_rect(cv, x0, y0, x1, y1, r, **kw):
 
 # ------------------------------------------------------------------ boxes on a page (3.3.0 look pass)
 BOX = {"shape": ("square", "round", "flat"), "head": ("strip", "plain", "rule")}
-BOX_HEAD = 44                     # the height of a box's header strip
+BOX_HEAD = 32                     # the height of a box's header strip
 
 
 def headed(t):
@@ -770,7 +770,7 @@ def box_head(cv, t, x0, y0, x1, r, title, tags=()):
                              fill=t.c("text_strong"), tags=tags)
         inset = 0 if k["shape"] == "flat" else 20
         cv.create_line(x0 + inset, y0 + h, x1 - inset, y0 + h, fill=t.c("border_light"), tags=tags)
-        return tid, 8
+        return tid, 14
     spec = t.part("bars", "section") or t.part("bars", "title")
     stops, ink = t.grad(spec["fill"]), t.c(spec.get("text", "text_strong"))
     edge = 0 if k["shape"] == "flat" else 1               # (inside the box's own 1 px outline)
@@ -780,14 +780,15 @@ def box_head(cv, t, x0, y0, x1, r, title, tags=()):
                        fill=grad_at(stops, row / max(1, h - 1)), tags=tags)
     tex = spec.get("texture", "none")                     # the pack's own strip: its texture and top line too
     if tex and tex != "none":
-        texture(cv, t, tex, int(x0 + edge + rr), int(y0 + edge), int(x1 - edge - rr), int(y0 + h),
+        # (a texture's marks reach up to 8 px past the spot they are placed on: kept inside the strip)
+        texture(cv, t, tex, int(x0 + edge + rr + 8), int(y0 + edge + 8), int(x1 - edge - rr - 8), int(y0 + h - 8),
                 grad_at(stops, .5), glow=t.c(spec["texture_color"]) if spec.get("texture_color") else None,
                 tag=tags or "tex")
     if spec.get("top"):
         cv.create_line(x0 + max(edge, rr), y0 + edge, x1 - max(edge, rr), y0 + edge, fill=t.c(spec["top"]), tags=tags)
     cv.create_line(x0 + edge, y0 + h, x1 - edge + (0 if edge else 1), y0 + h, fill=t.c("border"), tags=tags)
     tid = cv.create_text(x0 + 20, mid, text=word, anchor="w", font=("Segoe UI", 10, "bold"), fill=ink, tags=tags)
-    return tid, 8
+    return tid, 14
 
 
 def _draw_meter(cv, value, w, h, on=None, style=None, tag="meter"):

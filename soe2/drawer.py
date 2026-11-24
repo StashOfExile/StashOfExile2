@@ -33,6 +33,7 @@ FG_HOOK = None              # () -> (ours, game): who has the keyboard
 CURSOR_HOOK = None          # () -> (x, y): the mouse
 # caches the hook thread reads (written on the window's thread)
 GAME_OPEN = [False]         # the game is running (drawer_tick, every ~1 s)
+GAME_CLOSED = [False]       # the game is known not to be running: the Drawer is a plain window then (3.3.0)
 SHOWN_DRAWER = [False]      # the app is shown in the Drawer shape
 
 
@@ -562,6 +563,22 @@ def game_open_now(title="Path of Exile 2"):
         if sys.platform.startswith("linux"):
             from .linsys import can_tell, game_open as _go
             return can_tell() and bool(_go(title))
+    except Exception:
+        pass
+    return False
+
+
+def game_closed_now(title="Path of Exile 2"):
+    """Is the game known to be closed? False where that can't be told, so the Drawer stays on top there."""
+    if GAME_RECT_HOOK is not None:                        # (tests: the game is there while the hook gives a rect)
+        return not GAME_RECT_HOOK()
+    try:
+        if WIN:
+            from .overlay import game_open
+            return not game_open(title)
+        if sys.platform.startswith("linux"):
+            from .linsys import can_tell, game_open as _go
+            return can_tell() and not _go(title)
     except Exception:
         pass
     return False

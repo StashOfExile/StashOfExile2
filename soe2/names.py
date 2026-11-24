@@ -34,7 +34,7 @@ PAGES = {
 
 FEATURES = (
     "Top Movers",               # 3.3.0 Dashboard: what went up and down the most, Daily and Hourly, from poe.ninja
-    "Worth a look",             # 3.3.0 Dashboard: one feature at a time that you have off or may not know
+    "Feature Spotlight",             # 3.3.0 Dashboard: one feature at a time that you have off or may not know
     "Suggest a Feature",        # 3.2.0 owner: the bottom bar, next to Report a bug - an idea becomes a GitHub issue
     "Compare a currency",       # Exchange Helper: one currency's worth in every other (was Check a flip)
     "Name badge",               # GGG policy audit: STASH OF EXILE 2 in a small badge under the overlay's clock, every
