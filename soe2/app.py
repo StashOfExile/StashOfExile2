@@ -1616,14 +1616,7 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
         return bool(SETTINGS.get("share_asked"))
 
     def cm_set_sharing(self, on, say=True):
-        was = bool(SETTINGS.get("share_prices")) and bool(SETTINGS.get("share_asked"))
-        if was and not on:                               # 2.89.3: turning it off takes your times off the leaderboards
-            try:
-                from . import board as B
-                if B.configured() and B.signed_in():
-                    threading.Thread(target=B.lb_forget, daemon=True).start()
-            except Exception:
-                buglog.caught()
+        # 3.3.0: off only stops sending. Times already on the board stay; Leave and delete my data removes them.
         SETTINGS["share_prices"] = bool(on)
         SETTINGS["share_asked"] = True
         save_json("settings.json", SETTINGS)

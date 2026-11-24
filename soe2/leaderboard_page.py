@@ -237,12 +237,8 @@ class LeaderboardPage:
         if SETTINGS["lb_share"] and B.configured() and not B.signed_in() and not getattr(self, "mm_sync", False):
             self.mm_join("show your times on the Leaderboards")       # 2.94.0: a name only when you need one
             self.cy_paint()
-        if SETTINGS["lb_share"]:
+        if SETTINGS["lb_share"]:                             # 3.3.0: off only stops sending, the board keeps your times
             self.lb_send(force=True)
-        else:                                                # 2.89.3: off = your times come off the board
-            from . import board as B
-            if B.configured() and B.signed_in():
-                self._lb_bg(B.lb_forget, lambda r: None)
 
     def lb_send(self, force=False):
         """Your best times to the board (Community data sharing on, a community name, Share my times on). At most
@@ -255,13 +251,35 @@ class LeaderboardPage:
         if not data:
             return False
         SETTINGS["lb_sent"] = time.time()
+        parts = LB.parts(data)
+        start = int(SETTINGS.get("lb_part", 0) or 0) % len(parts)
+
+        def work():
+            """3.3.0: one part per request. The board takes one request per 10 minutes from most players, so the
+            rest wait for the next send; the place is kept in lb_part."""
+            sent, refused, why = 0, 0, ""
+            for i in range(len(parts)):
+                ok, d = B.lb_send(parts[(start + i) % len(parts)])
+                if not ok:
+                    why = str(d)
+                    break
+                sent += 1
+                refused += int((d or {}).get("refused") or 0) if isinstance(d, dict) else 0
+            return sent, refused, why
 
         def done(res):
-            ok, d = res
-            if ok and getattr(self, "lb_msg", None) is not None and isinstance(d, dict) and d.get("refused"):
-                self.lb_msg.config(text=f"{d['refused']} of your times were refused as faster than anyone can play.",
-                                   fg=C["muted"])
-        self._lb_bg(lambda: B.lb_send(data), done)
+            sent, refused, why = res
+            SETTINGS["lb_part"] = (start + sent) % len(parts)
+            save_json("settings.json", SETTINGS)
+            msg = getattr(self, "lb_msg", None)
+            if why and not sent and why != "too soon":
+                buglog.record("net", "leaderboard send", why)
+                if msg is not None:
+                    msg.config(text=f"Your times were not sent: {why}", fg=C["red"])
+            elif refused and msg is not None:
+                msg.config(text=f"{refused} of your times were refused as faster than anyone can play.",
+                           fg=C["muted"])
+        self._lb_bg(work, done)
         return True
 
     # ---------------------------------------------------------------- showing

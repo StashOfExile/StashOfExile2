@@ -269,6 +269,24 @@ def payload(entries):
     return out[:SEND_CAP]
 
 
+SEND_CHARS = 20000                             # the board refuses a request over 24000 characters
+
+
+def parts(entries, limit=SEND_CHARS):
+    """3.3.0: the payload cut into requests the board accepts, order kept, so every key's best goes first.
+    A full payload of 400 times is about 54000 characters; sent whole, the board refused it."""
+    import json
+    out, cur, size = [], [], 16
+    for e in entries:
+        n = len(json.dumps(e)) + 2
+        if cur and size + n > limit:
+            out.append(cur)
+            cur, size = [], 16
+        cur.append(e)
+        size += n
+    return out + [cur] if cur else out
+
+
 def level_text(level):
     """The Area level column: the map's area level, "-" where there is none (campaign and zone rows are 0)."""
     return str(int(level)) if level and int(level) > 0 else "-"

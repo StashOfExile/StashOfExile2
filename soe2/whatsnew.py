@@ -67,9 +67,11 @@ NOTES = {
                 ("•", "Uniques list in Mod Lab can now be collapsed"),
                 ("•", "Reworked the look of every page to follow the theme"),
                 ("•", "Drawer now stays where it's put while the game is closed"),
+                ("•", "Turning sharing off now keeps times on the Leaderboards"),
             ]),
             ("✓", "Fixes", [
                 ("•", "Party members should no longer be shown as your character"),
+                ("•", "Large sets of times should no longer be refused by the Leaderboards"),
             ]),
             ("✕", "Removed", [
                 ("•", "Removed League Plan phases and Farm plan"),
