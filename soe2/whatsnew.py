@@ -65,6 +65,8 @@ NOTES = {
                 ("•", "Updated price filtering options"),
                 ("•", "Added online count to the title bar"),
                 ("•", "Uniques list in Mod Lab can now be collapsed"),
+                ("•", "Reworked the look of every page to follow the theme"),
+                ("•", "Drawer now stays where it's put while the game is closed"),
             ]),
             ("✓", "Fixes", [
                 ("•", "Party members should no longer be shown as your character"),
@@ -72,6 +74,7 @@ NOTES = {
             ("✕", "Removed", [
                 ("•", "Removed League Plan phases and Farm plan"),
                 ("•", "Removed Favorites page"),
+                ("•", "Removed Must match stars from Price Checks"),
             ]),
         ],
     },

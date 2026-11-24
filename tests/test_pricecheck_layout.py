@@ -347,8 +347,8 @@ class Layout(unittest.TestCase):
         got = {t: ticks[t][0]() for t in order}
         self.assertEqual(got, {t: to for t in order}, "every box crossed took the first box's state")
 
-    def test_tier_and_star_have_a_hover(self):
-        """P1 / S3 say what they mean on hover; ★ (must match) has its tip."""
+    def test_tier_has_a_hover_and_no_star_on_price_checks(self):
+        """P1 / S3 say what they mean on hover. 3.3.0 owner: no ★ beside a mod on Price Checks."""
         self.show("rare_amulet_fractured")
         cv = self.card()
         tiers = [t for i in cv.find_all() for t in cv.gettags(i) if t.startswith("cardtier")]
@@ -356,9 +356,11 @@ class Layout(unittest.TestCase):
         for t in tiers:
             self.assertTrue(cv.tag_bind(t, "<Enter>"), t)
         stars = {t for i in cv.find_all() for t in cv.gettags(i) if t.startswith("cardstar")}
-        self.assertTrue(stars)
-        for t in stars:
-            self.assertTrue(cv.tag_bind(t, "<Enter>"), t)
+        self.assertFalse(stars)
+        from soe2 import app as APP
+        self.assertFalse(APP.card_has_star({"src": "pc"}))
+        self.assertFalse(APP.card_has_star({"src": "fav"}))
+        self.assertTrue(APP.card_has_star({"src": "bulk"}), "Bulk Pricing keeps it: its search drops unstarred mods")
 
     def test_prices_shows_how_on_hover(self):
         self.show("rare_gloves_quality_sockets")

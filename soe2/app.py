@@ -298,7 +298,18 @@ def _tick(cv, x, y):
 
 def _vbox_x(cv, w, i):
     """Where the Min (i 0) / Max (i 1) box starts on a card row w px wide."""
-    return w - _s(cv, 30) - _s(cv, CARD_BOX) * (2 - i) - (_s(cv, 4) if i == 0 else 0)
+    return w - _s(cv, _star_room(cv)) - _s(cv, CARD_BOX) * (2 - i) - (_s(cv, 4) if i == 0 else 0)
+
+
+def card_has_star(rec):
+    """3.3.0 owner: no ★ Must match beside a mod on Price Checks and Favorites - every ticked mod must match there
+    already. Bulk Pricing keeps it: its search drops unstarred mods first."""
+    return (rec or {}).get("src") not in ("pc", "fav")
+
+
+def _star_room(cv):
+    """The room at a card row's right edge: the ★ column, or a small margin where no star is drawn."""
+    return 30 if getattr(cv, "_card_star", True) else 10
 
 
 from .names import CARD_SECTIONS                 # noqa: E402  (the item card's section names)
@@ -4805,6 +4816,7 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
         else:
             big = "Pricing…" if st == "pricing" else "Waiting in line…"
         cv = tk.Canvas(d, width=w, height=200, bg=P2, highlightthickness=0, bd=0)
+        cv._card_star = card_has_star(rec)                   # (no ★ column on Price Checks: the boxes sit at the edge)
         cv._look = "drawer" if getattr(self, "_card_no_price", False) else ""     # (Price Checks: its own look)
         cv._k = float(getattr(self, "_card_k", 1.0) or 1.0)       # (its scale: soe2/cardscale.py)
         dl = _cl(cv)
@@ -5496,7 +5508,7 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
                 buglog.caught()
         if self._card_has_vals(rec, m):
             self._card_val_boxes(cv, rec, m, y - 1, w, on and can)
-        if can:                                              # 2.79.0: ★ = must match (a click: on / off)
+        if can and card_has_star(rec):                       # 2.79.0: ★ = must match (a click: on / off)
             imp = mod_impact(rec, m)
             star = cv.create_text(w - s_(14), y + 1, text="★" if imp == "high" else "☆", anchor="ne",
                                   font=_f(cv, 10), fill=C["good"] if imp == "high" else C["muted"],
