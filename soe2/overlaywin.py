@@ -404,6 +404,7 @@ def skin_inner(host, P, parch, edge, body_bg):
 
 
 class OverlayWindow(tk.Toplevel):
+    keeps_round = True                              # 3.3.0: the overlay keeps its own corners in every theme
     def set_opacity(self, opacity):
         """2.43.0: Overlay › Look: applied at once."""
         try:

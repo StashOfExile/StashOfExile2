@@ -30,7 +30,7 @@ class SectionBar(tk.Canvas):
     """A header strip: title on the left, a short note on the right (bar.note(text)), optional widgets on the right
     (bar.add_right(widget) - make them with this bar as parent)."""
 
-    H = 28
+    H = TH.BOX_HEAD                                       # 3.3.0: the same strip on every page
 
     def __init__(self, parent, title, note=""):
         super().__init__(parent, height=self.H, highlightthickness=0, bd=0, bg=C["panel2"])
@@ -90,8 +90,8 @@ class SectionBar(tk.Canvas):
         fg = TH.paint_bar(self, "section", tag="bar")        # (Round 18: the theme's own bar in the Drawer too)
         stops = t.grad(t.part("bars", "section", "fill") or t.part("bars", "title", "fill"))
         mid = TH.grad_at(stops, .5)
-        tid = self.create_text(12, h // 2, text=self.title, anchor="w", fill=fg, font=(TH.head_font(), 11, "bold"),
-                               tags="fore")
+        word, font = TH.head_title(t, self.title)         # (capitals in a theme that asks for them)
+        tid = self.create_text(12, h // 2, text=word, anchor="w", fill=fg, font=font, tags="fore")
         lx = (self.bbox(tid) or (0, 0, 12, 0))[2] + 12
         left, right = getattr(self, "_left", []), list(self._right)
         try:                                              # 3.0.6 (owner: Bulk Pricing in the Drawer - the strip's

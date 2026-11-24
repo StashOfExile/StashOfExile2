@@ -7,6 +7,7 @@ import sys
 import tempfile
 import tkinter as tk
 import unittest
+from unittest import mock
 from tkinter import ttk
 
 HOME = tempfile.mkdtemp(prefix="soe2-soft-")
@@ -75,6 +76,21 @@ class RoundRect(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         cls.root.destroy()
+
+    def setUp(self):
+        p = mock.patch.object(SOFT, "radius", lambda: SOFT.RADIUS)      # (a theme whose boxes are round)
+        p.start()
+        self.addCleanup(p.stop)
+
+    def test_a_square_theme_draws_a_plain_rectangle(self):
+        cv = tk.Canvas(self.root, width=300, height=200)
+        with mock.patch.object(SOFT, "radius", lambda: 0):
+            i = TH.round_rect(cv, 10, 10, 210, 110, 8, fill="#223344", outline="#556677")
+            self.assertEqual(cv.type(i), "rectangle")
+            pts = [18, 10, 202, 10, 210, 10, 210, 18, 210, 132, 210, 140, 202, 140, 18, 140, 10, 140, 10, 132, 10, 18,
+                   10, 10]
+            cv.coords(i, *pts)                               # (a card resized with a round box's points)
+            self.assertEqual(cv.coords(i), [10.0, 10.0, 210.0, 140.0])
 
     def test_round_rect_is_an_image_item_not_a_polygon(self):
         cv = tk.Canvas(self.root, width=300, height=200)
@@ -146,7 +162,7 @@ class Ttk(unittest.TestCase):
         self.assertIn(".soft.", str(s.layout("TEntry")))
         self.assertIn(".soft.", str(s.layout("TCombobox")))
         self.assertIn(".face", str(s.layout("TButton")))
-        self.assertEqual(TH.button_spec(TH.ST.theme, "normal")["radius"], SOFT.RADIUS)
+        self.assertEqual(TH.button_spec(TH.ST.theme, "normal")["radius"], SOFT.radius())
         b = ttk.Button(tk.Frame(self.root, bg="#204060"), text="Go", style="Primary.TButton")
         self.assertEqual(b.cget("style"), "Primary.TButton")
         self.assertEqual(b["style"], "Primary.TButton")
@@ -166,6 +182,9 @@ class Ttk(unittest.TestCase):
             ST.relook(self.root, "emberforge")
 
     def test_theme_change_recolors_canvas_corners(self):
+        p = mock.patch.object(SOFT, "radius", lambda: SOFT.RADIUS)      # (a theme whose boxes are round)
+        p.start()
+        self.addCleanup(p.stop)
         cv = tk.Canvas(self.root)
         cv.pack()
         i = TH.round_rect(cv, 4, 4, 80, 40, 6, fill=ST.C["panel"], outline=ST.C["line"])

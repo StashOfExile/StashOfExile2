@@ -704,9 +704,11 @@ def head_font(t=None, kind="head"):
 def round_rect(cv, x0, y0, x1, y1, r, **kw):
     """A round box on a canvas. Rule 24: smooth corners (soft.py - Pillow pictures, 9-slice; the id it gives acts as
     one item). Without Pillow: a smoothed polygon (jagged on Windows), as before."""
+    from . import soft
+    if r > 0 and not soft.radius() and not getattr(cv.winfo_toplevel(), "keeps_round", False):
+        r = 0                                             # 3.3.0 look pass: a square theme draws square boxes
     if r <= 0:
         return cv.create_rectangle(x0, y0, x1, y1, **kw)
-    from . import soft
     got = soft.canvas_round_rect(cv, x0, y0, x1, y1, r, **kw)
     if got is not None:
         return got
@@ -717,7 +719,7 @@ def round_rect(cv, x0, y0, x1, y1, r, **kw):
 
 # ------------------------------------------------------------------ boxes on a page (3.3.0 look pass)
 BOX = {"shape": ("square", "round", "flat"), "head": ("strip", "plain", "rule")}
-BOX_HEAD = 32                     # the height of a box's header strip
+BOX_HEAD = 30                     # the height of a box's header strip, on a canvas and in chrome.SectionBar
 
 
 def headed(t):
@@ -755,6 +757,13 @@ def box(cv, t, x0, y0, x1, y1, r, lit=False, tags=()):
     return rr
 
 
+def head_title(t, title):
+    """A header strip's words in the pack's style -> (text, font): capitals in the plain font, or the head font."""
+    if box_look(t)["caps"]:
+        return title.upper(), ("Segoe UI", 10, "bold")
+    return title, (head_font(t), 11, "bold")
+
+
 def box_head(cv, t, x0, y0, x1, r, title, tags=()):
     """A box's title in the pack's style, drawn over a box() at the same corner. -> (the title's id, how far the
     controls at its right move up: 0 for a plain title)."""
@@ -770,7 +779,7 @@ def box_head(cv, t, x0, y0, x1, r, title, tags=()):
                              fill=t.c("text_strong"), tags=tags)
         inset = 0 if k["shape"] == "flat" else 20
         cv.create_line(x0 + inset, y0 + h, x1 - inset, y0 + h, fill=t.c("border_light"), tags=tags)
-        return tid, 14
+        return tid, 15
     spec = t.part("bars", "section") or t.part("bars", "title")
     stops, ink = t.grad(spec["fill"]), t.c(spec.get("text", "text_strong"))
     edge = 0 if k["shape"] == "flat" else 1               # (inside the box's own 1 px outline)
@@ -787,8 +796,9 @@ def box_head(cv, t, x0, y0, x1, r, title, tags=()):
     if spec.get("top"):
         cv.create_line(x0 + max(edge, rr), y0 + edge, x1 - max(edge, rr), y0 + edge, fill=t.c(spec["top"]), tags=tags)
     cv.create_line(x0 + edge, y0 + h, x1 - edge + (0 if edge else 1), y0 + h, fill=t.c("border"), tags=tags)
-    tid = cv.create_text(x0 + 20, mid, text=word, anchor="w", font=("Segoe UI", 10, "bold"), fill=ink, tags=tags)
-    return tid, 14
+    word, font = head_title(t, title)
+    tid = cv.create_text(x0 + 20, mid, text=word, anchor="w", font=font, fill=ink, tags=tags)
+    return tid, 15
 
 
 def _draw_meter(cv, value, w, h, on=None, style=None, tag="meter"):
@@ -1001,7 +1011,8 @@ def flat_spec(t, name):
     """P2.5 (2.107.0, feedback: the buttons felt amateur): one flat look in every theme - round corners (rule 24:
     soft.RADIUS, 6 px; was 2), no gradient or bevel; the theme still gives the colors. Normal: a raised face; primary: the accent; danger: an
     outline in the theme's danger color; heading: list column heads."""
-    from .soft import RADIUS as _R
+    from .soft import radius as _radius
+    _R = _radius()
     c = t.c
     if name == "primary":
         a = ST.C.get("accent") or c("accent")
