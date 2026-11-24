@@ -86,7 +86,9 @@ class PanelHeadTakesALabelsCalls(unittest.TestCase):
             self.skipTest("no display")
         try:
             h = chrome.PanelHead(root, "")
+            self.assertEqual(int(h.cget("height")), 0, "nothing to say: no empty strip")
             h.config(text="CHEAPEST LISTINGS · 4 of 5")
+            self.assertEqual(int(h.cget("height")), chrome.SectionBar.H)
             self.assertEqual((h.title, h.note()), ("Cheapest Listings", "4 of 5"))
             self.assertEqual(h.cget("text"), "CHEAPEST LISTINGS · 4 of 5")
             h.configure(text="No listings found")

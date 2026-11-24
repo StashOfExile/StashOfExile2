@@ -141,6 +141,8 @@ class PanelHead(SectionBar):
     def __init__(self, parent, title=""):
         super().__init__(parent, title)
         self._text = title
+        if not title:
+            tk.Canvas.configure(self, height=0)
 
     def config(self, cnf=None, **kw):
         kw = dict(cnf or {}, **kw)
@@ -151,6 +153,7 @@ class PanelHead(SectionBar):
                 head, _dot, rest = text.partition(" · ")
                 self.title = head.title() if head.isupper() else head
                 self._note = rest
+                tk.Canvas.configure(self, height=self.H if text else 0)   # (nothing to say: no empty strip)
                 self.redraw()
         if kw:
             return super().config(**kw)
