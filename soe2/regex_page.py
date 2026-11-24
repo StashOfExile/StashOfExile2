@@ -893,7 +893,8 @@ class RegexPage:
                                        ("Open in Build a search", self.rx_fav_open, len(sel) == 1),
                                        ("⌨ Put on a Regex key…", self.rx_fav_hotkey, self._rx_one_mine()),
                                        ("Rename…", self.rx_fav_rename, self._rx_one_mine()),
-                                       ("⚑ Report…", self.rx_fav_report, bool(self._rx_post()))]
+                                       ("⚑ Report…", self.rx_fav_report, bool(self._rx_post()))] + \
+            self.share_admin_actions("regex", self._rx_post(), self.rx_fill_favorites)
         self.rx_fav_empty = tk.Label(tf, text="No Favorites yet.\nBuild a search, then press ☆ Add to Favorites.",
                                      bg=P1, fg=C["muted"], font=("Segoe UI", 10), justify="center")
 

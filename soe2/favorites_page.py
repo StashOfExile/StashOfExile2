@@ -101,6 +101,9 @@ class FavoritesPage:
             b.pack(side="left", padx=(0, 8))
             Tooltip(b, tip)
             self.fav_share_btns[text] = b
+        # 3.3.0 owner: admins make a Community favorite Official here; nobody else sees the button
+        ab = self.fav_admin_btn = ttk.Button(self.fav_share_bar, text="Make Official", command=self.fav_admin_official)
+        Tooltip(ab, "Admin: moves this favorite to the Official list, or takes it back off.")
         tv = ttk.Treeview(lf, columns=("price", "when"), show="tree headings", selectmode="extended")
         tv.heading("#0", text="Name")
         tv.heading("price", text="Price")
@@ -232,7 +235,18 @@ class FavoritesPage:
         if st.items or st.groups:
             self.fav_empty.place_forget()
         else:
-            self.fav_empty.place(relx=0.5, rely=0.3, anchor="center")
+            self._fav_empty_place()
+
+    def _fav_empty_place(self):
+        """3.3.0 owner: the empty box sat over the item panel. It goes on the list it speaks for, and wraps to it."""
+        e, tv = self.fav_empty, self.fav_tv
+        try:
+            e.place(in_=tv, relx=0.5, rely=0.5, anchor="center", relwidth=0.94)
+            e.lift()
+            e._wrap = max(120, int(tv.winfo_width() * 0.94) - 60)
+            e._fit()
+        except tk.TclError:
+            e.place(relx=0.5, rely=0.4, anchor="center")
 
     def _fav_hint(self, ent):
         """P2: "Paste a trade-site search link here" in gray while the box is empty and not being typed in."""
@@ -317,7 +331,7 @@ class FavoritesPage:
         if rows:
             self.fav_empty.place_forget()
         else:
-            self.fav_empty.place(relx=0.5, rely=0.4, anchor="center")
+            self._fav_empty_place()
 
     def _fav_shared_one(self):
         sel = [i for i in self.fav_tv.selection() if str(i).startswith(SHARED_PRE)]
@@ -329,6 +343,23 @@ class FavoritesPage:
             b = getattr(self, "fav_share_btns", {}).get(text)
             if b is not None:
                 b.state(["!disabled"] if ok else ["disabled"])
+        ab = getattr(self, "fav_admin_btn", None)
+        if ab is not None:
+            post = (r or {}).get("_post")
+            if self.share_is_admin():
+                ab.config(text="Remove from Official" if (post or {}).get("promoted") else "Make Official")
+                ab.state(["!disabled"] if post else ["disabled"])
+                if not ab.winfo_manager():
+                    ab.pack(side="left", padx=(0, 8))
+            elif ab.winfo_manager():
+                ab.pack_forget()
+
+    def fav_admin_official(self):
+        post = (self._fav_shared_one() or {}).get("_post")
+        if not post:
+            return self.fav_say("Pick a Community or Official favorite.")
+        return self.share_admin("trade", post, "unpromote" if post.get("promoted") else "promote",
+                                self.fav_shared_fill)
 
     def _fav_shared_url(self, d):
         import json
@@ -411,7 +442,8 @@ class FavoritesPage:
             return [("☆ Add to Mine", self.fav_take, bool(r)), ("▲ Upvote", self.fav_vote, bool(r and r.get("_post"))),
                     ("Trade Site", self.fav_shared_open, bool(r)),
                     ("⚑ Report…", lambda: self.share_report("trade", (r or {}).get("_post"), self.fav_shared_fill),
-                     bool(r and r.get("_post")))]
+                     bool(r and r.get("_post")))] + self.share_admin_actions("trade", (r or {}).get("_post"),
+                                                                             self.fav_shared_fill)
         if one:
             acts += [("Search now", self.fav_search, True, "Enter"),
                      ("Trade Site", self.fav_open_trade, True),

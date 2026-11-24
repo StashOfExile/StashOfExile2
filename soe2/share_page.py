@@ -101,6 +101,32 @@ class SharePage:
         self.share_fetch(kind, done)
         return True
 
+    # 3.3.0 owner: an admin had no way to make a favorite Official
+    def share_is_admin(self):
+        return bool((B.signed_in() or {}).get("admin"))
+
+    def share_admin(self, kind, post, action, done=None):
+        """An admin's promote, unpromote or hide on a board post. The Official list is read again after."""
+        if not post or not self.share_is_admin():
+            return None
+        said = {"promote": "Now Official.", "unpromote": "No longer Official.", "hide": "Hidden from the board."}
+
+        def after(res):
+            if self._share_result(res, kind, said.get(action, "Done."), done) and action in ("promote", "unpromote"):
+                self.run_bg(B.official, lambda r: (self._mm_official_done(r) if hasattr(self, "_mm_official_done")
+                                                   else None, done and done()))
+        self.run_bg(lambda: B.admin(post["id"], action), after)
+        return True
+
+    def share_admin_actions(self, kind, post, done=None):
+        """The admin's lines for a list's right-click menu, or nothing for everyone else."""
+        if not post or not self.share_is_admin():
+            return []
+        up = "unpromote" if post.get("promoted") else "promote"
+        return [None, ("Admin: " + ("Remove from Official" if post.get("promoted") else "Make Official"),
+                       lambda: self.share_admin(kind, post, up, done), True),
+                ("Admin: Hide from the board", lambda: self.share_admin(kind, post, "hide", done), True)]
+
     def share_tags(self, title, tags, on_save):
         """A window of tag checkboxes (the strats' tag groups) -> on_save([tags])."""
         from . import moneymakers as MM

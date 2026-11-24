@@ -1949,6 +1949,10 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
             cls = ""
         if cls in ("TEntry", "Entry", "TSpinbox", "Spinbox", "TCombobox", "Text"):
             return None
+        # 3.3.0 owner: Del did nothing on Favorites. Keys went to the page in front, by name, and Favorites now
+        # lives inside Price Checks. They go to the list that has the keyboard first, whatever page it sits on.
+        if cls == "Treeview" and self.list_key_on(self.root.focus_get(), action):
+            return "break"
         if self._on_checks():
             {"all": self.hk_select_all, "undo": self.undo_mark, "delete": self.hk_clear}[action]()
             return "break"

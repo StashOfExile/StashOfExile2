@@ -13,7 +13,7 @@ from . import buglog
 from .config import save_json, SETTINGS
 from .gamelog import find_log, LogReader
 from .overlay import game_active, key_label, parse_key
-from .style import ScrollArea, C, SegBar
+from .style import ScrollArea, C, SegBar, Tooltip
 from .chrome import section as chrome_section
 from . import tracker as TR
 from .tracker import fmt_time, Session, Sessions
@@ -104,6 +104,46 @@ class TrackerPage:
     # what older code and old links ask for -> the tab it is on now
     OVH_OLD = {"Mechanic Helper": "Helpers", "Settings": "Helpers", "Overlay": "Helpers", "Notes": "On the Overlay",
                "Look": "Appearance", "Session timer": "Sessions"}       # 3.3.0 owner: Look is Appearance
+
+    def _helpers_howto(self, parent):
+        """3.3.0 owner: one plain place that says how to use the helpers, with the Read Key shown as a key and a
+        button to change it. It follows the key when it changes, and goes while no key is set: that state has
+        its own line and button."""
+        P2 = C["panel2"]
+        row = tk.Frame(parent, bg=P2)
+        box = tk.Frame(row, bg=C["odd"], highlightthickness=1, highlightbackground=C["line"], padx=12, pady=8)
+        tk.Label(box, text="How to use a helper", bg=C["odd"], fg=C["text"],
+                 font=("Segoe UI", 10, "bold")).pack(side="left")
+        tk.Label(box, text="In game, press", bg=C["odd"], fg=C["text"]).pack(side="left", padx=(16, 8))
+        cap = tk.Label(box, text="", bg=P2, fg=C["text"], font=("Segoe UI", 10, "bold"), padx=8, pady=2,
+                       highlightthickness=1, highlightbackground=C["accent"])
+        cap.pack(side="left")
+        tk.Label(box, text="where the helper works. Its green line says where.", bg=C["odd"],
+                 fg=C["text"]).pack(side="left", padx=(8, 0))
+        btn = ttk.Button(box, text="Change key", style="Quiet.TButton", command=self.look_key_open)
+        btn.pack(side="right")
+        Tooltip(btn, "Opens Settings, Keybinds, on the Read Key.")
+
+        def paint(_e=None):
+            k = self.look_key_label()
+            try:
+                if k:
+                    cap.config(text=k)
+                    if not box.winfo_manager():
+                        box.pack(fill="x")
+                elif box.winfo_manager():
+                    box.pack_forget()
+            except tk.TclError:
+                pass
+        row.bind("<Map>", paint, add="+")
+        self._helpers_howto_paint = paint
+        paint()
+        try:
+            from .style import flowify
+            flowify(box)                                   # a narrow Drawer wraps it instead of cutting it off
+        except Exception:
+            buglog.caught()
+        return row
 
     def build_overlays_hub(self, body):
         P1 = C["panel"]
@@ -469,6 +509,7 @@ class TrackerPage:
                                 "Set it in Settings › Keybinds. A helper marked BETA still has rough edges.")
         mo.pack(fill="x")
         self.look_needed(mb, C["panel2"]).pack(fill="x")      # (no Read Key yet: one line, Set the Read Key)
+        self._helpers_howto(mb).pack(fill="x", pady=(0, 8))
         self.build_alerts_panel(mb).pack(fill="x")
         self.build_overlay_look(self.ovh_areas["Appearance"].inner)
         self.tracker_campaign_card(self.ovh_areas["Options"].inner)        # 2.96.1: its own card, full width
