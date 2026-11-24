@@ -353,7 +353,7 @@ class DrawerHost:
             if free:
                 return free
         return D.drawer_rect(g, None if g else self.drawer_work_area(), side or st.side, c["share"],
-                             cap=not c.get("share_set"))
+                             cap=not c.get("share_set"), tall=c.get("tall"))
 
     def drawer_free_rect(self):
         """The place and size you gave the Drawer while the game was closed, if it is still on a monitor."""
@@ -712,6 +712,7 @@ class DrawerHost:
             return
         if not force:
             self._drawer_note_width()                     # Round 18: the width you set is the latest - kept
+            self._drawer_note_height()                    # 3.3.0: and the height
         rect = self.drawer_target(self._drawer_side_now or st.side)
         if not rect:
             return
@@ -766,6 +767,7 @@ class DrawerHost:
         # you let go (_drawer_resized). Nothing re-docks meanwhile: the watcher waits for the release and this job.
         if not self._drawer_mouse_down():
             self._drawer_note_width()
+            self._drawer_note_height()
         elif (e.width, e.height) != getattr(self, "_drawer_last_wh", (e.width, e.height)):
             self._drawer_drag_profile(True)               # (a resize, not a move: Debug mode measures it)
         self._drawer_last_wh = (e.width, e.height)
@@ -877,6 +879,22 @@ class DrawerHost:
         self._drawer_compact()
         self.drawer_strip_paint()
 
+    def _drawer_note_height(self):
+        """3.3.0 owner: it would not let the Drawer be made taller over the game. A height you drag, 8 px or more
+        from the docked one, is kept as a share of the game's height. The top stays on the game's top."""
+        try:
+            cur, exp = self.drawer_ad.outer_rect(), self._drawer_rect_now
+            g = self.drawer_game_rect()
+            if not (cur and exp and g) or abs(cur[3] - exp[3]) < 8 or g[3] <= 0:
+                return
+            tall = D.tall_from_drag(cur[3], g[3])
+            if tall:
+                self.drawer_cfg()["tall"] = tall
+                self._drawer_share_dirty = True
+                self._drawer_rect_now = (exp[0], exp[1], exp[2], int(round(g[3] * tall)))
+        except Exception:
+            buglog.caught()
+
     def _drawer_note_width(self):
         """The user's drag wins: a width that is 8 px or more away from the docked one becomes the share AT ONCE (in
         memory), so no re-dock - the 2 s timer or the debounce - can put the old width back. It's saved when the
@@ -918,6 +936,7 @@ class DrawerHost:
             self.drawer_free_keep()
             return
         self._drawer_note_width()
+        self._drawer_note_height()
         if getattr(self, "_drawer_share_dirty", False):
             self._drawer_share_dirty = False
             save_json("settings.json", SETTINGS)

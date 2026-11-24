@@ -556,8 +556,9 @@ def _seeded(t, salt):
     return random.Random("%s-%s" % (t.id, salt))
 
 
-def texture(cv, t, kind, x0, y0, x1, y1, base, glow=None, tag="tex"):
-    """Procedural textures as canvas items - no image files."""
+def texture(cv, t, kind, x0, y0, x1, y1, base, glow=None, tag="tex", salt=""):
+    """Procedural textures as canvas items - no image files. salt: a word for this one place, so two bars of the
+    same size don't get the same marks; the same place always draws the same."""
     w, h = x1 - x0, y1 - y0
     glow = glow or mix(base, "#ffffff", 0.3)
     if kind == "brushed":
@@ -585,12 +586,16 @@ def texture(cv, t, kind, x0, y0, x1, y1, base, glow=None, tag="tex"):
             cv.create_line(x, y, x + rnd.uniform(-5, 5), y - rnd.uniform(4, 11), tags=tag,
                            fill=mix(base, glow if rnd.random() < .35 else "#000000", rnd.uniform(.08, .2)))
     elif kind == "veins":
-        rnd = _seeded(t, "v%dx%d" % (w, h))
-        for _ in range(max(1, w * h // 14000)):
+        # 3.3.0 owner: a vein ran out of a thin header strip, and sat at the same spot on every header. It now
+        # stays inside its box, wanders less in a thin one, and each place has its own.
+        rnd = _seeded(t, "v%dx%d%s" % (w, h, salt))
+        dy = max(2.0, min(9.0, h / 2.5))
+        for _ in range(max(1, w * h // 14000) + (rnd.randrange(2) if salt else 0)):
             x, y = x0 + rnd.randrange(max(1, w)), y0 + rnd.randrange(max(1, h))
             pts = [x, y]
             for _ in range(rnd.randrange(5, 12)):
-                x, y = x + rnd.uniform(-14, 22), y + rnd.uniform(-9, 9)
+                x = min(x1, max(x0, x + rnd.uniform(-14, 22)))
+                y = min(y1, max(y0, y + rnd.uniform(-dy, dy)))
                 pts += [x, y]
             cv.create_line(*pts, fill=mix(base, glow, .10), width=3, tags=tag)
             cv.create_line(*pts, fill=mix(base, glow, .38), width=1, tags=tag)
@@ -637,7 +642,7 @@ def _paint_bar(cv, kind="title", tag="grad"):
     return col
 
 
-def bar_into(cv, t, kind, x0, y0, x1, y1, tag="grad"):
+def bar_into(cv, t, kind, x0, y0, x1, y1, tag="grad", salt=None):
     """A pack's bar (title / title_off / section) drawn into a part of a canvas -> its text color. 2.118.0: shared
     by the title bars and the theme picker's preview (any pack, not only the running one)."""
     w, h = max(x1 - x0, 2), max(y1 - y0, 2)
@@ -648,7 +653,8 @@ def bar_into(cv, t, kind, x0, y0, x1, y1, tag="grad"):
     tex = spec.get("texture", "none")
     if tex and tex != "none":
         texture(cv, t, tex, x0, y0, x0 + w, y0 + h, grad_at(stops, .5),
-                glow=t.c(spec["texture_color"]) if spec.get("texture_color") else None, tag=tag)
+                glow=t.c(spec["texture_color"]) if spec.get("texture_color") else None, tag=tag,
+                salt=salt if salt is not None else ("" if kind != "section" else "@%s" % cv))
     for key, y in (("top", 0), ("top2", 2), ("bottom", h - 1), ("bottom2", h - 3)):
         if spec.get(key):
             cv.create_line(x0, y0 + y, x0 + w, y0 + y, fill=t.c(spec[key]), tags=tag)
@@ -785,7 +791,7 @@ def box_strip(cv, t, x0, y0, x1, r, tags=()):
         # (a texture's marks reach up to 8 px past the spot they are placed on: kept inside the strip)
         texture(cv, t, tex, int(x0 + edge + rr + 8), int(y0 + edge + 8), int(x1 - edge - rr - 8), int(y0 + h - 8),
                 grad_at(stops, .5), glow=t.c(spec["texture_color"]) if spec.get("texture_color") else None,
-                tag=tags or "tex")
+                tag=tags or "tex", salt="@%d,%d" % (int(x0), int(y0)))
     if spec.get("top"):
         cv.create_line(x0 + max(edge, rr), y0 + edge, x1 - max(edge, rr), y0 + edge, fill=t.c(spec["top"]), tags=tags)
     cv.create_line(x0 + edge, y0 + h, x1 - edge + (0 if edge else 1), y0 + h, fill=t.c("border"), tags=tags)

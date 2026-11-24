@@ -69,7 +69,18 @@ def clamp_share(share, area=None):
     return max(lo, min(hi, s))                                       # width you drag wider stays - up to SIDE_ROOM)
 
 
-def drawer_rect(game=None, work=None, side="right", share=SHARE, cap=True):
+TALL_LO = 0.3               # a height you drag is kept between this share of the game's height and all of it
+
+
+def tall_from_drag(h, area_h):
+    """The height you dragged, as a share of the game's height."""
+    try:
+        return max(TALL_LO, min(1.0, float(h) / float(area_h)))
+    except (TypeError, ValueError, ZeroDivisionError):
+        return None
+
+
+def drawer_rect(game=None, work=None, side="right", share=SHARE, cap=True, tall=None):
     """The Drawer's outer window rect (x, y, w, h), title bar included.
     game: (x, y, w, h) of the game window - top = the game's top, height = its height x (1 - BOTTOM);
     else work: (left, top, right, bottom) of the monitor's work area - its whole height.
@@ -78,6 +89,8 @@ def drawer_rect(game=None, work=None, side="right", share=SHARE, cap=True):
     if game:
         ax, ay, aw, ah = (int(v) for v in game)
         h = int(round(ah * (1 - BOTTOM)))
+        if tall:                                          # 3.3.0 owner: a height you dragged stays
+            h = int(round(ah * max(TALL_LO, min(1.0, float(tall)))))
     elif work:
         left, top, right, bottom = (int(v) for v in work)
         ax, ay, aw, ah = left, top, right - left, bottom - top
