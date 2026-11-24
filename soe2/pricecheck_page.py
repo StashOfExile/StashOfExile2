@@ -25,6 +25,7 @@ from .config import APP_UA, P, SETTINGS
 from .inplace import set_cfg, tv_sync
 from .style import C, Splitter, Tooltip, flowify, trade_icon
 from .trade import ago, RAW_LISTINGS, strip_markup
+from . import cleanguard as _cleanguard
 
 PC_MAX = 20                  # items kept in Recent
 ART_PX = 78
@@ -727,6 +728,7 @@ class PriceCheckPage:
         ent = self.pc_recent_entry = tk.Entry(box, textvariable=self.pc_recent_q, width=22, bg=C["odd"], fg=C["text"],
                                               insertbackground=C["text"], relief="flat", font=("Segoe UI", 9),
                                               highlightthickness=0, bd=0)
+        _cleanguard.free(ent)        # 3.3.0: a search
         ent.pack(side="left", padx=(4, 8), ipady=4)
         ph = tk.Label(box, text="Search recent checks", bg=C["odd"], fg=C["muted"], font=("Segoe UI", 9))
         ph.bind("<Button-1>", lambda e: ent.focus_set())

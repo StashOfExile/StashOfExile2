@@ -8,6 +8,7 @@ import tkinter as tk
 from . import buglog
 from . import temple as TM
 from .config import SETTINGS, save_json
+from . import cleanguard as _cleanguard
 
 
 class TemplePage:
@@ -787,6 +788,7 @@ class TemplePage:
         t = tk.Text(body, bg=P.get("field") or P["cell_bg"], fg=P["text"], insertbackground=P["text"], relief="flat",
                     highlightthickness=1, highlightbackground=P["line"], wrap="word", height=4, width=1, font=f10, padx=8,
                     pady=4)                         # (width=1: it fills the card - 80 characters stretched it off screen)
+        _cleanguard.free(t)        # 3.3.0: a notepad: notes take any words
         t.insert("1.0", c.get("notes") or "")
         t.bind("<FocusOut>", lambda _e: self._temple_pad_keep(), add="+")
         t.bind("<KeyRelease>", lambda _e: self._temple_pad_soon(), add="+")

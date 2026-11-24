@@ -1260,7 +1260,9 @@ class TrackerPage:
             return
         from tkinter import simpledialog
         s = self.tk_sessions.items[int(iid)]
-        txt = simpledialog.askstring("Note", "A note for this session:", initialvalue=s.note, parent=self.root)
+        from . import cleanguard                               # 3.3.0 owner: a note takes any words
+        with cleanguard.paused():
+            txt = simpledialog.askstring("Note", "A note for this session:", initialvalue=s.note, parent=self.root)
         if txt is not None:
             s.note = txt.strip()
             self.tk_sessions.save()

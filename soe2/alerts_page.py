@@ -23,6 +23,7 @@ from . import buglog
 from .config import P, save_json, SETTINGS
 from .gamelog import area_kind as gl_area_kind, find_log, LogReader
 from .style import C, Tooltip
+from . import cleanguard as _cleanguard
 
 REPEAT_SECS = 45          # the game repeats a warning (twice in 2 s, then every ~15 s when full): one banner per level
 RETRY_TICKS = 15          # Client.txt not found: look again every this many seconds
@@ -244,6 +245,7 @@ class AlertsPage:
         tk.Label(sbox, text="⌕", bg=C["odd"], fg=C["muted"], font=("Segoe UI Symbol", 10)).pack(side="left", padx=(8, 0))
         ent = tk.Entry(sbox, textvariable=self.al_q, bg=C["odd"], fg=C["text"], insertbackground=C["text"],
                        relief="flat", font=("Segoe UI", 10), highlightthickness=0, bd=0, width=28)
+        _cleanguard.free(ent)        # 3.3.0: a search
         ent.pack(side="left", padx=8, ipady=4)
         ph = tk.Label(sbox, text="Search helpers", bg=C["odd"], fg=C["muted"], font=("Segoe UI", 10))
         ph.bind("<Button-1>", lambda e: ent.focus_set())

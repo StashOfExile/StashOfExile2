@@ -10,7 +10,8 @@ import { dirname, join } from "node:path";
 const here = dirname(fileURLToPath(import.meta.url));
 const src = readFileSync(join(here, "../src/index.js"), "utf8");
 const cut = (from, to) => src.slice(src.indexOf(from), src.indexOf(to));
-const code = cut("const MATCHER", "const APPROVALS").replace(/export /g, "") +
+const GAMEWORDS_SRC = "const GAMEWORDS = " + readFileSync(join(here, "../src/gamewords.json"), "utf8") + ";";
+const code = GAMEWORDS_SRC + cut("const MATCHER", "const APPROVALS").replace(/export /g, "") +
   cut("const scrubText", "// ------------------------------------------------------------------ 2.137.0") +
   cut("async function bugReport", "// ------------------------------------------------------------------ 2.78.0");
 const { RegExpMatcher, englishDataset, englishRecommendedTransformers } = await import("obscenity");
@@ -86,6 +87,9 @@ console.log("bugs.test.mjs: ok");
   assert.equal(lib.textProblem("my tranny build"), 'Please keep it clean: reword "tranny" and send again.');
   assert.equal(lib.textProblem("Hitler's map"), 'Please keep it clean: reword "hitler" and send again.');
   assert.equal(lib.textProblem("Therapist, Raccoon, Spice and a Torpedo"), null);
+  // 3.3.0: the game's own words pass, and so does a version number
+  for (const ok of ["Strongbox farming", "Area contains an additional Strongbox", "Bestial Rage", "the strongest build",
+    "Game version 4.5.5.2"]) assert.equal(lib.textProblem(ok), null, ok);
   for (const bad of ["pen1s", "P3nis", "p3n1s", "p e n i s", "p.e.n.i.s", "p-e-n-i-s", "P 3 N 1 S", "peeeenis", "pénis",
     "f*ck", "phuck", "c u n t", "cvnt", "kunt", "n1gg3r", "fa66ot", "sp1c", "n4zi", "kys", "kill urself", "Hang your self"])
     assert.ok(lib.textProblem(`my ${bad} here`), bad);

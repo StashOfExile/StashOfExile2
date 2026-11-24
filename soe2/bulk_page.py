@@ -16,6 +16,7 @@ from .config import save_json, SETTINGS
 from .cardscale import BULK
 from .pricecheck_page import CONF_CHIP, WIDE_PX, search_tip
 from .style import C, Splitter, Tooltip, flowify, flow_show, trade_icon
+from . import cleanguard as _cleanguard
 
 ITEM_W = 480            # the picked item's side in a wide window, at first (drag the grip; remembered: panel_w) -
                         # owner: about 10% narrower than Price Checks' card side
@@ -162,6 +163,7 @@ class BulkPage:
         ent = self.search_box = tk.Entry(box, textvariable=self.search_var, width=26, bg=C["odd"], fg=C["text"],
                                          insertbackground=C["text"], relief="flat", font=("Segoe UI", 9),
                                          highlightthickness=0, bd=0)
+        _cleanguard.free(ent)        # 3.3.0: a search
         ent.pack(side="left", padx=(4, 8), ipady=4)
         ph = tk.Label(box, text="Search items", bg=C["odd"], fg=C["muted"], font=("Segoe UI", 9))
         ph.bind("<Button-1>", lambda e: ent.focus_set())

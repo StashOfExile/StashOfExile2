@@ -342,6 +342,8 @@ def install(app):
         root.option_add("*Text.autoSeparators", True)
     except tk.TclError:
         pass
+    from . import cleanguard                           # 3.3.0 owner: every typing box refuses the filtered words
+    cleanguard.install(root)
     for cls in TYPING + ("Text",):
         root.bind_class(cls, "<Button-3>", edit_menu, add="+")
         root.bind_class(cls, "<Control-a>", lambda e: select_all(e.widget))

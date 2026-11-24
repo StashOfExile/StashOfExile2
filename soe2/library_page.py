@@ -7,6 +7,7 @@ from . import gamedata
 from .style import C, MONO
 from .chrome import section as chrome_section
 from .pricefmt import fmt_div
+from . import cleanguard as _cleanguard
 
 DEF_SHORT = {"ar": "AR", "ev": "EV", "es": "ES"}
 
@@ -88,6 +89,7 @@ class LibraryPage:
                    command=lambda: (self.lib_in.delete("1.0", "end"), self.lib_check())).pack(side="left")
         self.lib_in = tk.Text(right, height=9, bg=C["odd"], fg=C["text"], insertbackground=C["text"], relief="flat",
                               highlightthickness=1, highlightbackground=C["line"], font=(MONO, 9), wrap="none")
+        _cleanguard.free(self.lib_in)        # 3.3.0: the game's own text, pasted
         self.lib_in.pack(fill="x")
         self._lib_typed = None
 

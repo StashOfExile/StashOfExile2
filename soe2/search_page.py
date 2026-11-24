@@ -9,6 +9,7 @@ from .config import SETTINGS, save_json
 from .style import C, FONT_TITLE, ScrollArea, SegBar
 from .chrome import SectionBar, Viewport
 from .cardlist import CardList, ICON
+from . import cleanguard as _cleanguard
 
 PAGE = 60
 
@@ -31,6 +32,7 @@ class SearchPage:
         self.gs_q = tk.StringVar()
         self.gs_entry = tk.Entry(box, textvariable=self.gs_q, bg=C["odd"], fg=C["text"], insertbackground=C["text"],
                                  relief="flat", highlightthickness=0, bd=0, font=("Segoe UI", 12))
+        _cleanguard.free(self.gs_entry)        # 3.3.0: a search of the game's own text
         self.gs_entry.pack(side="left", fill="x", expand=True, ipady=8, padx=(8, 8))
         ph = tk.Label(box, text="Search skills, supports, uniques, bases, currency, runes, mods and keywords",
                       bg=C["odd"], fg=C["muted"], font=("Segoe UI", 12))

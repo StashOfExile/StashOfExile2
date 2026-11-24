@@ -22,6 +22,7 @@ from . import themes as TH
 from .inplace import set_cfg
 from .mods import F_TIP
 from .style import C, SegBar, Tooltip, letter_color, text_on
+from . import cleanguard as _cleanguard
 
 SETS = RM.MAP_SETS + (RM.JEWEL_SET,)
 # Owner, after 3.1.0: Mod Lab's intro stands out - bigger, in the heading font, key words bold in the accent color
@@ -268,6 +269,7 @@ class RateModsPage:
         tk.Label(box, text="⌕", bg=bg, fg=C["muted"], font=("Segoe UI Symbol", 10)).pack(side="left", padx=(8, 0))
         ent = tk.Entry(box, textvariable=self.rm_qv, bg=bg, fg=C["text"], insertbackground=C["text"], relief="flat",
                        font=("Segoe UI", 9), highlightthickness=0, bd=0, width=26)
+        _cleanguard.free(ent)        # 3.3.0: a search
         ent.pack(side="left", fill="x", expand=True, padx=(4, 8), ipady=4)
         ph = tk.Label(box, text=SEARCH_HINT, bg=bg, fg=C["muted"], font=("Segoe UI", 9))
         ph.bind("<Button-1>", lambda e: ent.focus_set())

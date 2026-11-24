@@ -16,6 +16,7 @@ import tkinter as tk
 
 from . import buglog
 from .style import C, bind_own_configure
+from . import cleanguard as _cleanguard
 
 TITLE_ON = ("#34508a", "#1a2a4c")
 UTIL_TITLE = ("#3a3020", "#1e1810")
@@ -2204,6 +2205,7 @@ class Shell:
         q = tk.StringVar()
         e = tk.Entry(m, textvariable=q, bg="#0b1222", fg=C["text"], insertbackground=C["text"], relief="flat",
                      highlightthickness=1, highlightbackground=C["line"], font=("Segoe UI", 10))
+        _cleanguard.free(e)        # 3.3.0: a search
         e.pack(fill="x", padx=8, pady=8, ipady=4)
         e.insert(0, "")
         cols = tk.Frame(m, bg=P1)

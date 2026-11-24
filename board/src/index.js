@@ -21,6 +21,7 @@
 // Secrets / vars: ADMIN_KEY, ERRORS_PER_DAY (2.137.0), REPORT_HIDE, POSTS_PER_DAY, JOINS_PER_DAY. Stored per player: a made-up id and the
 // display name. Internet addresses are only kept as a hash with the day, to count new accounts.
 import RULES from "./schema.json";
+import GAMEWORDS from "./gamewords.json";           // 3.3.0: the game's own words the filter lets through
 import { RegExpMatcher, englishDataset, englishRecommendedTransformers } from "obscenity";
 
 const DAY = 86400;
@@ -69,9 +70,15 @@ const HATE_PHRASES = ["heilhit", "siegheil", "whitepower", "whitepride", "gascha
   "towelhead", "killalljews", "killallblacks", "gasthejews"];
 // letters spaced out with spaces, dots or dashes: three or more single letters in a row are read as one word as well
 const SPACED = /(?<![\p{L}\p{N}])(?:[\p{L}\p{N}@$!|€*][\s._\-*+~]+){2,}[\p{L}\p{N}@$!|€*](?![\p{L}\p{N}])/gu;
+// 3.3.0 owner: the filter refused the game's own words - "Strongbox", "Bestial" - so a strat about them could not be
+// posted. Those words, made by tools/build_cleanwords.py from the game data, are taken out before the check.
+// A spaced run of digits is a number or a version, like 4.5.5.2, never a word.
+const ALLOW = GAMEWORDS.allow?.length ? new RegExp("(?<![\\p{L}])(?:" + [...GAMEWORDS.allow].sort((a, b) => b.length - a.length)
+  .map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|") + ")(?![\\p{L}])", "giu") : null;
 export function textProblem(text) {
-  const raw = String(text || "").normalize("NFKC");
-  const joined = raw.replace(SPACED, (m) => m.replace(/[\s._\-*+~]+/g, ""));
+  let raw = String(text || "").normalize("NFKC");
+  if (ALLOW) raw = raw.replace(ALLOW, "\n");
+  const joined = raw.replace(SPACED, (m) => { const j = m.replace(/[\s._\-*+~]+/g, ""); return /^\d+$/.test(j) ? m : j; });
   const say = (w) => `${CLEAN_MSG}: reword "${w}" and send again.`;
   if (HARM.test(raw) || HARM.test(joined)) return say(raw.match(HARM)?.[0] || joined.match(HARM)[0]);
   for (const t of joined === raw ? [raw] : [raw, joined]) {

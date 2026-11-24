@@ -57,6 +57,7 @@ NOTES = {
                 ("•", "Added data sharing prompt to the Dashboard"),
                 ("•", "Added Ranked and Personal marks to campaign act times"),
                 ("•", "Added character list to the overlay's level"),
+                ("•", "Added word filter to every text box except Notes"),
             ]),
             ("▲", "Improved", [
                 ("•", "Reworked League Plan page to be a more streamlined user experience"),

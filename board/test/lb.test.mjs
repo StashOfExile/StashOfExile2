@@ -27,7 +27,8 @@ function makeDb() {
     batch: async (stmts) => { raw.exec("BEGIN"); try { stmts.forEach((s) => s._run()); raw.exec("COMMIT"); } catch (e) { raw.exec("ROLLBACK"); throw e; } } };
 }
 const o = await import("obscenity");
-const clean = src.slice(src.indexOf("const MATCHER"), src.indexOf("const APPROVALS")).replace(/export /g, "");
+const GAMEWORDS_SRC = "const GAMEWORDS = " + readFileSync(join(here, "../src/gamewords.json"), "utf8") + ";";
+const clean = GAMEWORDS_SRC + src.slice(src.indexOf("const MATCHER"), src.indexOf("const APPROVALS")).replace(/export /g, "");
 const lib = new Function("RegExpMatcher", "englishDataset", "englishRecommendedTransformers", "DAY", "now", "json", "fail",
   "readBody", "canReview", `${clean}; ${code}; return { lbMulti, lbSend, lbList };`)(o.RegExpMatcher, o.englishDataset,
   o.englishRecommendedTransformers,

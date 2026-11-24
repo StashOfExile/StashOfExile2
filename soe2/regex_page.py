@@ -12,6 +12,7 @@ from .config import load_json, save_json, SETTINGS
 from .style import C, MONO, SegBar, Tooltip, flowify
 from .chrome import section as chrome_section
 from .share_page import VIEWS as SHARE_VIEWS
+from . import cleanguard as _cleanguard
 
 MAX_KEYS = 4                             # 2.132.7 Regex keys: one favorite each, pressed = copied
 KIND_NAMES = {"tablet": "Tablets", "waystone": "Waystones", "relic": "Relics", "jewel": "Jewels",
@@ -83,6 +84,7 @@ class RegexPage:
         ttk.Button(btns, text="Reset", command=self.rx_reset, width=8).pack(side="left", padx=8)
         self.rx_out = tk.Text(res, height=2, bg=C["odd"], fg=C["good"], relief="flat", highlightthickness=1,
                               highlightbackground=C["line"], font=(MONO, 10), wrap="char")
+        _cleanguard.free(self.rx_out)        # 3.3.0: a search the app wrote
         self.rx_out.pack(fill="x")
         info = tk.Frame(res, bg=P2)
         info.pack(fill="x", pady=(4, 0))

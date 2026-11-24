@@ -19,6 +19,7 @@ from .pricefmt import fmt_div
 from .inplace import set_cfg, tv_sync
 from .wealth import WEALTH, wealth_display_name, wealth_rows, WPRICES, parse_stack
 from .style import C, SegBar, Tooltip, autowrap
+from . import cleanguard as _cleanguard
 
 
 class _MenuItem:
@@ -169,6 +170,7 @@ class WealthPage:
         self.w_filter.trace_add("write", lambda *a: self.wealth_fill_items())
         se = tk.Entry(ibar, textvariable=self.w_filter, width=24, bg=C["odd"], fg=C["text"], insertbackground=C["text"],
                       relief="flat", highlightthickness=1, highlightbackground=C["line"], font=("Segoe UI", 10))
+        _cleanguard.free(se)        # 3.3.0: a search
         se.pack(side="left", ipady=4, before=self.w_from)        # UI overhaul: the search box first
         self.w_from.pack_configure(padx=(12, 12))
         ph = tk.Label(se, text="🔍  Search items", bg=C["odd"], fg=C["muted"], font=("Segoe UI", 10))

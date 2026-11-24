@@ -17,6 +17,7 @@ from .style import C, SegBar, Tooltip, menu_popup
 from .chrome import section as chrome_section
 from .stratview import StratViews, scroller
 from .stratnew import StratNewPage
+from . import cleanguard as _cleanguard
 
 ORIGIN = {"community": "Official", "mine": "Mine", "example": "Example", "board": "Community"}
 VIEWS = ("All", "Official", "Community", "Mine")             # 3.0.6: All by default (yours show with the rest)
@@ -93,6 +94,7 @@ class MoneyMakersPage(StratViews, StratNewPage):
         tk.Label(sbox, text="⌕", bg=C["odd"], fg=C["muted"], font=("Segoe UI Symbol", 10)).pack(side="left", padx=(8, 0))
         se = tk.Entry(sbox, textvariable=self.mm_q, width=38, bg=C["odd"], fg=C["text"], insertbackground=C["text"],
                       relief="flat", highlightthickness=0, bd=0, font=("Segoe UI", 10))
+        _cleanguard.free(se)        # 3.3.0: a search
         se.pack(side="left", padx=8, ipady=8, fill="x", expand=True)
         self.mm_search = se
         ph = tk.Label(sbox, text="Search strats, for example breach", bg=C["odd"], fg=C["muted"], font=("Segoe UI", 10))
@@ -956,8 +958,9 @@ class MoneyMakersPage(StratViews, StratNewPage):
 
     def mm_admin_key(self, key=None):
         from tkinter import simpledialog
-        key = key or simpledialog.askstring("Community board", "Admin key:",
-                                            parent=self.root, show="•")
+        with _cleanguard.paused():                         # (a key is not words)
+            key = key or simpledialog.askstring("Community board", "Admin key:",
+                                                parent=self.root, show="•")
         if key:
             ok, d = B.become_admin(key)
             self.mm_account_paint()
