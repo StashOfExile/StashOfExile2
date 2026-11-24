@@ -12,7 +12,8 @@ from .config import SETTINGS
 
 PAD, GAP, R = 32, 16, 8           # page margin, gap between cards, card corner (rule 24: soft, smooth)
 TILE_H, START_H, LIST_H = 100, 150, 252
-MOVERS_H, WORTH_H, WORTH_H_NARROW = 252, 196, 260
+MOVERS_H, WORTH_H, WORTH_H_NARROW = 252, 196, 236
+UPNEXT_H = 48                     # Up next as a row along the bottom of Feature Spotlight on a narrow page
 
 
 def day_start(now=None):
@@ -142,7 +143,7 @@ WORTH = (
      "A starred item keeps its whole trade search, filters and all. *One click* runs it again at today's prices.",
      "No retyping anything."),
     ("maps", None, "map", "Map Library", "Not every map is *worth your waystone*.",
-     "Map Library *ranks maps* by layout and boss. Add your own ranks, and see how everyone else ranked them.",
+     "Map Library *ranks every map* from S to Avoid. Add your own ranks, and see how everyone else ranked them.",
      "Know before you slot it."),
     ("ratemods", None, "rate", "Mod Lab", "You know which mods are good. *Tell the price checker*.",
      "Rate mods from *S to F*. Your ratings join everyone else's, and price checks learn which mods buyers pay for.",
@@ -390,7 +391,7 @@ class Dashboard(tk.Canvas):
     def _extras(self, x0, y, x1, stack):
         from . import features as FEAT
         if not SETTINGS.get("dash_worth_off"):
-            h = (WORTH_H_NARROW if stack else WORTH_H) + (TH.BOX_HEAD - 12 if TH.headed(TH.ST.theme) else 0)
+            h = (WORTH_H_NARROW + UPNEXT_H if stack else WORTH_H) + (TH.BOX_HEAD - 12 if TH.headed(TH.ST.theme) else 0)
             self._worth(x0, y, x1, h, stack)
             y += h + GAP
         else:
@@ -496,13 +497,22 @@ class Dashboard(tk.Canvas):
         xy = y + (TH.BOX_HEAD // 2 if hd_on else 24)
         hid = self.create_text((x1 if hd_on else fx1) - 20, xy, text="✕", anchor="e", font=("Segoe UI", 10),
                                fill=txt if self.hover == "wl_hide" else mut, tags=("wl_hide",))
-        self.create_text(self.bbox(hid)[0] - 16, xy, text=f"{i + 1} of {n}", anchor="e", font=("Segoe UI", 9), fill=mut)
+        # 3.3.0 owner: a way through the cards at every width - an arrow each side of the count
+        nid = self.create_text(self.bbox(hid)[0] - 16, xy, text="›", anchor="e", font=("Segoe UI", 14, "bold"),
+                               fill=acc if self.hover == "wl_fwd" else txt, tags=("wl_fwd",))
+        cid = self.create_text(self.bbox(nid)[0] - 10, xy, text=f"{i + 1} of {n}", anchor="e", font=("Segoe UI", 9),
+                               fill=mut)
+        self.create_text(self.bbox(cid)[0] - 10, xy, text="‹", anchor="e", font=("Segoe UI", 14, "bold"),
+                         fill=acc if self.hover == "wl_back" else txt, tags=("wl_back",))
+        self.acts["wl_fwd"], self.tips["wl_fwd"] = (lambda: self._worth_step(1)), "The next feature"
+        self.acts["wl_back"], self.tips["wl_back"] = (lambda: self._worth_step(-1)), "The feature before"
         self.acts["wl_hide"] = self._worth_hide
         self.tips["wl_hide"] = "Hide Feature Spotlight. Its switch is in Settings › General › Window"
         cy = y + top
         img = lineicons.icon(self, it["icon"], 28, acc)
+        self._wl_imgs = []
         if img:
-            self._wl_imgs = [img]
+            self._wl_imgs.append(img)
             self.create_image(x0 + 40, cy + 40, image=img)
         tw = fx1 - x0 - 76 - 24
         kick = it["name"].upper() if hd_on else f"FEATURE SPOTLIGHT  ·  {it['name'].upper()}"
@@ -513,12 +523,39 @@ class Dashboard(tk.Canvas):
             self.create_text(x0 + 76, by, text=it["punch"], anchor="nw", font=("Segoe UI", 10, "bold"), fill=strong,
                              width=tw)
         sh = getattr(self.app, "shell", None)
-        self._button(fx1 - 20, y + h - 44 - 16, it["button"], "wl_go", strong=True, fn=
+        foot = UPNEXT_H if stack else 0                       # (a narrow page: Up next is a row along the bottom)
+        self._button(fx1 - 20, y + h - foot - 44 - 16, it["button"], "wl_go", strong=True, fn=
                      (lambda p=it["page"], tab=it["tab"]: (sh.open_tab(p, tab) if tab else sh.open(p)) if sh else None))
         # the time left: a thin line along the bottom, moved by _worth_tick - nothing else is redrawn for it
         self._wl_bar = self.create_line(x0 + 12, y + h - 2, x0 + 12, y + h - 2, fill=acc, width=2)
         self._wl_span = (x0 + 12, fx1 - 12, y + h - 2)
         self._worth_bar()
+        if stack:
+            uy = y + h - foot
+            self.create_line(x0 + 1, uy, x1 - 1, uy, fill=t.c("border"))
+            lid = self.create_text(x0 + 20, uy + foot / 2, text="UP NEXT", anchor="w", font=("Segoe UI", 9, "bold"),
+                                   fill=mut)
+            ux = self.bbox(lid)[2] + 12
+            cwid = (x1 - 1 - ux) / 2
+            for k in (1, 2):
+                nx = items[(i + k) % n]
+                tag = f"wl_n{k}"
+                cx0 = ux + (k - 1) * cwid
+                lit = self.hover == tag
+                self.create_rectangle(cx0, uy + 1, cx0 + cwid, y + h - 3, outline="", tags=(tag,),
+                                      fill=t.c("hover", t.c("surface_high")) if lit else
+                                      t.c("surface" if TH.box_look(t)["shape"] == "flat" else "surface_raised"))
+                self.create_line(cx0, uy + 10, cx0, y + h - 12, fill=t.c("border"))
+                im = lineicons.icon(self, nx["icon"], 18, acc)
+                if im:
+                    self._wl_imgs.append(im)
+                    self.create_image(cx0 + 24, uy + foot / 2, image=im, tags=(tag,))
+                self.create_text(cx0 + 44, uy + foot / 2, text=nx["name"], anchor="w", font=("Segoe UI", 10, "bold"),
+                                 fill=txt, width=max(40, cwid - 70), tags=(tag,))
+                self.create_text(cx0 + cwid - 14, uy + foot / 2, text="›", anchor="e", font=("Segoe UI", 12), fill=mut,
+                                 tags=(tag,))
+                self.acts[tag] = lambda s=k: self._worth_step(s)
+                self.tips[tag] = "Show this one now"
         if side:                                             # up next: the two after it; a click jumps there
             self.create_line(fx1, cy + (1 if hd_on else 16), fx1, y + h - (1 if hd_on else 16), fill=t.c("border"))
             self.create_text(fx1 + 20, cy + 18, text="UP NEXT", anchor="nw", font=("Segoe UI", 9, "bold"), fill=mut)
