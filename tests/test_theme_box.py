@@ -13,12 +13,12 @@ def theme(**box):
 
 
 class BoxLook(unittest.TestCase):
-    def test_defaults_are_todays_look(self):
-        self.assertEqual(TH.box_look(theme()), {"shape": "round", "head": "plain", "caps": False})
+    def test_defaults_are_square_titled_boxes(self):
+        self.assertEqual(TH.box_look(theme()), {"shape": "square", "head": "strip", "caps": False})
 
     def test_unknown_values_fall_back(self):
         k = TH.box_look(theme(shape="blob", head="tint", caps=1))
-        self.assertEqual((k["shape"], k["head"], k["caps"]), ("round", "plain", True))
+        self.assertEqual((k["shape"], k["head"], k["caps"]), ("square", "strip", True))
 
     def test_inset_follows_the_corner(self):
         self.assertEqual(TH._inset(0, 0), 0)

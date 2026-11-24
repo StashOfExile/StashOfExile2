@@ -71,7 +71,7 @@ DEFAULTS = {
     "card": {"header": "plate", "border": "border_light", "sep": "border"},
     "meter": {"style": "bar", "on": "good", "off": "surface_high"},
     # 3.3.0 look pass: how a page draws its boxes
-    "box": {"shape": "round", "head": "plain", "caps": False},
+    "box": {"shape": "square", "head": "strip", "caps": False},
 }
 
 
@@ -716,7 +716,7 @@ def round_rect(cv, x0, y0, x1, y1, r, **kw):
 
 
 # ------------------------------------------------------------------ boxes on a page (3.3.0 look pass)
-BOX = {"shape": ("round", "square", "flat"), "head": ("plain", "strip", "rule")}
+BOX = {"shape": ("square", "round", "flat"), "head": ("strip", "plain", "rule")}
 BOX_HEAD = 44                     # the height of a box's header strip
 
 

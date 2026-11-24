@@ -83,6 +83,7 @@ class Parts(unittest.TestCase):
         d = self.page()
         self.assertIn("Stash worth", self.texts(d))
         self.assertIn("Today", self.texts(d))
+        self.assertIn("At a glance", [t.capitalize() for t in self.texts(d)])    # the numbers share one titled box
         FEAT.set_on("wealth", False)
         d.redraw()
         t = self.texts(d)
