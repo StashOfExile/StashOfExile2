@@ -273,5 +273,11 @@
     ]
    ]
   }
+ },
+ "box": {
+  "shape": "square",
+  "head": "tint",
+  "mark": "edge",
+  "caps": true
  }
 }

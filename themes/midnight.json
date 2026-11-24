@@ -102,5 +102,11 @@
   "text": "text",
   "sel_text": "#ffffff",
   "group": "text_muted"
+ },
+ "box": {
+  "shape": "round",
+  "head": "strip",
+  "mark": "side",
+  "caps": false
  }
 }
