@@ -201,6 +201,16 @@ def send_copy(sender=None):
           (0x12, None, True), (0x11, None, True)])
 
 
+ALT_AGAIN = (0.08, 0.3)     # seconds after the copy: Alt is let go again, in case the game missed the first one
+
+
+def release_alt(sender=None):
+    """3.3.0 owner: after a price check the game's item window stayed up as if Alt were still held. The copy
+    presses and lets go of Alt in one burst; if the game is not in front for that instant it never sees Alt
+    let go. Letting go once more is harmless: a key that is already up stays up."""
+    (sender or _send_keys)([(0x12, None, True)])
+
+
 CLIP_HOOK = [None]          # the app sets this: fn(text) -> "ignore this clipboard text for a moment"
 
 

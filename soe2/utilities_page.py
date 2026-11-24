@@ -238,7 +238,7 @@ class UtilitiesPage:
     def pc_hotkey(self, vk, ctrl, alt, shift):
         """2.83.1: the price check key (Ctrl+D) in game -> the game's own Ctrl+Alt+C once (one key press, one item
         copied, with its mod tiers); the copy goes to Price Checks, not Bulk Pricing."""
-        from .overlay import parse_key, game_active, send_copy, POE_TITLE
+        from .overlay import parse_key, game_active, send_copy, release_alt, ALT_AGAIN, POE_TITLE
         from .pricecheck_page import pc_key_is_copy
         from . import features as FEAT
         if not FEAT.on("price"):                           # 2.131.0: Price checking is off - the key is the game's
@@ -248,7 +248,8 @@ class UtilitiesPage:
         k = parse_key(SETTINGS.get("pc_key") or "")
         if not k or k != (vk, ctrl, alt, shift):
             return False
-        if not game_active((getattr(self, "overlay", None) and self.overlay.cfg.get("poe_title")) or POE_TITLE):
+        title = (getattr(self, "overlay", None) and self.overlay.cfg.get("poe_title")) or POE_TITLE
+        if not game_active(title):
             return False                                   # outside the game the key does its usual job
         from . import clipread                             # GGG policy: one press, one copy, one clipboard read
         if vk in clipread.MOUSE:
@@ -262,6 +263,14 @@ class UtilitiesPage:
             clipread.clear()                               # (so the one read finds this copy, or nothing)
             send_copy()
             self.clip_granted(gid)
+            was = 0.0
+            for at in ALT_AGAIN:                           # 3.3.0 owner: the game's item window stayed up
+                time.sleep(at - was)
+                was = at
+                front = game_active(title)
+                buglog.debug("price check keys", f"{at}s after the copy, game in front: {front}")
+                if front:                                  # only ever to the game
+                    release_alt()
         threading.Thread(target=go, daemon=True).start()
         return True
 
