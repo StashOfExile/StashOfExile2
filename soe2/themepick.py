@@ -52,7 +52,7 @@ def draw(cv, t, w=W, h=H, shape="full"):
         if shape == "drawer":
             _rail(cv, t, nw, y, mk_col, sel_bg, nav)
         else:
-            cv.create_text(12, y + 4, text="TOOLS", anchor="w", fill=c(nav.get("group", "text_muted")),
+            cv.create_text(12, y + 4, text="CODEX", anchor="w", fill=c(nav.get("group", "text_muted")),
                            font=(body, 8, "bold"))
             y += 14
             for i, name in enumerate(("Price Checks", "Bulk Pricing", "Wealth", "Farming Strategies")):

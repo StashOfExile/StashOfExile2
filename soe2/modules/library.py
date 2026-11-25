@@ -3,8 +3,8 @@ from . import Module
 
 class Library(Module):
     key, title, short, icon, kind = "library", "Under the Hood", "Under the Hood", "⚙", "tool"
-    blurb = "How the price checker reads an item and what it compares it with (opened from Price Checks)."
-    parent = "pricecheck"              # 2.33.0: a child tool (was hidden); 2.80.0: under Price Checks
+    blurb = "How the price checker reads an item and what it compares it with."
+    parent = None                      # 3.3.0 owner: its own row in the Codex group (was under Price Checks)
     advanced = True                    # 2.74.0: only with Settings › Advanced › Show Under the hood
 
     def build(self, body):

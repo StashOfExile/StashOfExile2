@@ -69,6 +69,7 @@ NOTES = {
                 ("•", "Reworked the look of every page to follow the theme"),
                 ("•", "Drawer now stays where it's put while the game is closed"),
                 ("•", "Turning sharing off now keeps times on the Leaderboards"),
+                ("•", "Game Search, Mod Lab and Map Library now sit together in Codex"),
             ]),
             ("✓", "Fixes", [
                 ("•", "Party members should no longer be shown as your character"),

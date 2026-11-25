@@ -50,13 +50,26 @@ class Sidebar(unittest.TestCase):
         self.assertEqual(names.index("Mods"), names.index("Trade") + 1)
         self.assertEqual(names.index("Stash"), names.index("Mods") + 1)
         groups = dict(SB.GROUPS)
-        self.assertEqual(groups["Mods"], ("ratemods", "insights", "crafthelper"))
+        self.assertEqual(groups["Mods"], ("insights", "crafthelper"))
         self.assertEqual(groups["Trade"], ("pricecheck", "checks", "rates"))
         self.assertEqual(groups["Stash"], ("wealth", "regex"))
 
+    def test_codex_holds_the_places_to_look_things_up(self):
+        """3.3.0 owner: Game Search, Mod Lab, Map Library and Under the Hood belong together."""
+        names = [g for g, _k in SB.GROUPS]
+        self.assertEqual(names[-1], "Codex")
+        self.assertNotIn("Tools", names)
+        self.assertEqual(dict(SB.GROUPS)["Codex"], ("search", "ratemods", "maps", "library"))
+        self.assertEqual(SB.group_of("a page nobody listed"), "Codex")
+        from soe2.modules.library import Library
+        self.assertIsNone(Library.parent, "its own row, not under Price Checks")
+        self.assertTrue(Library.advanced, "still hidden until Settings turns it on")
+
     def test_caption_follows_the_group(self):
-        for k in ("ratemods", "insights", "crafthelper"):
+        for k in ("insights", "crafthelper"):
             self.assertEqual(SB.group_of(k), "Mods")
+        for k in ("search", "ratemods", "maps", "library"):
+            self.assertEqual(SB.group_of(k), "Codex")
 
 
 class Intro(unittest.TestCase):

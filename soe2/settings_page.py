@@ -499,7 +499,7 @@ class SettingsPage:
                                                     "whether they're shown or not. Learning, Community data sharing "
                                                     "and Regex's ratings carry on.")
         self.adv_var = tk.BooleanVar(value=self.shell.advanced_on())
-        cb = ttk.Checkbutton(row, text="Show advanced tools - Price Checks ↳ Under the Hood ↳ Mod Book",
+        cb = ttk.Checkbutton(row, text="Show advanced tools - Codex ↳ Under the Hood ↳ Mod Book",
                              variable=self.adv_var, command=self.advanced_switch, style="Card.TCheckbutton")
         cb.pack(side="left")
         self.adv_switch = cb
