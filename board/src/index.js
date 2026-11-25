@@ -21,6 +21,7 @@
 // Secrets / vars: ADMIN_KEY, ERRORS_PER_DAY (2.137.0), REPORT_HIDE, POSTS_PER_DAY, JOINS_PER_DAY. Stored per player: a made-up id and the
 // display name. Internet addresses are only kept as a hash with the day, to count new accounts.
 import RULES from "./schema.json";
+import GAMEWORDS from "./gamewords.json";           // 3.3.0: the game's own words the filter lets through
 import { RegExpMatcher, englishDataset, englishRecommendedTransformers } from "obscenity";
 
 const DAY = 86400;
@@ -69,9 +70,15 @@ const HATE_PHRASES = ["heilhit", "siegheil", "whitepower", "whitepride", "gascha
   "towelhead", "killalljews", "killallblacks", "gasthejews"];
 // letters spaced out with spaces, dots or dashes: three or more single letters in a row are read as one word as well
 const SPACED = /(?<![\p{L}\p{N}])(?:[\p{L}\p{N}@$!|€*][\s._\-*+~]+){2,}[\p{L}\p{N}@$!|€*](?![\p{L}\p{N}])/gu;
+// 3.3.0 owner: the filter refused the game's own words - "Strongbox", "Bestial" - so a strat about them could not be
+// posted. Those words, made by tools/build_cleanwords.py from the game data, are taken out before the check.
+// A spaced run of digits is a number or a version, like 4.5.5.2, never a word.
+const ALLOW = GAMEWORDS.allow?.length ? new RegExp("(?<![\\p{L}])(?:" + [...GAMEWORDS.allow].sort((a, b) => b.length - a.length)
+  .map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|") + ")(?![\\p{L}])", "giu") : null;
 export function textProblem(text) {
-  const raw = String(text || "").normalize("NFKC");
-  const joined = raw.replace(SPACED, (m) => m.replace(/[\s._\-*+~]+/g, ""));
+  let raw = String(text || "").normalize("NFKC");
+  if (ALLOW) raw = raw.replace(ALLOW, "\n");
+  const joined = raw.replace(SPACED, (m) => { const j = m.replace(/[\s._\-*+~]+/g, ""); return /^\d+$/.test(j) ? m : j; });
   const say = (w) => `${CLEAN_MSG}: reword "${w}" and send again.`;
   if (HARM.test(raw) || HARM.test(joined)) return say(raw.match(HARM)?.[0] || joined.match(HARM)[0]);
   for (const t of joined === raw ? [raw] : [raw, joined]) {
@@ -311,6 +318,10 @@ async function housekeeping(env) {
     env.DB.prepare("DELETE FROM bug_limits WHERE day <> ?").bind(day),
     env.DB.prepare("DELETE FROM sessions WHERE expires < ?").bind(now()),
     env.DB.prepare("DELETE FROM app_error_installs WHERE last < ?").bind(now() - 30 * 86400),     // 2.137.0
+    env.DB.prepare("DELETE FROM downloads WHERE day < date('now', ?)").bind(`-${DOWNLOAD_DAYS} days`),     // 3.3.0
+    env.DB.prepare("DELETE FROM mod_shares WHERE updated < ?").bind(now() - SHARE_FADE),                  // 3.3.0
+    env.DB.prepare("DELETE FROM base_shares WHERE updated < ?").bind(now() - SHARE_FADE),
+    env.DB.prepare("DELETE FROM gem_shares WHERE updated < ?").bind(now() - GEM_DAYS * 86400),
     // 2.137.0: a flood of made-up errors can't fill the database - the newest 5,000 kinds stay
     env.DB.prepare("DELETE FROM app_errors WHERE sig NOT IN (SELECT sig FROM app_errors ORDER BY last DESC LIMIT 5000)"),
     env.DB.prepare(`DELETE FROM images WHERE created < ? AND NOT EXISTS (SELECT 1 FROM posts p WHERE instr(p.data, '"b:' || images.key || '"') > 0)
@@ -329,8 +340,28 @@ function sameText(a, b) {                  // constant-time compare for the admi
 // 2.85.0: new columns and tables on an existing database (each statement fails harmlessly once it's done)
 let migrated = false;
 const MIGRATIONS = [
+  // 3.3.0: pooled prices kept per install, so the pool is the middle of many players and moves with the market
+  `CREATE TABLE IF NOT EXISTS mod_shares (league TEXT NOT NULL, base TEXT NOT NULL, sid TEXT NOT NULL, cid TEXT NOT NULL,
+    n INTEGER NOT NULL DEFAULT 0, w REAL NOT NULL DEFAULT 0, slog REAL NOT NULL DEFAULT 0, updated INTEGER NOT NULL,
+    PRIMARY KEY (league, base, sid, cid))`,
+  `CREATE TABLE IF NOT EXISTS base_shares (league TEXT NOT NULL, base TEXT NOT NULL, cid TEXT NOT NULL,
+    n INTEGER NOT NULL DEFAULT 0, w REAL NOT NULL DEFAULT 0, slog REAL NOT NULL DEFAULT 0, updated INTEGER NOT NULL,
+    PRIMARY KEY (league, base, cid))`,
+  `CREATE TABLE IF NOT EXISTS gem_shares (league TEXT NOT NULL, kind TEXT NOT NULL, level INTEGER NOT NULL,
+    name TEXT NOT NULL, cid TEXT NOT NULL, div REAL NOT NULL, updated INTEGER NOT NULL,
+    PRIMARY KEY (league, kind, level, name, cid))`,
+  // 3.3.0: the Calendar's events. Posted by admins only; a draft is one the board suggested and no admin approved yet
+  `CREATE TABLE IF NOT EXISTS events (id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, name TEXT NOT NULL,
+    start INTEGER NOT NULL, end INTEGER NOT NULL DEFAULT 0, link TEXT NOT NULL DEFAULT '', note TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'live', source TEXT NOT NULL DEFAULT '', by_id TEXT NOT NULL DEFAULT '',
+    at INTEGER NOT NULL DEFAULT 0)`,
+  // 3.3.0: how often the shared data is downloaded: a count per day, kind and app version, nothing about who
+  `CREATE TABLE IF NOT EXISTS downloads (day TEXT NOT NULL, what TEXT NOT NULL, v TEXT NOT NULL DEFAULT '',
+    n INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (day, what, v))`,
   // UI overhaul: the anonymous usage count - a hashed random id per install and when it was last seen, nothing else
   "CREATE TABLE IF NOT EXISTS usage_pings (pid TEXT PRIMARY KEY, last INTEGER NOT NULL)",
+  // 3.3.0: only versions that ask first are counted (3.1 and newer); rows from before stay out of the counts
+  "ALTER TABLE usage_pings ADD COLUMN ok INTEGER NOT NULL DEFAULT 0",
   "ALTER TABLE users ADD COLUMN reviewer INTEGER NOT NULL DEFAULT 0",     // 1 = reviews; -1 = an admin took it away
   "ALTER TABLE users ADD COLUMN last_seen INTEGER NOT NULL DEFAULT 0",
   "ALTER TABLE posts ADD COLUMN based_on INTEGER",
@@ -387,8 +418,26 @@ async function migrate(env) {
     try { await env.DB.prepare(sql).run(); } catch (_e) { /* already there */ }
   }
   try { await imageKeys(env); } catch (_e) { /* next time */ }
+  try { await seedShares(env); } catch (_e) { /* next time */ }
   try { await lbMulti(env); } catch (_e) { /* next time (migrated stays false below) */ migrated = false; return; }
   migrated = true;
+}
+
+// 3.3.0, once: the pooled prices from before per-install shares become one share, so nothing learned is lost.
+// It counts as a single install and fades like any other.
+async function seedShares(env) {
+  if (await metaGet(env, "shares_seeded")) return;
+  await env.DB.batch([
+    env.DB.prepare(`INSERT OR IGNORE INTO mod_shares (league, base, sid, cid, n, w, slog, updated)
+      SELECT league, base, sid, 'earlier', n, MIN(w, ${SHARE_CAP}), slog * MIN(w, ${SHARE_CAP}) / w, updated
+      FROM mod_prices WHERE w > 0`),
+    env.DB.prepare(`INSERT OR IGNORE INTO base_shares (league, base, cid, n, w, slog, updated)
+      SELECT league, base, 'earlier', n, MIN(w, ${SHARE_CAP * 3}), slog * MIN(w, ${SHARE_CAP * 3}) / w, updated
+      FROM base_prices WHERE w > 0`),
+    env.DB.prepare(`INSERT OR IGNORE INTO gem_shares (league, kind, level, name, cid, div, updated)
+      SELECT league, kind, level, name, 'earlier', div, updated FROM gem_prices`),
+  ]);
+  await metaSet(env, "shares_seeded", now());
 }
 
 // 3.0.6, once: leaderboard times - up to 10 per account / board / key / league / class instead of one. SQLite can't drop a
@@ -1190,6 +1239,11 @@ async function lbForget(env, me) {
 // ------------------------------------------------------------------ 2.31.0: the community Mod book
 const BATCH_EVERY = 45 * 60;                 // one summary per install per 45 minutes at most (the app sends hourly)
 const MAX_PAIRS = 600, MAX_VOTES = 400, W_CAP = 10;
+// 3.3.0: each install holds one share of a pooled price. Its weight is capped at SHARE_CAP, and a share fades to
+// nothing over SHARE_FADE seconds unless the install keeps seeing that mod. The pool is the middle of the shares
+// (pooled below): it follows the market and many players. "batches" sent to the app counts the installs behind it.
+const SHARE_CAP = 30, SHARE_FADE = 28 * 86400, GEM_DAYS = 14;
+const fadeSql = (t) => `MAX(0.0, 1.0 - (${t} - updated) * 1.0 / ${SHARE_FADE})`;
 const SID = /^[a-z_]+\.[A-Za-z0-9_.]{1,80}$/, KEY = /^.{2,200}$/s, VOTE = ["high", "normal", "ignore"];
 const MAP_RANKS = ["S", "A", "B", "C", "D", "Avoid"];
 const GEM_NAME = /^[a-z0-9' ,:-]{2,60}$/, GEM_KINDS = ["skill", "support", "spirit", "gem"];     // 2.132.0
@@ -1220,19 +1274,21 @@ async function modBatch(req, env) {
     for (const p of (Array.isArray(body.prices) ? body.prices : []).slice(0, MAX_PAIRS)) {
       if (!okBase(p?.base) || !SID.test(String(p?.sid)) || !okPrice(p?.med) || !(p?.n >= 1)) continue;
       const w = Math.min(Number(p.n) || 1, W_CAP);
-      stmts.push(env.DB.prepare(`INSERT INTO mod_prices (league, base, sid, n, w, slog, batches, updated)
-        VALUES (?1, ?2, ?3, ?4, ?5, ?6, 1, ?7) ON CONFLICT(league, base, sid) DO UPDATE SET n = n + ?4, w = w + ?5,
-        slog = slog + ?6, batches = batches + 1, updated = ?7`)
-        .bind(league, p.base, p.sid, Math.min(Math.floor(p.n), 500), w, w * Math.log(p.med), t));
+      stmts.push(env.DB.prepare(`INSERT INTO mod_shares (league, base, sid, cid, n, w, slog, updated)
+        VALUES (?1, ?2, ?3, ?8, ?4, ?5, ?6, ?7) ON CONFLICT(league, base, sid, cid) DO UPDATE SET
+        n = MIN(n + ?4, 100000), w = MIN(${SHARE_CAP}.0, w * ${fadeSql("?7")} + ?5),
+        slog = (slog * ${fadeSql("?7")} + ?6) * MIN(1.0, ${SHARE_CAP}.0 / (w * ${fadeSql("?7")} + ?5)), updated = ?7`)
+        .bind(league, p.base, p.sid, Math.min(Math.floor(p.n), 500), w, w * Math.log(p.med), t, cid));
       used++;
     }
     for (const b of (Array.isArray(body.bases) ? body.bases : []).slice(0, 100)) {
       if (!okBase(b?.base) || !okPrice(b?.med) || !(b?.n >= 1)) continue;
       const w = Math.min(Number(b.n) || 1, W_CAP * 3);
-      stmts.push(env.DB.prepare(`INSERT INTO base_prices (league, base, n, w, slog, batches, updated)
-        VALUES (?1, ?2, ?3, ?4, ?5, 1, ?6) ON CONFLICT(league, base) DO UPDATE SET n = n + ?3, w = w + ?4,
-        slog = slog + ?5, batches = batches + 1, updated = ?6`)
-        .bind(league, b.base, Math.min(Math.floor(b.n), 2000), w, w * Math.log(b.med), t));
+      stmts.push(env.DB.prepare(`INSERT INTO base_shares (league, base, cid, n, w, slog, updated)
+        VALUES (?1, ?2, ?7, ?3, ?4, ?5, ?6) ON CONFLICT(league, base, cid) DO UPDATE SET
+        n = MIN(n + ?3, 100000), w = MIN(${SHARE_CAP * 3}.0, w * ${fadeSql("?6")} + ?4),
+        slog = (slog * ${fadeSql("?6")} + ?5) * MIN(1.0, ${SHARE_CAP * 3}.0 / (w * ${fadeSql("?6")} + ?4)), updated = ?6`)
+        .bind(league, b.base, Math.min(Math.floor(b.n), 2000), w, w * Math.log(b.med), t, cid));
     }
   }
   for (const v of (Array.isArray(body.maps) ? body.maps : []).slice(0, MAX_VOTES)) {   // 2.32.0: map ranks
@@ -1258,16 +1314,17 @@ async function modBatch(req, env) {
     stmts.push(env.DB.prepare(`INSERT INTO unmatched_mods (text, cid, base, updated) VALUES (?1, ?2, ?3, ?4)
       ON CONFLICT(text, cid) DO UPDATE SET base = ?3, updated = ?4`).bind(text, cid, base, t));
   }
-  // 2.132.0 (feedback: "people are gonna get rate limited hard"): gem prices from players' own searches - the
-  // newest one wins (a gem's price moves); a book's gems are then priced from here instead of the trade site
+  // 2.132.0 (feedback: "people are gonna get rate limited hard"): gem prices from players' own searches; a book's
+  // gems are then priced from here instead of the trade site. 3.3.0: each install's newest price is kept, and the
+  // pool is the middle of them
   if (league) {
     for (const g of (Array.isArray(body.gems) ? body.gems : []).slice(0, 200)) {
       const name = String(g?.name ?? "").trim().toLowerCase(), kind = String(g?.kind ?? "");
       const level = Math.floor(Number(g?.level) || 0);
       if (!GEM_NAME.test(name) || !GEM_KINDS.includes(kind) || level < 0 || level > 40 || !okPrice(g?.div)) continue;
-      stmts.push(env.DB.prepare(`INSERT INTO gem_prices (league, kind, level, name, div, n, updated)
-        VALUES (?1, ?2, ?3, ?4, ?5, 1, ?6) ON CONFLICT(league, kind, level, name) DO UPDATE SET div = ?5, n = n + 1,
-        updated = ?6`).bind(league, kind, level, name, g.div, t));
+      stmts.push(env.DB.prepare(`INSERT INTO gem_shares (league, kind, level, name, cid, div, updated)
+        VALUES (?1, ?2, ?3, ?4, ?7, ?5, ?6) ON CONFLICT(league, kind, level, name, cid) DO UPDATE SET div = ?5,
+        updated = ?6`).bind(league, kind, level, name, g.div, t, cid));
     }
   }
   let votes = 0;
@@ -1286,25 +1343,67 @@ async function modBatch(req, env) {
 // 2.132.0: every gem price found in the last two weeks for a league (small: one row a gem and level)
 async function gemPrices(url, env) {
   const league = String(url.searchParams.get("league") || "").slice(0, 60);
-  const rows = await env.DB.prepare(`SELECT kind, level, name, div, updated, n FROM gem_prices WHERE league = ?
-    AND updated > ?`).bind(league, now() - 14 * 86400).all();
-  return json({ league, gems: rows.results.map((r) => [r.kind, r.level, r.name, r.div, r.updated, r.n]) });
+  const rows = await env.DB.prepare(`SELECT kind, level, name, div, updated FROM gem_shares WHERE league = ?
+    AND updated > ? ORDER BY kind, level, name`).bind(league, now() - GEM_DAYS * 86400).all();
+  return json({ league, gems: middleGems(rows.results) });
+}
+// 3.3.0: each install's share is one voice. A price is the weighted middle of the installs' own prices in log
+// terms, each weighted by its share as it fades: a few loud or old shares cannot pull it far from the rest.
+function pooled(rows, keyOf, t) {
+  const by = new Map();
+  for (const r of rows) {
+    const f = Math.max(0, 1 - (t - r.updated) / SHARE_FADE), w = r.w * f;
+    if (!(w > 0) || !(r.w > 0)) continue;
+    const k = keyOf(r);
+    if (!by.has(k)) by.set(k, { first: r, vals: [], n: 0 });
+    const g = by.get(k);
+    g.vals.push([r.slog / r.w, w]);
+    g.n += r.n;
+  }
+  for (const g of by.values()) {
+    g.vals.sort((a, b) => a[0] - b[0]);
+    const half = g.vals.reduce((sum, v) => sum + v[1], 0) / 2;
+    let run = 0;
+    g.mid = g.vals[g.vals.length - 1][0];
+    for (const [v, w] of g.vals) { run += w; if (run >= half) { g.mid = v; break; } }
+    g.installs = g.vals.length;
+  }
+  return by;
+}
+// one row a gem and level: the middle of the installs' prices, the newest time, and how many installs
+function middleGems(rows) {
+  const by = new Map();
+  for (const r of rows) {
+    const k = `${r.kind}|${r.level}|${r.name}`;
+    if (!by.has(k)) by.set(k, { kind: r.kind, level: r.level, name: r.name, divs: [], updated: 0 });
+    const g = by.get(k);
+    g.divs.push(r.div);
+    g.updated = Math.max(g.updated, r.updated);
+  }
+  return [...by.values()].map((g) => {
+    const d = g.divs.sort((a, b) => a - b), m = d.length >> 1;
+    const mid = d.length % 2 ? d[m] : (d[m - 1] + d[m]) / 2;
+    return [g.kind, g.level, g.name, Math.round(mid * 10000) / 10000, g.updated, d.length];
+  });
 }
 
 async function modStats(url, env) {
   const league = String(url.searchParams.get("league") || "").slice(0, 60);
-  const bases = await env.DB.prepare("SELECT base, n, w, slog, batches FROM base_prices WHERE league = ?").bind(league).all();
+  const t = now();
+  const bases = await env.DB.prepare(`SELECT base, n, w, slog, updated FROM base_shares WHERE league = ?1
+    AND updated > ?2`).bind(league, t - SHARE_FADE).all();
   // 2.133.0: "pool:" rows (gear, uniques, fallback searches) are kept for later study, not sent to every install
-  const rows = await env.DB.prepare(`SELECT base, sid, n, w, slog, batches FROM mod_prices WHERE league = ? AND n >= 3
-    AND base NOT LIKE 'pool:%'`)
-    .bind(league).all();
+  const rows = await env.DB.prepare(`SELECT base, sid, n, w, slog, updated FROM mod_shares WHERE league = ?1
+    AND updated > ?2 AND base NOT LIKE 'pool:%'`).bind(league, t - SHARE_FADE).all();
   const typical = {};
-  for (const b of bases.results) if (b.w > 0) typical[b.base] = b.slog / b.w;
-  const out = rows.results.map((r) => {
-    const lm = r.slog / r.w, base = typical[r.base];
-    return [r.base, r.sid, r.n, Math.round(Math.exp(lm) * 1000) / 1000,
-      base === undefined ? null : Math.round(Math.exp(lm - base) * 100) / 100, r.batches];
-  });
+  for (const [base, g] of pooled(bases.results, (r) => r.base, t)) typical[base] = g.mid;
+  const out = [];
+  for (const [, g] of pooled(rows.results, (r) => `${r.base}\u0000${r.sid}`, t)) {
+    if (g.n < 3) continue;
+    const base = typical[g.first.base];
+    out.push([g.first.base, g.first.sid, g.n, Math.round(Math.exp(g.mid) * 1000) / 1000,
+      base === undefined ? null : Math.round(Math.exp(g.mid - base) * 100) / 100, g.installs]);
+  }
   // 2.133.0: installs that sent a summary in the last 7 days (Community data sharing on) - a count, nothing else
   const active = (await env.DB.prepare("SELECT COUNT(*) AS n FROM contributors WHERE last >= ?").bind(now() - 7 * 86400).first()).n;
   return json({ league, stats: out, players: (await env.DB.prepare("SELECT COUNT(*) AS n FROM contributors").first()).n, active });
@@ -1312,16 +1411,200 @@ async function modStats(url, env) {
 
 // UI overhaul: the usage count. The app sends a random id made on that PC (not an account, name or address);
 // only its sha256 and the time it was last seen are kept; ids not seen for 30 days are dropped.
+// 3.3.0: an honest count - only the app at 3.1 or newer counts: those versions ping only after you say yes.
+// 3.3.0: the download count. One row per day, kind and app version; no id, no address, so it can't point at anyone.
+const DOWNLOADS = { "/mods/stats": "mod prices", "/mods/ratings": "mod ratings", "/maps/ratings": "map ranks",
+  "/gems": "gem prices", "/official": "official strats", "/campaign/zones": "campaign zones", "/lb": "leaderboards", "/events": "calendar events" };
+const DOWNLOAD_DAYS = 90, DOWNLOAD_VERSIONS = 40;      // made-up version names can't fill the table
+function appVersion(ua) {
+  const m = /^StashOfExile2\/(\d{1,2}\.\d{1,3}\.\d{1,3})(?!\d)/.exec(String(ua ?? ""));
+  return m ? m[1] : "other";
+}
+async function countDownload(req, env, path) {
+  const what = DOWNLOADS[path];
+  if (!what || req.method !== "GET") return false;
+  try {
+    const day = today();
+    let v = appVersion(req.headers.get("User-Agent"));
+    if (v !== "other") {                           // a version not seen today counts as "other" once the day is full
+      const seen = await env.DB.prepare(`SELECT (SELECT COUNT(*) FROM downloads WHERE day = ?1 AND what = ?2 AND v = ?3) AS has,
+        (SELECT COUNT(*) FROM downloads WHERE day = ?1 AND what = ?2) AS n`).bind(day, what, v).first();
+      if (!seen?.has && (seen?.n ?? 0) >= DOWNLOAD_VERSIONS) v = "other";
+    }
+    await env.DB.prepare(`INSERT INTO downloads (day, what, v, n) VALUES (?1, ?2, ?3, 1)
+      ON CONFLICT(day, what, v) DO UPDATE SET n = n + 1`).bind(day, what, v).run();
+  } catch (_e) { return false; }                  // counting never stops a download
+  return true;
+}
+async function downloadList(env, me) {
+  if (!me?.admin) return fail(403, "not allowed");
+  const rows = await env.DB.prepare("SELECT day, what, v, n FROM downloads ORDER BY day DESC, what, v LIMIT 2000").all();
+  return json({ downloads: rows.results });
+}
+
+// ------------------------------------------------------------------ events, 3.3.0: the Calendar
+// Leagues, Twitch Drops campaigns, events and races. Anyone may read the live ones, with no account. Only those
+// canPostEvents allows may add, change or delete one: admins today. A contributor rank, if one is ever added, is
+// one more line in that function and nowhere else.
+const EVENT_KINDS = ["league", "drops", "event", "race"];
+const EVENT_NAME_MAX = 60, EVENT_NOTE_MAX = 400, EVENT_LINK_MAX = 300, EVENT_KEEP_DAYS = 30, EVENT_LIST_MAX = 200;
+const EVENT_FAR = 3 * 366 * 86400;                    // nothing is planned more than three years out
+const canPostEvents = (me) => !!me && !me.banned && !!me.admin;
+function eventProblem(d, nowSecs) {
+  if (!d || typeof d !== "object" || Array.isArray(d)) return "bad event";
+  if (!EVENT_KINDS.includes(d.kind)) return "pick a kind: league, drops, event or race";
+  const name = String(d.name ?? "").replace(/\s+/g, " ").trim();
+  if (!name) return "it needs a name";
+  if (name.length > EVENT_NAME_MAX) return `the name is over ${EVENT_NAME_MAX} letters`;
+  const bad = textProblem(name) || textProblem(String(d.note ?? ""));
+  if (bad) return bad;
+  if (String(d.note ?? "").length > EVENT_NOTE_MAX) return "the note is too long";
+  if (!Number.isInteger(d.start) || d.start <= 0 || Math.abs(d.start - nowSecs) > EVENT_FAR) return "that start is not a real date";
+  const end = d.end ?? 0;
+  if (!Number.isInteger(end) || end < 0 || (end && end < d.start) || end > d.start + EVENT_FAR) return "it ends before it starts";
+  const link = String(d.link ?? "");
+  if (link && (!/^https:\/\/[^\s<>"']+$/.test(link) || link.length > EVENT_LINK_MAX)) return "the link must start with https://";
+  return null;
+}
+const eventClean = (d) => ({ kind: d.kind, name: String(d.name).replace(/\s+/g, " ").trim(), start: d.start,
+  end: d.end ?? 0, link: String(d.link ?? ""), note: String(d.note ?? "").trim() });
+const eventOut = (r) => ({ id: `b${r.id}`, kind: r.kind, name: r.name, start: r.start, end: r.end, link: r.link,
+  note: r.note, by: "Official" });
+async function eventList(env) {
+  const since = now() - EVENT_KEEP_DAYS * 86400;
+  const rows = await env.DB.prepare(`SELECT id, kind, name, start, end, link, note FROM events
+    WHERE status = 'live' AND (start >= ?1 OR end >= ?1) ORDER BY start LIMIT ${EVENT_LIST_MAX}`).bind(since).all();
+  return json({ events: rows.results.map(eventOut) });
+}
+async function eventDrafts(env, me) {
+  if (!canPostEvents(me)) return fail(403, "admins only");
+  const rows = await env.DB.prepare(`SELECT id, kind, name, start, end, link, note, source FROM events
+    WHERE status = 'draft' ORDER BY at DESC LIMIT ${EVENT_LIST_MAX}`).all();
+  return json({ events: rows.results.map((r) => ({ ...eventOut(r), source: r.source })) });
+}
+async function eventSave(req, env, me, id = 0) {
+  if (!canPostEvents(me)) return fail(403, "admins only");
+  const d = await readBody(req);
+  const why = eventProblem(d, now());
+  if (why) return fail(400, why);
+  const e = eventClean(d);
+  if (id) {                                           // a change, or an admin approving a draft: it goes live
+    const done = await env.DB.prepare(`UPDATE events SET kind = ?1, name = ?2, start = ?3, end = ?4, link = ?5, note = ?6,
+      status = 'live', by_id = ?7, at = ?8 WHERE id = ?9`)
+      .bind(e.kind, e.name, e.start, e.end, e.link, e.note, me.id, now(), id).run();
+    if (!done?.meta?.changes) return fail(404, "no such event");
+    return json({ event: eventOut({ id, ...e }) });
+  }
+  const made = await env.DB.prepare(`INSERT INTO events (kind, name, start, end, link, note, status, by_id, at)
+    VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'live', ?7, ?8)`).bind(e.kind, e.name, e.start, e.end, e.link, e.note, me.id, now()).run();
+  return json({ event: eventOut({ id: made?.meta?.last_row_id, ...e }) }, 201);
+}
+async function eventDelete(env, me, id) {
+  if (!canPostEvents(me)) return fail(403, "admins only");
+  // a draft the board made from Steam news is kept as dismissed, so the next check does not draft it again
+  const kept = await env.DB.prepare("UPDATE events SET status = 'dismissed', at = ?2 WHERE id = ?1 AND status = 'draft' AND source <> ''")
+    .bind(id, now()).run();
+  if (kept?.meta?.changes) return json({ ok: true });
+  const done = await env.DB.prepare("DELETE FROM events WHERE id = ?1 AND status <> 'dismissed'").bind(id).run();
+  if (!done?.meta?.changes) return fail(404, "no such event");
+  return json({ ok: true });
+}
+
+// 3.3.0 owner: Steam's public news feed, GGG's own posts only, read by the board for Path of Exile 1 and 2.
+// A post about Twitch Drops, a league's date, a race or an event becomes a DRAFT. Nothing a draft says reaches a
+// user until an admin opens it, checks the day and time, and saves it. No Twitch page and no Twitch login is used.
+const STEAM_APPS = [[238960, "Path of Exile"], [2694490, "Path of Exile 2"]];
+const STEAM_FEED = "steam_community_announcements";       // the developer's own posts, never the press feeds
+const STEAM_EVERY = 6 * 3600, STEAM_FRESH = 21 * 86400, STEAM_MAX_NEW = 10, STEAM_KEEP = 180 * 86400;
+const STEAM_NOT = /\b(sale|mystery box|microtransactions?|supporter packs?|soundtrack|concept art|showcase|patch notes?|vods?|statistics|stats|winners|runners-up|highlights|interview|what we.re working on|competition)\b/i;
+const MONTHS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
+function steamKind(title) {
+  const t = String(title ?? "");
+  if (/twitch drops/i.test(t)) return "drops";
+  if (STEAM_NOT.test(t)) return null;
+  if (/\b(race|gauntlet|qualifier)\b/i.test(t) && /\b(begins?|starts?|going live|has begun|on [A-Z][a-z]+ \d)/i.test(t)) return "race";
+  if (/\bevent\b/i.test(t) && /\b(play|begins?|starts?)\b/i.test(t)) return "event";
+  if (/^play .+ on /i.test(t) || /\breleases? on\b/i.test(t) || /\bexpansion timeline\b/i.test(t) ||
+      /\b(is|are) now (live|available)\b/i.test(t)) return "league";
+  return null;
+}
+// "on November 13 PST", "June 25th PDT", "Tomorrow": the day a title names, at 20:00 UTC, or the post's own time.
+// The hour is a guess on purpose: the admin sets it before the draft goes live.
+function steamStart(title, posted) {
+  const t = String(title ?? "");
+  const d = new Date(posted * 1000);
+  if (/\btomorrow\b/i.test(t)) return Math.floor(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1, 20) / 1000);
+  const m = new RegExp(`\\b(${MONTHS.join("|")})\\s+(\\d{1,2})(?:st|nd|rd|th)?\\b`, "i").exec(t);
+  if (!m) return posted;
+  const month = MONTHS.indexOf(m[1].toLowerCase()), day = Number(m[2]);
+  if (day < 1 || day > 31) return posted;
+  let at = Date.UTC(d.getUTCFullYear(), month, day, 20) / 1000;
+  if (at < posted - 300 * 86400) at = Date.UTC(d.getUTCFullYear() + 1, month, day, 20) / 1000;   // a December post about January
+  return Math.floor(at);
+}
+function steamDrafts(appid, items, nowSecs) {
+  const out = [];
+  for (const it of Array.isArray(items) ? items.slice(0, 60) : []) {
+    if (!it || it.feedname !== STEAM_FEED || typeof it.title !== "string" || !/^\d{1,24}$/.test(String(it.gid ?? ""))) continue;
+    if (!Number.isInteger(it.date) || it.date > nowSecs + 86400 || it.date < nowSecs - STEAM_FRESH) continue;
+    const kind = steamKind(it.title);
+    const name = it.title.replace(/\s+/g, " ").trim().slice(0, EVENT_NAME_MAX).trim();
+    if (!kind || !name || textProblem(name)) continue;
+    out.push({ kind, name, start: steamStart(it.title, it.date), source: `steam:${it.gid}`,
+      link: `https://store.steampowered.com/news/app/${appid}`,
+      note: "Drafted from Steam news. Check the day and the time." });
+  }
+  return out;
+}
+async function steamCheck(env, force = false) {
+  const last = Number(await metaGet(env, "steam_at")) || 0;
+  if (!force && now() - last < STEAM_EVERY) return { checked: false, added: 0 };
+  await metaSet(env, "steam_at", now());                // set first: two requests at once make one check
+  let added = 0, read = 0;
+  for (const [appid] of STEAM_APPS) {
+    let items = [];
+    try {
+      const res = await fetch(`https://api.steampowered.com/ISteamNews/GetNewsForApp/v2/?appid=${appid}&count=40&maxlength=1&feeds=${STEAM_FEED}`,
+        { headers: { "User-Agent": "StashOfExile2-board (contact: stashofexile@gmail.com)" } });
+      if (!res.ok) continue;
+      items = (await res.json())?.appnews?.newsitems ?? [];
+      read += 1;
+    } catch (_e) { continue; }                          // Steam is down: the next check tries again
+    for (const d of steamDrafts(appid, items, now())) {
+      if (added >= STEAM_MAX_NEW) break;
+      const has = await env.DB.prepare("SELECT 1 AS x FROM events WHERE source = ?1 LIMIT 1").bind(d.source).all();
+      if (has.results.length) continue;
+      await env.DB.prepare(`INSERT INTO events (kind, name, start, end, link, note, status, source, by_id, at)
+        VALUES (?1, ?2, ?3, 0, ?4, ?5, 'draft', ?6, '', ?7)`).bind(d.kind, d.name, d.start, d.link, d.note, d.source, now()).run();
+      added += 1;
+    }
+  }
+  await env.DB.prepare("DELETE FROM events WHERE status IN ('draft', 'dismissed') AND at < ?1").bind(now() - STEAM_KEEP).run();
+  return { checked: true, added, read };
+}
+async function eventCheckNow(env, me) {
+  if (!canPostEvents(me)) return fail(403, "admins only");
+  return json(await steamCheck(env, true));
+}
+// events: end
+
+function countedVersion(ua) {
+  const m = /^StashOfExile2\/(\d+)\.(\d+)/.exec(String(ua ?? ""));
+  return !!m && (Number(m[1]) > 3 || (Number(m[1]) === 3 && Number(m[2]) >= 1));
+}
+
 async function usagePing(req, env) {
   let body = {};
   try { body = await req.json(); } catch (_e) { return json({ error: "bad body" }, 400); }
   const raw = String(body?.id ?? "");
   if (!/^[0-9a-f]{32}$/.test(raw)) return json({ error: "bad id" }, 400);
+  if (!countedVersion(req.headers.get("User-Agent"))) return usageCount(env);       // an older app: not counted
   // a flood of made-up ids can't pad the count: 300 pings a day per internet address (about two PCs; kept hashed)
   if (!(await allowance(env, "usage", req.headers.get("CF-Connecting-IP") || "?", 300))) return usageCount(env);
   const t = now();
   await env.DB.batch([
-    env.DB.prepare(`INSERT INTO usage_pings (pid, last) VALUES (?1, ?2) ON CONFLICT(pid) DO UPDATE SET last = ?2`)
+    env.DB.prepare(`INSERT INTO usage_pings (pid, last, ok) VALUES (?1, ?2, 1)
+                    ON CONFLICT(pid) DO UPDATE SET last = ?2, ok = 1`)
       .bind(await sha256(raw), t),
     env.DB.prepare("DELETE FROM usage_pings WHERE last < ?").bind(t - 30 * 86400),
   ]);
@@ -1330,8 +1613,8 @@ async function usagePing(req, env) {
 
 async function usageCount(env) {
   const t = now();
-  const online = (await env.DB.prepare("SELECT COUNT(*) AS n FROM usage_pings WHERE last >= ?").bind(t - 15 * 60).first()).n;
-  const week = (await env.DB.prepare("SELECT COUNT(*) AS n FROM usage_pings WHERE last >= ?").bind(t - 7 * 86400).first()).n;
+  const online = (await env.DB.prepare("SELECT COUNT(*) AS n FROM usage_pings WHERE ok = 1 AND last >= ?").bind(t - 15 * 60).first()).n;
+  const week = (await env.DB.prepare("SELECT COUNT(*) AS n FROM usage_pings WHERE ok = 1 AND last >= ?").bind(t - 7 * 86400).first()).n;
   return json({ online, week });
 }
 
@@ -1507,7 +1790,7 @@ async function getImage(env, me, key) {
 
 // ------------------------------------------------------------------ routing
 export default {
-  async fetch(req, env) {
+  async fetch(req, env, ctx) {
     const url = new URL(req.url);
     const path = url.pathname.replace(/\/+$/, "") || "/";
     const m = /^\/posts\/(\d+)(?:\/(vote|report|admin|suggest|revisions|review))?$/.exec(path);
@@ -1515,7 +1798,10 @@ export default {
     try {
       await migrate(env);
       try { await housekeeping(env); } catch (_e) { /* next request */ }
+      // 3.3.0: Steam news is looked at every 6 hours, after the answer is sent, so no request waits for Steam
+      try { ctx?.waitUntil?.(steamCheck(env).catch(() => null)); } catch (_e) { /* next request */ }
       if (path === "/" || path === "/health") return json({ ok: true, schema: RULES.schema });
+      await countDownload(req, env, path);                                                  // 3.3.0
       if (path === "/auth/join" && req.method === "POST") return join(req, env);
       if (path === "/official") return official(env);
       if (path === "/usage/ping" && req.method === "POST") return usagePing(req, env);      // UI overhaul
@@ -1527,6 +1813,7 @@ export default {
       if (path === "/mods/unmatched") return unmatchedMods(env);
       if (path === "/maps/ratings") return mapRatings(env);
       if (path === "/campaign/zones") return campaignZones(env);
+      if (path === "/events" && req.method === "GET") return eventList(env);                // 3.3.0: no account needed
       if (path === "/bugs" && req.method === "POST") return bugReport(req, env);
       if (path === "/errors" && req.method === "POST") return errorBatch(req, env);       // 2.137.0
 
@@ -1556,6 +1843,13 @@ export default {
       if (path === "/auth/admin" && req.method === "POST") return becomeAdmin(req, env, me);
       if (path === "/me/inbox" && req.method === "GET") return inbox(env, me);
       if (path === "/errors" && req.method === "GET") return errorList(env, me, url);          // 2.137.0: admins
+      if (path === "/downloads" && req.method === "GET") return downloadList(env, me);         // 3.3.0: admins
+      const ev = /^\/events\/(\d+)$/.exec(path);
+      if (path === "/events/drafts" && req.method === "GET") return eventDrafts(env, me);
+      if (path === "/events/check" && req.method === "POST") return eventCheckNow(env, me);
+      if (path === "/events" && req.method === "POST") return eventSave(req, env, me);
+      if (ev && req.method === "PUT") return eventSave(req, env, me, Number(ev[1]));
+      if (ev && req.method === "DELETE") return eventDelete(env, me, Number(ev[1]));
       if (path === "/admin/names/sweep" && req.method === "POST") return sweepNames(env, me);
       if (path === "/review" && req.method === "GET") return reviewQueue(env, me);
       if (me.banned) return fail(403, "This account can't post on the board.");
