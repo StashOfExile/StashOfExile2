@@ -190,7 +190,13 @@ def event_save(data, eid=None):
 
 
 def event_delete(eid):
+    """Admins: delete a board event. A draft the board made from Steam news is dismissed and stays dismissed."""
     return call("DELETE", f"/events/{int(eid)}")
+
+
+def event_check():
+    """Admins: the board reads Steam news now, not at its next 6 hours. -> {"added": how many new drafts}"""
+    return call("POST", "/events/check")
 
 
 def official():

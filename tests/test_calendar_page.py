@@ -289,11 +289,65 @@ class AdminPage(Page):
             self.assertEqual(gone, [4])
 
 
+    def test_drafts_review_makes_it_live_and_dismiss_drops_it(self):
+        drafts = [{"id": "b20", "kind": "drops", "name": "Covens Twitch Drops", "start": CD.at(self.day, 12), "end": 0,
+                   "link": "https://store.steampowered.com/news/app/238960", "note": "Drafted from Steam news."},
+                  {"id": "b21", "kind": "league", "name": "Play on December 11", "start": CD.at(self.day, 12), "end": 0}]
+        saved, gone, checks = [], [], []
+
+        def save(body, eid=None):
+            saved.append((body["name"], eid))
+            drafts[:] = [d for d in drafts if d["id"] != f"b{eid}"]
+            return True, {}
+
+        def delete(eid):
+            gone.append(eid)
+            drafts[:] = [d for d in drafts if d["id"] != f"b{eid}"]
+            return True, {}
+        with mock.patch("soe2.board.event_drafts", lambda: (True, {"events": list(drafts)})), \
+                mock.patch("soe2.board.event_save", save), mock.patch("soe2.board.event_delete", delete), \
+                mock.patch("soe2.board.event_check", lambda: (checks.append(1), (True, {"added": 0}))[1]), \
+                mock.patch.object(CD, "pull", lambda call=None: None), mock.patch.object(CD, "h24", lambda: True):
+            dlg = self.h.cal_drafts()
+            p = dlg.cal_parts
+            self.assertEqual(list(p["tv"].get_children()), ["b20", "b21"])
+            self.assertTrue(p["review"].instate(["disabled"]) and p["dismiss"].instate(["disabled"]),
+                            "grey until a draft is picked")
+            self.assertEqual(str(p["review"].cget("style")), "Primary.TButton")
+            p["tv"].selection_set("b20")
+            self.root.update()
+            self.assertFalse(p["review"].instate(["disabled"]))
+            before = set(self.root.winfo_children())
+            p["do_review"]()
+            box = next(w for w in self.root.winfo_children() if w not in before)
+            self.assertEqual(box.title(), "Review Draft")
+            self.assertEqual(box.cal_vars["name"].get(), "Covens Twitch Drops")
+            self.assertEqual(box.cal_vars["kind"].get(), "▶ Twitch Drops")
+            box.cal_save()
+            self.assertEqual(saved, [("Covens Twitch Drops", 20)], "saving a draft is what posts it")
+            self.assertEqual(list(p["tv"].get_children()), ["b21"], "the list is read again")
+            p["tv"].selection_set("b21")
+            p["do_dismiss"]()
+            self.assertEqual(gone, [21])
+            self.assertEqual(list(p["tv"].get_children()), [])
+            self.assertIn("No drafts", p["msg"].cget("text"))
+            p["check"]()
+            self.assertEqual(checks, [1])
+            self.assertIn("Checked Steam: 0 new", p["msg"].cget("text"))
+            dlg.destroy()
+        with mock.patch("soe2.board.event_drafts", lambda: (False, "not found")):
+            dlg = self.h.cal_drafts()
+            self.assertIn("does not have the Calendar yet", dlg.cal_parts["msg"].cget("text"))
+            dlg.destroy()
+
+
 class NotAdmin(Page):
     def test_no_admin_parts_for_everyone_else(self):
         self.assertFalse(self.h.cal_post_btn.winfo_manager())
         self.assertNotIn("Edit Event", self.buttons(self.h.cal_day_box))
         self.assertIsNone(self.h.cal_post())
+        self.assertIsNone(self.h.cal_drafts())
+        self.assertFalse(self.h.cal_drafts_btn.winfo_manager())
         self.assertIsNone(self.h.cal_delete_event())
         self.assertFalse(any(a and str(a[0]).startswith("Admin") for a in self.h.cal_menu_actions()))
 

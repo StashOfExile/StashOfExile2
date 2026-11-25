@@ -1420,9 +1420,90 @@ async function eventSave(req, env, me, id = 0) {
 }
 async function eventDelete(env, me, id) {
   if (!canPostEvents(me)) return fail(403, "admins only");
-  const done = await env.DB.prepare("DELETE FROM events WHERE id = ?1").bind(id).run();
+  // a draft the board made from Steam news is kept as dismissed, so the next check does not draft it again
+  const kept = await env.DB.prepare("UPDATE events SET status = 'dismissed', at = ?2 WHERE id = ?1 AND status = 'draft' AND source <> ''")
+    .bind(id, now()).run();
+  if (kept?.meta?.changes) return json({ ok: true });
+  const done = await env.DB.prepare("DELETE FROM events WHERE id = ?1 AND status <> 'dismissed'").bind(id).run();
   if (!done?.meta?.changes) return fail(404, "no such event");
   return json({ ok: true });
+}
+
+// 3.3.0 owner: Steam's public news feed, GGG's own posts only, read by the board for Path of Exile 1 and 2.
+// A post about Twitch Drops, a league's date, a race or an event becomes a DRAFT. Nothing a draft says reaches a
+// user until an admin opens it, checks the day and time, and saves it. No Twitch page and no Twitch login is used.
+const STEAM_APPS = [[238960, "Path of Exile"], [2694490, "Path of Exile 2"]];
+const STEAM_FEED = "steam_community_announcements";       // the developer's own posts, never the press feeds
+const STEAM_EVERY = 6 * 3600, STEAM_FRESH = 21 * 86400, STEAM_MAX_NEW = 10, STEAM_KEEP = 180 * 86400;
+const STEAM_NOT = /\b(sale|mystery box|microtransactions?|supporter packs?|soundtrack|concept art|showcase|patch notes?|vods?|statistics|stats|winners|runners-up|highlights|interview|what we.re working on|competition)\b/i;
+const MONTHS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
+function steamKind(title) {
+  const t = String(title ?? "");
+  if (/twitch drops/i.test(t)) return "drops";
+  if (STEAM_NOT.test(t)) return null;
+  if (/\b(race|gauntlet|qualifier)\b/i.test(t) && /\b(begins?|starts?|going live|has begun|on [A-Z][a-z]+ \d)/i.test(t)) return "race";
+  if (/\bevent\b/i.test(t) && /\b(play|begins?|starts?)\b/i.test(t)) return "event";
+  if (/^play .+ on /i.test(t) || /\breleases? on\b/i.test(t) || /\bexpansion timeline\b/i.test(t) ||
+      /\b(is|are) now (live|available)\b/i.test(t)) return "league";
+  return null;
+}
+// "on November 13 PST", "June 25th PDT", "Tomorrow": the day a title names, at 20:00 UTC, or the post's own time.
+// The hour is a guess on purpose: the admin sets it before the draft goes live.
+function steamStart(title, posted) {
+  const t = String(title ?? "");
+  const d = new Date(posted * 1000);
+  if (/\btomorrow\b/i.test(t)) return Math.floor(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1, 20) / 1000);
+  const m = new RegExp(`\\b(${MONTHS.join("|")})\\s+(\\d{1,2})(?:st|nd|rd|th)?\\b`, "i").exec(t);
+  if (!m) return posted;
+  const month = MONTHS.indexOf(m[1].toLowerCase()), day = Number(m[2]);
+  if (day < 1 || day > 31) return posted;
+  let at = Date.UTC(d.getUTCFullYear(), month, day, 20) / 1000;
+  if (at < posted - 300 * 86400) at = Date.UTC(d.getUTCFullYear() + 1, month, day, 20) / 1000;   // a December post about January
+  return Math.floor(at);
+}
+function steamDrafts(appid, items, nowSecs) {
+  const out = [];
+  for (const it of Array.isArray(items) ? items.slice(0, 60) : []) {
+    if (!it || it.feedname !== STEAM_FEED || typeof it.title !== "string" || !/^\d{1,24}$/.test(String(it.gid ?? ""))) continue;
+    if (!Number.isInteger(it.date) || it.date > nowSecs + 86400 || it.date < nowSecs - STEAM_FRESH) continue;
+    const kind = steamKind(it.title);
+    const name = it.title.replace(/\s+/g, " ").trim().slice(0, EVENT_NAME_MAX).trim();
+    if (!kind || !name || textProblem(name)) continue;
+    out.push({ kind, name, start: steamStart(it.title, it.date), source: `steam:${it.gid}`,
+      link: `https://store.steampowered.com/news/app/${appid}`,
+      note: "Drafted from Steam news. Check the day and the time." });
+  }
+  return out;
+}
+async function steamCheck(env, force = false) {
+  const last = Number(await metaGet(env, "steam_at")) || 0;
+  if (!force && now() - last < STEAM_EVERY) return { checked: false, added: 0 };
+  await metaSet(env, "steam_at", now());                // set first: two requests at once make one check
+  let added = 0, read = 0;
+  for (const [appid] of STEAM_APPS) {
+    let items = [];
+    try {
+      const res = await fetch(`https://api.steampowered.com/ISteamNews/GetNewsForApp/v2/?appid=${appid}&count=40&maxlength=1&feeds=${STEAM_FEED}`,
+        { headers: { "User-Agent": "StashOfExile2-board (contact: stashofexile@gmail.com)" } });
+      if (!res.ok) continue;
+      items = (await res.json())?.appnews?.newsitems ?? [];
+      read += 1;
+    } catch (_e) { continue; }                          // Steam is down: the next check tries again
+    for (const d of steamDrafts(appid, items, now())) {
+      if (added >= STEAM_MAX_NEW) break;
+      const has = await env.DB.prepare("SELECT 1 AS x FROM events WHERE source = ?1 LIMIT 1").bind(d.source).all();
+      if (has.results.length) continue;
+      await env.DB.prepare(`INSERT INTO events (kind, name, start, end, link, note, status, source, by_id, at)
+        VALUES (?1, ?2, ?3, 0, ?4, ?5, 'draft', ?6, '', ?7)`).bind(d.kind, d.name, d.start, d.link, d.note, d.source, now()).run();
+      added += 1;
+    }
+  }
+  await env.DB.prepare("DELETE FROM events WHERE status IN ('draft', 'dismissed') AND at < ?1").bind(now() - STEAM_KEEP).run();
+  return { checked: true, added, read };
+}
+async function eventCheckNow(env, me) {
+  if (!canPostEvents(me)) return fail(403, "admins only");
+  return json(await steamCheck(env, true));
 }
 // events: end
 
@@ -1628,7 +1709,7 @@ async function getImage(env, me, key) {
 
 // ------------------------------------------------------------------ routing
 export default {
-  async fetch(req, env) {
+  async fetch(req, env, ctx) {
     const url = new URL(req.url);
     const path = url.pathname.replace(/\/+$/, "") || "/";
     const m = /^\/posts\/(\d+)(?:\/(vote|report|admin|suggest|revisions|review))?$/.exec(path);
@@ -1636,6 +1717,8 @@ export default {
     try {
       await migrate(env);
       try { await housekeeping(env); } catch (_e) { /* next request */ }
+      // 3.3.0: Steam news is looked at every 6 hours, after the answer is sent, so no request waits for Steam
+      try { ctx?.waitUntil?.(steamCheck(env).catch(() => null)); } catch (_e) { /* next request */ }
       if (path === "/" || path === "/health") return json({ ok: true, schema: RULES.schema });
       await countDownload(req, env, path);                                                  // 3.3.0
       if (path === "/auth/join" && req.method === "POST") return join(req, env);
@@ -1682,6 +1765,7 @@ export default {
       if (path === "/downloads" && req.method === "GET") return downloadList(env, me);         // 3.3.0: admins
       const ev = /^\/events\/(\d+)$/.exec(path);
       if (path === "/events/drafts" && req.method === "GET") return eventDrafts(env, me);
+      if (path === "/events/check" && req.method === "POST") return eventCheckNow(env, me);
       if (path === "/events" && req.method === "POST") return eventSave(req, env, me);
       if (ev && req.method === "PUT") return eventSave(req, env, me, Number(ev[1]));
       if (ev && req.method === "DELETE") return eventDelete(env, me, Number(ev[1]));

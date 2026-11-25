@@ -74,8 +74,12 @@ class CalendarPage:
         self.undo_button(bar, KEY, side="right", padx=(0, 8))
         self.cal_post_btn = ttk.Button(bar, text="Post Event", width=0, command=self.cal_post)
         Tooltip(self.cal_post_btn, "Admin: posts an event to the board. Every user's Calendar shows it.")
+        self.cal_drafts_btn = ttk.Button(bar, text="Drafts", width=0, command=self.cal_drafts)
+        Tooltip(self.cal_drafts_btn, "Admin: events the board drafted from Steam news. None reaches a user until "
+                                     "you post it.")
         if self.cal_is_admin():
             self.cal_post_btn.pack(side="right", padx=(0, 8))
+            self.cal_drafts_btn.pack(side="right", padx=(0, 8))
         try:
             from .style import flowify
             flowify(bar)                                    # too narrow: the row wraps, nothing is cut off
@@ -589,12 +593,105 @@ class CalendarPage:
         self.cal_pull()
         return True
 
-    def cal_post(self, ev=None):
-        """Admin: post an event to the board, or change one. One box for both."""
+    def cal_drafts(self):
+        """Admin: what the board drafted from Steam news. Review opens the draft in the Post Event box; posting it
+        there is what makes it live. Dismiss drops it for good."""
+        from . import board as B
+        from .style import Tooltip
+        if not self.cal_is_admin():
+            return None
+        dlg = self._cal_dialog("Drafts")
+        P2 = C["panel2"]
+        tk.Label(dlg, text="The board reads Steam news for Path of Exile 1 and 2 every 6 hours. A draft reaches no "
+                           "user until you post it.", bg=P2, fg=C["muted"], justify="left", wraplength=560).pack(
+            anchor="w", pady=(0, 8))
+        tv = ttk.Treeview(dlg, columns=("kind", "starts"), show="tree headings", selectmode="browse", height=8)
+        for cid, text, w in (("#0", "Name", 340), ("kind", "Kind", 120), ("starts", "Its guess for the start", 180)):
+            tv.heading(cid, text=text)
+            tv.column(cid, width=w, anchor="w", stretch=cid == "#0")
+        tv.pack(fill="both", expand=True)
+        msg = tk.Label(dlg, text="Loading…", bg=P2, fg=C["muted"], anchor="w", justify="left", wraplength=560)
+        msg.pack(fill="x", pady=(8, 8))
+        rows = {}
+
+        def picked():
+            sel = tv.selection()
+            return rows.get(sel[0]) if sel else None
+
+        def greys(_e=None):
+            for b in (review, dismiss):
+                b.state(["!disabled"] if picked() else ["disabled"])
+
+        def fill(res):
+            if not dlg.winfo_exists():
+                return
+            ok, data = res if isinstance(res, tuple) and len(res) == 2 else (False, "The board did not answer.")
+            tv.delete(*tv.get_children())
+            rows.clear()
+            if not ok:
+                if "404" in str(data) or str(data).strip().lower() == "not found":
+                    data = "The board does not have the Calendar yet. It arrives with the next board update."
+                msg.config(text=str(data), fg=C["red"])
+                return greys()
+            for ev in CD.clean_board_rows((data or {}).get("events")):
+                rows[ev["id"]] = ev
+                tv.insert("", "end", iid=ev["id"], text=ev["name"], values=(
+                    CD.label(ev), f"{CD.day_words(CD.local_day(ev['start']))}, {CD.clock(ev['start'])}"))
+            msg.config(fg=C["muted"], text=f"{len(rows)} waiting. Pick one, then Review." if rows else
+                       "No drafts. Nothing new on Steam since the last check.")
+            greys()
+
+        def load():
+            msg.config(text="Loading…", fg=C["muted"])
+            self.run_bg(B.event_drafts, fill)
+
+        def do_review():
+            ev = picked()
+            if ev:
+                self.cal_post(ev, draft=True, then=load)
+
+        def do_dismiss():
+            ev = picked()
+            if ev:
+                self.run_bg(lambda: B.event_delete(CD.board_number(ev)), lambda _r: load())
+
+        def do_check():
+            def after(res):
+                if not dlg.winfo_exists():
+                    return
+                ok, data = res if isinstance(res, tuple) and len(res) == 2 else (False, "")
+                if not ok:
+                    return fill(res)
+                self.run_bg(B.event_drafts, lambda r: (fill(r), msg.winfo_exists() and msg.config(
+                    text=f"Checked Steam: {int((data or {}).get('added') or 0)} new. " + msg.cget("text"))))
+            msg.config(text="Checking Steam…", fg=C["muted"])
+            self.run_bg(B.event_check, after)
+        row = tk.Frame(dlg, bg=P2)
+        row.pack(fill="x")
+        review = ttk.Button(row, text="Review", style="Primary.TButton", width=0, command=do_review)
+        review.pack(side="left", padx=(0, 8))
+        Tooltip(review, "Opens it in the Post Event box. Check the day and time, then Post makes it live.")
+        dismiss = ttk.Button(row, text="Dismiss", width=0, command=do_dismiss)
+        dismiss.pack(side="left", padx=(0, 8))
+        Tooltip(dismiss, "Drops this draft. The board will not draft the same post again.")
+        chk = ttk.Button(row, text="Check Steam Now", width=0, command=do_check)
+        chk.pack(side="left")
+        Tooltip(chk, "The board reads Steam news now, not at its next 6 hours")
+        ttk.Button(row, text="Close", width=0, command=dlg.destroy).pack(side="right")
+        tv.bind("<<TreeviewSelect>>", greys)
+        tv.bind("<Double-1>", lambda e: do_review())
+        greys()
+        load()
+        dlg.cal_parts = {"tv": tv, "msg": msg, "review": review, "dismiss": dismiss, "check": do_check,
+                         "do_review": do_review, "do_dismiss": do_dismiss, "rows": rows}
+        return dlg
+
+    def cal_post(self, ev=None, draft=False, then=None):
+        """Admin: post an event to the board, or change one, or review a draft. One box for all three."""
         from . import cleanguard
         if not self.cal_is_admin():
             return None
-        dlg = self._cal_dialog("Edit Event" if ev else "Post Event")
+        dlg = self._cal_dialog("Review Draft" if draft else "Edit Event" if ev else "Post Event")
         P2 = C["panel2"]
         words = {f"{CD.mark(k)} {CD.word(k)}": k for k in CD.BOARD_KINDS}
         tk.Label(dlg, text="Kind", bg=P2, fg=C["text"]).pack(anchor="w")
@@ -654,10 +751,12 @@ class CalendarPage:
             msg.config(text="Sending…", fg=C["muted"])
             num = CD.board_number(ev) if ev else None
             self.run_bg(lambda: B.event_save(body, num),
-                        lambda res: (msg.winfo_exists() and msg.config(fg=C["red"]), self._cal_board_done(res, dlg, msg)))
+                        lambda res: (msg.winfo_exists() and msg.config(fg=C["red"]),
+                                     self._cal_board_done(res, dlg, msg) and then and then()))
         row = tk.Frame(dlg, bg=P2)
         row.pack(fill="x")
-        ttk.Button(row, text="Save" if ev else "Post", style="Primary.TButton", command=save).pack(side="right")
+        ttk.Button(row, text="Save" if ev and not draft else "Post", style="Primary.TButton", command=save).pack(
+            side="right")
         ttk.Button(row, text="Cancel", command=dlg.destroy).pack(side="right", padx=(0, 8))
         dlg.bind("<Return>", lambda e: save())
         ent.focus_set()
