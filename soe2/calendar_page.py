@@ -69,6 +69,11 @@ class CalendarPage:
             lab.bind("<Button-1>", lambda _e, k=kind: self.cal_kind_flip(k))
             Tooltip(lab, f"Click to show or hide {CD.FILTER_WORDS[kind]}")
         self.cal_kind_paint()
+        self.cal_ov_var = tk.BooleanVar(value=bool(SETTINGS.get("cal_overlay")))
+        sw = ttk.Checkbutton(bar, text="Next event on the overlay", variable=self.cal_ov_var, style="Bar.TCheckbutton",
+                             command=self.cal_overlay_switch)
+        sw.pack(side="left", padx=(8, 0))
+        Tooltip(sw, "One line on the overlay for the next event: from a week before it starts until it is over.")
         add = ttk.Button(bar, text="Add Reminder", style="Primary.TButton", width=0, command=self.cal_add)
         add.pack(side="right")
         Tooltip(add, "A reminder of your own on the picked day. It stays on this PC.")
@@ -521,6 +526,7 @@ class CalendarPage:
 
     def cal_changed(self):
         self.cal_refresh()
+        self.cal_overlay_sync()
         dash = getattr(getattr(self, "shell", None), "modules", {}).get("dashboard")
         page = getattr(dash, "page", None)
         if page is not None:
@@ -624,6 +630,38 @@ class CalendarPage:
         ent.focus_set()
         self._cal_grab(dlg)
         return dlg
+
+    # ---------------------------------------------------------------- the overlay's line
+    def cal_overlay_text(self):
+        """What the overlay's Calendar line says now, or "" when its switch is off or nothing is near."""
+        if not SETTINGS.get("cal_overlay"):
+            return ""
+        try:
+            return CD.overlay_text()
+        except Exception:
+            buglog.caught()
+            return ""
+
+    def cal_overlay_switch(self):
+        SETTINGS["cal_overlay"] = bool(self.cal_ov_var.get())
+        save_json("settings.json", SETTINGS)
+        self.cal_overlay_sync()
+
+    def cal_overlay_sync(self):
+        """The overlay's lines are built again only when the Calendar line comes or goes, never for a change of
+        words: those change in place."""
+        try:
+            if getattr(self, "mg_win", None) is None:
+                return False
+            if self.goalbar_rows() != (getattr(self, "goal_rows", None) or []):
+                self.goalbar_build()
+                return True
+            lab = (getattr(self, "tk_ov_lbls", None) or {}).get("calendar")
+            if lab is not None:
+                lab.config(text=self.cal_overlay_text())
+        except Exception:
+            buglog.caught()
+        return False
 
     # ---------------------------------------------------------------- League Plan
     def cal_plan_shown(self):
@@ -883,6 +921,7 @@ class CalendarPage:
     def cal_tick(self):
         try:
             self.cal_fire()
+            self.cal_overlay_sync()
             if time.time() - getattr(self, "cal_pulled_at", 0) >= PULL_SECS:
                 self.cal_pull()
         except Exception:

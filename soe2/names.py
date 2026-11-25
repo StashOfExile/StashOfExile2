@@ -36,6 +36,7 @@ PAGES = {
 FEATURES = (
     "Upcoming",                 # 3.3.0 Dashboard: the next 3 events from the Calendar
     "Add Reminder",             # 3.3.0 Calendar: a reminder of your own, kept on this PC
+    "Next event on the overlay",   # 3.3.0 Calendar: one line on the overlay for the next event, its switch on Calendar
     "Top Movers",               # 3.3.0 Dashboard: what went up and down the most, Daily and Hourly, from poe.ninja
     "Feature Spotlight",             # 3.3.0 Dashboard: one feature at a time that you have off or may not know
     "Suggest a Feature",        # 3.2.0 owner: the bottom bar, next to Report a bug - an idea becomes a GitHub issue

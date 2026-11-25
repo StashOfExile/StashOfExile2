@@ -201,6 +201,32 @@ class Page(unittest.TestCase):
             self.h.cal_refresh()
             self.assertIn("Add to League Plan", self.buttons(self.h.cal_day_box), "ticked off: it can be added again")
 
+    def test_the_overlay_line_has_one_switch_and_is_off_until_turned_on(self):
+        from soe2.config import SETTINGS
+        self.addCleanup(SETTINGS.pop, "cal_overlay", None)
+        SETTINGS.pop("cal_overlay", None)
+        CD.set_board([{"id": "b1", "kind": "league", "name": "Start", "start": CD.at(self.day, 20), "end": 0}])
+        self.assertEqual(self.h.cal_overlay_text(), "", "off as the app comes")
+        switches = [w for w in all_widgets(self.body) if isinstance(w, ttk.Checkbutton)]
+        self.assertEqual([str(w.cget("text")) for w in switches], ["Next event on the overlay"])
+        built = []
+        self.h.mg_win, self.h.goal_rows, self.h.tk_ov_lbls = object(), [], {}
+        self.h.goalbar_rows = lambda: ["calendar"] if self.h.cal_overlay_text() else []
+        self.h.goalbar_build = lambda: (built.append(1), setattr(self.h, "goal_rows", self.h.goalbar_rows()))
+        self.h.cal_ov_var.set(True)
+        self.h.cal_overlay_switch()
+        self.assertTrue(SETTINGS["cal_overlay"])
+        self.assertEqual(self.h.cal_overlay_text(), "◆ League: Start · in 3 days")
+        self.assertEqual(built, [1], "the line appears: the overlay's lines are built once")
+        self.h.cal_overlay_sync()
+        self.h.cal_overlay_sync()
+        self.assertEqual(built, [1], "no rebuild while nothing comes or goes: no flicker")
+        self.h.cal_ov_var.set(False)
+        self.h.cal_overlay_switch()
+        self.assertEqual(built, [1, 1], "and once more when it goes")
+        self.assertEqual(self.h.cal_overlay_text(), "")
+        self.h.mg_win = None
+
     def test_remind_me_sets_then_clears(self):
         self.h.cal_remind_me("b1")
         self.assertEqual(CD.reminders({"id": "b1"}), [86400, 0])

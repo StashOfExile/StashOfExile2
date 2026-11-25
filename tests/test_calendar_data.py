@@ -219,6 +219,24 @@ class Upcoming(Base):
         self.assertEqual([e["id"] for e in CD.shown(evs, "", {"race"})], [2])
 
 
+class OverlayLine(Base):
+    def ev(self, start, end=0, kind="league", name="1.0 Release"):
+        return {"id": "b1", "kind": kind, "name": name, "start": start, "end": end}
+
+    def test_it_shows_from_a_week_before_until_it_is_over(self):
+        self.assertEqual(CD.overlay_text(NOW, [self.ev(NOW + 9 * CD.DAY)]), "", "too far off")
+        self.assertEqual(CD.overlay_text(NOW, [self.ev(ts(2026, 12, 5, 20))]), "◆ League: 1.0 Release · in 3 days")
+        self.assertEqual(CD.overlay_text(NOW, [self.ev(NOW + 1800)]), "◆ League: 1.0 Release · in 30 min")
+        run = self.ev(NOW - 3600, ts(2026, 12, 9, 9), "drops", "Launch drops")
+        self.assertEqual(CD.overlay_text(NOW, [run]), "▶ Twitch Drops: Launch drops · live, ends Wed 9 Dec")
+        self.assertEqual(CD.overlay_text(NOW, [self.ev(NOW - 5 * CD.DAY)]), "", "over")
+        self.assertEqual(CD.overlay_text(NOW, []), "")
+
+    def test_the_nearest_one_wins(self):
+        evs = sorted([self.ev(NOW + 2 * CD.DAY, name="Later"), self.ev(NOW + 3600, name="Sooner")], key=lambda e: e["start"])
+        self.assertIn("Sooner", CD.overlay_text(NOW, evs))
+
+
 class Reminders(Base):
     def test_said_once_at_its_moment(self):
         ev = CD.add_mine("Sell", NOW + 3600, leads=(0, 3600))

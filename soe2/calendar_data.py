@@ -372,6 +372,21 @@ def at(day, hour=0, minute=0):
     return _dt.datetime(day.year, day.month, day.day, hour, minute).timestamp()
 
 
+OVERLAY_DAYS = 7               # the overlay's line shows an event from a week before it starts until it is over
+
+
+def overlay_text(now=None, evs=None):
+    """The overlay's one line: the next event that is live or starts within a week, or "" when there is none.
+    '◆ League: 1.0 Release · in 3 days'."""
+    now = time.time() if now is None else now
+    for ev in upcoming(evs, now, n=1):
+        if live(ev, now):
+            return f"{label(ev)}: {ev['name']} · live, ends {day_words(local_day(ev['end']))}"
+        if ev["start"] - now <= OVERLAY_DAYS * DAY:
+            return f"{label(ev)}: {ev['name']} · {away(ev['start'], now)}"
+    return ""
+
+
 def plan_goal_text(ev):
     """The words of the League Plan goal an event becomes: one you tick yourself."""
     return f"Be ready for {ev['name']} · {day_words(local_day(ev['start']))}"

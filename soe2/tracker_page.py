@@ -1389,6 +1389,7 @@ class TrackerPage:
             zt = _CP.zone_time()
             texts.update(map=f"Zone: {fmt_time(zt) if zt is not None else '-'}", where="", rank="", maps="", avg="")
         texts["focus"] = self.focus_line()[0]                 # 2.73.0: League Focus's line
+        texts["calendar"] = self.cal_overlay_text()           # 3.3.0 owner: the Calendar's next event
         try:
             texts["profit"] = self.mp_bar_text()              # 2.132.0: Map profit's part on the bar
         except Exception:
