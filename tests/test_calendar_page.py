@@ -74,6 +74,9 @@ class Page(unittest.TestCase):
             def share_is_admin(self):
                 return self.admin
 
+            def cal_plan_shown(self):
+                return True
+
             def run_bg(self, work, done):
                 return done(work())
         H.admin = getattr(self, "ADMIN", False)
@@ -180,6 +183,23 @@ class Page(unittest.TestCase):
                 mock.patch.object(self.h, "cal_draw_soon", lambda tries=0: again.append(tries)):
             self.h.cal_draw(tries=40)
         self.assertEqual(again, [1], "and gives up quietly, never a loop")
+
+    def test_add_to_league_plan_makes_one_goal_you_tick(self):
+        from soe2 import focus as F
+        goals = []
+        with mock.patch.object(F, "cfg", lambda: {"goals": goals}), mock.patch.object(F, "save", lambda: True):
+            b = self.buttons(self.h.cal_day_box)["Add to League Plan"]
+            self.assertFalse(b.instate(["disabled"]))
+            g = self.h.cal_to_plan()
+            self.assertEqual(g["text"], f"Be ready for Start · {CD.day_words(self.day)}")
+            self.assertIsNone(g["target_kind"], "a goal you tick: the app cannot see a league start")
+            self.assertIsNone(self.h.cal_to_plan(), "not twice")
+            self.assertEqual(len(goals), 1)
+            b = self.buttons(self.h.cal_day_box)
+            self.assertTrue(b["✓ In League Plan"].instate(["disabled"]), "said in words, and grey")
+            goals[0]["done"] = True
+            self.h.cal_refresh()
+            self.assertIn("Add to League Plan", self.buttons(self.h.cal_day_box), "ticked off: it can be added again")
 
     def test_remind_me_sets_then_clears(self):
         self.h.cal_remind_me("b1")

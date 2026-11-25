@@ -372,6 +372,11 @@ def at(day, hour=0, minute=0):
     return _dt.datetime(day.year, day.month, day.day, hour, minute).timestamp()
 
 
+def plan_goal_text(ev):
+    """The words of the League Plan goal an event becomes: one you tick yourself."""
+    return f"Be ready for {ev['name']} · {day_words(local_day(ev['start']))}"
+
+
 # ---------------------------------------------------------------- reminders
 def due(now=None, evs=None):
     """Reminders whose moment has come and that were not said yet. -> [(event, seconds before)], and marks them said.

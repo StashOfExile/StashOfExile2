@@ -463,6 +463,16 @@ class CalendarPage:
             flowify(btns)
         except Exception:
             buglog.caught()
+        if self.cal_plan_shown():                            # one click: this event as a goal in League Plan
+            tk.Frame(box, bg=C["line"], height=1).pack(fill="x", pady=(12, 8))
+            has = self.cal_in_plan(ev)
+            b = ttk.Button(box, text="✓ In League Plan" if has else "Add to League Plan", width=0,
+                           command=self.cal_to_plan)
+            b.pack(anchor="w")
+            Tooltip(b, "Already a goal in League Plan" if has else
+                    "Adds a goal to League Plan: Be ready for this, with its day. You tick it when you are.")
+            if has:
+                b.state(["disabled"])
         if self.cal_is_admin():                              # admins: change or delete a board event
             tk.Frame(box, bg=C["line"], height=1).pack(fill="x", pady=(12, 8))
             tk.Label(box, text="Admins only", bg=P1, fg=C["muted"], font=("Segoe UI", 9), anchor="w").pack(fill="x")
@@ -614,6 +624,36 @@ class CalendarPage:
         ent.focus_set()
         self._cal_grab(dlg)
         return dlg
+
+    # ---------------------------------------------------------------- League Plan
+    def cal_plan_shown(self):
+        """True while League Plan is a page this install shows."""
+        sh = getattr(self, "shell", None)
+        mod = getattr(sh, "modules", {}).get("plan") if sh else None
+        try:
+            return mod is not None and bool(sh.visible(mod))
+        except Exception:
+            return False
+
+    def cal_in_plan(self, ev):
+        from . import focus as F
+        want = CD.plan_goal_text(ev)
+        return any(g.get("text") == want and not g.get("done") for g in F.cfg()["goals"])
+
+    def cal_to_plan(self):
+        """The picked event becomes a League Plan goal you tick. Once: a second click adds nothing."""
+        from . import focus as F
+        ev = self.cal_picked()
+        if not ev or self.cal_in_plan(ev):
+            return None
+        g = F.add_goal(CD.plan_goal_text(ev))
+        try:
+            self.gp_fill()
+            self.gp_overlay()
+        except Exception:
+            pass                                             # League Plan's page is not built in this window
+        self.cal_refresh()
+        return g
 
     # ---------------------------------------------------------------- admins: the board's events
     def cal_edit_event(self):
