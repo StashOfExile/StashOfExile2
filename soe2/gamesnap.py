@@ -26,24 +26,40 @@ def folder():
     return None
 
 
+def _all_folders():
+    """The shipped snapshots, plus the ones the app downloaded since (soe2/datasync.py) in the data folder."""
+    from .config import P
+    out = [d for d in (folder(), P("snapshots")) if d and os.path.isdir(d)]
+    return list(dict.fromkeys(out))
+
+
+def _where(v, path=None):
+    for d in ([path] if path else _all_folders()):
+        if os.path.isfile(os.path.join(d, f"poe2-{v}.json.gz")):
+            return d
+    return None
+
+
 def _vkey(v):
     return [int(x) if x.isdigit() else x for x in re.split(r"[.\-]", v)]
 
 
 def versions(path=None):
-    d = path or folder()
-    if not d:
-        return []
-    found = [m.group(1) for m in (NAME.match(f) for f in os.listdir(d)) if m]
+    found = set()
+    for d in ([path] if path else _all_folders()):
+        if d and os.path.isdir(d):
+            found |= {m.group(1) for m in (NAME.match(f) for f in os.listdir(d)) if m}
     return sorted(found, key=_vkey)
 
 
 def load(version=None, path=None):
-    d = path or folder()
-    vs = versions(d)
+    vs = versions(path)
     if not vs:
         return {}
     v = version or vs[-1]
+    d = _where(v, path)
+    if not d:
+        return {}
     with _lock:
         key = (d, v)
         if key not in _cache:

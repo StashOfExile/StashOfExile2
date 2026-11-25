@@ -1378,6 +1378,11 @@ class App(CalendarPage, DataReportsPage, BulkPage, SettingsPage, GearBookPage, P
         2.100.0: every start looks once (closing and reopening the app checks again) - with both switches off it only
         lights the update badge; the hourly look (feedback_page.quiet_update_check) carries on from there."""
         from .config import TEST_BUILD
+        try:                                            # 3.3.0 owner: new game data, once a day, test builds too
+            from . import datasync
+            datasync.refresh()
+        except Exception:
+            buglog.caught()
         if TEST_BUILD:                                  # 3.3.0: a test build never updates itself
             return
         if SETTINGS.get("auto_update"):

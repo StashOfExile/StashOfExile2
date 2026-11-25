@@ -1,8 +1,11 @@
 # 3.3.0 owner: the game data keeps itself current. Once a day this checks RePoE and Path of Building for a new
 # export. Nothing new: it stops. New: it runs tools/update_game_data.py - nothing is ever removed, new items are
-# marked, a big drop stops the run - then the data tests, and opens ONE pull request, auto/game-data, for the owner
-# to merge. Behind on merging? The same pull request is brought up to date each day, and every patch's snapshot
-# already in it is carried along, so a skipped patch is never lost. Run it by hand too: Actions > Game data > Run.
+# marked, a big drop stops the run - then the data tests, and opens ONE pull request, auto/game-data.
+# Owner, 25 Nov 2026: hands off. When the tests pass and no item went missing from the game files, the pull request
+# merges itself, and every app takes the new data from main within a day (soe2/datasync.py, data_manifest.json) -
+# no release needed. Anything odd is left open for the owner, and GitHub emails him. A failed run emails him too.
+# Behind on merging? The same pull request is brought up to date each day, and every patch's snapshot already in
+# it is carried along, so a skipped patch is never lost. Run it by hand too: Actions > Game data > Run.
 # Needs Settings > Actions > General > "Allow GitHub Actions to create and approve pull requests".
 name: Game data
 
@@ -58,6 +61,7 @@ jobs:
         run: |
           python tools/update_game_data.py --repoe ../repoe/data --pob ../pob
           python -c "import json;json.dump({'repoe':'$REPOE','pob':'$POB'},open('data_sources.json','w'),indent=1)"
+          python tools/build_data_manifest.py
 
       - name: Data tests
         if: steps.new.outputs.go == 'yes'
@@ -65,7 +69,7 @@ jobs:
           sudo apt-get install -y -qq xvfb python3-tk >/dev/null
           pip install -q -r requirements-build.txt || true
           xvfb-run -a python -m unittest tests.test_gamedb tests.test_uniquedata tests.test_gamesnap \
-            tests.test_update_game_data tests.test_changed_in tests.test_modlab_kinds
+            tests.test_update_game_data tests.test_changed_in tests.test_modlab_kinds tests.test_datasync
 
       - name: One pull request for the owner
         if: steps.new.outputs.go == 'yes'
@@ -74,7 +78,7 @@ jobs:
           git config user.email "actions@users.noreply.github.com"
           git checkout -B "$BRANCH"
           git add -A gamedb.json modlists.json regexdata.json tierdata.json trialdata.json mapdata.json \
-            uniquedata.json gamedata.json anointdata.json snapshots soe2/config.py data_sources.json
+            uniquedata.json gamedata.json anointdata.json snapshots soe2/config.py data_sources.json data_manifest.json
           if git diff --cached --quiet; then echo "No data changed."; exit 0; fi
           git commit -q -m "Game data: RePoE ${REPOE:0:7}, Path of Building ${POB:0:7}"
           git push -f origin "$BRANCH"
@@ -82,4 +86,10 @@ jobs:
             gh pr create --head "$BRANCH" --base main --title "Game data update" --body-file _update_report.md
           else
             gh pr edit "$BRANCH" --body-file _update_report.md
+          fi
+          # hands off: merge when nothing went missing from the game files; else it waits for the owner
+          if grep -qE "[1-9][0-9]* kept though not in the new files" _update_report.md; then
+            gh pr comment "$BRANCH" --body "Some items are no longer in the game files. They are kept and marked; please look before merging."
+          else
+            gh pr merge "$BRANCH" --squash --delete-branch
           fi
