@@ -113,6 +113,18 @@ def share_prompt_due():
     return not SETTINGS.get("share_prices") and not SETTINGS.get("dash_share_asked")
 
 
+def usage_prompt_due():
+    """3.3.0 owner: Count me as a user is asked once on the Dashboard too, beside data sharing."""
+    from . import usage as US
+    return not US.on() and not SETTINGS.get("dash_usage_asked")
+
+
+def usage_prompt_answer(yes):
+    from . import usage as US
+    SETTINGS["dash_usage_asked"] = True
+    US.set_on(bool(yes))                                     # saves the settings itself
+
+
 def share_prompt_answer(app, yes):
     SETTINGS["dash_share_asked"] = True
     if yes and hasattr(app, "cm_set_sharing"):
@@ -344,12 +356,9 @@ class Dashboard(tk.Canvas):
         h = top + max(1, len(rows)) * rh + 8
         self._card(x0, y, x1, y + h)
         _hid, up = self._head(x0, y, x1, "Patch Notes")
-        self.create_text(x1 - 20, y + 22 - up, text="From GGG's forum and Steam", anchor="ne", font=plain_f,
-                         fill=mut, tags=("pn_src",))
         feed, quiet = PN.admin_state()
         if quiet and self._is_admin():                       # admins: the board read nothing for a week
-            ox = self.bbox(self.find_withtag("pn_src")[0])[0]
-            self.create_text(ox - 20, y + 22 - up, anchor="ne", tags=("pn_feed",), fill=acc,
+            self.create_text(x1 - 20, y + 22 - up, anchor="ne", tags=("pn_feed",), fill=acc,
                              text="● Feed needs a look" if feed else "● Set the forum address",
                              font=("Segoe UI", 10, "underline" if self.hover == "pn_feed" else "bold"))
             self.acts["pn_feed"] = self._pn_set_feed
@@ -421,6 +430,21 @@ class Dashboard(tk.Canvas):
         if tip:
             self.tips[tag] = tip
         return x0
+
+    # ---- 3.3.0 owner: the one-time Count me as a user question
+    def _usage_prompt(self, x0, y, x1, narrow):
+        t = TH.ST.theme
+        h = 132 if narrow else 84
+        self._card(x0, y, x1, y + h)
+        self.create_text(x0 + 20, y + 16, text="Count me as a user?", anchor="nw",
+                         font=("Segoe UI", 12, "bold"), fill=t.c("text_strong"))
+        self.create_text(x0 + 20, y + 44, text="A random id every 10 minutes, so we know how many people play. "
+                         "Nothing else.", anchor="nw", font=("Segoe UI", 10), fill=t.c("text_muted"),
+                         width=(x1 - x0 - 40) if narrow else 0)
+        by = y + h - 44 - 20 if narrow else y + 20
+        bx = self._button(x1 - 20, by, "No thanks", "us_no", lambda: (usage_prompt_answer(False), self.later())) - 12
+        self._button(bx, by, "Yes, count me", "us_yes", lambda: (usage_prompt_answer(True), self.later()))
+        return y + h
 
     # ---- 3.3.0 owner: the one-time sharing question
     def _share_prompt(self, x0, y, x1, narrow):
@@ -878,6 +902,8 @@ class Dashboard(tk.Canvas):
         narrow = W < 900 or bool(look and look())            # D3: in the Drawer the tiles and Start cards wrap, 2 a row
         if share_prompt_due():                               # 3.3.0 owner: asked once, here, while sharing is off
             y = self._share_prompt(PAD, y, W - PAD, narrow) + GAP
+        if usage_prompt_due():                               # and Count me as a user, beside it
+            y = self._usage_prompt(PAD, y, W - PAD, narrow) + GAP
 
         if vis["empty"]:                                     # every part is off: one line, one button
             self._card(PAD, y, W - PAD, y + 150)
