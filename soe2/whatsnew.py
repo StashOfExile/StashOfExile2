@@ -58,6 +58,7 @@ NOTES = {
                 ("•", "Added Ranked and Personal marks to campaign act times"),
                 ("•", "Added character list to the overlay's level"),
                 ("•", "Added word filter to every text box except Notes"),
+                ("•", "Added Calendar with reminders, and Upcoming on the Dashboard"),
             ]),
             ("▲", "Improved", [
                 ("•", "Reworked League Plan page to be a more streamlined user experience"),

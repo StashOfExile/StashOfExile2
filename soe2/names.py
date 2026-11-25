@@ -11,6 +11,7 @@ Renaming one: change it here, add the old name to OLD, and run tools/check_names
 
 PAGES = {
     "dashboard": "Dashboard",           # UI overhaul: the first page
+    "calendar": "Calendar",             # 3.3.0 owner: a child of Dashboard
     "pricecheck": "Price Checks",
     "checks": "Bulk Pricing",
     "insights": "Market Insights",
@@ -33,6 +34,8 @@ PAGES = {
 }
 
 FEATURES = (
+    "Upcoming",                 # 3.3.0 Dashboard: the next 3 events from the Calendar
+    "Add Reminder",             # 3.3.0 Calendar: a reminder of your own, kept on this PC
     "Top Movers",               # 3.3.0 Dashboard: what went up and down the most, Daily and Hourly, from poe.ninja
     "Feature Spotlight",             # 3.3.0 Dashboard: one feature at a time that you have off or may not know
     "Suggest a Feature",        # 3.2.0 owner: the bottom bar, next to Report a bug - an idea becomes a GitHub issue

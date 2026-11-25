@@ -51,6 +51,7 @@ ICONS = {
     "note": '<path d="M6 4h9l4 4v12H6z"/><path d="M14 4v5h5"/><path d="M9 13h7M9 16h5"/>',
     "bars": '<path d="M5 20V11M10 20V6M15 20v-7M20 20V9"/>',
     "dot": '<circle cx="12" cy="12" r="3"/>',
+    "calendar": '<rect x="4" y="6" width="16" height="14"/><path d="M4 10.5h16M8.5 3.5v4M15.5 3.5v4"/>',
     "globe": '<path d="M17.74 11.56A7.5 7.5 0 1 1 12.44 6.26"/><ellipse cx="10.5" cy="13.5" rx="3" ry="7.5"/>'
              '<path d="M3 13.5h15M14.5 9.5L21 3M15.5 3H21v5.5"/>',       # 3.0.6: Trade Site - a web browser, opens outside
 }                                                          # (owner: a globe with an arrow)
@@ -62,7 +63,7 @@ PAGE_ICON = {
     "checks": "stack", "favorites": "star", "ratemods": "rate", "rates": "swap", "insights": "bars",
     "wealth": "coins", "regex": "regex", "crafthelper": "hammer", "plan": "flag", "mapprofit": "route",
     "money": "trend", "maps": "map", "leaderboards": "trophy", "search": "book",
-    "library": "history", "modbook": "book", "notes": "note",
+    "library": "history", "modbook": "book", "notes": "note", "calendar": "calendar",
 }
 
 SS = 4                       # drawn this many times larger, then scaled down (smooth edges)

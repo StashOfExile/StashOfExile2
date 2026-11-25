@@ -1,0 +1,515 @@
+"""3.3.0 owner: Dashboard ↳ Calendar. A month of leagues, Twitch Drops, events and races from the community board,
+plus reminders of your own. Left: the month, or the same events as a list. Right: the day you clicked.
+
+Row 1: search first, then Month | List, the month's arrows, Today, a tick box for each kind, and the page's one
+orange button, Add Reminder. Every kind is told by its mark and its word, never by color alone.
+GGG policy: nothing is read from the game and no keys are sent. A reminder is an alert card, like the helpers."""
+import datetime as _dt
+import time
+import tkinter as tk
+import webbrowser
+from tkinter import ttk
+
+from . import buglog
+from . import calendar_data as CD
+from .config import SETTINGS, save_json
+from .style import C, over_app
+
+KEY = "calendar"
+TICK_MS = 20000
+DEFAULT_LEADS = (86400, 0)
+VIEWS = ("Month", "List")
+
+
+def kind_color(kind):
+    return C.get(CD.KINDS.get(kind, CD.KINDS["event"])[2], C["text"])
+
+
+class CalendarPage:
+    # ---------------------------------------------------------------- the page
+    def build_calendar(self, body):
+        from .chrome import EmptyState, PanelHead
+        from .style import SegBar, Tooltip
+        from . import cleanguard
+        P1, P2 = C["panel"], C["panel2"]
+        today = _dt.date.today()
+        self.cal_ym, self.cal_day, self.cal_pick = (today.year, today.month), today, None
+        self.cal_cells = []
+        bar = tk.Frame(body, bg=P1, padx=8)
+        bar.pack(fill="x", pady=(8, 8))
+        tk.Label(bar, text="🔍", bg=P1, fg=C["muted"], font=("Segoe UI Symbol", 10)).pack(side="left", padx=(0, 4))
+        self.cal_q = tk.StringVar()
+        self.cal_q.trace_add("write", lambda *_a: self.root.after_idle(self.cal_refresh))
+        q = ttk.Entry(bar, textvariable=self.cal_q, width=22)
+        q.pack(side="left")
+        cleanguard.free(q)                                  # a search
+        Tooltip(q, "Search event names and kinds")
+        self.cal_view = SegBar(bar, list(VIEWS), value=SETTINGS.get("cal_view") if SETTINGS.get("cal_view") in VIEWS
+                               else "Month", command=lambda v: self.cal_view_changed(), size=10, pad=(12, 4))
+        self.cal_view.pack(side="left", padx=(12, 12))
+        b = ttk.Button(bar, text="‹", width=3, command=lambda: self.cal_step(-1))
+        b.pack(side="left")
+        Tooltip(b, "The month before")
+        self.cal_month_lbl = tk.Label(bar, text="", bg=P1, fg=C["text"], font=("Segoe UI", 10, "bold"), width=16)
+        self.cal_month_lbl.pack(side="left")
+        b = ttk.Button(bar, text="›", width=3, command=lambda: self.cal_step(1))
+        b.pack(side="left")
+        Tooltip(b, "The month after")
+        b = ttk.Button(bar, text="Today", width=0, command=self.cal_today)
+        b.pack(side="left", padx=(8, 12))
+        Tooltip(b, "Back to this month, with today picked")
+        off = set(SETTINGS.get("cal_hide") or ())
+        self.cal_kind_vars, self.cal_kind_lbls = {}, {}
+        for kind in CD.ORDER:                               # a tick and the kind's mark and word; a dash when hidden
+            self.cal_kind_vars[kind] = tk.BooleanVar(value=kind not in off)
+            lab = self.cal_kind_lbls[kind] = tk.Label(bar, bg=P1, font=("Segoe UI", 9, "bold"), cursor="hand2", padx=4)
+            lab.pack(side="left", padx=(0, 4))
+            lab.bind("<Button-1>", lambda _e, k=kind: self.cal_kind_flip(k))
+            Tooltip(lab, f"Click to show or hide {CD.FILTER_WORDS[kind]}")
+        self.cal_kind_paint()
+        add = ttk.Button(bar, text="Add Reminder", style="Primary.TButton", width=0, command=self.cal_add)
+        add.pack(side="right")
+        Tooltip(add, "A reminder of your own on the picked day. It stays on this PC.")
+        self.undo_button(bar, KEY, side="right", padx=(0, 8))
+        try:
+            from .style import flowify
+            flowify(bar)                                    # too narrow: the row wraps, nothing is cut off
+        except Exception:
+            buglog.caught()
+        wrap = tk.Frame(body, bg=P2)
+        wrap.pack(fill="both", expand=True)
+        wrap.columnconfigure(0, weight=3, uniform="cal")
+        wrap.columnconfigure(1, weight=1, uniform="cal")
+        wrap.rowconfigure(0, weight=1)
+        # ---- the month, or the list
+        lf = tk.Frame(wrap, bg=P1)
+        lf.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
+        self.cal_head = PanelHead(lf, "Calendar")
+        self.cal_head.pack(fill="x")
+        self.cal_grid = tk.Canvas(lf, bg=P1, highlightthickness=0, bd=0)
+        self.cal_grid.bind("<Configure>", lambda e: self.cal_draw())
+        self.cal_grid.bind("<Button-1>", self.cal_grid_click)
+        self.cal_grid.bind("<Double-Button-1>", lambda e: (self.cal_grid_click(e), self.cal_add()))
+        lst = self.cal_list_frame = tk.Frame(lf, bg=P1)
+        tv = ttk.Treeview(lst, columns=("kind", "starts", "away", "remind"), show="tree headings", selectmode="browse")
+        for cid, text, weight in (("#0", "Name", 5), ("kind", "Kind", 3), ("starts", "Starts", 4), ("away", "When", 3),
+                                  ("remind", "Reminder", 4)):
+            tv.heading(cid, text=text)
+            tv.column(cid, width=weight * 40, minwidth=60, stretch=True, anchor="w")
+        sb = ttk.Scrollbar(lst, orient="vertical", command=tv.yview)
+        tv.configure(yscrollcommand=sb.set)
+        sb.pack(side="right", fill="y")
+        tv.pack(fill="both", expand=True)
+        self.cal_tv = tv
+        self.list_register(KEY, tv, delete=lambda _rows=None: self.cal_delete(), multi=False)
+        tv.menu_actions = self.cal_menu_actions
+        tv.bind("<<TreeviewSelect>>", lambda e: self.cal_list_picked())
+        # ---- the picked day
+        rf = tk.Frame(wrap, bg=P1)
+        rf.grid(row=0, column=1, sticky="nsew")
+        self.cal_day_head = PanelHead(rf, "Day")
+        self.cal_day_head.pack(fill="x")
+        self.cal_day_box = tk.Frame(rf, bg=P1, padx=12, pady=8)
+        self.cal_day_box.pack(fill="both", expand=True)
+        self.cal_empty = EmptyState(rf, "", "Nothing on this day\nAdd Reminder puts one of your own here.",
+                                    button=("Add Reminder", self.cal_add))
+        self.cal_view_changed(save=False)
+        self.root.after(TICK_MS, self.cal_tick)
+
+    def cal_kinds(self):
+        return {k for k, v in self.cal_kind_vars.items() if v.get()}
+
+    def cal_events(self):
+        return CD.shown(CD.events(), self.cal_q.get(), self.cal_kinds())
+
+    def cal_kind_flip(self, kind):
+        v = self.cal_kind_vars[kind]
+        v.set(not v.get())
+        self.cal_kinds_changed()
+
+    def cal_kind_paint(self):
+        for kind, lab in self.cal_kind_lbls.items():
+            on = self.cal_kind_vars[kind].get()
+            lab.config(text=f"{'✓' if on else '–'} {CD.mark(kind)} {CD.FILTER_WORDS[kind]}",
+                       fg=kind_color(kind) if on else C["muted"])
+
+    def cal_kinds_changed(self):
+        self.cal_kind_paint()
+        SETTINGS["cal_hide"] = sorted(k for k, v in self.cal_kind_vars.items() if not v.get())
+        save_json("settings.json", SETTINGS)
+        self.cal_refresh()
+
+    def cal_view_changed(self, save=True):
+        month = self.cal_view.get() == "Month"
+        if save:
+            SETTINGS["cal_view"] = self.cal_view.get()
+            save_json("settings.json", SETTINGS)
+        self.cal_list_frame.pack_forget()
+        self.cal_grid.pack_forget()
+        (self.cal_grid if month else self.cal_list_frame).pack(fill="both", expand=True)
+        self.cal_refresh()
+
+    def cal_step(self, by):
+        self.cal_ym = CD.step_month(*self.cal_ym, by)
+        self.cal_refresh()
+
+    def cal_today(self):
+        today = _dt.date.today()
+        self.cal_ym, self.cal_day, self.cal_pick = (today.year, today.month), today, None
+        self.cal_refresh()
+
+    # ---------------------------------------------------------------- drawing
+    def cal_refresh(self):
+        if getattr(self, "cal_grid", None) is None:
+            return
+        try:
+            evs = self.cal_events()
+            y, m = self.cal_ym
+            self.cal_month_lbl.config(text=CD.month_name(y, m))
+            in_month = [e for e in evs if any(d.month == m and d.year == y for d in CD.span(e))
+                        or CD.span(e)[0] < _dt.date(y, m, 1) <= CD.span(e)[1]]
+            board = sum(1 for e in in_month if not CD.is_mine(e))
+            if self.cal_view.get() == "Month":
+                self.cal_head.set_title(CD.month_name(y, m))
+                self.cal_head.note(f"{board} from the board · {len(in_month) - board} mine")
+            else:
+                self.cal_head.set_title("Every Event")
+                self.cal_head.note(f"{len(evs)} shown")
+            self.cal_draw(evs)
+            self.cal_fill_list(evs)
+            self.cal_show_day(evs)
+        except Exception:
+            buglog.caught()
+
+    def cal_draw(self, evs=None):
+        cv = self.cal_grid
+        if not cv.winfo_ismapped() and evs is None:
+            return
+        evs = self.cal_events() if evs is None else evs
+        import tkinter.font as tkfont
+        cv.delete("all")
+        self.cal_cells = []
+        W, H = max(cv.winfo_width(), 7), max(cv.winfo_height(), 7)
+        small, bold = tkfont.Font(root=cv, font=("Segoe UI", 9)), tkfont.Font(root=cv, font=("Segoe UI", 9, "bold"))
+        lh = small.metrics("linespace") + 2
+        head = lh + 8
+        y, m = self.cal_ym
+        rows = CD.weeks(y, m)
+        cw, ch = W / 7, (H - head) / len(rows)
+        for i, name in enumerate(("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")):
+            cv.create_text(i * cw + 8, head / 2, text=name, anchor="w", font=bold, fill=C["muted"])
+        cv.create_line(0, head, W, head, fill=C["line"])
+        today = _dt.date.today()
+        for r, week in enumerate(rows):
+            for c, day in enumerate(week):
+                x0, y0, x1, y1 = c * cw, head + r * ch, (c + 1) * cw, head + (r + 1) * ch
+                self.cal_cells.append((x0, y0, x1, y1, day))
+                picked, out = day == self.cal_day, day.month != m
+                if picked:
+                    cv.create_rectangle(x0 + 1, y0 + 1, x1, y1, fill=C["sel"], outline=C["accent"])
+                elif day == today:
+                    cv.create_rectangle(x0 + 1, y0 + 1, x1, y1, fill=C["odd"], outline="")
+                if c:
+                    cv.create_line(x0, y0, x0, y1, fill=C["line"])
+                if r:
+                    cv.create_line(x0, y0, x1, y0, fill=C["line"])
+                num = f"{day.day} · Today" if day == today else str(day.day)
+                cv.create_text(x0 + 8, y0 + 4, text=num, anchor="nw", font=bold if day == today else small,
+                               fill=C["line"] if out else C["text"] if day == today else C["muted"])
+                if out:
+                    continue
+                todays = CD.on_day(evs, day)
+                room = max(1, int((ch - lh - 8) // lh))
+                show = todays if len(todays) <= room else todays[:max(1, room - 1)]
+                ty = y0 + 4 + lh
+                for ev in show:
+                    words = f"{CD.mark(ev['kind'])} {ev['name']}" if CD.is_mine(ev) else \
+                        f"{CD.label(ev)}: {ev['name']}"
+                    words = self._cal_fit(words, bold, cw - 12)
+                    cv.create_text(x0 + 8, ty, text=words, anchor="nw", font=bold, fill=kind_color(ev["kind"]))
+                    ty += lh
+                if len(show) < len(todays):
+                    cv.create_text(x0 + 8, ty, text=f"+ {len(todays) - len(show)} more", anchor="nw", font=small,
+                                   fill=C["muted"])
+
+    @staticmethod
+    def _cal_fit(text, font, width):
+        if font.measure(text) <= width:
+            return text
+        while len(text) > 2 and font.measure(text + "…") > width:
+            text = text[:-1]
+        return text.rstrip() + "…"
+
+    def cal_grid_click(self, e):
+        for x0, y0, x1, y1, day in self.cal_cells:
+            if x0 <= e.x < x1 and y0 <= e.y < y1:
+                self.cal_day, self.cal_pick = day, None
+                if (day.year, day.month) != self.cal_ym:
+                    self.cal_ym = (day.year, day.month)
+                self.cal_refresh()
+                return
+
+    def cal_fill_list(self, evs):
+        tv = self.cal_tv
+        keep = self.cal_pick
+        tv.delete(*tv.get_children())
+        now = time.time()
+        for ev in evs:
+            tv.insert("", "end", iid=str(ev["id"]), text=ev["name"],
+                      values=(CD.label(ev), f"{CD.day_words(CD.local_day(ev['start']))}, {CD.clock(ev['start'])}",
+                              "Live" if CD.live(ev, now) else CD.away(ev["start"], now), CD.remind_line(ev)))
+        if keep is not None and tv.exists(str(keep)):
+            tv.selection_set(str(keep))
+
+    def cal_list_picked(self):
+        sel = self.cal_tv.selection()
+        if not sel or sel[0] == str(self.cal_pick):
+            return
+        ev = next((e for e in CD.events() if str(e["id"]) == sel[0]), None)
+        if ev:
+            self.cal_pick, self.cal_day = ev["id"], CD.local_day(ev["start"])
+            self.cal_show_day(self.cal_events())
+
+    def cal_picked(self, evs=None):
+        """The event the right side is about: the one clicked, else the day's first."""
+        evs = self.cal_events() if evs is None else evs
+        todays = CD.on_day(evs, self.cal_day)
+        return next((e for e in todays if e["id"] == self.cal_pick), todays[0] if todays else None)
+
+    def cal_show_day(self, evs):
+        from .style import Tooltip
+        box, P1 = self.cal_day_box, C["panel"]
+        for w in box.winfo_children():
+            w.destroy()
+        todays = CD.on_day(evs, self.cal_day)
+        self.cal_day_head.set_title(CD.day_words(self.cal_day))
+        self.cal_day_head.note("1 event" if len(todays) == 1 else f"{len(todays)} events")
+        if not todays:
+            self.cal_empty.place(relx=0.5, rely=0.4, anchor="center")
+            return
+        self.cal_empty.place_forget()
+        ev = self.cal_picked(evs)
+        self.cal_pick = ev["id"]
+        if len(todays) > 1:                                  # more than one that day: a line each, the open one marked
+            for e in todays:
+                on = e["id"] == ev["id"]
+                lab = tk.Label(box, text=("▶ " if on else "   ") + f"{CD.label(e)}: {e['name']}", bg=P1, anchor="w",
+                               fg=kind_color(e["kind"]), font=("Segoe UI", 9, "bold" if on else "normal"),
+                               cursor="hand2")
+                lab.pack(fill="x")
+                lab.bind("<Button-1>", lambda _e, i=e["id"]: self.cal_pick_event(i))
+            tk.Frame(box, bg=C["line"], height=1).pack(fill="x", pady=8)
+        kv = tk.Frame(box, bg=P1)
+        kv.pack(fill="x")
+        kv.columnconfigure(1, weight=1)
+        rows = [("What", CD.label(ev), kind_color(ev["kind"])), ("Name", ev["name"], C["text"]),
+                ("Starts", CD.starts_line(ev), C["text"]), ("Ends", CD.ends_line(ev), C["text"]),
+                ("Posted by", ev.get("by") or "Official", C["text"]), ("Reminder", CD.remind_line(ev), C["text"])]
+        if ev.get("note"):
+            rows.append(("Note", ev["note"], C["text"]))
+        vals = []
+        for i, (k, v, col) in enumerate(rows):
+            tk.Label(kv, text=k, bg=P1, fg=C["muted"], anchor="nw", font=("Segoe UI", 9)).grid(
+                row=i, column=0, sticky="nw", padx=(0, 12), pady=2)
+            lab = tk.Label(kv, text=v, bg=P1, fg=col, anchor="w", justify="left",
+                           font=("Segoe UI", 9, "bold" if k == "What" else "normal"))
+            lab.grid(row=i, column=1, sticky="we", pady=2)
+            vals.append(lab)
+        kv.bind("<Configure>", lambda e: [v.config(wraplength=max(60, e.width - 110)) for v in vals
+                                          if v.winfo_exists()])
+        btns = tk.Frame(box, bg=P1)
+        btns.pack(fill="x", pady=(12, 0))
+        b = ttk.Button(btns, text="Change Reminder", width=0, command=self.cal_change_reminder)
+        b.pack(side="left", padx=(0, 8))
+        Tooltip(b, "When this PC tells you about it")
+        b = ttk.Button(btns, text="Open Link", width=0, command=self.cal_open_link)
+        b.pack(side="left", padx=(0, 8))
+        Tooltip(b, "Opens its announcement in your browser" if ev.get("link") else "This event has no link")
+        if not ev.get("link"):
+            b.state(["disabled"])
+        b = ttk.Button(btns, text="Delete", width=0, command=self.cal_delete)
+        b.pack(side="left")
+        Tooltip(b, "Deletes this reminder of yours. Undo brings it back." if CD.is_mine(ev)
+                else "Only your own reminders can be deleted here")
+        if not CD.is_mine(ev):
+            b.state(["disabled"])
+        try:
+            from .style import flowify
+            flowify(btns)
+        except Exception:
+            buglog.caught()
+
+    def cal_pick_event(self, eid):
+        self.cal_pick = eid
+        self.cal_refresh()
+
+    # ---------------------------------------------------------------- acting
+    def cal_menu_actions(self, _sel=None):
+        ev = self.cal_picked()
+        return [("Change Reminder…", self.cal_change_reminder, bool(ev)),
+                ("Open Link", self.cal_open_link, bool(ev and ev.get("link"))), None,
+                ("Delete", self.cal_delete, CD.is_mine(ev), "Del")]
+
+    def cal_open_link(self):
+        ev = self.cal_picked()
+        link = (ev or {}).get("link") or ""
+        if link.startswith("https://"):
+            webbrowser.open(link)
+
+    def cal_delete(self):
+        ev = self.cal_picked()
+        if not CD.is_mine(ev):
+            return
+        gone = CD.remove_mine(ev["id"])
+        if gone:
+            self.push_undo(KEY, f"the reminder {gone['name']}", lambda g=gone: (CD.restore_mine(g), self.cal_changed()))
+        self.cal_pick = None
+        self.cal_changed()
+
+    def cal_changed(self):
+        self.cal_refresh()
+        dash = getattr(getattr(self, "shell", None), "modules", {}).get("dashboard")
+        page = getattr(dash, "page", None)
+        if page is not None:
+            page.later()
+
+    def _cal_dialog(self, title):
+        dlg = tk.Toplevel(self.root)
+        over_app(dlg, self.dlg_parent())
+        dlg.title(title)
+        dlg.configure(bg=C["panel2"], padx=16, pady=12)
+        dlg.transient(self.root)
+        dlg.bind("<Escape>", lambda e: dlg.destroy())
+        return dlg
+
+    def _cal_lead_boxes(self, dlg, leads):
+        P2 = C["panel2"]
+        tk.Label(dlg, text="Tell me", bg=P2, fg=C["text"]).pack(anchor="w")
+        vars_ = {}
+        for words, secs in CD.LEADS:
+            v = vars_[secs] = tk.BooleanVar(value=secs in leads)
+            ttk.Checkbutton(dlg, text=words, variable=v).pack(anchor="w")
+        return vars_
+
+    def cal_change_reminder(self):
+        ev = self.cal_picked()
+        if not ev:
+            return
+        dlg = self._cal_dialog("Change Reminder")
+        P2 = C["panel2"]
+        tk.Label(dlg, text=f"{CD.label(ev)}: {ev['name']}", bg=P2, fg=kind_color(ev["kind"]),
+                 font=("Segoe UI", 10, "bold")).pack(anchor="w")
+        tk.Label(dlg, text=CD.starts_line(ev), bg=P2, fg=C["muted"]).pack(anchor="w", pady=(0, 8))
+        vars_ = self._cal_lead_boxes(dlg, CD.reminders(ev))
+        tk.Label(dlg, text="No box ticked means no reminder.", bg=P2, fg=C["muted"]).pack(anchor="w", pady=(4, 8))
+
+        def save():
+            CD.set_reminders(ev["id"], [s for s, v in vars_.items() if v.get()])
+            dlg.destroy()
+            self.cal_changed()
+        row = tk.Frame(dlg, bg=P2)
+        row.pack(fill="x")
+        ttk.Button(row, text="Save", style="Primary.TButton", command=save).pack(side="right")
+        ttk.Button(row, text="Cancel", command=dlg.destroy).pack(side="right", padx=(0, 8))
+        dlg.bind("<Return>", lambda e: save())
+        self._cal_grab(dlg)
+
+    def cal_add(self):
+        from . import cleanguard
+        dlg = self._cal_dialog("Add Reminder")
+        P2 = C["panel2"]
+        day = [self.cal_day]
+        tk.Label(dlg, text="Name", bg=P2, fg=C["text"]).pack(anchor="w")
+        name = tk.StringVar()
+        ent = ttk.Entry(dlg, textvariable=name, width=44)
+        ent.pack(fill="x", pady=(2, 8))
+        tk.Label(dlg, text="Day", bg=P2, fg=C["text"]).pack(anchor="w")
+        drow = tk.Frame(dlg, bg=P2)
+        drow.pack(fill="x", pady=(2, 8))
+        dlab = tk.Label(drow, text="", bg=P2, fg=C["text"], font=("Segoe UI", 10, "bold"), width=18)
+
+        def step(by):
+            day[0] = day[0] + _dt.timedelta(days=by)
+            dlab.config(text=f"{CD.day_words(day[0])} {day[0].year}")
+        ttk.Button(drow, text="‹", width=3, command=lambda: step(-1)).pack(side="left")
+        dlab.pack(side="left")
+        ttk.Button(drow, text="›", width=3, command=lambda: step(1)).pack(side="left")
+        step(0)
+        tk.Label(dlg, text="Time, on this PC's clock", bg=P2, fg=C["text"]).pack(anchor="w")
+        clock = tk.StringVar(value="20:00")
+        ttk.Entry(dlg, textvariable=clock, width=10).pack(anchor="w", pady=(2, 0))
+        tk.Label(dlg, text="Like 20:00 or 8pm.", bg=P2, fg=C["muted"]).pack(anchor="w", pady=(0, 8))
+        vars_ = self._cal_lead_boxes(dlg, (0,))
+        tk.Label(dlg, text="Note", bg=P2, fg=C["text"]).pack(anchor="w", pady=(8, 0))
+        note = tk.StringVar()
+        ne = ttk.Entry(dlg, textvariable=note, width=44)
+        ne.pack(fill="x", pady=(2, 8))
+        cleanguard.free(ne)                                 # a note: a person can write what they want
+        msg = tk.Label(dlg, text="", bg=P2, fg=C["red"], anchor="w")
+        msg.pack(fill="x")
+
+        def save():
+            hm = CD.parse_clock(clock.get())
+            if hm is None:
+                return msg.config(text="That time is not clear. Write it like 20:00 or 8pm.")
+            got = CD.add_mine(name.get(), CD.at(day[0], *hm), note=note.get(),
+                              leads=[s for s, v in vars_.items() if v.get()])
+            if isinstance(got, str):
+                return msg.config(text=got)
+            dlg.destroy()
+            self.cal_day, self.cal_pick = day[0], got["id"]
+            self.cal_ym = (day[0].year, day[0].month)
+            if not self.cal_kind_vars["mine"].get():        # it would be hidden the moment it is made
+                self.cal_kind_vars["mine"].set(True)
+                self.cal_kinds_changed()
+            self.cal_changed()
+        row = tk.Frame(dlg, bg=P2)
+        row.pack(fill="x")
+        ttk.Button(row, text="Save", style="Primary.TButton", command=save).pack(side="right")
+        ttk.Button(row, text="Cancel", command=dlg.destroy).pack(side="right", padx=(0, 8))
+        dlg.bind("<Return>", lambda e: save())
+        ent.focus_set()
+        self._cal_grab(dlg)
+        return dlg
+
+    @staticmethod
+    def _cal_grab(dlg):
+        try:
+            dlg.grab_set()
+        except tk.TclError:
+            pass
+
+    def cal_remind_me(self, eid):
+        """Dashboard, Upcoming: one click sets the usual reminder; a second click takes it off."""
+        ev = next((e for e in CD.events() if e["id"] == eid), None)
+        if not ev:
+            return
+        CD.set_reminders(eid, () if CD.reminders(ev) else DEFAULT_LEADS)
+        self.cal_changed()
+
+    # ---------------------------------------------------------------- reminders
+    def cal_tick(self):
+        try:
+            self.cal_fire()
+        except Exception:
+            buglog.caught()
+        try:
+            self.root.after(TICK_MS, self.cal_tick)
+        except tk.TclError:
+            pass
+
+    def cal_fire(self, now=None):
+        """-> the reminders said just now."""
+        got = CD.due(now)
+        for ev, lead in got:
+            title, line = CD.remind_words(ev, lead, now)
+            try:
+                from . import alertcard
+                from .alerts_page import game_rect
+                alertcard.show(self.root, title, line, color=kind_color(ev["kind"]), mark=CD.mark(ev["kind"]), secs=12,
+                               game=game_rect(), tag="Calendar")
+            except Exception:
+                buglog.caught()
+        if got:
+            self.cal_changed()
+        return got

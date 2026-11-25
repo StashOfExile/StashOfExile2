@@ -408,6 +408,70 @@ class Dashboard(tk.Canvas):
             y += MOVERS_H + GAP
         return y
 
+    def _upcoming(self, x0, y, x1, narrow):
+        """The next 3 events, a row each: what it is, its name, when, and its reminder. -> the y under it."""
+        from . import calendar_data as CD
+        from .calendar_page import kind_color
+        sh = getattr(self.app, "shell", None)
+        mod = getattr(sh, "modules", {}).get("calendar") if sh else None
+        if mod is None or not sh.visible(mod):
+            return y
+        t = TH.ST.theme
+        mut, txt, acc, brass = t.c("text_muted"), t.c("text"), t.c("accent"), t.c("accent_2")
+        now = time.time()
+        rows = CD.upcoming(now=now, n=3)
+        bold, plain_f = ("Segoe UI", 10, "bold"), ("Segoe UI", 10)
+        lh = max(self._line_h(bold), self._line_h(plain_f))
+        rh = (2 * lh + 20) if narrow else (lh + 24)
+        top = self._top()
+        h = top + max(1, len(rows)) * rh + 8
+        self._card(x0, y, x1, y + h)
+        _hid, up = self._head(x0, y, x1, "Upcoming")
+        self.create_text(x1 - 20, y + 22 - up, text="Open Calendar", anchor="ne", font=plain_f,
+                         fill=acc if self.hover == "cal_open" else brass, tags=("cal_open",))
+        self.acts["cal_open"] = lambda: sh.open("calendar")
+        self.tips["cal_open"] = "Every league, Twitch Drops campaign, event and race, by month."
+        if not rows:
+            self.create_text(x0 + 20, y + top + rh / 2, anchor="w", font=plain_f, fill=mut, width=x1 - x0 - 40,
+                             text="Nothing coming up yet. Leagues, Twitch Drops, events and races show here.")
+            return y + h + GAP
+        fonts = self._line_fonts
+        col = max(fonts[bold].measure(CD.label(e)) for e in rows) + 24
+        for i, ev in enumerate(rows):
+            ry = y + top + i * rh
+            if i:
+                self.create_line(x0 + 20, ry, x1 - 20, ry, fill=t.c("border"))
+            tag = f"cal_r{i}"
+            has = bool(CD.reminders(ev))
+            lit = self.hover == tag
+            rid = self.create_text(x1 - 20, ry + rh / 2, anchor="e", tags=(tag,),
+                                   text="✓ Reminder set" if has else "Remind me",
+                                   font=("Segoe UI", 10, "underline") if lit else plain_f,
+                                   fill=txt if has else (acc if lit else brass))
+            self.acts[tag] = lambda i=ev["id"]: self.app.cal_remind_me(i)
+            self.tips[tag] = ("Click to take the reminder off." if has else
+                              "One click: this PC tells you 1 day before, and at the start.")
+            room = self.bbox(rid)[0] - 16
+            y1 = ry + (10 if narrow else rh / 2)
+            anchor = "nw" if narrow else "w"
+            self.create_text(x0 + 20, y1, text=CD.label(ev), anchor=anchor, font=bold, fill=kind_color(ev["kind"]))
+            when = CD.when_line(ev, now)
+            wtag = f"cal_w{i}"
+            self.tips[wtag] = f"Starts {CD.starts_line(ev, now)}. Ends: {CD.ends_line(ev)}. Shown in this PC's time."
+            if narrow:
+                self.create_text(x0 + 20 + col, y1, text=ev["name"], anchor="nw", font=plain_f, fill=txt,
+                                 width=max(60, room - x0 - 20 - col))
+                self.create_text(x0 + 20 + col, y1 + lh + 2, text=when, anchor="nw", font=plain_f, fill=mut,
+                                 tags=(wtag,))
+            else:
+                wid = self.create_text(room, y1, text=when, anchor="e", font=plain_f, fill=mut, tags=(wtag,))
+                name_room = self.bbox(wid)[0] - 16 - (x0 + 20 + col)
+                name = ev["name"]
+                while len(name) > 4 and fonts[plain_f].measure(name) > name_room:
+                    name = name[:-2].rstrip() + "…"
+                self.create_text(x0 + 20 + col, y1, text=name, anchor="w", font=plain_f, fill=txt)
+        return y + h + GAP
+
     def _movers(self, x0, y, x1):
         from . import movers as MV
         from .pricefmt import fmt_div
@@ -818,6 +882,12 @@ class Dashboard(tk.Canvas):
             self.acts[tag] = go(key)
         if tiles:
             y += top + trows * tile_h + GAP
+
+        # -- 3.3.0 owner: Upcoming, the next 3 events from the Calendar
+        try:
+            y = self._upcoming(PAD, y, W - PAD, narrow)
+        except Exception:
+            buglog.caught()
 
         # -- start here: the things not done yet (each card goes once it's done)
         starts = [c for c in (
