@@ -1,22 +1,35 @@
-"""Patch Notes: only patch posts from Steam's news, newest first, with their version."""
+"""Patch Notes come from the board, which reads GGG's forum; the app keeps the last list."""
 import unittest
+from unittest import mock
 
 from soe2 import patchnotes as PN
 
 
-class Pick(unittest.TestCase):
-    def test_patch_posts_only(self):
-        items = [{"title": "0.5.5d Patch Notes", "date": 200, "url": "https://store.steampowered.com/news/a"},
-                 {"title": "Hotfix 1.0.0b", "date": 300, "url": "https://store.steampowered.com/news/b"},
-                 {"title": "Twitch Drops for 1.0.0", "date": 400, "url": "https://store.steampowered.com/news/c"},
-                 {"title": "Mystery Box sale", "date": 500, "url": "https://store.steampowered.com/news/d"},
-                 {"title": "Patch Notes", "date": 100, "url": "http://not-https"}]
-        got = PN.pick(items)
-        self.assertEqual([g["version"] for g in got], ["1.0.0b", "0.5.5d"])
+class FromBoard(unittest.TestCase):
+    def test_keeps_only_https_links(self):
+        saved = {}
+        with mock.patch("soe2.patchnotes.cached", return_value={}), \
+             mock.patch("soe2.patchnotes.save_json", side_effect=lambda f, d: saved.update(d)), \
+             mock.patch("soe2.board.call", return_value=(True, {"notes": [
+                 {"title": "0.5.5h Patch Notes", "url": "https://www.pathofexile.com/forum/view-thread/1", "at": 2},
+                 {"title": "bad", "url": "javascript:x"}]})), \
+             mock.patch("threading.Thread") as th:
+            PN._busy["on"] = False
+            PN.refresh(force=True)
+            th.call_args.kwargs["target"]()
+        self.assertEqual([n["title"] for n in saved["notes"]], ["0.5.5h Patch Notes"])
 
-    def test_version_of(self):
-        self.assertEqual(PN.version_of("Content Update 1.0.0 Patch Notes"), "1.0.0")
-        self.assertEqual(PN.version_of("Patch Notes"), "")
+    def test_board_down_keeps_last_list(self):
+        saved = {}
+        have = {"notes": [{"title": "old", "url": "https://x"}], "at": 0}
+        with mock.patch("soe2.patchnotes.cached", return_value=have), \
+             mock.patch("soe2.patchnotes.save_json", side_effect=lambda f, d: saved.update(d)), \
+             mock.patch("soe2.board.call", return_value=(False, "down")), \
+             mock.patch("threading.Thread") as th:
+            PN._busy["on"] = False
+            PN.refresh(force=True)
+            th.call_args.kwargs["target"]()
+        self.assertEqual(saved["notes"][0]["title"], "old")
 
 
 if __name__ == "__main__":

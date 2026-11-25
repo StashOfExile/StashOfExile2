@@ -344,13 +344,22 @@ class Dashboard(tk.Canvas):
         h = top + max(1, len(rows)) * rh + 8
         self._card(x0, y, x1, y + h)
         _hid, up = self._head(x0, y, x1, "Patch Notes")
-        self.create_text(x1 - 20, y + 22 - up, text="From Steam news", anchor="ne", font=plain_f, fill=mut,
+        self.create_text(x1 - 20, y + 22 - up, text="From GGG's forum", anchor="ne", font=plain_f, fill=mut,
                          tags=("pn_src",))
-        self.tips["pn_src"] = ("Grinding Gear Games posts every patch's notes on Steam. Checked every 6 hours. "
-                               "Click a patch to read it all.")
+        self.tips["pn_src"] = ("Every patch and hotfix for Path of Exile 2, read from GGG's forum once an hour by "
+                               "the community board. Click a patch to read it all.")
+        feed, quiet = PN.admin_state()
+        if quiet and self._is_admin():                       # admins: the board read nothing for a week
+            ox = self.bbox(self.find_withtag("pn_src")[0])[0]
+            self.create_text(ox - 20, y + 22 - up, anchor="ne", tags=("pn_feed",), fill=acc,
+                             text="● Feed needs a look" if feed else "● Set the forum address",
+                             font=("Segoe UI", 10, "underline" if self.hover == "pn_feed" else "bold"))
+            self.acts["pn_feed"] = self._pn_set_feed
+            self.tips["pn_feed"] = ("Admin: the board read no patch notes from the forum for a week. Paste the "
+                                    "address of GGG's Path of Exile 2 patch-notes forum.")
         if not rows:
             self.create_text(x0 + 20, y + top + rh / 2, anchor="w", font=plain_f, fill=mut, width=x1 - x0 - 40,
-                             text="No patch notes yet. The newest show here once Steam has been checked.")
+                             text="No patch notes yet. The newest show here once the board has read the forum.")
             return y + h + GAP
         import webbrowser
         for i, n in enumerate(rows):
@@ -365,8 +374,28 @@ class Dashboard(tk.Canvas):
             self.create_text(x0 + 20, ry + rh / 2, anchor="w", text=n["title"], width=room, tags=(tag,),
                              font=("Segoe UI", 10, "bold underline") if lit else bold, fill=acc if lit else brass)
             self.acts[tag] = lambda u=n["url"]: webbrowser.open(u)
-            self.tips[tag] = "Open the full patch notes on Steam."
+            self.tips[tag] = "Open the full patch notes on GGG's forum."
         return y + h + GAP
+
+    def _is_admin(self):
+        try:
+            return bool(self.app.share_is_admin())
+        except Exception:
+            return False
+
+    def _pn_set_feed(self):
+        from tkinter import simpledialog, messagebox
+        from . import patchnotes as PN
+        feed, _q = PN.admin_state()
+        url = simpledialog.askstring("Patch Notes", "Address of GGG's Path of Exile 2 patch-notes forum:",
+                                     initialvalue=feed or "https://www.pathofexile.com/forum/", parent=self)
+        if not url:
+            return
+        ok, data = PN.set_feed(url)
+        if not ok:
+            messagebox.showerror("Patch Notes", str(data), parent=self)
+            return
+        PN.refresh(done=lambda: self.after(0, self.redraw), force=True)
 
     def _head(self, x0, y, x1, title):
         """A box's title in the theme's style. -> (the title's id, how far the controls beside it move up)."""

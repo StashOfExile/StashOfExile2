@@ -9,6 +9,9 @@ POSTS_PER_DAY = "10"       # per player
 JOINS_PER_DAY = "5"        # new board accounts per internet address per day
 BUGS_PER_DAY = "5"         # bug reports per internet address per day (2.48.0)
 
+[triggers]
+crons = ["7 * * * *"]      # 3.3.0: once an hour - GGG's patch-notes forum
+
 [[d1_databases]]
 binding = "DB"
 database_name = "soe2-board"
