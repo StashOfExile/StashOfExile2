@@ -980,7 +980,7 @@ class MoneyMakersPage(StratViews, StratNewPage):
         # 2.89.3: leaving can take everything with you
         a = messagebox.askyesnocancel("Community board", "Leave the board and DELETE everything of yours on it - your "
                                       "name, strats, pictures, votes, suggestions and leaderboard times?\n\nYes: delete "
-                                      "it all.  No: just forget this account on this PC (your posts stay).",
+                                      "it all.  No: forget this account on this PC. Your posts stay.",
                                       parent=self.root)
         if a is None:
             return

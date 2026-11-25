@@ -1126,7 +1126,7 @@ class DrawerHost:
                  font=("Segoe UI", 9)).pack(side="left", padx=(8, 0))
         tip = tk.Label(r1, text="ⓘ", bg=P2, fg=C["muted"], font=("Segoe UI", 10), cursor="question_arrow")
         tip.pack(side="left", padx=(8, 0), anchor="n")
-        Tooltip(tip, "Drawer: the app over the game's side, from the top of the game to just above the skill bar. "
+        Tooltip(tip, "Drawer: the app over the game's side, from the top of the game to above the skill bar. "
                      "The Drawer key shows it and puts it away, and so do Esc and a click on the game. "
                      "Set the key in Settings › Keybinds. If Ctrl+Shift+Space switches your keyboard layout, set F3 instead. Full window: a normal "
                      "window, where you left it.")

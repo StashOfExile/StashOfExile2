@@ -138,7 +138,7 @@ def share_prompt_answer(app, yes):
 # bit - told the way you'd show a friend something cool. No sales words, nothing telling you what to do.
 # (page, tab, line icon, name, headline, how it works, the best bit)
 WORTH = (
-    ("leaderboards", None, "trophy", "Leaderboards", "You already have a *best time*. You just haven't seen it.",
+    ("leaderboards", None, "trophy", "Leaderboards", "You already have a *best time*. You haven't seen it yet.",
      "The game writes down every zone you enter. So the app already knows how long each *map*, *boss* and *act* took "
      "you, without you pressing anything.", "Your best sits next to everyone else's."),
     ("regex", None, "regex", "Regex", "Stop reading *60 items* one by one.",

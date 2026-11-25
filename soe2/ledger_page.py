@@ -345,7 +345,7 @@ class LedgerPage:
         f = tk.Frame(parent, bg=P1)
         inner = tk.Frame(f, bg=P1)
         inner.place(relx=0.5, rely=0.42, anchor="center")
-        tk.Label(inner, text="Does a farming setup really make money?", bg=P1, fg="#ffffff",
+        tk.Label(inner, text="Does a farming setup make money?", bg=P1, fg="#ffffff",
                  font=("Segoe UI", 18, "bold")).pack()
         tk.Label(inner, text="The Strat Tracker works it out from your own runs: what a run costs, what its loot is "
                              "worth, and how many divines an hour that makes.", bg=P1, fg=C["text"],
@@ -354,7 +354,7 @@ class LedgerPage:
         steps.pack()
         for i, (t, d) in enumerate((("Make a setup", "Ctrl+Alt+C your waystone and tablets in game. The app prices "
                                                      "them, so it knows what one run costs."),
-                                    ("Just play", "Runs are counted by themselves from the game's log file. Nothing "
+                                    ("Play", "Runs are counted by themselves from the game's log file. Nothing "
                                                   "acts in the game."),
                                     ("Log your loot", "Every few runs a box asks for your drops (Ctrl+Alt+C each). You "
                                                       "get profit per run and div / hour."))):

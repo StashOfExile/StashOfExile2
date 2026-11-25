@@ -755,7 +755,7 @@ class StratViews:
         return [("More ▾", "h_more", lambda: self.mm_more_at("h_more"), "ghost",
                  "Everything you can do with this strat: edit, export, post, upvote, suggest an edit, report…"),
                 ("Run this strat", "h_run", lambda: self.mm_run(self.mm_sel), "primary",
-                 "Opens the Strat Tracker on this strat: log your runs, see what it really made.")]
+                 "Opens the Strat Tracker on this strat: log your runs, see what it made.")]
 
     def _mm_tiles(self, cv, s, mine, pad, y, W, narrow):
         """Per hour, Cost per map, Waystone, Atlas master - each says how its number came (ⓘ). A tile with nothing

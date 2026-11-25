@@ -42,7 +42,7 @@ GROUPS = (
 )
 BETA = (
     {"key": "money", "name": "Farming Strategies",
-     "what": "Farming strategies from the community: pick one, run it, see what it really made.",
+     "what": "Farming strategies from the community: pick one, run it, see what it made.",
      "modules": ("money",)},
     {"key": "crafthelper", "name": "Craft Helper",
      "what": "Copy a tablet or jewel: each mod gets a letter, S to F, and the item a next step - worth pricing, craft "
