@@ -17,6 +17,7 @@ from .chrome import section as chrome_section
 from .style import over_app
 from .style import C, MONO, ScrollArea, SegBar, Tooltip
 from .trade import listing_rules
+from .listkit import _menu as menu_theme   # 3.3.0 owner: one menu look across the app
 
 
 def _hms(secs):
@@ -727,8 +728,7 @@ class LedgerPage:
         return s
 
     def fl_setup_menu(self, e):
-        m = tk.Menu(self.root, tearoff=0, bg=C["panel2"], fg=C["text"], activebackground="#2c4a84",
-                    activeforeground="#ffffff")
+        m = menu_theme(self.root)
         m.add_command(label="Edit setup…", command=self.fl_edit)
         m.add_command(label="Rename…", command=self.fl_rename)
         m.add_command(label="Duplicate", command=self.fl_duplicate)
@@ -875,8 +875,7 @@ class LedgerPage:
         if iid not in self.fl_tree.selection():
             self.fl_tree.selection_set(iid)
         l = self.fl_log(iid)
-        m = tk.Menu(self.root, tearoff=0, bg=C["panel2"], fg=C["text"], activebackground="#2c4a84",
-                    activeforeground="#ffffff")
+        m = menu_theme(self.root)
         m.add_command(label="See its loot…", command=lambda: self.fl_show_loot(l))
         m.add_command(label="Copy rows", command=self.fl_copy_rows)
         m.add_separator()
@@ -892,8 +891,7 @@ class LedgerPage:
     # ================================================================ export / import
     def fl_export_menu(self):
         b = self.fl_export_btn
-        m = tk.Menu(self.root, tearoff=0, bg=C["panel2"], fg=C["text"], activebackground="#2c4a84",
-                    activeforeground="#ffffff")
+        m = menu_theme(self.root)
         m.add_command(label="CSV - logs (Excel, Google Sheets)", command=lambda: self.fl_export("logs"))
         m.add_command(label="CSV - every drop", command=lambda: self.fl_export("loot"))
         m.add_command(label="CSV - logs of every setup", command=lambda: self.fl_export("all"))

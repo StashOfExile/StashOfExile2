@@ -7,6 +7,7 @@ class RateMods(Module):
     Owner (Rate Mods redesign): in the Mods group - One at a Time (the sets on the left, a card on the right) and
     Table (many mods at once)."""
     key, title, short, icon, kind = "ratemods", "Mod Lab", "Mod Lab", "⭐", "tool"
+    report_page = "ratemods"                # 3.3.0 owner: Report a Problem in its header
     parent = None                      # owner: its own row in Mods (was in Trade, a child of Price Checks before that)
     blurb = INTRO                      # owner: the page's one intro line, under its title (more in its ⓘ: blurb_tip)
     blurb_rich = INTRO_RICH            # owner, after 3.1.0: drawn bigger, key words bold in the accent color

@@ -1,5 +1,5 @@
 """2.84.0: Favorites - items and trade-site searches you come back to (feedback: a favorites (bookmark) tracker that
-takes a pasted trade link, with an Add to favorites button on Price Checks).
+takes a pasted trade link, with an ☆ Favorite button on Price Checks).
 
 Two kinds:
   * item  - added from Price Checks: the item with your filters as you left them (it searches the same way).
@@ -156,7 +156,20 @@ class FavStore:
         return f"{pre}{self.next - 1}"
 
     def get(self, fid):
-        return next((f for f in self.items if f["id"] == fid), None)
+        f = next((f for f in self.items if f["id"] == fid), None)
+        return f if f is not None else self.__dict__.get("guests", {}).get(fid)
+
+    def guest(self, fid, url, info, name):
+        """3.3.0 owner: a Community or Official favorite showed nothing when picked. A guest is one of those,
+        shown and searched like yours but never saved: it is not in items, so save() and the groups never see it."""
+        guests = self.__dict__.setdefault("guests", {})
+        f = guests.get(fid)
+        if f is None:
+            f = guests[fid] = {"id": fid, "kind": "link", "name": name or link_name(info["query"]), "group": "",
+                               "added": time.time(), "url": url, "league": info.get("league") or "",
+                               "query": info["query"], "sort": info.get("sort") or {"price": "asc"}, "qid": None,
+                               "note": "", "guest": True}
+        return f
 
     def group(self, gid):
         return next((g for g in self.groups if g["id"] == gid), None)

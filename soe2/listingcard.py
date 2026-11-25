@@ -363,7 +363,7 @@ def _card(app, parent, f, e_key, opened, wrap, look):
     """One listing's card: the picture in the middle of its own column, the rest in the middle beside it.
     -> the card."""
     bg = C["panel2"]
-    card = tk.Frame(parent, bg=bg, padx=12, pady=12, highlightthickness=1, highlightbackground=C["line"])
+    card = tk.Frame(parent, bg=bg, padx=12, pady=12, highlightthickness=0)      # 3.3.0: a row of one panel
     card.columnconfigure(1, weight=1)
     card.rowconfigure(0, weight=1)
     pic = tk.Canvas(card, width=PIC, height=PIC, bg=bg, highlightthickness=0, bd=0)
@@ -440,7 +440,8 @@ def draw(app, v, entries, rec=None):
     avail = max(240, cw - 24 - 2) if cw > 50 else 420
     wrap = max(160, avail - PIC - 12 - 24 - 2)
     look = _Look(scale_for(app, v))
-    holder = tk.Frame(v.lst, bg=C["panel"])
+    # 3.3.0 look pass: one panel, a row for each listing - the holder's own color shows as the 1 px line between
+    holder = tk.Frame(v.lst, bg=C["line"], highlightthickness=1, highlightbackground=C["line"])
     holder.pack(fill="x", pady=(0, 12))
     holder._lc_ids = st["ids"]
     holder._lc_k = look.k
@@ -448,5 +449,5 @@ def draw(app, v, entries, rec=None):
         f = listing_facts(e)
         key = f.get("id") or f"#{i}"
         c = _card(app, holder, f, key, key in st["ids"], wrap, look)
-        c.pack(fill="x", pady=(0, 8))
+        c.pack(fill="x", pady=(0, 0 if i == len(entries) - 1 else 1))
     return holder

@@ -1,5 +1,5 @@
 """2.116.0 (P10, feedback: the overlay styles had cards as a visual indicator - a better
-system is welcome): Overlay › Look › Style (nav phase 2; was Settings › Appearance) - the
+system is welcome): Overlay › Appearance › Style (nav phase 2; was Settings › Appearance) - the
 styles as a list of names
 (grouped: Classic, Light,
 Ornate) beside a big live preview of the bar in the style under the mouse (or the one picked), with one line about it.

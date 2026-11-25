@@ -149,7 +149,8 @@ class OverlayParts:
 
     # ================================================================ the goal bar
     def goalbar_rows(self):
-        """What the goal bar holds, top to bottom: 'campaign' (2.77.0, while you're in the campaign), 'focus'."""
+        """What the goal bar holds, top to bottom: 'campaign' (2.77.0, while you're in the campaign), 'focus',
+        'calendar'. 3.3.0 owner: the Calendar's next event, with its own switch on the Calendar page."""
         rows = []
         try:
             if self.camp_on_bar() and not self.camp_in_card():     # (the Panel: the line is in its card)
@@ -158,6 +159,11 @@ class OverlayParts:
             self.log_error("the campaign line")
         if self.focus_line()[0]:
             rows.append("focus")
+        try:
+            if self.cal_overlay_text():
+                rows.append("calendar")
+        except Exception:
+            self.log_error("the Calendar line")
         return rows
 
     def goalbar_wanted(self):
@@ -374,13 +380,22 @@ class OverlayParts:
             cv.create_line(lft, e, rgt, e, fill=P["line"], tags=("mg",))
         if "campaign" in rows:
             self.camp_draw_row(cv, P, lft, rgt, mids[rows.index("campaign")], f, n=camp_n, lh=lh)
+        if "calendar" in rows:                                # 3.3.0 owner: the Calendar's next event, one line
+            from .campaign_ui import FitText as _Fit
+            cmid = mids[rows.index("calendar")]
+            cv.create_text(lft, cmid, text="▸ SOON", anchor="w", fill=P["head"], font=(P["hfont"], self._hf(9), "bold"),
+                           tags=("mg",))
+            cx = lft + fm.measure("▸ SOON ") + 8
+            ct = self._mg_text(cv, P, cx, cmid, "calendar", f, cls=_Fit)
+            ct.fnt, ct.px = fm, max(40, rgt - cx - 12)
+            ct.config(text=self.cal_overlay_text())
         if "focus" not in rows:
             return self._goalbar_show(main, cv, H, geo)
         mid = mids[rows.index("focus")]
         ftext, fprog = self.focus_line()
-        cv.create_text(lft, mid, text="▸ NOW", anchor="w", fill=P["head"], font=(P["hfont"], self._hf(9), "bold"),
+        cv.create_text(lft, mid, text="▸ NEXT", anchor="w", fill=P["head"], font=(P["hfont"], self._hf(9), "bold"),
                        tags=("mg",))
-        nx = lft + fm.measure("▸ NOW ") + 8
+        nx = lft + fm.measure("▸ NEXT ") + 8
         pw = 0 if fprog is None else self._hf(56)
         from .campaign_ui import FitText
         ft = self._mg_text(cv, P, nx, mid, "focus", f, cls=FitText)

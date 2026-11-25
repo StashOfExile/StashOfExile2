@@ -3,7 +3,7 @@
 then Re-price all and Pause; the list; the key bar. Items are added with Ctrl+Alt+C in game (Manually Add), to the tab
 shown.
 The picked item is shown as Price Checks shows one - the price card, the item card (Base and Properties, Mods,
-Augments, Item Flags), the cheapest listings, then Search again | Trade Site | Add to favorites - beside the list in a
+Augments, Item Flags), the cheapest listings, then Search again | Trade Site | ☆ Favorite - beside the list in a
 wide window, under it in a narrow one, about 10% smaller than Price Checks' card in the Drawer (cardscale.BULK; text
 never below the app's normal small size; a long card scrolls). It is always there: the first row is picked by itself; with no row picked it says what it
 is, with one button. UI rule 22: a new price paints the price card and the listings only."""
@@ -16,6 +16,8 @@ from .config import save_json, SETTINGS
 from .cardscale import BULK
 from .pricecheck_page import CONF_CHIP, WIDE_PX, search_tip
 from .style import C, Splitter, Tooltip, flowify, flow_show, trade_icon
+from . import cleanguard as _cleanguard
+from .listkit import _menu as menu_theme   # 3.3.0 owner: one menu look across the app
 
 ITEM_W = 480            # the picked item's side in a wide window, at first (drag the grip; remembered: panel_w) -
                         # owner: about 10% narrower than Price Checks' card side
@@ -162,6 +164,7 @@ class BulkPage:
         ent = self.search_box = tk.Entry(box, textvariable=self.search_var, width=26, bg=C["odd"], fg=C["text"],
                                          insertbackground=C["text"], relief="flat", font=("Segoe UI", 9),
                                          highlightthickness=0, bd=0)
+        _cleanguard.free(ent)        # 3.3.0: a search
         ent.pack(side="left", padx=(4, 8), ipady=4)
         ph = tk.Label(box, text="Search items", bg=C["odd"], fg=C["muted"], font=("Segoe UI", 9))
         ph.bind("<Button-1>", lambda e: ent.focus_set())
@@ -260,9 +263,24 @@ class BulkPage:
             b.config(text=txt)
             bk_flow(self.bk_tb)
 
+    @staticmethod
+    def col_floor(cid, w):
+        """The narrowest a column may get: enough to read its heading and a value."""
+        return 140 if cid == "name" else max(36, min(int(w), max(56, int(w * 0.6))))
+
+    def cols_reset(self):
+        """Columns ▾ › Reset widths: every column back to the app's own width."""
+        for cid, _title, w, _anchor in self.COLS:
+            try:
+                self.tree.column(cid, width=max(w, self.col_floor(cid, w), {"conf": 120, "ilvl": 80, "mark": 104}.get(cid, 0)))
+            except tk.TclError:
+                pass
+        SETTINGS["col_widths"] = {}
+        save_json("settings.json", SETTINGS)
+
     def cols_menu(self):
         """Columns ▾: the extra columns, the list's order (as added) and Export CSV."""
-        m = tk.Menu(self.root, tearoff=0, bg=C["panel2"], fg=C["text"], activebackground=C["accent"])
+        m = menu_theme(self.root)                 # 3.3.0 owner: the check marks showed only on hover
         off = set(self.bulk_cols_off())
         self._cols_vars = {}
         for cid, label in self.EXTRA_COLS:
@@ -270,6 +288,7 @@ class BulkPage:
             self._cols_vars[cid] = v
             m.add_checkbutton(label=label, variable=v, command=lambda c=cid, vv=v: self.cols_set(c, bool(vv.get())))
         m.add_separator()
+        m.add_command(label="Reset widths", command=self.cols_reset)
         m.add_command(label="Order added", command=self.sort_added)
         m.add_separator()
         m.add_command(label="Export CSV…", command=self.export)
@@ -307,9 +326,13 @@ class BulkPage:
         self.tree.menu_actions = self.checks_menu_actions          # 2.36.0: right-click / Menu key
         for cid, title, w, anchor in self.COLS:
             self.tree.heading(cid, text=title, command=lambda c=cid: self.sort_by(c))
+            # 3.3.0 owner: columns shrank to slivers and stayed that way. A narrow window squeezed them to the old
+            # 36 px floor, and that was then saved. Each column has its own floor now, and a saved width under
+            # it is not used; the list scrolls sideways instead.
+            floor = self.col_floor(cid, w)
             keep = w if cid == "name" else min(self.COL_MAX_W, int(SETTINGS.get("col_widths", {}).get(cid, w)))
-            self.tree.column(cid, width=max(keep, {"conf": 120, "ilvl": 80, "mark": 104}.get(cid, 0)), minwidth=36,
-                             anchor=anchor, stretch=(cid == "name"))
+            self.tree.column(cid, width=max(keep, floor, {"conf": 120, "ilvl": 80, "mark": 104}.get(cid, 0)),
+                             minwidth=floor, anchor=anchor, stretch=(cid == "name"))
         self.cols_apply()
         sb = ttk.Scrollbar(left, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=sb.set)
@@ -362,13 +385,18 @@ class BulkPage:
                        "and press Ctrl+Alt+C. It shows up here and gets priced - tablets, jewels, waystones and gear.")
             if btn.winfo_manager():
                 btn.pack_forget()
-        e.place(relx=0.5, rely=0.45, anchor="center")
+        # 3.3.0 owner: it sat off-center. It goes in the middle of the list itself, under the column names.
+        try:
+            e.place(in_=self.tree, relx=0.5, rely=0.5, anchor="center", y=12)
+            e.lift()
+        except tk.TclError:
+            e.place(relx=0.5, rely=0.45, anchor="center")
 
     # ---------------------------------------------------------------- the picked item
     def _bk_item_col(self, col):
         P1, P2 = C["panel"], C["panel2"]
         self.bk_price = self.price_card_build(col, BULK)    # the price, how sure, how it was worked out
-        # Search again | Trade Site | Add to favorites - at the bottom, always in view
+        # Search again | Trade Site | ☆ Favorite - at the bottom, always in view
         foot = self.bk_foot = tk.Frame(col, bg=P2, highlightthickness=1, highlightbackground=C["line"])
         foot.pack(side="bottom", fill="x", pady=(8, 0))
         f = self.bk_foot_row = tk.Frame(foot, bg=P2)
@@ -382,10 +410,10 @@ class BulkPage:
                                                                          state="disabled"))
         self.bk_trade_btn.pack(side="left", padx=(8, 0))
         Tooltip(self.bk_trade_btn, "Opens this search on the trade site (O)")
-        self.bk_fav_btn = ttk.Button(f, text="☆ Add to favorites", state="disabled",
+        self.bk_fav_btn = ttk.Button(f, text="☆ Favorite", state="disabled",
                                      command=lambda: self.shown_rec and self.pc_add_fav(self.shown_rec, self.bk_fav_btn))
         self.bk_fav_btn.pack(side="left", padx=(8, 0))
-        Tooltip(self.bk_fav_btn, "Keeps this item and its filters in Trade › Favorites")
+        Tooltip(self.bk_fav_btn, "Keeps this item and its filters in Price Checks › Favorites")
         self.item_trade_btn, self.item_mark_btn = self.bk_trade_btn, self.mark_btn     # (older callers)
         flowify(f)
         # no row picked: what this side is, and one button (it picks the first row)
@@ -598,7 +626,7 @@ class BulkPage:
 
     def show_detail(self, rec, card_only=False):
         """The picked item as Price Checks shows one: the price card, the item card with every filter, the cheapest
-        listings, Advanced; Search again | Trade Site | Add to favorites at the bottom. UI rule 22: the same item with
+        listings, Advanced; Search again | Trade Site | ☆ Favorite at the bottom. UI rule 22: the same item with
         the same card (a new price, its search starting) paints the price card and the listings only; another card is
         built beside the old one and swapped in at once, keeping the scroll for the same item."""
         if rec is not None and rec.get("src") == "pc":          # 2.80.0: the card on Price Checks

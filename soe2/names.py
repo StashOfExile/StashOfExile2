@@ -11,9 +11,9 @@ Renaming one: change it here, add the old name to OLD, and run tools/check_names
 
 PAGES = {
     "dashboard": "Dashboard",           # UI overhaul: the first page
+    "calendar": "Calendar",             # 3.3.0 owner: a child of Dashboard
     "pricecheck": "Price Checks",
     "checks": "Bulk Pricing",
-    "favorites": "Favorites",
     "insights": "Market Insights",
     "library": "Under the Hood",
     "modbook": "Mod Book",
@@ -34,6 +34,12 @@ PAGES = {
 }
 
 FEATURES = (
+    "Upcoming",                 # 3.3.0 Dashboard: the next 3 events from the Calendar
+    "Patch Notes",              # 3.3.0 Dashboard: the newest patch posts from Steam news
+    "Add Reminder",             # 3.3.0 Calendar: a reminder of your own, kept on this PC
+    "Next event on the overlay",   # 3.3.0 Calendar: one line on the overlay for the next event, its switch on Calendar
+    "Top Movers",               # 3.3.0 Dashboard: what went up and down the most, Daily and Hourly, from poe.ninja
+    "Feature Spotlight",             # 3.3.0 Dashboard: one feature at a time that you have off or may not know
     "Suggest a Feature",        # 3.2.0 owner: the bottom bar, next to Report a bug - an idea becomes a GitHub issue
     "Compare a currency",       # Exchange Helper: one currency's worth in every other (was Check a flip)
     "Name badge",               # GGG policy audit: STASH OF EXILE 2 in a small badge under the overlay's clock, every
@@ -62,7 +68,7 @@ FEATURES = (
     "Break reminders",          # 2.131.0 Overlay › Helpers: a kind nudge in long sessions
     "Campaign Helper",
     "Campaign Bar",             # the overlay in campaign zones: the line over the bar (what to do now) and the bar's
-                                # Zone · You · Got so far · Act time (the Panel: one card)
+                                # Zone · You · Rewards · Act time (the Panel: one card)
     "Clear All",                # Bulk Pricing › Items strip: empties the list shown
     "Community data sharing",
     "Error reports",            # 2.137.0 Settings › Privacy & community: what went wrong in the app, opt-in
@@ -83,12 +89,12 @@ FEATURES = (
     "Reset position",           # Overlay › Options: the overlay back in its own place
     # nav phase 2 (the owner's words): Layout = the overlay's shape, Style = how the overlay looks, Theme = the whole
     # app's look. "Style" is never the app's look, "Theme" never the overlay's.
-    "Layout",                   # Overlay › Look and Quick settings: Bar | Panel | Split
+    "Layout",                   # Overlay › Appearance and Quick settings: Bar | Panel | Split
     "Split",                    # the Layout of two halves by the orbs (the run half, the tools half) - any Style
                                 # (was the "flanks" style, shown as Split)
     "Swap sides",               # Quick settings, shown only while the Layout is Split: shown as "⇄ Swap sides" -
                                 # the run half by the mana orb, the tools half by the life orb
-    "Style",                    # Overlay › Look: the overlay styles (Classic, Light, Ornate)
+    "Style",                    # Overlay › Appearance: the overlay styles (Classic, Light, Ornate)
     "Theme",                    # Settings › Appearance: the app's look
     "Scan stash",
     "Search Options",           # Settings › Price checking
@@ -177,7 +183,7 @@ OLD = {
     "Overlay Settings": "Overlay",
     "Overlay ↳ Settings": "Overlay",
     "Overlay › Settings": "Overlay",
-    "Overlay appearance": "Overlay › Look",          # (the button that opened Settings › Appearance › Overlay)
+    "Overlay appearance": "Overlay › Appearance",          # (the button that opened Settings › Appearance › Overlay)
     # page names before Title Case (2.120.0) and before their renames
     "Price checks": "Price Checks",
     "Mod book": "Mod Book",

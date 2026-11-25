@@ -170,6 +170,7 @@ def campaign_entries():
     run's (else the current one), the class whatever is known; the bests rebuilt from the log (best_secs, best_total)
     count too."""
     from . import campaign as CP
+    from . import identity as ID
     cls = classes()
     acts = CP.acts()
     names = {a["key"]: a.get("name") or a["key"] for a in acts}
@@ -180,7 +181,10 @@ def campaign_entries():
             continue
         own = run.get("secs") if isinstance(run.get("secs"), dict) else {}
         # (the act you're in isn't finished - unless the whole run is done)
-        secs = {k: v for k, v in own.items() if isinstance(v, (int, float)) and v > 0
+        if ID.is_other(str(ch).split(" #")[0]):               # 3.3.0: a run saved under a party member's name
+            continue
+        # 3.3.0 (owner): only Ranked acts are sent - one character, from The Riverbank to the act's end
+        secs = {k: v for k, v in own.items() if isinstance(v, (int, float)) and v > 0 and CP.ranked(ch, run, k)
                 and (run.get("done") or k != run.get("act") or k in (run.get("closed") or []))}
         at = run.get("secs_at") or {}
         best_at = run.get("best_at") or {}
@@ -263,6 +267,24 @@ def payload(entries):
         if len(out) >= SEND_CAP:
             break
     return out[:SEND_CAP]
+
+
+SEND_CHARS = 20000                             # the board refuses a request over 24000 characters
+
+
+def parts(entries, limit=SEND_CHARS):
+    """3.3.0: the payload cut into requests the board accepts, order kept, so every key's best goes first.
+    A full payload of 400 times is about 54000 characters; sent whole, the board refused it."""
+    import json
+    out, cur, size = [], [], 16
+    for e in entries:
+        n = len(json.dumps(e)) + 2
+        if cur and size + n > limit:
+            out.append(cur)
+            cur, size = [], 16
+        cur.append(e)
+        size += n
+    return out + [cur] if cur else out
 
 
 def level_text(level):

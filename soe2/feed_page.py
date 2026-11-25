@@ -19,6 +19,7 @@ from .mods import MIN_WITH, HIGH_LIFT, SCOPED_CATS, norm, rule_key, sid_for_line
 from .pricefmt import parse_price
 from .style import C, Tooltip
 from .chrome import section as chrome_section
+from . import cleanguard as _cleanguard
 
 
 def _st_text(st):
@@ -51,6 +52,7 @@ class FeedPage:
         self.fd_text = tk.Text(left, width=44, height=12, bg=C["panel"], fg=C["text"], insertbackground=C["text"],
                                relief="flat", wrap="none", font=("Consolas", 9), highlightthickness=1,
                                highlightbackground=C["line"])
+        _cleanguard.free(self.fd_text)        # 3.3.0: the game's own text, pasted
         self.fd_text.pack(fill="both", expand=True, pady=(2, 4))
         self.fd_text.bind("<<Modified>>", self._fd_typed)
         self.fd_text.bind("<Tab>", lambda e: (e.widget.tk_focusNext().focus_set(), "break")[1])

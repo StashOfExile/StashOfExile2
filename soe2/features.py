@@ -9,8 +9,8 @@ from .config import SETTINGS
 GROUPS = (
     {"key": "price", "name": "Price checking", "keys": "pc_key",
      "what": "Hover an item in game and press the key: its price from the trade site's listings. Pages: "
-             "Price Checks, Favorites, Mod Lab, Mod Book.",
-     "modules": ("pricecheck", "favorites", "modbook", "ratemods", "library")},
+             "Price Checks, Mod Lab, Mod Book.",
+     "modules": ("pricecheck", "modbook", "ratemods", "library")},
     {"key": "bulk", "name": "Bulk Pricing", "keys": "Ctrl+Alt+C",
      "what": "Add many items in game with Ctrl+Alt+C (Manually Add): they're priced as a list, in the "
              "background. Best for tablets, waystones and jewels; price expensive gear with Price Checks.",
@@ -34,8 +34,8 @@ GROUPS = (
              "each scan adds a point to your worth over time.",
      "modules": ("wealth",)},
     {"key": "insights", "name": "Market Insights",
-     "what": "From your own price checks: your most valuable items, the mods worth the most and the priciest listings "
-             "seen - by kind of item. Nothing extra is searched.",
+     "what": "From your own price checks: your most valuable items and the priciest listings seen - by kind of "
+             "item. Nothing extra is searched.",
      "modules": ("insights",)},
     {"key": "search", "name": "Game Search",                  # (2.143.0: these three out of BETA)
      "what": "Look up any skill, item, mod or keyword in the game's own data, on your PC.", "modules": ("search",)},

@@ -3,9 +3,10 @@
   * Gear rules: every prefix / suffix that can roll on an item class, from tierdata.json (RePoE - the same file as
     the Desecration Helper), one row per line (a two-line mod is two rows). Rules are "gear:<class>:<wording>", the
     wording without numbers or a leading "+", so a rule set here and one set from a price check (Rate ▾) are one.
-  * Unique rules: "unique:<name>:<wording>". The game data names every unique but not its mods, so a unique's lines
-    come from the ones you price checked (unique_mods.json, on this PC only: item wording, nothing about you). A
-    line with a choice (Mageblood's "Legacy of ...") brings every option the trade site lists for it.
+  * Unique rules: "unique:<name>:<wording>". 3.3.0 owner: every unique's lines come from uniquedata.json (Path of
+    Building's data, soe2/uniquedata.py), plus any line your price checks saw that it lacks (unique_mods.json, on
+    this PC only: item wording, nothing about you). A line with a choice (Mageblood's "Legacy of ...") brings
+    every option the trade site lists for it.
 GGG ToS: your own settings and the app's own data; nothing touches the game, nothing extra is fetched."""
 from . import buglog
 from .config import load_json, save_json
@@ -151,9 +152,21 @@ def options_of(sid):
 
 
 def unique_rows(name):
-    """[{"key", "text", "kind", "option"}] - a unique's lines you've priced, and every option of a choice line."""
-    d = store().get(name) or {}
+    """[{"key", "text", "kind", "option"}] - a unique's lines from the game data, the ones you've priced that it
+    lacks, and every option of a choice line."""
+    from . import uniquedata as UD
+    d = next((v for k, v in store().items() if k.lower() == str(name).lower()), None) or {}
     rows, seen = [], set()
+    u = UD.get(name) or {}
+    for kind, lines in (("Implicit", u.get("implicit") or []), ("Explicit", u.get("explicit") or []),
+                        ("Corruption", u.get("corruption") or [])):
+        for text in lines:
+            k = unique_key(name, UD.as_rolled(text))
+            if k not in seen:
+                seen.add(k)
+                # 3.3.0 owner: a Vaal Orb's enchantment says so on its row; its rule key is the line's own
+                rows.append({"key": k, "text": f"{UD.CORRUPT_MARK}{text}" if kind == "Corruption" else text,
+                             "kind": kind, "option": False})
     for k, v in (d.get("lines") or {}).items():
         if k not in seen:
             seen.add(k)
@@ -166,8 +179,22 @@ def unique_rows(name):
                     seen.add(ok)
                     rows.append({"key": ok, "text": nice(w), "kind": v.get("kind") or "",
                                  "option": True})
-    rows.sort(key=lambda r: (not r["option"], r["text"].lower()))
+    if u:                                                 # the game data's order: implicits, then the item's own lines
+        order = {r["key"]: i for i, r in enumerate(rows)}
+        rank = {"Implicit": 0, "Corruption": 2}
+        rows.sort(key=lambda r: (rank.get(r["kind"], 1), order[r["key"]]))
+    else:
+        rows.sort(key=lambda r: (not r["option"], r["text"].lower()))
     return rows
+
+
+def all_uniques():
+    """Every unique Mod Lab lists: the game data's, and any you price checked that it does not have."""
+    from . import uniquedata as UD
+    out = {n.lower(): n for n in UD.names()}
+    for n in store():
+        out.setdefault(n.lower(), n)
+    return sorted(out.values(), key=str.lower)
 
 
 def migrate_plus(rules, tiers):

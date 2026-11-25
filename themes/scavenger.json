@@ -1,0 +1,280 @@
+{
+ "schema": 1,
+ "id": "scavenger",
+ "name": "Scavenger",
+ "order": 25,
+ "description": "Stitched burlap and worn leather, bone white and dried rust.",
+ "colors": {
+  "chassis": "#0e0c0a",
+  "surface": "#191612",
+  "surface_raised": "#211d18",
+  "surface_sunken": "#110f0c",
+  "surface_high": "#332c23",
+  "border": "#3d352a",
+  "border_light": "#6a5c46",
+  "border_dark": "#000000",
+  "shadow": "#000000",
+  "text": "#d8cdb6",
+  "text_muted": "#9a8e78",
+  "text_strong": "#f1e8d4",
+  "text_disabled": "#5c5445",
+  "accent": "#d9653f",
+  "accent_2": "#c8b083",
+  "selection": "#3a2118",
+  "selection_text": "#f6e3d6",
+  "hover": "#2a251e",
+  "stripe": "#14120f",
+  "good": "#8fbf5a",
+  "warn": "#e0a84a",
+  "bad": "#f0604e",
+  "money": "#e3c877",
+  "link": "#c8b083"
+ },
+ "fonts": {
+  "head": [
+   "Rockwell",
+   "Constantia",
+   "Cambria",
+   "Georgia",
+   "DejaVu Serif"
+  ],
+  "num": [
+   "Rockwell",
+   "Constantia",
+   "Cambria",
+   "Georgia",
+   "DejaVu Serif"
+  ]
+ },
+ "bars": {
+  "title": {
+   "fill": [
+    [
+     0,
+     "#3a3226"
+    ],
+    [
+     0.5,
+     "#2a241b"
+    ],
+    [
+     1,
+     "#1a1611"
+    ]
+   ],
+   "top": "#8a7858",
+   "bottom": "#000000",
+   "text": "#f1e8d4",
+   "texture": "brushed"
+  },
+  "title_off": {
+   "fill": [
+    [
+     0,
+     "#221d16"
+    ],
+    [
+     0.5,
+     "#18140f"
+    ],
+    [
+     1,
+     "#0f0d0a"
+    ]
+   ],
+   "top": "#4a4031",
+   "bottom": "#000000",
+   "text": "text_muted",
+   "texture": "none"
+  },
+  "section": {
+   "fill": [
+    [
+     0,
+     "#2f281e"
+    ],
+    [
+     1,
+     "#211c15"
+    ]
+   ],
+   "top": "#5a4e3a",
+   "bottom": "#000000",
+   "text": "#d6c49c",
+   "texture": "brushed"
+  }
+ },
+ "buttons": {
+  "normal": {
+   "fill": [
+    [
+     0,
+     "#40372a"
+    ],
+    [
+     0.5,
+     "#2e271e"
+    ],
+    [
+     1,
+     "#1e1a14"
+    ]
+   ],
+   "hover": [
+    [
+     0,
+     "#4f3a2c"
+    ],
+    [
+     0.5,
+     "#3a2a20"
+    ],
+    [
+     1,
+     "#261c15"
+    ]
+   ],
+   "pressed": [
+    [
+     0,
+     "#14110d"
+    ],
+    [
+     1,
+     "#2e271e"
+    ]
+   ],
+   "border": "#6a5c46",
+   "hover_border": "#d9653f",
+   "inner": "#6a5c46",
+   "radius": 0,
+   "text": "#e2d7c0",
+   "text_hover": "#f6ecd8"
+  },
+  "primary": {
+   "fill": [
+    [
+     0,
+     "#e98a66"
+    ],
+    [
+     0.5,
+     "#d9653f"
+    ],
+    [
+     1,
+     "#a8452a"
+    ]
+   ],
+   "hover": [
+    [
+     0,
+     "#f09a78"
+    ],
+    [
+     0.5,
+     "#e2734d"
+    ],
+    [
+     1,
+     "#b34d30"
+    ]
+   ],
+   "pressed": [
+    [
+     0,
+     "#8a3820"
+    ],
+    [
+     1,
+     "#b34d30"
+    ]
+   ],
+   "border": "#2a1208",
+   "hover_border": "#2a1208",
+   "inner": "#f4b89e",
+   "radius": 0,
+   "text": "#1c0c05",
+   "text_hover": "#1c0c05"
+  },
+  "heading": {
+   "fill": [
+    [
+     0,
+     "#2e271e"
+    ],
+    [
+     1,
+     "#1a1611"
+    ]
+   ],
+   "hover": [
+    [
+     0,
+     "#3a3226"
+    ],
+    [
+     1,
+     "#211c15"
+    ]
+   ],
+   "pressed": [
+    [
+     0,
+     "#14110d"
+    ],
+    [
+     1,
+     "#211c15"
+    ]
+   ],
+   "border": "#000000",
+   "hover_border": "#000000",
+   "inner": "#4a4031",
+   "radius": 0,
+   "text": "#c8b083",
+   "text_hover": "#f1e8d4"
+  }
+ },
+ "card": {
+  "header": "notch",
+  "border": "#6a5c46",
+  "sep": "#4a4031"
+ },
+ "meter": {
+  "style": "ticks",
+  "on": "#d9653f",
+  "off": "#2a251e",
+  "lcd_bg": "#110f0c"
+ },
+ "nav": {
+  "bg": "surface_raised",
+  "marker": "bar",
+  "marker_color": "accent",
+  "sel_bg": "#3a2118",
+  "hover_bg": "#2a251e",
+  "text": "text",
+  "sel_text": "#f6e3d6",
+  "group": "#b09a70",
+  "texture": "brushed"
+ },
+ "panels": {
+  "viewport": {
+   "edges": [
+    [
+     "#000000",
+     "#4a4031"
+    ],
+    [
+     "#000000",
+     "#18140f"
+    ]
+   ]
+  }
+ },
+ "box": {
+  "shape": "square",
+  "head": "strip",
+  "caps": true
+ }
+}

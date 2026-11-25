@@ -5,7 +5,7 @@ changes size - each as a Bar (resting on the XP bar) and a Panel (a card you pla
   hairline  no box: outlined text and one thin accent line, on one row
   slate     a flat box with thin dividers; a switch that's on is underlined (a bar on its left in the Panel)
   micro     the smallest: the times, the rank and the switches as lettered squares
-"Classic" is the stone-and-bronze look of before (hudart.py). Overlay › Look: Style, then
+"Classic" is the stone-and-bronze look of before (hudart.py). Overlay › Appearance: Style, then
 Colors ("Exile Gold" is the Bar's own colors; the others are the theme packs'; "Follow the app theme").
 The same parts as Classic: the timer and its ⏸ / ▶, the map's time, where you are, its rank (click to rank), Maps,
 Avg, the clock, the switches, Notes ▾ / Calc ▾ / Regex ▾ / Vendor ▾, the lock and ⚙ - each with its switch in
@@ -279,7 +279,7 @@ class LightOverlay:
         return P
 
     def ov_look_set(self, style=None, colors=None):
-        """Overlay › Look: Style picked - the overlay is built again."""
+        """Overlay › Appearance: Style picked - the overlay is built again."""
         cfg = self.tracker_cfg()
         if style in STYLES and style != cfg.get("look"):
             cfg["look"] = style

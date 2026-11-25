@@ -468,12 +468,16 @@ class RatesList(tk.Frame):
             cols = (56, W * 0.34, W * 0.48, W * 0.76, W * 0.64)   # name, worth, 1 div buys, traded; 7 days (3.0.4)
             from .wealth import WPRICES
             trends = getattr(WPRICES, "trend_by_slug", {}) if WPRICES.for_league() else {}
-            hd = self.head
+            hd = self.head                                # 3.3.0 look pass: the columns' names on the theme's strip
             hd.delete("all")
+            hh = TH.BOX_HEAD
+            if int(hd.cget("height")) != hh:
+                hd.configure(height=hh)
+            ink = TH.bar_into(hd, t, "section", 0, 0, max(hd.winfo_width(), W), hh, tag="bar")
             for x0, label, anchor in ((cols[0], "Item", "w"), (cols[2] - 16, "1 is worth", "e"),
                                       (cols[4] - 16, "7 days", "e"),
                                       (cols[3] - 16, "1 divine buys", "e"), (W - 8, "Traded (div)", "e")):
-                hd.create_text(x0, 14, text=label.upper(), anchor=anchor, font=("Segoe UI", 8, "bold"), fill=mut)
+                hd.create_text(x0, hh // 2, text=label.upper(), anchor=anchor, font=("Segoe UI", 9, "bold"), fill=ink)
             cv = self.cv
             cv.delete("all")
             if not rows:
@@ -489,14 +493,11 @@ class RatesList(tk.Frame):
             for i in range(first, last):
                 typ, cid, name, v, vol, url = rows[i]
                 y0 = i * ROW_H
-                if dl:
-                    if i == self.hover:
-                        cv.create_rectangle(0, y0, W, y0 + ROW_H - 1, fill=t.c("hover", t.c("surface_high")),
-                                            outline="")
-                    cv.create_line(0, y0 + ROW_H - 1, W, y0 + ROW_H - 1, fill=line)
-                else:
-                    TH.round_rect(cv, 0, y0 + 3, W, y0 + ROW_H - 3, 10,
-                                  fill=t.c("hover", t.c("surface_high")) if i == self.hover else raised, outline=line)
+                # 3.3.0 look pass: one list, a line under each row (no box round each one), at every width
+                if i == self.hover:
+                    cv.create_rectangle(0, y0, W, y0 + ROW_H - 1, fill=t.c("hover", t.c("surface_high")),
+                                        outline="")
+                cv.create_line(0, y0 + ROW_H - 1, W, y0 + ROW_H - 1, fill=line)
                 cy = y0 + ROW_H // 2
                 img = self.icons.get(url)                  # poe.ninja's picture (art cache); its first letter until
                 #                                            it's downloaded (3.1: no pictures ship with the app)

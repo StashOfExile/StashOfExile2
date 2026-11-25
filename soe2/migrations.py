@@ -360,6 +360,11 @@ def _no_stash_reading_307(S):
         pass
 
 
+def _insights_mods_gone_330(S):
+    """3.3.0 (owner): Market Insights' Mods worth the most table is gone - the list of mods hidden in it goes too."""
+    S.pop("ins_hidden_mods", None)
+
+
 STEPS = (
     ("modbook_import", "1.x", "app", _modbook_import, "modbook_imported"),
     ("rules_scoped", "2.6.0", "app", _rules_scoped, "rules_scoped_26"),
@@ -394,6 +399,7 @@ STEPS = (
     ("split_layout", "Split layout", "settings", _split_layout, None),
     ("topup_key_gone", "3.0.6", "settings", _topup_key_gone, None),
     ("no_stash_reading_307", "3.0.7", "settings", _no_stash_reading_307, None),
+    ("insights_mods_gone_330", "3.3.0", "settings", _insights_mods_gone_330, None),
 )
 
 

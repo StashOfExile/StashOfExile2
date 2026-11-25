@@ -62,7 +62,10 @@ def call(method, path, params=None, body=None, get=None):
     if not configured():
         return False, "The community board isn't set up yet."
     import requests
-    tok = None if path.startswith(ANON) else session().get("token")
+    # 3.3.0: reading the Calendar's events needs no account, so the key is not sent with it
+    anon = path.startswith(ANON) or (method == "GET" and path in ("/events", "/reports/hidden")) or \
+        (method == "POST" and path == "/reports")             # 3.3.0: a data report is never tied to your account
+    tok = None if anon else session().get("token")
     headers = {"User-Agent": APP_UA, "X-SOE2": "1"}
     if tok:
         headers["Authorization"] = f"Bearer {tok}"
@@ -106,9 +109,6 @@ def image(iid, get=None):
 # ---------------------------------------------------------------- joining (no login)
 def join(name):
     """-> (True, user) or (False, why). Keeps the key the board hands out."""
-    from .privacy import name_problem
-    if name_problem(name):                                     # 2.89.3: never your account / a character's name
-        return False, name_problem(name)
     ok, d = call("POST", "/auth/join", body={"name": name})
     if ok and d.get("token"):
         save_json(SESSION, {"token": d["token"], "user": d.get("user") or {}, "since": time.time()})
@@ -126,9 +126,6 @@ def _keep_user(res):
 
 
 def rename(name):
-    from .privacy import name_problem
-    if name_problem(name):                                     # 2.89.3
-        return False, name_problem(name)
     return _keep_user(call("POST", "/auth/rename", body={"name": name}))
 
 
@@ -176,6 +173,31 @@ def admin(pid, action):
 
 def ban(user_id, banned=True):
     return call("POST", f"/users/{user_id}/ban", body={"banned": bool(banned)})
+
+
+def events():
+    """3.3.0: the Calendar's events, for everyone."""
+    return call("GET", "/events")
+
+
+def event_drafts():
+    """Admins: events the board suggested that nobody approved yet."""
+    return call("GET", "/events/drafts")
+
+
+def event_save(data, eid=None):
+    """Admins: post a new event, or change one. Saving a draft makes it live. eid is the board's own number."""
+    return call("PUT", f"/events/{int(eid)}", body=data) if eid else call("POST", "/events", body=data)
+
+
+def event_delete(eid):
+    """Admins: delete a board event. A draft the board made from Steam news is dismissed and stays dismissed."""
+    return call("DELETE", f"/events/{int(eid)}")
+
+
+def event_check():
+    """Admins: the board reads Steam news now, not at its next 6 hours. -> {"added": how many new drafts}"""
+    return call("POST", "/events/check")
 
 
 def official():

@@ -9,6 +9,7 @@ from tkinter import ttk
 from . import buglog
 from .config import save_json, SETTINGS
 from .style import C, Tooltip
+from .listkit import _menu as menu_theme   # 3.3.0 owner: one menu look across the app
 
 FIRST = "manual"                 # the first tab's id (its items keep src "manual")
 # owner: a tab you never renamed is named by its place - "Tab 1", "Tab 2" ... (close Tab 1 and Tab 2 becomes Tab 1);
@@ -231,8 +232,7 @@ class BulkTabsPage:
         self.list_switched()
 
     def pctab_tab_menu(self, e, tid):
-        m = tk.Menu(self.root, tearoff=0, bg=C["panel2"], fg=C["text"], activebackground="#2c4a84",
-                    activeforeground="#ffffff")
+        m = menu_theme(self.root)
         m.add_command(label="Rename…", command=lambda: self.pctab_rename(tid))
         m.add_command(label="Close this tab and its list", command=lambda: self.pctab_delete(tid),
                       state="normal" if len(self.pctab_tabs()) > 1 else "disabled")

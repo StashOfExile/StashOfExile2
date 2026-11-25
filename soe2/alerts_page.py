@@ -23,6 +23,7 @@ from . import buglog
 from .config import P, save_json, SETTINGS
 from .gamelog import area_kind as gl_area_kind, find_log, LogReader
 from .style import C, Tooltip
+from . import cleanguard as _cleanguard
 
 REPEAT_SECS = 45          # the game repeats a warning (twice in 2 s, then every ~15 s when full): one banner per level
 RETRY_TICKS = 15          # Client.txt not found: look again every this many seconds
@@ -124,33 +125,67 @@ def breach_level(text):
 # 2.119.0 (UX pass): what each helper does, in one line - under its name on Helpers, and (2.124.0) the tip on its
 # Quick settings chip
 LOOK = "{look}"                     # GGG policy (Nov 2026): the Read Key's name goes here (look_page.LookPage)
-HELPER_BLURBS = {"breach": "An alert card when your Hiveblood is almost full, and when it's full.",
-                 "ritual": f"Press {LOOK} with a Ritual altar's Favours window open: prices each reward once.",
-                 "remnant": f"Press {LOOK} with an Expedition remnant's book open: prices each reward once, beside its "
-                            f"line.",
-                 "focus": "Your League Plan over the game: the goal you're on, and reminders when it matters.",
-                 "campaign": "Where you are in the campaign, what's next and rewards you missed - from the game's log.",
-                 "whispers": "A card over the game when someone whispers to buy your item: what, for how much, where.",
-                 "desecrate": f"Press {LOOK} at The Well of Souls: reads the tier of each Desecration option once.",
-                 "topup": f"Back from a map, open your inventory and press {LOOK}: says what's running low.",
-                 "breaks": "An alert card after a long stretch of play, in a hideout or town.",
-                 "mapprofit": f"What each map earned: back from a map, open your inventory and press {LOOK}.",
-                 "temple": f"Press {LOOK} with the Temple Console open in Vaal Ruins: reads the board and your crystals "
-                           f"once, and marks the best rooms.",
-                 "music": "Previous, play / pause and next for any music player, in a small window.",   # 2.134.0
-                 "sekhemas": f"Press {LOOK} on the trial map: shows what to avoid and what to take."}
+# 3.3.0 owner: each line was long and said "Press your Read Key" again and again. A helper's line now says only
+# what it does, in his words. Where to press is said once, in its status line on Helpers, and in HELPER_HOW for
+# the tooltips that have no status line.
+HELPER_BLURBS = {"breach": "Better alerts for full Hiveblood.",
+                 "ritual": "Ritual price checker for the Favours window.",
+                 "remnant": "Remnant price checker, Runeshape tooltips and rumor help.",
+                 "focus": "Your League Plan goal and its reminders, over the game.",
+                 "campaign": "Campaign route, next step and missed rewards.",
+                 "whispers": "A card when someone whispers to buy your item.",
+                 "desecrate": "Shows mod tiers over the Desecration options.",
+                 "topup": "Says what is running low after a map.",
+                 "breaks": "A nudge to rest after a long stretch of play.",
+                 "mapprofit": "What each map earned.",
+                 "temple": "Helps place Temple Console rooms for Atziri rushing.",
+                 "music": "Previous, play, pause and next for any music player.",   # 2.134.0
+                 "sekhemas": "Room, affliction and boon legend."}
+HELPER_HOW = {"ritual": f"Press {LOOK} with a Ritual altar's Favours window open.",
+              "remnant": f"Press {LOOK} with an Expedition remnant's book open.",
+              "desecrate": f"Press {LOOK} at The Well of Souls.",
+              "topup": f"Back from a map, open your inventory and press {LOOK}.",
+              "mapprofit": f"Back from a map, open your inventory and press {LOOK}.",
+              "temple": f"Press {LOOK} with the Temple Console open in Vaal Ruins.",
+              "sekhemas": f"Press {LOOK} on the trial map."}
 
 
 from .look_page import UNSET_STATUS  # noqa: E402  (the helpers' status line while no Read Key is set)
-LOOK_HELPERS = tuple(k for k, v in HELPER_BLURBS.items() if LOOK in v)   # the helpers that need the Read Key
+LOOK_HELPERS = tuple(HELPER_HOW)                    # the helpers that need the Read Key
 
 
 def helper_blurb(key, look="your Read Key"):
-    """A helper's one line, with the Read Key's name in it."""
+    """A helper's one line: what it does."""
     return HELPER_BLURBS[key].replace(LOOK, look)
 
 
+def helper_tip(key, look="your Read Key"):
+    """What a helper does and, for one that reads the screen, where to press the Read Key."""
+    how = HELPER_HOW.get(key)
+    return helper_blurb(key, look) + (" " + how.replace(LOOK, look) if how else "")
+
+
+def helper_short(name):
+    """A helper's name on the Helpers list, where the word Helper is already the page's title."""
+    return name[:-len(" Helper")] if name.endswith(" Helper") else name
+
+
 class AlertsPage:
+    def _helper_line_no_key(self, txt):
+        """A helper's status line without the key's own name: "your Read Key (Ctrl+Shift+R)" -> "your Read Key"."""
+        try:
+            named = self.look_key_text()
+        except Exception:
+            return txt
+        return str(txt).replace(named, "your Read Key") if "(" in named else txt
+
+    @staticmethod
+    def _plain_count(text):
+        """"Crystals 12/60 (2 runs)" -> "Crystals 12/60, 2 runs": no aside in brackets."""
+        import re
+        return re.sub(r"\s*\(([^)]*)\)", r", \1", str(text))
+
+
     """Mixed into App."""
 
     # ================================================================ settings
@@ -225,6 +260,7 @@ class AlertsPage:
         tk.Label(sbox, text="⌕", bg=C["odd"], fg=C["muted"], font=("Segoe UI Symbol", 10)).pack(side="left", padx=(8, 0))
         ent = tk.Entry(sbox, textvariable=self.al_q, bg=C["odd"], fg=C["text"], insertbackground=C["text"],
                        relief="flat", font=("Segoe UI", 10), highlightthickness=0, bd=0, width=28)
+        _cleanguard.free(ent)        # 3.3.0: a search
         ent.pack(side="left", padx=8, ipady=4)
         ph = tk.Label(sbox, text="Search helpers", bg=C["odd"], fg=C["muted"], font=("Segoe UI", 10))
         ph.bind("<Button-1>", lambda e: ent.focus_set())
@@ -455,9 +491,9 @@ class AlertsPage:
                 cell.grid(row=r, column=1, sticky="w", padx=(0, 12), pady=4)
                 head = tk.Frame(cell, bg=P2)
                 head.pack(anchor="w")
-                nl = tk.Label(head, text=names[key], bg=P2, fg=C["text"], font=("Segoe UI", 10, "bold"), anchor="w")
+                nl = tk.Label(head, text=helper_short(names[key]), bg=P2, fg=C["text"], font=("Segoe UI", 10, "bold"), anchor="w")
                 nl.pack(side="left")
-                Tooltip(nl, what[key])
+                Tooltip(nl, helper_tip(key, self.look_key_text()))
                 if names[key] in _NEW.FEATURES:                 # 3.0.0: NEW until opened or used (newchip.py)
                     _NEW.chip(head, names[key]).pack(side="left", padx=(8, 0))
                 bl = tk.Label(cell, text=blurb[key], bg=P2, fg=C["muted"], font=sm, anchor="w", justify="left",
@@ -951,8 +987,10 @@ class AlertsPage:
         from . import temple as _TMs                                                    # 2.132.6: Temple's row
         rows["temple"]["on"].set(bool(self.temple_on()))
         _st = _TMs.state()
-        ttxt = (("On - " + _TMs.count_text(_st)) if _st else
-                self.look_status(f"On - press {self.look_key_text()} with the Temple Console open.")) \
+        # 3.3.0 owner: Temple's green line said only the crystal count; it says where to press like the others,
+        # then the count.
+        ttxt = self.look_status(f"On - press {self.look_key_text()} with the Temple Console open."
+                                + ((" " + self._plain_count(_TMs.count_text(_st)) + ".") if _st else "")) \
             if self.temple_on() \
             else rows["temple"]["what"]
         rows["sekhemas"]["on"].set(bool(self.sek_on()))                                 # Trial of the Sekhemas
@@ -985,6 +1023,9 @@ class AlertsPage:
                 st, txt = _OE.row_state(k, st, txt)
                 if _OE.NEEDS in txt and not rows[k].get("ocr_tip"):
                     rows[k]["ocr_tip"] = Tooltip(lbl, _OE.help_text())
+            # 3.3.0 owner: the key itself is named once, in How to use at the top of the page; a green line says
+            # only where to press it.
+            txt = self._helper_line_no_key(txt)
             if rows[k].get("grid"):                 # 2.112.0: one short line under the name
                 # nav phase 2 (never a state by color alone): a mark and a word - ✓ On / – Off / ⚠ - then what it's
                 # doing now (2.119.0: the gray line above it says what it does)

@@ -230,7 +230,7 @@ class SplitOverlay:
         return self.mg_win
 
     def _split_preview(self, row, style, scene):
-        """Overlay › Look's preview of the Split layout: both halves in `style`, at their places' sides (swapped as
+        """Overlay › Appearance's preview of the Split layout: both halves in `style`, at their places' sides (swapped as
         set), drawn by the code that draws them over the game. -> [canvas]"""
         from . import themes as TH
         from .overlaywin import OverlayFrame, _seed

@@ -273,5 +273,10 @@
     ]
    ]
   }
+ },
+ "box": {
+  "shape": "square",
+  "head": "strip",
+  "caps": true
  }
 }

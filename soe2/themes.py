@@ -70,6 +70,8 @@ DEFAULTS = {
     },
     "card": {"header": "plate", "border": "border_light", "sep": "border"},
     "meter": {"style": "bar", "on": "good", "off": "surface_high"},
+    # 3.3.0 look pass: how a page draws its boxes
+    "box": {"shape": "square", "head": "strip", "caps": False},
 }
 
 
@@ -554,8 +556,9 @@ def _seeded(t, salt):
     return random.Random("%s-%s" % (t.id, salt))
 
 
-def texture(cv, t, kind, x0, y0, x1, y1, base, glow=None, tag="tex"):
-    """Procedural textures as canvas items - no image files."""
+def texture(cv, t, kind, x0, y0, x1, y1, base, glow=None, tag="tex", salt=""):
+    """Procedural textures as canvas items - no image files. salt: a word for this one place, so two bars of the
+    same size don't get the same marks; the same place always draws the same."""
     w, h = x1 - x0, y1 - y0
     glow = glow or mix(base, "#ffffff", 0.3)
     if kind == "brushed":
@@ -583,12 +586,16 @@ def texture(cv, t, kind, x0, y0, x1, y1, base, glow=None, tag="tex"):
             cv.create_line(x, y, x + rnd.uniform(-5, 5), y - rnd.uniform(4, 11), tags=tag,
                            fill=mix(base, glow if rnd.random() < .35 else "#000000", rnd.uniform(.08, .2)))
     elif kind == "veins":
-        rnd = _seeded(t, "v%dx%d" % (w, h))
-        for _ in range(max(1, w * h // 14000)):
+        # 3.3.0 owner: a vein ran out of a thin header strip, and sat at the same spot on every header. It now
+        # stays inside its box, wanders less in a thin one, and each place has its own.
+        rnd = _seeded(t, "v%dx%d%s" % (w, h, salt))
+        dy = max(2.0, min(9.0, h / 2.5))
+        for _ in range(max(1, w * h // 14000) + (rnd.randrange(2) if salt else 0)):
             x, y = x0 + rnd.randrange(max(1, w)), y0 + rnd.randrange(max(1, h))
             pts = [x, y]
             for _ in range(rnd.randrange(5, 12)):
-                x, y = x + rnd.uniform(-14, 22), y + rnd.uniform(-9, 9)
+                x = min(x1, max(x0, x + rnd.uniform(-14, 22)))
+                y = min(y1, max(y0, y + rnd.uniform(-dy, dy)))
                 pts += [x, y]
             cv.create_line(*pts, fill=mix(base, glow, .10), width=3, tags=tag)
             cv.create_line(*pts, fill=mix(base, glow, .38), width=1, tags=tag)
@@ -635,7 +642,7 @@ def _paint_bar(cv, kind="title", tag="grad"):
     return col
 
 
-def bar_into(cv, t, kind, x0, y0, x1, y1, tag="grad"):
+def bar_into(cv, t, kind, x0, y0, x1, y1, tag="grad", salt=None):
     """A pack's bar (title / title_off / section) drawn into a part of a canvas -> its text color. 2.118.0: shared
     by the title bars and the theme picker's preview (any pack, not only the running one)."""
     w, h = max(x1 - x0, 2), max(y1 - y0, 2)
@@ -646,7 +653,8 @@ def bar_into(cv, t, kind, x0, y0, x1, y1, tag="grad"):
     tex = spec.get("texture", "none")
     if tex and tex != "none":
         texture(cv, t, tex, x0, y0, x0 + w, y0 + h, grad_at(stops, .5),
-                glow=t.c(spec["texture_color"]) if spec.get("texture_color") else None, tag=tag)
+                glow=t.c(spec["texture_color"]) if spec.get("texture_color") else None, tag=tag,
+                salt=salt if salt is not None else ("" if kind != "section" else "@%s" % cv))
     for key, y in (("top", 0), ("top2", 2), ("bottom", h - 1), ("bottom2", h - 3)):
         if spec.get(key):
             cv.create_line(x0, y0 + y, x0 + w, y0 + y, fill=t.c(spec[key]), tags=tag)
@@ -702,15 +710,114 @@ def head_font(t=None, kind="head"):
 def round_rect(cv, x0, y0, x1, y1, r, **kw):
     """A round box on a canvas. Rule 24: smooth corners (soft.py - Pillow pictures, 9-slice; the id it gives acts as
     one item). Without Pillow: a smoothed polygon (jagged on Windows), as before."""
+    from . import soft
+    if r > 0 and not soft.radius() and not getattr(cv.winfo_toplevel(), "keeps_round", False):
+        r = 0                                             # 3.3.0 look pass: a square theme draws square boxes
+        soft._install()                                   # (a box resized later with a round box's points: taken)
     if r <= 0:
         return cv.create_rectangle(x0, y0, x1, y1, **kw)
-    from . import soft
     got = soft.canvas_round_rect(cv, x0, y0, x1, y1, r, **kw)
     if got is not None:
         return got
     pts = [x0 + r, y0, x1 - r, y0, x1, y0, x1, y0 + r, x1, y1 - r, x1, y1, x1 - r, y1, x0 + r, y1, x0, y1,
            x0, y1 - r, x0, y0 + r, x0, y0]
     return cv.create_polygon(pts, smooth=True, **kw)
+
+
+# ------------------------------------------------------------------ boxes on a page (3.3.0 look pass)
+BOX = {"shape": ("square", "round", "flat"), "head": ("strip", "plain", "rule")}
+BOX_HEAD = 30                     # the height of a box's header strip, on a canvas and in chrome.SectionBar
+
+
+def headed(t):
+    """True when the pack draws a box's title in a strip or over a rule: the box's content starts under it."""
+    return box_look(t)["head"] != "plain"
+
+
+def box_look(t):
+    """The pack's box part with only known values -> {"shape", "head", "caps"}."""
+    got = t.part("box") or {}
+    out = {k: got.get(k) if got.get(k) in v else v[0] for k, v in BOX.items()}
+    out["caps"] = bool(got.get("caps"))
+    return out
+
+
+def _inset(r, row):
+    """How far a round corner of radius r cuts in on its row."""
+    if row >= r:
+        return 0
+    d = r - row - .5
+    return int(round(r - (max(0.0, r * r - d * d)) ** .5))
+
+
+def box(cv, t, x0, y0, x1, y1, r, lit=False, tags=()):
+    """A box on a page canvas, in the pack's shape. -> its corner radius as drawn."""
+    k = box_look(t)
+    fill = t.c("hover", t.c("surface_high")) if lit else t.c("surface_raised")
+    line = t.c("border_light") if lit else t.c("border")
+    if k["shape"] == "flat":
+        cv.create_rectangle(x0, y0, x1, y1, fill=fill if lit else t.c("surface"), outline="", tags=tags)
+        cv.create_line(x0, y0, x1, y0, fill=line, tags=tags)
+        return 0
+    rr = r if k["shape"] == "round" else 0
+    round_rect(cv, x0, y0, x1, y1, rr, fill=fill, outline=line, tags=tags)
+    return rr
+
+
+def head_title(t, title):
+    """A header strip's words in the pack's style -> (text, font): capitals in the plain font, or the head font."""
+    if box_look(t)["caps"]:
+        return title.upper(), ("Segoe UI", 10, "bold")
+    return title, (head_font(t), 11, "bold")
+
+
+def box_strip(cv, t, x0, y0, x1, r, tags=()):
+    """The pack's header strip across the top of a box() at the same corner -> its text color, or None when the
+    pack doesn't draw one (a plain title, or a title over a rule)."""
+    k = box_look(t)
+    if k["head"] != "strip":
+        return None
+    rr = r if k["shape"] == "round" else 0
+    h = BOX_HEAD
+    spec = t.part("bars", "section") or t.part("bars", "title")
+    stops, ink = t.grad(spec["fill"]), t.c(spec.get("text", "text_strong"))
+    edge = 0 if k["shape"] == "flat" else 1               # (inside the box's own 1 px outline)
+    for row in range(edge, h):
+        i = max(edge, _inset(rr, row))
+        cv.create_line(x0 + i, y0 + row, x1 - i + (0 if edge else 1), y0 + row,
+                       fill=grad_at(stops, row / max(1, h - 1)), tags=tags)
+    tex = spec.get("texture", "none")                     # the pack's own strip: its texture and top line too
+    if tex and tex != "none":
+        # (a texture's marks reach up to 8 px past the spot they are placed on: kept inside the strip)
+        texture(cv, t, tex, int(x0 + edge + rr + 8), int(y0 + edge + 8), int(x1 - edge - rr - 8), int(y0 + h - 8),
+                grad_at(stops, .5), glow=t.c(spec["texture_color"]) if spec.get("texture_color") else None,
+                tag=tags or "tex", salt="@%d,%d" % (int(x0), int(y0)))
+    if spec.get("top"):
+        cv.create_line(x0 + max(edge, rr), y0 + edge, x1 - max(edge, rr), y0 + edge, fill=t.c(spec["top"]), tags=tags)
+    cv.create_line(x0 + edge, y0 + h, x1 - edge + (0 if edge else 1), y0 + h, fill=t.c("border"), tags=tags)
+    return ink
+
+
+def box_head(cv, t, x0, y0, x1, r, title, tags=()):
+    """A box's title in the pack's style, drawn over a box() at the same corner. -> (the title's id, how far the
+    controls at its right move up: 0 for a plain title)."""
+    k = box_look(t)
+    word = title.upper() if k["caps"] else title
+    if k["head"] == "plain":
+        return cv.create_text(x0 + 20, y0 + 18, text=title, anchor="nw", font=(head_font(t), 16),
+                              fill=t.c("text_strong"), tags=tags), 0
+    rr = r if k["shape"] == "round" else 0
+    h, mid = BOX_HEAD, y0 + BOX_HEAD // 2
+    if k["head"] == "rule":
+        tid = cv.create_text(x0 + 20, mid, text=word, anchor="w", font=(head_font(t), 13 if k["caps"] else 15),
+                             fill=t.c("text_strong"), tags=tags)
+        inset = 0 if k["shape"] == "flat" else 20
+        cv.create_line(x0 + inset, y0 + h, x1 - inset, y0 + h, fill=t.c("border_light"), tags=tags)
+        return tid, 15
+    ink = box_strip(cv, t, x0, y0, x1, r, tags)
+    word, font = head_title(t, title)
+    tid = cv.create_text(x0 + 20, mid, text=word, anchor="w", font=font, fill=ink, tags=tags)
+    return tid, 15
 
 
 def _draw_meter(cv, value, w, h, on=None, style=None, tag="meter"):
@@ -923,7 +1030,8 @@ def flat_spec(t, name):
     """P2.5 (2.107.0, feedback: the buttons felt amateur): one flat look in every theme - round corners (rule 24:
     soft.RADIUS, 6 px; was 2), no gradient or bevel; the theme still gives the colors. Normal: a raised face; primary: the accent; danger: an
     outline in the theme's danger color; heading: list column heads."""
-    from .soft import RADIUS as _R
+    from .soft import radius as _radius
+    _R = _radius()
     c = t.c
     if name == "primary":
         a = ST.C.get("accent") or c("accent")

@@ -551,6 +551,16 @@ def short_div(v):
 # A strat's league: its own "league" (New strat writes your league from Settings) or, for the shipped and older ones,
 # the league of its game version (LEAGUE_VERSIONS - only versions the app knows for sure; unknown: "Game 0.4").
 LEAGUE_VERSIONS = {"Forbidden Rites": "0.5.5"}
+# 3.3.0 owner: every Path of Exile 2 league with its game version, for Game Search's Leagues. Newest last.
+# (league, game version, the update it came with, started, ended or "")
+LEAGUE_HISTORY = (
+    ("Standard", "0.1.0", "Early Access", "2024-12-06", ""),
+    ("Dawn of the Hunt", "0.2.0", "Dawn of the Hunt", "2025-04-04", "2025-08-26"),
+    ("Rise of the Abyssal", "0.3.0", "The Third Edict", "2025-08-29", "2025-12-09"),
+    ("Fate of the Vaal", "0.4.0", "The Last of the Druids", "2025-12-12", "2026-05-25"),
+    ("Runes of Aldur", "0.5.0", "Return of the Ancients", "2026-05-29", ""),
+    ("Forbidden Rites", "0.5.5", "Forbidden Rites event", "2026-09-04", ""),
+)
 ALL_LEAGUES = "All leagues"
 _LEAGUE_HEAD = re.compile(r"^(hardcore|hc|ssf|solo self-found)\s+", re.I)
 

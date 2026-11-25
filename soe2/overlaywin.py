@@ -20,7 +20,7 @@ NOACTIVATE = 0x08000000            # WS_EX_NOACTIVATE: a click never hands the w
 OUTLINE = "#5b77ad"              # the same 1px outline as the app's windows
 BODY_BG = "#0d1424"
 
-# ---- 2.43.0 / 2.47.0: the look of the windows over the game (Overlays › Look). Four PoE2-style skins from the
+# ---- 2.43.0 / 2.47.0: the look of the windows over the game (Overlays › Appearance). Four PoE2-style skins from the
 # 2.43.0 mockups - C, Runeshape parchment, became the default, with all four to choose from - plus the
 # Classic dark look of 2.42.
 #   parchment  the Expedition remnant's reward book: grungy parchment (made by texture(), no image file) in a dark
@@ -404,8 +404,9 @@ def skin_inner(host, P, parch, edge, body_bg):
 
 
 class OverlayWindow(tk.Toplevel):
+    keeps_round = True                              # 3.3.0: the overlay keeps its own corners in every theme
     def set_opacity(self, opacity):
-        """2.43.0: Overlay › Look: applied at once."""
+        """2.43.0: Overlay › Appearance: applied at once."""
         try:
             self.attributes("-alpha", max(0.15, min(1.0, int(opacity) / 255)))
             from . import layered

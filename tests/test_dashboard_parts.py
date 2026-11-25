@@ -69,18 +69,21 @@ class Parts(unittest.TestCase):
 
     @staticmethod
     def texts(d):
-        return [d.itemcget(i, "text") for i in d.find_all() if d.type(i) == "text"]
+        # a theme may draw box titles in capitals: read them back as written
+        got = [d.itemcget(i, "text") for i in d.find_all() if d.type(i) == "text"]
+        return [t.capitalize() if len(t) > 3 and t.isupper() else t for t in got]
 
     @staticmethod
     def edges(d, text):
         for i in d.find_all():
-            if d.type(i) == "text" and d.itemcget(i, "text") == text:
+            if d.type(i) == "text" and d.itemcget(i, "text") in (text, text.upper()):
                 return d.bbox(i)
 
     def test_wealth_off_no_wealth_tiles(self):
         d = self.page()
         self.assertIn("Stash worth", self.texts(d))
         self.assertIn("Today", self.texts(d))
+        self.assertIn("At a glance", [t.capitalize() for t in self.texts(d)])    # the numbers share one titled box
         FEAT.set_on("wealth", False)
         d.redraw()
         t = self.texts(d)
@@ -106,7 +109,7 @@ class Parts(unittest.TestCase):
     @staticmethod
     def find(d, text):
         for i in d.find_all():
-            if d.type(i) == "text" and d.itemcget(i, "text") == text:
+            if d.type(i) == "text" and d.itemcget(i, "text") in (text, text.upper()):
                 return i
 
     def test_all_off_empty_state_one_button(self):

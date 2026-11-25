@@ -9,8 +9,10 @@ from .config import SETTINGS, save_json
 from .style import C, FONT_TITLE, ScrollArea, SegBar
 from .chrome import SectionBar, Viewport
 from .cardlist import CardList, ICON
+from . import cleanguard as _cleanguard
 
 PAGE = 60
+
 
 
 class SearchPage:
@@ -31,6 +33,7 @@ class SearchPage:
         self.gs_q = tk.StringVar()
         self.gs_entry = tk.Entry(box, textvariable=self.gs_q, bg=C["odd"], fg=C["text"], insertbackground=C["text"],
                                  relief="flat", highlightthickness=0, bd=0, font=("Segoe UI", 12))
+        _cleanguard.free(self.gs_entry)        # 3.3.0: a search of the game's own text
         self.gs_entry.pack(side="left", fill="x", expand=True, ipady=8, padx=(8, 8))
         ph = tk.Label(box, text="Search skills, supports, uniques, bases, currency, runes, mods and keywords",
                       bg=C["odd"], fg=C["muted"], font=("Segoe UI", 12))
@@ -115,8 +118,11 @@ class SearchPage:
         self.gs_text, self.gs_sb = t, sb
         # 3.0.6: the results are item cards on one canvas (cardlist.py); the text above is kept for the pages that are
         # words (the empty page, nothing matched, Anoints with their prices)
+        from . import gamesearch as _GS
         self.gs_cards = CardList(res, bg=P2, art=self._gs_art, on_toggle=self.gs_toggle, on_wiki=self.gs_wiki,
-                                 on_more=self.gs_more)
+                                 on_more=self.gs_more,
+                                 on_report=lambda r: self.dr_report("search", _GS.report_ref(r), r.get("n") or "",
+                                                                    (r.get("t") or "").split("\n")[0][:200]))
         self._art_hooks = getattr(self, "_art_hooks", []) + [lambda done: self.gs_cards.refresh_art()]
         self.gs_save_job = None
         # (UI overhaul: Anoints is a category again, in the column on the left - not a page of its own)
@@ -128,10 +134,10 @@ class SearchPage:
         """The card's picture when the app knows one (the trade site's art: a tablet, a waystone, an item you priced)."""
         if not SETTINGS.get("pc_art", True) or not hasattr(self, "pc_art"):
             return None
-        if row.get("c") == "Jewel" and row.get("g") == "Jewels":
-            return None                          # 3.0.6 (owner): a base jewel's name matched other art - no picture
-        from .pricecheck_page import art_url
+        from .pricecheck_page import art_url, JEWEL_ART
         try:
+            if row.get("g") == "Jewels":         # 3.3.0 owner: a base jewel's own picture, by its exact name
+                return self.pc_art(JEWEL_ART.get(row["n"]), px=ICON) if row["n"] in JEWEL_ART else None
             return self.pc_art(art_url(row["n"]), px=ICON)
         except Exception:
             buglog.caught()

@@ -210,8 +210,8 @@ HISTORY = History()
 
 # ================================================================ the menus
 def _menu(widget):
-    return tk.Menu(widget, tearoff=0, bg=C["panel2"], fg=C["text"], activebackground="#2c4a84",
-                   activeforeground="#ffffff", disabledforeground=C["muted"])
+    from .style import menu_colors                      # 3.3.0 owner: one menu look, the drop-down list's
+    return tk.Menu(widget, tearoff=0, **{k.lower(): v for k, v in menu_colors().items()})
 
 
 def _own_menu(widget):
@@ -274,31 +274,77 @@ def list_menu(app, e):
     st = lambda on: "normal" if on else "disabled"                       # noqa: E731
     m = _menu(tree)
     n = len(sel)
-    acts = getattr(tree, "menu_actions", None)          # 2.36.0: the window's own actions for the rows, on top
+    acts = getattr(tree, "menu_actions", None)          # 2.36.0: the window's own actions for the rows
     acts = acts(sel) if callable(acts) and sel else []
-    for a in acts:
-        if a is None:
-            m.add_separator()
-            continue
-        label, fn, *rest = a
-        on = rest[0] if rest else True
-        m.add_command(label=label, state=st(on), command=fn, accelerator=rest[1] if len(rest) > 1 else "")
-    if acts:
-        m.add_separator()
-    m.add_command(label=f"Copy {n} row{'s' if n != 1 else ''}" if n else "Copy", accelerator="Ctrl+C",
+    blocks = menu_blocks(acts)
+
+    def put(block):
+        for label, fn, *rest in block:
+            on = rest[0] if rest else True
+            m.add_command(label=label, state=st(on), command=fn, accelerator=rest[1] if len(rest) > 1 else "")
+        return bool(block)
+
+    # 3.3.0 owner: menus differed from page to page. One order on every list: the main action in bold and what
+    # opens elsewhere, Copy; rename, tags, key, move; post, add, report; select all, undo, delete; admin lines.
+    if put(blocks["top"]):
+        try:
+            import tkinter.font as tkfont
+            bold = tkfont.nametofont("TkMenuFont").copy()
+            bold.configure(weight="bold")
+            m._soe2_bold = bold                                 # kept alive with the menu
+            m.entryconfigure(0, font=bold)
+        except tk.TclError:
+            pass
+    m.add_command(label=f"Copy {n} rows" if n > 1 else "Copy", accelerator="Ctrl+C",
                   state=st(n), command=lambda: copy_rows(tree))
     m.add_command(label="Copy every row", state=st(tree.get_children("")), command=lambda: copy_rows(tree, every=True))
+    for name in ("edit", "share"):
+        if blocks[name]:
+            m.add_separator()
+            put(blocks[name])
+    m.add_separator()
     multi = str(tree.cget("selectmode")) == "extended"
     m.add_command(label="Select all", accelerator="Ctrl+A", state=st(multi and tree.get_children("")),
                   command=lambda: tree.selection_set(tree.get_children("")))
+    m.add_command(label="Undo", accelerator="Ctrl+Z", state=st(key is not None and app.can_undo(key)),
+                  command=lambda: app.undo_last(key))
+    put(blocks["remove"])
     if delete is not None:
-        m.add_separator()
         m.add_command(label=f"Delete {n}" if n > 1 else "Delete", accelerator="Del", state=st(n),
                       command=lambda: delete(tree.selection()))
-    if key is not None and app.can_undo(key):
-        m.add_command(label="Undo", accelerator="Ctrl+Z", command=lambda: app.undo_last(key))
+    if blocks["admin"]:
+        m.add_separator()
+        put(blocks["admin"])
     m.tk_popup(e.x_root, e.y_root)
     return "break"
+
+
+EDIT_WORDS = ("rename", "edit", "duplicate", "tags", "key", "move", "group", "note", "pin")
+SHARE_WORDS = ("post", "add to mine", "report", "share", "publish")
+REMOVE_WORDS = ("remove", "delete", "forget", "clear")
+
+
+def menu_blocks(acts):
+    """A list's own menu lines, sorted into the one order every menu uses. A line is (label, command, enabled,
+    key). -> {"top", "edit", "share", "remove", "admin"}, each in the order the page gave. The page's own
+    separators are dropped: the blocks are the separators now."""
+    out = {"top": [], "edit": [], "share": [], "remove": [], "admin": []}
+    for a in acts or ():
+        if a is None:
+            continue
+        low = str(a[0]).lower().lstrip("☆▲⚑⌨🏷📤📋 ").strip()
+        if low.startswith("admin"):
+            name = "admin"
+        elif low.startswith(REMOVE_WORDS):
+            name = "remove"
+        elif low.startswith(SHARE_WORDS):
+            name = "share"
+        elif any(w in low for w in EDIT_WORDS) and not low.startswith(("open", "search", "copy")):
+            name = "edit"
+        else:
+            name = "top"
+        out[name].append(a)
+    return out
 
 
 def menu_key(e=None):
@@ -342,6 +388,8 @@ def install(app):
         root.option_add("*Text.autoSeparators", True)
     except tk.TclError:
         pass
+    from . import cleanguard                           # 3.3.0 owner: every typing box refuses the filtered words
+    cleanguard.install(root)
     for cls in TYPING + ("Text",):
         root.bind_class(cls, "<Button-3>", edit_menu, add="+")
         root.bind_class(cls, "<Control-a>", lambda e: select_all(e.widget))

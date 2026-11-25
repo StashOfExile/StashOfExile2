@@ -45,6 +45,26 @@ def counts():
     return num(d.get("online")), num(d.get("week"))
 
 
+def line():
+    """The Dashboard's line under the greeting -> ("12 exiles online", " · 340 this week"), either part may be ""."""
+    c = counts()
+    if not c or not (c[0] or c[1]):
+        return "", ""
+    now = f"{c[0]:,} exile{'s' if c[0] != 1 else ''} online" if c[0] else ""
+    week = f"{c[1]:,} this week" if c[1] else ""
+    return now, ((" · " if now else "") + week if week else "")
+
+
+def tip():
+    """What the count counts, said plainly (3.3.0 owner: an honest online count)."""
+    c = counts() or (0, 0)
+    return ("People with Stash of Exile 2 open in the last 15 minutes. Only players who turned on Count me as a "
+            "user, on version 3.1 or newer."
+            + (f" This week: {c[1]:,} in the last 7 days." if c[1] else "")
+            + (" You are counted." if on() else " You are not counted. Its switch is in Settings › Privacy & "
+                                                "community."))
+
+
 def ping(call=None):
     """One ping (if on) and one count. Never raises. -> True when the board answered."""
     if not _lock.acquire(blocking=False):

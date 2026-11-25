@@ -54,7 +54,7 @@ def texts(w, shown=False):
 class Words(unittest.TestCase):
     def test_the_ritual_helper_is_favours_prices(self):
         blurb = AP.HELPER_BLURBS["ritual"]
-        self.assertIn(AP.LOOK, blurb, "it reads on the Read Key")
+        self.assertIn(AP.LOOK, AP.HELPER_HOW["ritual"], "it reads on the Read Key")
         self.assertIn("Favours", blurb)
         for gone in ("counter", "remind", "identif", "tribute"):
             self.assertNotIn(gone, blurb.lower())

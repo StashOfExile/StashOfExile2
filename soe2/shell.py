@@ -16,6 +16,7 @@ import tkinter as tk
 
 from . import buglog
 from .style import C, bind_own_configure
+from . import cleanguard as _cleanguard
 
 TITLE_ON = ("#34508a", "#1a2a4c")
 UTIL_TITLE = ("#3a3020", "#1e1810")
@@ -269,7 +270,41 @@ class PageBar(GradientBar):
                     self.create_text(bb[2] + 8, y_blurb, text="ⓘ", anchor="w", font=("Segoe UI", 9), fill=mut,
                                      tags=("pg", "pgtip"))
                     self._blurb_tip_bind(mod)
+            self._report_links(mod, w, y_name, t)
         self.tag_lower("grad")
+
+    def redraw(self):
+        self.paint()
+
+    def _report_links(self, mod, w, y, t):
+        """3.3.0 owner: a Codex page's header has Report a Problem; an admin also gets Reports with how many wait.
+        Words, never an icon alone."""
+        page = getattr(mod, "report_page", None)
+        app = getattr(self.win.shell, "app", None)
+        if not page or app is None or not hasattr(app, "dr_report_page"):
+            return
+        link, hot = t.c("accent_2"), t.c("accent")
+        x = w - 24
+        try:
+            n = app.dr_count() if app.dr_is_admin() else None
+        except Exception:
+            n = None
+        if n is not None:
+            rid = self.create_text(x, y, text=f"● Reports: {n} to review" if n else "Reports", anchor="e",
+                                   font=("Segoe UI", 9, "bold" if n else "normal"), fill=hot if n else link,
+                                   tags=("pg", "pgreports"))
+            x = (self.bbox(rid) or (x, 0, x, 0))[0] - 18
+            if not getattr(self, "_reports_bound", False):
+                self.tag_bind("pgreports", "<Button-1>", lambda e: app.dr_reports(), add="+")
+                self._reports_bound = True
+        self.create_text(x, y, text="⚑ Report a Problem", anchor="e", font=("Segoe UI", 9), fill=link,
+                         tags=("pg", "pgreport"))
+        if not getattr(self, "_report_bound", False):
+            self.tag_bind("pgreport", "<Button-1>", lambda e: app.dr_report_page(page), add="+")
+            for tag in ("pgreport", "pgreports"):
+                self.tag_bind(tag, "<Enter>", lambda e: self.configure(cursor="hand2"), add="+")
+                self.tag_bind(tag, "<Leave>", lambda e: self.configure(cursor=""), add="+")
+            self._report_bound = True
 
     def _blurb_tip_bind(self, mod):
         """The ⓘ's hover (its words asked for each time: they follow the settings) and its click - bound once."""
@@ -1876,6 +1911,9 @@ class Shell:
         if key == "calc" and hasattr(self.app, "calc_ov_toggle"):  # 2.74.0: the calculator is over the game now
             self.app.calc_ov_toggle(True)
             return
+        if key == "favorites" and "pricecheck" in self.windows:   # 3.3.0: Favorites is a Price Checks tab
+            self.open_tab("pricecheck", "Favorites")
+            return
         if key == "ovset" and "tracker" in self.windows:   # nav phase 2: that page is gone - the Overlay page's tabs
             self.open_tab("tracker", "Helpers")            # (an old saved page or link)
             return
@@ -2087,13 +2125,15 @@ class Shell:
                 w.destroy()
             f = old
         else:
-            f = tk.Frame(self.task_right, bg="#111b30")
+            f = tk.Frame(self.task_right, bg=self.task_right["bg"])
             self._task_dot_frame = f
         self.task_dots = {}                  # 2.97.3: no "● Overlay" on the taskbar - the sidebar's dot shows it
         if old is not None:
             return
         f.pack(side="left", padx=8)
-        self.clock = tk.Label(self.task_right, text="", bg="#111b30", fg=C["text"], font=("Segoe UI", 9, "bold"),
+        # 3.3.0 owner: the clock's background is the bar's own, in every theme
+        self.clock = tk.Label(self.task_right, text="", bg=self.task_right["bg"], fg=C["text"],
+                              font=("Segoe UI", 9, "bold"),
                               justify="right")
         self.clock.pack(side="left", padx=(8, 2))
 
@@ -2199,6 +2239,7 @@ class Shell:
         q = tk.StringVar()
         e = tk.Entry(m, textvariable=q, bg="#0b1222", fg=C["text"], insertbackground=C["text"], relief="flat",
                      highlightthickness=1, highlightbackground=C["line"], font=("Segoe UI", 10))
+        _cleanguard.free(e)        # 3.3.0: a search
         e.pack(fill="x", padx=8, pady=8, ipady=4)
         e.insert(0, "")
         cols = tk.Frame(m, bg=P1)

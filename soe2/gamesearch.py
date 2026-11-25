@@ -30,9 +30,14 @@ def load():
         with open(path, encoding="utf-8") as f:
             d = json.load(f)
         rows = []
+        gone, new = d.get("gone") or {}, d.get("added") or {}     # 3.3.0: tools/update_game_data.py's marks
         for n, g, c, k, t in d["rows"]:
             rows.append({"n": n, "g": g, "c": c, "k": k, "t": t, "ln": n.lower(), "lk": (k or "").lower(),
                          "lt": (t or "").lower()})
+            if gone.get(f"{n}|{g}"):
+                rows[-1]["gone"] = gone[f"{n}|{g}"]
+            elif new.get(f"{n}|{g}"):
+                rows[-1]["added"] = new[f"{n}|{g}"]
         order = list(d.get("order") or [])
         # 3.0.6 (owner): jewels get their own category, right after the rings and belts one
         for r in rows:
@@ -42,9 +47,18 @@ def load():
             at = order.index("Jewellery & Belts") + 1 if "Jewellery & Belts" in order else len(order)  # game text
             order.insert(at, JEWELS)
         rows += anoint_rows()
+        _unique_lines(rows)                              # 3.3.0 owner: a unique's mods, so its effects can be searched
         db_rows, db_order = gamedb_rows()
         rows += db_rows
         rows = gamesearch_clean.clean_rows(rows, hidden_names())      # no developer-only entries, no placeholder text
+        try:                                             # 3.3.0 owner: what the newest patch changed, first in the list
+            from . import gamesnap
+            chg = gamesnap.change_rows()
+            if chg:
+                rows = chg + rows
+                order.insert(0, chg[0]["g"])
+        except Exception:
+            buglog.caught()
         for g in reversed(db_order):                       # the new categories follow Endgame Items, in the file's order
             if g not in order:
                 order.insert(order.index("Endgame Items") + 1 if "Endgame Items" in order else len(order), g)
@@ -126,13 +140,57 @@ def _hide_entries():
         return []
 
 
+def _unique_lines(rows):
+    """Each unique row gets its lines from uniquedata.json (soe2/uniquedata.py): shown on its card and searched."""
+    try:
+        from . import uniquedata as UD
+        for r in rows:
+            if r.get("g") != "Unique Items":
+                continue
+            u = UD.get(r.get("n"))
+            if not u:
+                continue
+            lines = list(u.get("implicit") or []) + list(u.get("explicit") or [])
+            r["ul"] = lines
+            r["lt"] = (r.get("lt") or "") + " " + " ".join(lines).lower()
+    except Exception:
+        buglog.caught()
+
+
+def report_ref(row):
+    """3.3.0 owner: what a data report names a Game Search row by: its id, or its group and name."""
+    return row["id"] if row.get("db") and row.get("id") else f"{row.get('g', '')}|{row.get('n', '')}"
+
+
+def _board_hidden():
+    from . import datareports as DR
+    try:
+        return DR.hidden("search")
+    except Exception:
+        buglog.caught()
+        return set()
+
+
 def hidden_ids():
-    return {e["id"] for e in _hide_entries() if e.get("id")}
+    """gamedb_hide.json ids, and 3.3.0: rows an admin hid from a data report."""
+    return {e["id"] for e in _hide_entries() if e.get("id")} | {r for r in _board_hidden() if "|" not in r}
 
 
 def hidden_names():
-    """gamedb_hide.json entries with a "name" (and optionally a "group") hide a Game Search row that has no id."""
-    return gamesearch_clean.hide_names(_hide_entries())
+    """gamedb_hide.json entries with a "name" (and optionally a "group") hide a Game Search row that has no id; and
+    3.3.0: rows an admin hid from a data report, by group and name."""
+    out = gamesearch_clean.hide_names(_hide_entries())
+    for r in _board_hidden():
+        if "|" in r:
+            g, n = r.split("|", 1)
+            out.add((n, g))
+    return out
+
+
+def forget():
+    """The rows are read again next time: an admin hid a row."""
+    _DATA.clear()
+    _DATA["rows"] = None
 
 
 def emotion_counts(em):

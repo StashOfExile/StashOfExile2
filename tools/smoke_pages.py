@@ -67,7 +67,7 @@ def is_net(t):
 SETTLE_MS = 900                                # after each open (Shell.open heals 600 ms later)
 # pages taken out on purpose because they became tabs of another page: key -> (that page, its tabs). Gone is a CHANGE
 # (not a failure) only while every one of those tabs opens.
-MERGED = {"ovset": ("tracker", ("Helpers", "On the Overlay", "Look", "Options"))}   # nav phase 2: Overlay Settings
+MERGED = {"ovset": ("tracker", ("Helpers", "On the Overlay", "Appearance", "Options"))}   # nav phase 2: Overlay Settings
 REDIRECT = {"notes": "the Notes overlay (Shell.open('notes') -> app.notes_open)"}   # pages that open something else
 
 

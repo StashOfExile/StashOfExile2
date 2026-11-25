@@ -22,7 +22,7 @@ FEATURE_AT = {
     "Favours prices": OV, "Filter in the Ritual window": OV,
     "Session timer": ("tracker", "Sessions"),
     "Trade Whisper Watcher": OV, "Quick settings": OV, "Reset position": ("tracker", "Options"),
-    "Layout": ("tracker", "Look"), "Style": ("tracker", "Look"), "Theme": ("settings", "Appearance"),
+    "Layout": ("tracker", "Appearance"), "Style": ("tracker", "Appearance"), "Theme": ("settings", "Appearance"),
     "Regex keys": ("regex", None), "Data pack": ("crafthelper", None),
     "Scan stash": ("wealth", None), "Clear All": ("checks", None), "Manually Add": ("checks", None),
     "Keybinds": ("settings", "Keybinds"), "Read Key": ("settings", "Keybinds"), "Features": ("settings", "General"), "Setup": ("settings", "General"),

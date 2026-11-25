@@ -189,6 +189,36 @@ def _db_card(it, cls):
     return {"kind": cls, "props": props, "req": "", "lines": lines, "muted": [], "chips": chips, "db": True}
 
 
+def unique_history(name):
+    """3.3.0 owner: what a unique had before its last change, as muted lines on its card: "Before 0.4.0: ..."."""
+    try:
+        from . import gamesnap
+        h = gamesnap.history(name)
+    except Exception:
+        return []
+    if not h:
+        return []
+    patch, gone = h
+    return [f"Before {patch}: {ln}" for ln in gone[:6]]
+
+
+CHANGE_MARK = {"changed": "~ Changed:", "new": "+ New:", "removed": "− Removed:"}
+
+
+def _change_card(it, cls):
+    """A changed, new or removed unique or gem: each line with a mark and a word, the old number beside the new."""
+    ov, nv = it.get("vs") or ("", "")
+    lines = []
+    for kind, now, was in it.get("chg") or []:
+        lines.append(f"{CHANGE_MARK[kind]} {now}" + (f"   · was: {was}" if was else ""))
+    status = it.get("chg_status") or "Changed"
+    if status == "Removed":
+        lines = [f"Not in the {nv} game files."]
+    return {"kind": f"{cls} · {status} in {nv}", "props": [], "req": "", "lines": lines,
+            "muted": ["Compared with the game data saved for the patch before."], "chips": [status],
+            "db": False}
+
+
 def card(it):
     """A Game Search row -> {kind, props, req, lines, muted, chips, db} (cached on the row)."""
     c = it.get("_card")
@@ -196,7 +226,9 @@ def card(it):
         return c
     tags = [x.strip() for x in (it.get("k") or "").split(",")]
     cls = it.get("c") or ""
-    if it.get("db"):
+    if it.get("chg") is not None:                             # 3.3.0 owner: Changed in <patch>
+        c = _change_card(it, cls)
+    elif it.get("db"):
         c = _db_card(it, cls)
     else:
         props, req, lines, muted = parse_text(it.get("t") or "")
@@ -206,7 +238,12 @@ def card(it):
             kind = "Radius Jewel"                             # 3.0.6: Time-Lost jewels say so in words, not tag chips
         if it.get("g") == "Unique Items":                     # the text only said "Unique <class>": that is the kind
             kind = f"Unique {KIND_WORDS.get(cls, cls)}"
-            lines = [x for x in lines if x != f"Unique {cls}"]
+            lines = [x for x in lines if x != f"Unique {cls}"] + list(it.get("ul") or [])
+            muted = list(muted) + unique_history(it.get("n"))
+        if it.get("gone"):                                   # kept by tools/update_game_data.py, never removed
+            muted = list(muted) + [f"Not in the {it['gone']} files"]
+        elif it.get("added"):
+            muted = list(muted) + [f"New in {it['added']}"]
         c = {"kind": kind + (f" · {attr}" if attr else ""), "props": props, "req": req, "lines": lines, "muted": muted,
              "chips": chips(it.get("k"), skip=(cls, humanize(cls), *attr.split("/"))), "db": False}
         if it.get("g") == "Modifiers":                        # a mod row's tags are its stat group ids: one chip each is noise

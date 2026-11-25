@@ -199,6 +199,9 @@ def push(market, rules, call=None):
                                                          "bases": bases, "votes": votes, "maps": maps[:400],
                                                          "zones": zones, "unmatched": unmatched, "gems": gems})
     if not ok:
+        if "too soon" not in str(d):                      # 3.3.0: a refused send is written down, never silent
+            from . import buglog
+            buglog.record("net", "community data send", str(d)[:200])
         return False, d
     CP.pooled(zones)
     st["pushed"] = time.time()

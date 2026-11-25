@@ -96,13 +96,34 @@ def apply(keys, grade):
     return keys
 
 
+def not_price():
+    """3.3.0 owner: mods you marked Doesn't affect price - on the item but nothing to do with its price."""
+    from .config import SETTINGS
+    v = SETTINGS.get("rm_not_price")
+    return set(v) if isinstance(v, list) else set()
+
+
+def mark_not_price(keys, on=True):
+    from .config import SETTINGS, save_json
+    have = not_price()
+    have = have | set(keys) if on else have - set(keys)
+    SETTINGS["rm_not_price"] = sorted(have)
+    save_json("settings.json", SETTINGS)
+
+
+def fixed_line(set_name, text):
+    """3.3.0 owner: a unique's line with no number - on every copy, so it never moves the price."""
+    return set_name.startswith("unique:") and "#" not in str(text or "") and not any(c.isdigit() for c in str(text))
+
+
 def queue(set_name, gear_mods=None):
-    """Mods to rate in one set, the ones you haven't rated first: [(keys, text)]."""
+    """Mods to rate in one set, the ones you haven't rated first: [(keys, text)]. 3.3.0: without a unique's fixed
+    lines and the mods you marked Doesn't affect price."""
     out = []
     if set_name.startswith(("gear:", "unique:")):
         seen = set()
         for k, text in gear_mods or []:
-            if k not in seen:
+            if k not in seen and not fixed_line(set_name, text):
                 seen.add(k)
                 out.append(([k], text))
     else:
@@ -111,6 +132,8 @@ def queue(set_name, gear_mods=None):
             lines = m.get("lines") or [m["line"]]
             keys = [rule_key(set_name, norm(line)) for line in lines]
             out.append((keys, " / ".join(line[:1].upper() + line[1:] for line in lines)))
+    gone = not_price()
+    out = [x for x in out if not any(k in gone for k in x[0])]
     mine = lambda keys: any(k in RULES or k in TIERS for k in keys)      # noqa: E731
     return [x for x in out if not mine(x[0])] + [x for x in out if mine(x[0])]
 
@@ -170,7 +193,7 @@ def set_label(set_name):
         return GB.class_name(set_name[5:])
     if set_name.startswith("unique:"):
         from . import gearbook as GB
-        return next((n for n in GB.store() if n.lower() == set_name[7:]), set_name[7:].title())
+        return next((n for n in GB.all_uniques() if n.lower() == set_name[7:]), set_name[7:].title())
     return set_name
 
 
@@ -301,9 +324,11 @@ def ladder(set_name, key):
 def rolls_on(set_name, key, info=None):
     """The chips after "Rolls on:" - tablet types, jewel kinds, waystone tiers, relic sizes, or the gear classes it
     rolls on. info: the regex list's entry, when the set has one."""
-    if set_name == "tablet" or set_name == "jewel" or set_name in ("waystone", "relic"):
-        tags = list((info or {}).get("tags") or [])
-        return ["All types" if t == "Any" else t for t in tags]
+    if set_name == "waystone":                       # 3.3.0 owner: one chip, tiers in order - All tiers or Tier 11-16
+        g = waystone_group((info or {}).get("tags"))
+        return ["All tiers" if g == "All waystones" else g]
+    if set_name in ("relic", "tablet", "jewel"):     # 3.3.0 owner: the bases it spawns on, by name
+        return bases_of(set_name, _mod_text(key), (info or {}).get("tags"))
     if set_name.startswith("gear:"):
         ck = ("on", key)
         if ck not in _DATA:
@@ -345,6 +370,34 @@ def game_text(set_name, keys, text, info=None):
     return " / ".join(out)
 
 
+KIND_WORDS = {"prefix": "Prefix", "suffix": "Suffix", "either": "Prefix or Suffix", "implicit": "Implicit",
+              "explicit": "Explicit", "corruption": "Corrupted", "enchant": "Enchant", "rune": "Rune",
+              "desecrated": "Desecrated", "fractured": "Fractured", "crafted": "Crafted", "unique": "Unique"}
+_KIND_CACHE = {}
+
+
+def mod_kind(set_name, keys, info=None):
+    """3.3.0 owner: what kind of mod a row is, as a word: Prefix, Suffix, Implicit, Explicit, Corrupted, Enchant ...
+    or "" when the data does not say."""
+    if info and info.get("side"):
+        return KIND_WORDS.get(str(info["side"]).lower(), str(info["side"]).title())
+    key = keys[0] if keys else ""
+    if set_name.startswith(("gear:", "unique:")):
+        if set_name not in _KIND_CACHE:
+            from . import gearbook as GB
+            rows = GB.class_mods(set_name[5:]) if set_name.startswith("gear:") else \
+                GB.unique_rows(next((n for n in GB.all_uniques() if n.lower() == set_name[7:]), set_name[7:]))
+            _KIND_CACHE[set_name] = {r["key"]: r.get("kind") or "" for r in rows}
+        k = _KIND_CACHE[set_name].get(key, "")
+        return KIND_WORDS.get(str(k).lower(), str(k).title()) if k else ""
+    return ""
+
+
+def kinds_forget():
+    """The kinds are worked out again: new lines were learned."""
+    _KIND_CACHE.clear()
+
+
 def entries(set_name, gear_mods=None):
     """Every mod of a set as the page shows it: [{"keys", "text", "game", "rolls"}], in the queue's order."""
     infos = {}
@@ -356,9 +409,11 @@ def entries(set_name, gear_mods=None):
     out = []
     for keys, text in queue(set_name, gear_mods):
         info = infos.get(tuple(keys))
+        cats = bases_of(set_name, text, (info or {}).get("tags"))
         out.append({"keys": keys, "text": text, "game": game_text(set_name, keys, text, info),
-                    "rolls": rolls_on(set_name, keys[0], info), "info": info, "set": set_name,
-                    "cat": category(set_name, (info or {}).get("tags"))})
+                    "rolls": cats if set_name in ("tablet", "jewel", "relic") else rolls_on(set_name, keys[0], info),
+                    "info": info, "set": set_name, "cats": cats, "kind": mod_kind(set_name, keys, info),
+                    "cat": "" if cats or set_name == "waystone" else category(set_name, (info or {}).get("tags"))})
     return out
 
 
@@ -684,6 +739,99 @@ def players_tip(p):
             "count as High, B C D as Normal, F as Ignore), sent with Community data sharing. One vote per install.")
 
 
+DIAMOND = "Diamond"
+RELIC_SIZES = ("Large", "Medium", "Small")
+RELIC_ART = {"Large": "Vase Relic", "Medium": "Amphora Relic", "Small": "Urn Relic"}
+# 3.3.0 owner: Mod Lab's groups are the bases, each with every mod that can spawn on it - never a mix like
+# "Emerald / Ruby". A mod is in each base it rolls on.
+RELIC_BASES = {"Small": ("Urn Relic", "Seal Relic"), "Medium": ("Amphora Relic", "Tapestry Relic"),
+               "Large": ("Vase Relic", "Coffer Relic", "Incense Relic")}
+JEWEL_COLORS = ("Ruby", "Emerald", "Sapphire")
+
+
+def _base_lines():
+    """{"tablets"/"jewels": {base: {wording}}} from modlists.json, worded as _modlines() keys them."""
+    if "bases" in _DATA:
+        return _DATA["bases"]
+    import json
+    from .config import P
+    try:
+        with open(P("modlists.json"), encoding="utf-8-sig") as f:
+            data = json.load(f)
+    except Exception:
+        data = {}
+    out = {}
+    for part in ("tablets", "jewels"):
+        out[part] = {}
+        for base, secs in (data.get(part) or {}).items():
+            out[part][base] = {norm(_BRACKET.sub("#", ln.strip())) for lines in (secs or {}).values()
+                               for ln in lines or [] if isinstance(ln, str)}
+    _DATA["bases"] = out
+    return out
+
+
+def base_order(set_name):
+    """The bases of a set, in the game's order: the groups Mod Lab shows."""
+    if set_name == "tablet":
+        return list(_base_lines().get("tablets") or {})
+    if set_name == "jewel":
+        return list(_base_lines().get("jewels") or {})
+    if set_name == "relic":
+        return [b for z in RELIC_SIZES for b in RELIC_BASES[z]]
+    return []
+
+
+def bases_of(set_name, text, tags=None):
+    """The bases a mod can spawn on. From modlists.json's own lists; for a jewel line worded differently there, from
+    its tags: a color rolls on that jewel and on a Diamond, Time-Lost on the Time-Lost ones."""
+    tags = list(tags or [])
+    if set_name == "relic":
+        return [b for z in RELIC_SIZES if z in tags or not tags for b in RELIC_BASES[z]]
+    if set_name not in ("tablet", "jewel"):
+        return []
+    parts = [norm(p) for p in str(text).split(" / ")]
+    lines = _base_lines().get("tablets" if set_name == "tablet" else "jewels") or {}
+    got = [b for b, have in lines.items() if all(p in have for p in parts)]
+    if set_name == "tablet" or not tags:
+        return got
+    cols = [c for c in JEWEL_COLORS if c in tags] or list(JEWEL_COLORS)
+    out = list(got)                                  # the Time-Lost ones word a mod "in Radius": the tag says it
+    if "Time-Lost" not in tags:
+        out += cols + [DIAMOND]
+    if "Time-Lost" in tags:
+        out += [f"Time-Lost {c}" for c in cols] + ["Time-Lost Diamond"]
+    order = base_order("jewel")
+    return [b for b in order if b in out]
+
+
+def waystone_group(tags):
+    """("T11-15", "T16") -> "Tier 11-16"; every tier, or "Any" -> "All waystones"."""
+    import re as _re
+    spans = []
+    for t in tags or []:
+        m = _re.match(r"T(\d+)(?:-(\d+))?$", str(t))
+        if m:
+            spans.append((int(m.group(1)), int(m.group(2) or m.group(1))))
+    if not spans or "Any" in (tags or []):
+        return "All waystones"
+    spans.sort()
+    lo, hi = spans[0]
+    joined = True
+    for a, b in spans[1:]:
+        joined &= a <= hi + 1
+        hi = max(hi, b)
+    if joined and lo <= 1 and hi >= 16:
+        return "All waystones"
+    if joined:
+        return f"Tier {lo}-{hi}" if lo != hi else f"Tier {lo}"
+    return "Tier " + ", ".join(f"{a}-{b}" if a != b else str(a) for a, b in spans)
+
+
+def on_diamond(e):
+    """A Diamond, made from a Ruby, an Emerald and a Sapphire at the reforging bench, rolls every mod of the three."""
+    return any(t in ("Ruby", "Emerald", "Sapphire") for t in ((e.get("info") or {}).get("tags") or []))
+
+
 def category(set_name, tags):
     """The Table's group for a mod: its tablet type ("All tablets" for the shared ones), jewel type, waystone tiers or
     relic size."""
@@ -693,10 +841,11 @@ def category(set_name, tags):
     if set_name == "jewel":
         kinds = [t for t in tags if t != "Time-Lost"]
         return " / ".join(kinds) if kinds else ("Time-Lost" if tags else "All jewels")
-    if set_name == "waystone":
-        return "All waystones" if "Any" in tags or not tags else " / ".join(tags)
-    if set_name == "relic":
-        return " / ".join(tags) if tags else "All relics"
+    if set_name == "waystone":                       # 3.3.0 owner: tiers in order, every tier is All waystones
+        return waystone_group(tags)
+    if set_name == "relic":                          # 3.3.0 owner: the sizes it rolls on, said in words
+        sizes = [z for z in RELIC_SIZES if z in tags]
+        return (" and ".join(sizes) + " Relics") if sizes and len(sizes) < len(RELIC_SIZES) else "All relics"
     return set_label(set_name)
 
 

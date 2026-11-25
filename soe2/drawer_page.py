@@ -279,8 +279,10 @@ class DrawerHost:
 
     def drawer_topmost_wanted(self):
         """Is the app's window on top now? (apply_topmost's rule - Windows' own answer isn't read back: on Linux
-        it depends on the window manager.) The Drawer always; a Full window with Keep on top."""
-        return bool(SETTINGS.get("on_top", True)) or self.drawer_shown_as_drawer()
+        it depends on the window manager.) The Drawer unless the game is known to be closed; a Full window with Keep on top."""
+        if self.drawer_shown_as_drawer():                 # 3.3.0 owner: the Drawer is on top over the game only
+            return not D.GAME_CLOSED[0]
+        return bool(SETTINGS.get("on_top", True))
 
     def drawer_lift_dialogs(self):
         """After the app's window was put on top again (shown, re-docked): its open pop-ups go over it."""
@@ -346,8 +348,48 @@ class DrawerHost:
         st = self.drawer_st
         g = self.drawer_game_rect()
         c = self.drawer_cfg()
+        if not g:                                         # 3.3.0 owner: no game - where you last put it, if you did
+            free = self.drawer_free_rect()
+            if free:
+                return free
         return D.drawer_rect(g, None if g else self.drawer_work_area(), side or st.side, c["share"],
-                             cap=not c.get("share_set"))
+                             cap=not c.get("share_set"), tall=c.get("tall"))
+
+    def drawer_free_rect(self):
+        """The place and size you gave the Drawer while the game was closed, if it is still on a monitor."""
+        r = self.drawer_cfg().get("free")
+        try:
+            x, y, w, h = (int(v) for v in r)
+        except (TypeError, ValueError):
+            return None
+        if w < 300 or h < 200:
+            return None
+        try:
+            from .style import monitor_rect
+            with D.root_dpi(self.drawer_ad.hwnd()):
+                left, top, right, bottom = monitor_rect(self.root, x + w // 2, y + 20)
+        except Exception:
+            buglog.caught()
+            return None
+        if not (left <= x + w // 2 < right and top <= y + 20 < bottom):
+            return None
+        return x, y, w, h
+
+    def drawer_free_keep(self):
+        """The game is closed and you moved or sized the Drawer: that place is kept. -> True when it was kept."""
+        try:
+            cur = self.drawer_ad.outer_rect()
+        except Exception:
+            buglog.caught()
+            return False
+        if not cur or self.drawer_wm_state() != "normal":
+            return False
+        cur = tuple(int(v) for v in cur)
+        if list(cur) != list(self.drawer_cfg().get("free") or ()):
+            self.drawer_cfg()["free"] = list(cur)
+            save_json("settings.json", SETTINGS)
+        self._drawer_rect_now = cur
+        return True
 
     def drawer_key_label(self):
         from .overlay import key_label
@@ -401,7 +443,7 @@ class DrawerHost:
             self.root.minsize(*D.DRAWER_MIN)
             self._drawer_geom = "drawer"
         D.SHOWN_DRAWER[0] = shape == "drawer"
-        topmost = shape == "drawer" or bool(SETTINGS.get("on_top", True))
+        topmost = not D.GAME_CLOSED[0] if shape == "drawer" else bool(SETTINGS.get("on_top", True))
         fg = None
         if focus:
             self.drawer_ad.show_focused(rect)
@@ -634,8 +676,25 @@ class DrawerHost:
         self.drawer_st.side = c["side"]
         save_json("settings.json", SETTINGS)
         self._drawer_side_now = c["side"]
+        if not self.drawer_game_rect():                   # 3.3.0 owner: no game - that side of the monitor it is on
+            self.drawer_free_side(c["side"])
         self.drawer_redock(force=True)
         self.drawer_strip_paint()
+
+    def drawer_free_side(self, side):
+        """The game is closed: your Drawer, at its size, on that side of the monitor it is on. Kept as your place."""
+        try:
+            cur = self.drawer_ad.outer_rect()
+            if not cur:
+                return
+            x, y, w, h = (int(v) for v in cur)
+            from .style import monitor_rect
+            with D.root_dpi(self.drawer_ad.hwnd()):
+                left, _top, right, _bottom = monitor_rect(self.root, x + w // 2, y + 20)
+            self.drawer_cfg()["free"] = [left if side == "left" else right - w, y, w, h]
+            save_json("settings.json", SETTINGS)
+        except Exception:
+            buglog.caught()
 
     def _drawer_save_shape(self):
         self.drawer_cfg()["shape"] = self.drawer_st.shape
@@ -648,8 +707,12 @@ class DrawerHost:
             return
         if self.drawer_wm_state() == "zoomed":            # (maximized: the Full window now - _drawer_maximized)
             return
+        if not force and not self.drawer_game_rect():      # 3.3.0 owner: no game to follow - it stays where you
+            self.drawer_free_keep()                       # put it, at the size you gave it
+            return
         if not force:
             self._drawer_note_width()                     # Round 18: the width you set is the latest - kept
+            self._drawer_note_height()                    # 3.3.0: and the height
         rect = self.drawer_target(self._drawer_side_now or st.side)
         if not rect:
             return
@@ -704,6 +767,7 @@ class DrawerHost:
         # you let go (_drawer_resized). Nothing re-docks meanwhile: the watcher waits for the release and this job.
         if not self._drawer_mouse_down():
             self._drawer_note_width()
+            self._drawer_note_height()
         elif (e.width, e.height) != getattr(self, "_drawer_last_wh", (e.width, e.height)):
             self._drawer_drag_profile(True)               # (a resize, not a move: Debug mode measures it)
         self._drawer_last_wh = (e.width, e.height)
@@ -815,6 +879,22 @@ class DrawerHost:
         self._drawer_compact()
         self.drawer_strip_paint()
 
+    def _drawer_note_height(self):
+        """3.3.0 owner: it would not let the Drawer be made taller over the game. A height you drag, 8 px or more
+        from the docked one, is kept as a share of the game's height. The top stays on the game's top."""
+        try:
+            cur, exp = self.drawer_ad.outer_rect(), self._drawer_rect_now
+            g = self.drawer_game_rect()
+            if not (cur and exp and g) or abs(cur[3] - exp[3]) < 8 or g[3] <= 0:
+                return
+            tall = D.tall_from_drag(cur[3], g[3])
+            if tall:
+                self.drawer_cfg()["tall"] = tall
+                self._drawer_share_dirty = True
+                self._drawer_rect_now = (exp[0], exp[1], exp[2], int(round(g[3] * tall)))
+        except Exception:
+            buglog.caught()
+
     def _drawer_note_width(self):
         """The user's drag wins: a width that is 8 px or more away from the docked one becomes the share AT ONCE (in
         memory), so no re-dock - the 2 s timer or the debounce - can put the old width back. It's saved when the
@@ -852,7 +932,11 @@ class DrawerHost:
             self._drawer_cfg_job = self.root.after(400, self._drawer_resized)
             return
         self._drawer_drag_profile(False)
+        if not self.drawer_game_rect():                   # (no game: your place and size, kept as they are)
+            self.drawer_free_keep()
+            return
         self._drawer_note_width()
+        self._drawer_note_height()
         if getattr(self, "_drawer_share_dirty", False):
             self._drawer_share_dirty = False
             save_json("settings.json", SETTINGS)
@@ -896,7 +980,12 @@ class DrawerHost:
         try:
             self._drawer_n = n = getattr(self, "_drawer_n", 0) + 1
             if n % 3 == 1:
+                was = D.GAME_CLOSED[0]
                 D.GAME_OPEN[0] = D.game_open_now(self.drawer_title())
+                D.GAME_CLOSED[0] = D.game_closed_now(self.drawer_title())
+                if was != D.GAME_CLOSED[0] and self.drawer_st.as_drawer():
+                    self.apply_topmost()                  # (the game opened or closed: on top over the game only)
+                    self.drawer_lift_dialogs()
             st = self.drawer_st
             if st.as_drawer():
                 self._drawer_click_away()
@@ -1245,8 +1334,11 @@ class DrawerStrip(tk.Frame):
         self.pack_propagate(False)
         self.line = tk.Frame(self, height=1)
         self.line.pack(side="bottom", fill="x")
-        self.mark = tk.Label(self, bd=0)
-        self.mark.pack(side="left", padx=(12, 8))
+        # 3.3.0 owner: the mark is the app's chest, with the online count as a small badge on its corner
+        self.mark = tk.Canvas(self, width=52, height=30, highlightthickness=0, bd=0)
+        self.mark.pack(side="left", padx=(12, 4))
+        self.online = None                                    # the number on the badge, or None: no badge
+        self.mark_tip = Tooltip(self.mark, "")
         self.name = tk.Label(self, text="Stash of Exile 2", bd=0)
         self.name.pack(side="left")
         self.sep = tk.Frame(self, width=1, height=16)
@@ -1265,6 +1357,38 @@ class DrawerStrip(tk.Frame):
             self.btns[key] = (b, Tooltip(b, tip))
         TH.subscribe(lambda t: self.paint(), owner=self)
         self.paint()
+
+    @staticmethod
+    def badge_text(n):
+        return "" if not n else str(n) if n < 1000 else f"{n / 1000:.1f}k".replace(".0k", "k")
+
+    def mark_paint(self, t=None, bg=None):
+        """The chest and its badge. Called on a theme change and when the count changes."""
+        from . import themes as TH
+        t = t or TH.ST.theme
+        if t is None:
+            return
+        cv = self.mark
+        with TH.raw():
+            bg = bg or t.c("chassis")
+            cv.configure(bg=bg)
+            cv.delete("all")
+            if self._mark:
+                cv.create_image(2, 16, image=self._mark, anchor="w")
+            text = self.badge_text(self.online)
+            if text:
+                tid = cv.create_text(27, 8, text=text, anchor="w", font=("Segoe UI", 8, "bold"), fill=bg)
+                x0, y0, x1, y1 = cv.bbox(tid)
+                TH.round_rect(cv, x0 - 4, y0 - 1, x1 + 4, y1 + 1, 7, fill=t.c("accent_2", "#6aa6ff"), outline="")
+                cv.tag_raise(tid)
+
+    def set_online(self, n, tip=""):
+        """The online count for the badge. Only a changed number is drawn."""
+        n = int(n or 0) or None
+        self.mark_tip.text = tip
+        if n != self.online:
+            self.online = n
+            self.mark_paint()
 
     def fit_height(self):
         """Tall enough for its buttons and key caps (their size follows the display scale)."""
@@ -1333,8 +1457,8 @@ class DrawerStrip(tk.Frame):
             self.line.configure(bg=t.c("border"))
             self.sep.configure(bg=t.c("border"))
             self.keys.configure(bg=bg)
-            self._mark = lineicons.icon(self, "mark", 16, t.c("text"))
-            self.mark.configure(image=self._mark or "", bg=bg)
+            self._mark = lineicons.icon(self, "mark", 24, t.c("text"))
+            self.mark_paint(t, bg)
             self.name.configure(bg=bg, fg=t.c("text"), font=(TH.head_font(t), 12))
             self.say.configure(bg=bg, fg=t.c("text_muted"), font=("Segoe UI", 9))
         if st.eff == "drawer":

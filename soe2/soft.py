@@ -26,6 +26,17 @@ from . import themes as TH
 
 RADIUS = 6                 # rule 24: buttons, fields, chips, cards (the Dashboard's big cards keep their own)
 K = 4                      # drawn this many times bigger, then made small
+
+
+def radius():
+    """3.3.0 look pass: the corner of buttons, fields, chips and boxes follows the theme - RADIUS in a theme whose
+    boxes are round, 0 in every other."""
+    try:
+        from . import themes as TH
+        t = TH.ST.theme
+        return RADIUS if t is not None and TH.box_look(t)["shape"] == "round" else 0
+    except Exception:
+        return RADIUS
 SB_W = 10                  # the scroll bar: this wide; its thumb 6 px, 8 px with the mouse on it
 MID = 48                   # a ttk picture's middle (stretched by tiling it): wide, so a wide widget takes few tiles
 _PIL = []
@@ -340,6 +351,13 @@ def _install():
     def coords(self, *args):
         rec = rec_of(self, args[0]) if args and self.__dict__.get("_soe2_rr") else None
         if rec is None:
+            if len(args) == 25:                              # a round box's 12 points, sent to a box that a square
+                try:                                         # theme drew as a plain rectangle: its corners only
+                    if self.type(args[0]) == "rectangle":
+                        xs, ys = [float(v) for v in args[1::2]], [float(v) for v in args[2::2]]
+                        return o_coords(self, args[0], min(xs), min(ys), max(xs), max(ys))
+                except (tk.TclError, TypeError, ValueError):
+                    pass
             return o_coords(self, *args)
         x0, y0, x1, y1 = rec["box"]
         if len(args) == 1:
@@ -584,7 +602,7 @@ def setup_ttk(root, s, ns, C):
 
 
 def _fields(root, s, ns, C):
-    r = RADIUS - 2                                   # (fields: a little less round than buttons - the mockup's 4 px)
+    r = max(0, radius() - 2)                         # (fields: a little less round than buttons - the mockup's 4 px)
     n, nh = 2 * (r + 2) + MID, 2 * (r + 2) + 18
     field, line, acc = rgb(root, C["odd"]), rgb(root, C["line"]), rgb(root, C["accent"])
     panel, text, muted = rgb(root, C["panel"]), rgb(root, C["text"]), rgb(root, C["muted"])
@@ -748,8 +766,8 @@ def chip_colors(under, text, strong):
 
 def _flat_buttons(root, s, ns, C):
     """Quiet (a soft fill and an outline, brighter on hover) and Strip (the same, small, in a header strip) buttons,
-    round."""
-    r = RADIUS
+    round in a theme whose boxes are round."""
+    r = radius()
     n = 2 * (r + 3) + MID
     text, strong = rgb(root, C["muted"]), rgb(root, C["text"])
     ink = {"Quiet.TButton": rgb(root, C["steel"]), "Strip.TButton": rgb(root, C["steel"]),
@@ -994,6 +1012,17 @@ def paint_caps(f, inside=None):
         f.__dict__["_soe2_capinside"] = inside
     else:
         inside = f.__dict__.get("_soe2_capinside")
+    if not radius():                                     # a square theme: the caps are put away, not painted
+        if f.__dict__.get("_soe2_capsat") is not None:
+            f.__dict__["_soe2_capsat"] = None
+            for lab in caps.values():
+                try:
+                    lab.place_forget()
+                except tk.TclError:
+                    pass
+        return
+    if f.__dict__.get("_soe2_capsat") is None:
+        _place_caps(f)
     try:
         r, ins, top, edge, outside = f.__dict__["_soe2_capspec"]
         bg = str(f.tk.call(f._w, "cget", "-background"))

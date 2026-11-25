@@ -14,30 +14,34 @@ from .style import C, Tooltip
 
 WIDE, NARROW = 232, 52                 # wide: icon + name; narrow (small app window): icons only
 RAIL = 96                              # drawer-look: the Drawer's rail - a bigger icon with its short name under it
-# UI overhaul: grouped by what you want to do. Page keys per group; a page not named here goes under Tools.
+# UI overhaul: grouped by what you want to do. Page keys per group; a page not named here goes under Codex.
 # Nav phase 1: Overlay sits under Dashboard with no group (was "In Game"); the "Earn" group is gone (Wealth and Craft
 # Helper to Stash, the rest to League); Bulk Pricing, Favorites and Rate Mods are their own rows in Trade (they were
 # children of Price Checks); Regex to Stash; the dead "notes" entry is gone (Notes is an overlay part).
 # Owner (Rate Mods redesign): a Mods group between Trade and Stash - Rate Mods, Insights and Craft Helper all answer
 # one question, which mods are worth money.
+# 3.3.0 owner: Game Search, Mod Lab, Map Library and Under the Hood are all places to look things up. They sit
+# together in one group, Codex, last in the list; the Boss Ledger joins them when it is built. The Tools group is
+# gone: a page named in no group is listed under Codex.
+LAST = "Codex"
 GROUPS = ((None, ("dashboard", "tracker")),
-          ("Trade", ("pricecheck", "checks", "favorites", "rates")),
-          ("Mods", ("ratemods", "insights", "crafthelper")),
+          ("Trade", ("pricecheck", "checks", "rates")),
+          ("Mods", ("insights", "crafthelper")),
           ("Stash", ("wealth", "regex")),
-          ("League", ("plan", "mapprofit", "money", "maps", "leaderboards")),
-          ("Tools", ("search",)))
+          ("League", ("plan", "mapprofit", "money", "leaderboards")),
+          (LAST, ("search", "ratemods", "maps", "library")))
 NO_GROUP = ("settings",)               # pages that live outside the groups (Settings sits at the bottom)
 
 
 def group_of(key):
     """The sidebar group a page's row is in: its GROUPS label, "" for a page with no group (Dashboard, Overlay,
-    Settings), "Tools" for a page not named in GROUPS (the sidebar lists those under Tools)."""
+    Settings), "Codex" for a page not named in GROUPS (the sidebar lists those under Codex)."""
     if key in NO_GROUP:
         return ""
     for label, keys in GROUPS:
         if key in keys:
             return label or ""
-    return "Tools"
+    return LAST
 
 
 class Sidebar(tk.Canvas):
@@ -78,7 +82,7 @@ class Sidebar(tk.Canvas):
         listed = [m for m in sh.modules.values() if sh.listed(m) and getattr(m, "kind", "") != "core"]
         for label, keys in GROUPS:
             mods = [m for k in keys for m in listed if m.key == k]
-            if label == "Tools":
+            if label == LAST:
                 mods += [m for m in listed if m.key not in named]
             if not mods:
                 continue

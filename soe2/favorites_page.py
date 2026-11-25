@@ -50,26 +50,45 @@ class FavoritesPage:
             self.fav_store = FV.FavStore()
         return self.fav_store
 
+    def fav_open_tab(self):
+        """3.3.0 owner: Favorites is a Price Checks tab."""
+        self.shell.open_tab("pricecheck", "Favorites")
+
     def build_favorites(self, body):
         from .pricecheck_page import PCView
         P1, P2 = C["panel"], C["panel2"]
         self.fav_sel, self.fav_res, self.fav_busy = None, {}, set()
-        bar = tk.Frame(body, bg=P1, padx=8, pady=8)
+        from .share_page import VIEWS as SHARE_VIEWS  # noqa: F401
+        from .style import Tooltip
+        # 3.3.0 owner: the same three rows as Regex's Favorites: find, act, add (share_page.share_toolbar)
+        self.fav_q = tk.StringVar()
+        self.fav_q.trace_add("write", lambda *_a: self.root.after_idle(self.fav_refill))
+        tools, self.fav_view, self.fav_tools = self.share_toolbar(body, KEY, self.fav_q, self.fav_view_changed, {
+            "main": ("Search", self.fav_tool_search, "Search the trade site for this favorite"),
+            "open": ("Trade Site", self.fav_tool_open, "Open its search on the trade site"),
+            "rename": ("Rename", self.fav_rename, "Rename one of yours"),
+            "tags": ("Tags…", self.fav_tags, "Tag one of yours"),
+            "post": ("Post", self.fav_post, "Share one of yours on the Community board"),
+            "take": ("Add to Mine", self.fav_take, "Keep a Community or Official one in your Favorites"),
+            "official": ("Make Official", self.fav_admin_official,
+                         "Admin: moves this favorite to the Official list, or takes it back off."),
+            "delete": ("Delete", lambda: self.fav_delete(self.fav_tv.selection()), "Delete yours. Ctrl+Z undoes it.")})
+        tools.pack(fill="x")
+        trade_icon(self.fav_tools["open"])
+        bar = tk.Frame(body, bg=P1, padx=8)
         bar.pack(fill="x")
         self.fav_link_var = tk.StringVar()
-        tk.Label(bar, text="Trade link", bg=P1, fg=C["muted"], font=("Segoe UI", 9)).pack(side="left", padx=(4, 8))
+        tk.Label(bar, text="Add", bg=P1, fg=C["muted"], font=("Segoe UI", 9)).pack(side="left", padx=(0, 8))
         ent = ttk.Entry(bar, textvariable=self.fav_link_var)
         ent.pack(side="left", fill="x", expand=True)
         self._fav_hint(ent)                               # P2 (2.104.0): a hint in the empty box
         ent.bind("<Return>", lambda e: self.fav_add_link())
         self.fav_link_entry = ent
-        ttk.Button(bar, text="Add trade link", command=self.fav_add_link).pack(   # (one orange a screen: the card's
-            side="left", padx=(8, 0))                                               # Search)
+        ttk.Button(bar, text="Add trade link", command=self.fav_add_link).pack(side="left", padx=(8, 0))
         ttk.Button(bar, text="New group", command=self.fav_new_group).pack(side="left", padx=(8, 0))
-        self.undo_button(bar, KEY, side="left", padx=(8, 0))     # P2: only while there's something to undo
         self.fav_msg = tk.Label(body, text="Right-click a favorite for everything you can do; drag to reorder.",
                                 bg=P1, fg=C["muted"], anchor="w", justify="left", padx=12)
-        self.fav_msg.pack(fill="x")
+        self.fav_msg.pack(fill="x", pady=(8, 0))
         wrap = tk.Frame(body, bg=P2)
         self.limit_banner(body, wrap)                     # 2.103.3 (feedback): the "Staying under the limits" line
         self.notes_banner(body, wrap)                     # 3.0.7: Prices are from ... / Rating changed, one button
@@ -78,25 +97,9 @@ class FavoritesPage:
         lf = tk.Frame(wrap, bg=P1, width=300)             # P2: narrower list, wider card
         lf.pack(side="left", fill="y")
         lf.pack_propagate(False)
-        # 2.132.6 (feedback: publish favorites from the trade site section; Official | Community | Mine)
-        from .share_page import VIEWS as SHARE_VIEWS
-        from .style import SegBar, Tooltip
-        vrow = tk.Frame(lf, bg=P1)
-        vrow.pack(fill="x", pady=(0, 4))
-        self.fav_view = SegBar(vrow, list(SHARE_VIEWS), value="Mine", command=lambda v: self.fav_view_changed(),
-                               size=9, pad=(8, 4))
-        self.fav_view.pack(side="left")
-        self.fav_share_bar = tk.Frame(lf, bg=P1)
-        self.fav_share_btns = {}
-        for text, fn, tip in (("☆ Add to Mine", self.fav_take, "Keep it in your favorites"),
-                              ("▲ Upvote", self.fav_vote, "Upvote it"),
-                              ("Trade Site", self.fav_shared_open, "Open its search on the trade site")):
-            b = ttk.Button(self.fav_share_bar, text=text, command=fn)
-            if text == "Trade Site":
-                trade_icon(b)
-            b.pack(side="left", padx=(0, 8))
-            Tooltip(b, tip)
-            self.fav_share_btns[text] = b
+        from .chrome import PanelHead
+        self.fav_head = PanelHead(lf, "Favorites")        # the theme's header strip, as on every other panel
+        self.fav_head.pack(fill="x")
         tv = ttk.Treeview(lf, columns=("price", "when"), show="tree headings", selectmode="extended")
         tv.heading("#0", text="Name")
         tv.heading("price", text="Price")
@@ -125,7 +128,7 @@ class FavoritesPage:
         tv.bind("<<TreeviewOpen>>", lambda e: self.fav_group_open(True))
         tv.bind("<<TreeviewClose>>", lambda e: self.fav_group_open(False))
         from .chrome import EmptyState                    # 2.120.0: one empty look everywhere
-        self.fav_empty = EmptyState(wrap, "★", "No favorites yet\nPress ☆ Add to favorites on a price check, or paste "
+        self.fav_empty = EmptyState(wrap, "★", "No favorites yet\nPress ☆ Favorite on a price check, or paste "
                                               "a trade-site link above.",
                                     button=("Open Price Checks", lambda: self.shell.open("pricecheck")))
         # ---- the card
@@ -189,6 +192,50 @@ class FavoritesPage:
             pass
 
     # ---------------------------------------------------------------- the list
+    def _fav_in(self, st, gid):
+        """A group's favorites, or the loose ones, that match the search box."""
+        q = (self.fav_q.get() if getattr(self, "fav_q", None) is not None else "").strip().lower()
+        rows = st.in_group(gid)
+        if not q:
+            return rows
+        return [x for x in rows if q in str(x.get("name", "")).lower()
+                or any(q in str(t).lower() for t in x.get("tags") or ())]
+
+    def fav_refill(self):
+        if getattr(self, "fav_tv", None) is not None:
+            self.fav_fill()
+            self.fav_tool_greys()
+
+    def fav_tool_search(self):
+        return self.fav_search()
+
+    def fav_tool_open(self):
+        if self.fav_view.get() != "Mine":
+            return self.fav_shared_open()
+        return self.fav_open_trade()
+
+    def fav_tool_greys(self):
+        """The toolbar follows the picked row: gray until there is one it works on."""
+        tools = getattr(self, "fav_tools", None)
+        if not tools:
+            return
+        if self.fav_view.get() != "Mine":
+            r = self._fav_shared_one()
+            self.share_tool_greys(tools, {"main": bool(r), "open": bool(r), "take": bool(r),
+                                          "delete": self.share_can_delete((r or {}).get("_post"))},
+                                  (r or {}).get("_post"))
+        else:
+            sel = self.fav_tv.selection()
+            ids = self._fav_ids(sel)
+            one = len(ids) == 1 and len(sel) == 1
+            self.share_tool_greys(tools, {"main": one, "open": one, "rename": len(sel) == 1, "tags": one,
+                                          "post": one, "delete": bool(sel)})
+        head = getattr(self, "fav_head", None)
+        if head is not None:
+            n = len([i for i in self.fav_tv.get_children("") for i in [i] + list(self.fav_tv.get_children(i))
+                     if not str(i).startswith(GROUP_PRE)])
+            head.config(text=f"FAVORITES · {n} · {self.fav_view.get()}")
+
     def fav_fill(self, select=None):
         tv = getattr(self, "fav_tv", None)
         if tv is None:
@@ -197,8 +244,8 @@ class FavoritesPage:
             return self.fav_shared_fill()
         st = self.favs()
         keep = list(select) if select is not None else list(tv.selection())
-        want = [("", f["id"]) for f in st.in_group("")] + [x for g in st.groups for x in
-                [("", GROUP_PRE + g["id"])] + [(GROUP_PRE + g["id"], f["id"]) for f in st.in_group(g["id"])]]
+        want = [("", f["id"]) for f in self._fav_in(st, "")] + [x for g in st.groups for x in
+                [("", GROUP_PRE + g["id"])] + [(GROUP_PRE + g["id"], f["id"]) for f in self._fav_in(st, g["id"])]]
         have = [x for c in tv.get_children("") for x in [("", c)] + [(c, i) for i in tv.get_children(c)]]
         if want == have:
             self._fav_empty_show(st)
@@ -210,13 +257,13 @@ class FavoritesPage:
                     tv.see(keep[0])
             return
         tv.delete(*tv.get_children())
-        for f in st.in_group(""):
+        for f in self._fav_in(st, ""):
             self._fav_row("", f)
         for g in st.groups:
-            n = len(st.in_group(g["id"]))
+            n = len(self._fav_in(st, g["id"]))
             tv.insert("", "end", iid=GROUP_PRE + g["id"], text=f"{g['name']}  ({n})", open=g.get("open", True),
                       values=("", ""), tags=("group",))
-            for f in st.in_group(g["id"]):
+            for f in self._fav_in(st, g["id"]):
                 self._fav_row(GROUP_PRE + g["id"], f)
         keep = [i for i in keep if tv.exists(i)]
         if keep:
@@ -225,10 +272,22 @@ class FavoritesPage:
         self._fav_empty_show(st)
 
     def _fav_empty_show(self, st):
+        self.fav_tool_greys()
         if st.items or st.groups:
             self.fav_empty.place_forget()
         else:
-            self.fav_empty.place(relx=0.5, rely=0.3, anchor="center")
+            self._fav_empty_place()
+
+    def _fav_empty_place(self):
+        """3.3.0 owner: the empty box sat over the item panel. It goes on the list it speaks for, and wraps to it."""
+        e, tv = self.fav_empty, self.fav_tv
+        try:
+            e.place(in_=tv, relx=0.5, rely=0.5, anchor="center", relwidth=0.94)
+            e.lift()
+            e._wrap = max(120, int(tv.winfo_width() * 0.94) - 60)
+            e._fit()
+        except tk.TclError:
+            e.place(relx=0.5, rely=0.4, anchor="center")
 
     def _fav_hint(self, ent):
         """P2: "Paste a trade-site search link here" in gray while the box is empty and not being typed in."""
@@ -284,52 +343,85 @@ class FavoritesPage:
 
     def fav_view_changed(self):
         mine = self.fav_view.get() == "Mine"
+        self.fav_sel = None                                # the card on the right belongs to the view it came from
         if mine:
-            self.fav_share_bar.pack_forget()
             self.fav_tv.delete(*self.fav_tv.get_children())
             self.fav_fill()
-            return
-        self.fav_share_bar.pack(fill="x", pady=(0, 4), before=self.fav_tv)
+            self.fav_show()
+            return self.fav_tool_greys()
         self.share_fetch("trade", self.fav_shared_fill)
         self.fav_shared_fill()
+        self.fav_show()
 
     def fav_shared_fill(self):
         if getattr(self, "fav_view", None) is None or self.fav_view.get() == "Mine":
             return
         from .share_page import view_rows
         tv = self.fav_tv
+        keep = [i for i in tv.selection() if str(i).startswith(SHARED_PRE)]
         tv.delete(*tv.get_children())
         self.fav_shared = {}
         rows = view_rows(self.fav_view.get(), [], self.share_posts("trade"), self.share_official("trade"),
                          self._fav_share_key)
+        q = (self.fav_q.get() if getattr(self, "fav_q", None) is not None else "").strip().lower()
+        if q:
+            rows = [r for r in rows if q in str(r["data"].get("name", "")).lower()
+                    or any(q in str(t).lower() for t in r["data"].get("tags") or ())]
         for n, r in enumerate(rows):
             d, post = r["data"], r.get("_post") or {}
             iid = SHARED_PRE + (str(post["id"]) if post else f"o{n}")
             self.fav_shared[iid] = dict(r, data=d)
             by = (post.get("author") or {}).get("name") or d.get("author", "")
-            tv.insert("", "end", iid=iid, text="🔗 " + str(d.get("name", "")),
-                      values=(f"▲ {post.get('score', 0)}" if post else "", by))
+            last = (self.favs().get(iid) or {}).get("last") or {}       # (searched this session: its price)
+            tv.insert("", "end", iid=iid, text="🔗 " + str(d.get("name", "")), values=(last.get("price") or "", by))
+        keep = [i for i in keep if tv.exists(i)]
+        if keep:
+            tv.selection_set(keep)
         self.fav_shared_greys()
         if rows:
             self.fav_empty.place_forget()
         else:
-            self.fav_empty.place(relx=0.5, rely=0.4, anchor="center")
+            self._fav_empty_place()
 
     def _fav_shared_one(self):
         sel = [i for i in self.fav_tv.selection() if str(i).startswith(SHARED_PRE)]
         return self.fav_shared.get(sel[0]) if len(sel) == 1 and hasattr(self, "fav_shared") else None
 
     def fav_shared_greys(self):
+        return self.fav_tool_greys()
+
+    def fav_shared_show(self):
+        """A picked Community or Official favorite shows its search and its listings on the right, as yours do."""
+        sel = [i for i in self.fav_tv.selection() if str(i).startswith(SHARED_PRE)]
         r = self._fav_shared_one()
-        for text, ok in (("☆ Add to Mine", bool(r)), ("▲ Upvote", bool(r and r.get("_post"))), ("Trade Site", bool(r))):
-            b = getattr(self, "fav_share_btns", {}).get(text)
-            if b is not None:
-                b.state(["!disabled"] if ok else ["disabled"])
+        if not r or len(sel) != 1:
+            return None
+        d = r["data"]
+        info = {"league": SETTINGS.get("league") or "", "query": copy.deepcopy(d.get("query") or {}),
+                "sort": copy.deepcopy(d.get("sort") or {"price": "asc"})}
+        g = self.favs().guest(sel[0], self._fav_shared_url(d), info, str(d.get("name") or "") or None)
+        if self.fav_sel == g["id"]:
+            return g
+        self.fav_sel = g["id"]
+        self.fav_show(first=True)
+        return g
+
+    def fav_admin_official(self):
+        post = (self._fav_shared_one() or {}).get("_post")
+        if not post:
+            return self.fav_say("Pick a Community or Official favorite.")
+        return self.share_admin("trade", post, "unpromote" if post.get("promoted") else "promote",
+                                self.fav_shared_fill)
 
     def _fav_shared_url(self, d):
+        """The trade site link of a shared favorite. 3.3.0 owner: it opened with any seller; it follows your
+        Seller setting, Instant Buyout unless you changed it, like your own favorites."""
         import json
+        from .trade import STATUS_CHOICES
         league = SETTINGS.get("league") or "Standard"
-        body = {"query": d.get("query") or {}, "sort": d.get("sort") or {"price": "asc"}}
+        q = copy.deepcopy(d.get("query") or {})
+        q["status"] = {"option": dict(STATUS_CHOICES).get(SETTINGS.get("status"), "securable")}
+        body = {"query": q, "sort": d.get("sort") or {"price": "asc"}}
         return (f"https://www.pathofexile.com/trade2/search/poe2/{quote(league)}?q="
                 + quote(json.dumps(body, separators=(",", ":"))))
 
@@ -352,10 +444,6 @@ class FavoritesPage:
         self.favs().save()
         self.fav_say(f"\"{f['name']}\" is in your favorites (Mine).", C["green"])
         return f
-
-    def fav_vote(self):
-        r = self._fav_shared_one()
-        return self.share_vote("trade", (r or {}).get("_post"), self.fav_shared_fill)
 
     def fav_post(self):
         """Post one of yours: its search's filters only (never an account, a price paid or a note)."""
@@ -404,10 +492,11 @@ class FavoritesPage:
         acts = []
         if getattr(self, "fav_view", None) is not None and self.fav_view.get() != "Mine":
             r = self._fav_shared_one()
-            return [("☆ Add to Mine", self.fav_take, bool(r)), ("▲ Upvote", self.fav_vote, bool(r and r.get("_post"))),
-                    ("Trade Site", self.fav_shared_open, bool(r)),
-                    ("⚑ Report…", lambda: self.share_report("trade", (r or {}).get("_post"), self.fav_shared_fill),
-                     bool(r and r.get("_post")))]
+            return [("Search now", self.fav_search, bool(r), "Enter"),
+                    ("Trade Site", self.fav_shared_open, bool(r)), ("Add to Mine", self.fav_take, bool(r)),
+                    ("Report…", lambda: self.share_report("trade", (r or {}).get("_post"), self.fav_shared_fill),
+                     bool(r and r.get("_post")))] + self.share_admin_actions("trade", (r or {}).get("_post"),
+                                                                             self.fav_shared_fill)
         if one:
             acts += [("Search now", self.fav_search, True, "Enter"),
                      ("Trade Site", self.fav_open_trade, True),
@@ -415,8 +504,8 @@ class FavoritesPage:
                      ("Rename…", self.fav_rename, True, "F2"),
                      ("Edit…", self.fav_edit, True),
                      ("Duplicate", self.fav_duplicate, True),
-                     ("🏷 Tags…", self.fav_tags, True),                          # 2.132.6
-                     ("📤 Post to Community", self.fav_post, True), None,
+                     ("Tags…", self.fav_tags, True),                             # 2.132.6
+                     ("Post to Community", self.fav_post, True), None,
                      ("Move up", lambda: self.fav_step(-1), True, "Alt+↑"),
                      ("Move down", lambda: self.fav_step(1), True, "Alt+↓")]
         if ids:
@@ -431,14 +520,14 @@ class FavoritesPage:
 
     # ---------------------------------------------------------------- adding
     def pc_add_fav(self, rec=None, btn=None):
-        """☆ Add to favorites on Price Checks (and Bulk Pricing's picked item: rec, its button): this item with your
+        """☆ Favorite on Price Checks (and Bulk Pricing's picked item: rec, its button): this item with your
         filters."""
         rec = rec or self.records.get(getattr(self, "pc_rid", None))
         if not rec:
             return
         st = self.favs()
         if rec.get("fav") and st.get(rec["fav"]):
-            self.shell.open(KEY)
+            self.fav_open_tab()
             return self.fav_pick(rec["fav"])
         f = st.add_item(rec)
         rec["fav"] = f["id"]
@@ -446,9 +535,9 @@ class FavoritesPage:
         self.fav_changed([f["id"]])
         self.pc_fav_state(rec, btn)
         try:
-            self.app_toast(f"\"{f['name']}\" is in Trade › Favorites.", title="Added to favorites",
-                           kind="success", actions=(("Open", lambda: (self.shell.open(KEY), self.fav_pick(f["id"]))),
-                                                    ("Rename", lambda: (self.shell.open(KEY), self.fav_pick(f["id"]),
+            self.app_toast(f"\"{f['name']}\" is in Price Checks › Favorites.", title="Added to favorites",
+                           kind="success", actions=(("Open", lambda: (self.fav_open_tab(), self.fav_pick(f["id"]))),
+                                                    ("Rename", lambda: (self.fav_open_tab(), self.fav_pick(f["id"]),
                                                                         self.fav_rename()))))
         except Exception:
             buglog.caught()
@@ -458,7 +547,7 @@ class FavoritesPage:
         if b is None:
             return
         on = bool(rec and rec.get("fav") and self.favs().get(rec["fav"]))
-        b.config(text="★ In favorites" if on else "☆ Add to favorites", state="normal" if rec else "disabled")
+        b.config(text="★ Favorited" if on else "☆ Favorite", state="normal" if rec else "disabled")
 
     def fav_paste(self, event):
         """Ctrl+V on the list: the trade link on the clipboard, read once for this key press."""
@@ -602,6 +691,11 @@ class FavoritesPage:
                 self.favs().save()
 
     def fav_delete(self, rows):
+        if getattr(self, "fav_view", None) is not None and self.fav_view.get() != "Mine":
+            post = (self._fav_shared_one() or {}).get("_post")      # one of the board's: its author or an admin
+            if not self.share_can_delete(post):
+                return self.fav_say("Only its author or an admin can delete a favorite from the board.")
+            return self.share_delete("trade", post, self.fav_shared_fill)
         st = self.favs()
         ids, gids = self._fav_ids(rows), self._fav_groups_sel(rows)
         undo = []
@@ -788,7 +882,9 @@ class FavoritesPage:
 
     def fav_selected(self):
         if getattr(self, "fav_view", None) is not None and self.fav_view.get() != "Mine":
-            return self.fav_shared_greys()
+            self.fav_shared_greys()
+            return self.fav_shared_show()
+        self.fav_tool_greys()
         ids = self._fav_ids()
         fid = ids[0] if len(ids) == 1 and len(self.fav_tv.selection()) == 1 else None
         if fid == self.fav_sel:
@@ -1210,7 +1306,7 @@ class FavoritesPage:
                         filter_rows(groups[g])
         btns = tk.Frame(v.left, bg=P2)
         btns.pack(fill="x", pady=(8, 0))
-        ttk.Button(btns, text="Search", style="Primary.TButton", command=self.fav_search).pack(
+        ttk.Button(btns, text="Search", command=self.fav_search).pack(      # (the one orange is the toolbar's)
             side="left", fill="x", expand=True)
         ob = trade_icon(ttk.Button(btns, text="Trade Site", command=self.fav_open_trade))   # P2: under the card
         ob.pack(side="left", padx=(8, 0))

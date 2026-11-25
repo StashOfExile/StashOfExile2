@@ -45,26 +45,59 @@ BETA_AREAS = ("Wealth", "Money Makers", "Game Search", "Market Insights", "Craft
 # repeats. Someone coming from rollup["since"] or older (or a fresh install) sees it instead of each version; someone
 # on a pre-release already saw them and gets only this version's own lines (notes_between).
 NOTES = {
+    "3.3.0": {
+        "lead": [
+            ("✦", "New", [
+                ("•", "Added base type images"),
+                ("•", "Added step count and filters to the campaign route"),
+                ("•", "Added option to skip mods that don't affect price in Mod Lab"),
+                ("•", "Added Top Movers to the Dashboard"),
+                ("•", "Added Feature Spotlight to the Dashboard"),
+                ("•", "Added more greetings to the Dashboard"),
+                ("•", "Added data sharing prompt to the Dashboard"),
+                ("•", "Added Ranked and Personal marks to campaign act times"),
+                ("•", "Added character list to the overlay's level"),
+                ("•", "Added word filter to every text box except Notes"),
+                ("•", "Added Calendar with reminders, and Upcoming on the Dashboard"),
+            ]),
+            ("▲", "Improved", [
+                ("•", "Reworked League Plan page to be a more streamlined user experience"),
+                ("•", "Moved Favorites into Price Checks"),
+                ("•", "Moved Stockpile into Exchange Rates"),
+                ("•", "Updated price filtering options"),
+                ("•", "Added online count to the title bar"),
+                ("•", "Uniques list in Mod Lab can now be collapsed"),
+                ("•", "Reworked the look of every page to follow the theme"),
+                ("•", "Drawer now stays where it's put while the game is closed"),
+                ("•", "Turning sharing off now keeps times on the Leaderboards"),
+                ("•", "Game Search, Mod Lab and Map Library now sit together in Codex"),
+            ]),
+            ("✓", "Fixes", [
+                ("•", "Party members should no longer be shown as your character"),
+                ("•", "Large sets of times should no longer be refused by the Leaderboards"),
+            ]),
+            ("✕", "Removed", [
+                ("•", "Removed League Plan phases and Farm plan"),
+                ("•", "Removed Favorites page"),
+                ("•", "Removed Must match stars from Price Checks"),
+                ("•", "Removed Mods worth the most from Market Insights"),
+            ]),
+        ],
+    },
     # 3.2.0: verified on the owner's PC; League Plan's rework waits for its own test round
     "3.2.0": {
         "lead": [
             ("✦", "New", [
-                ("•", "Suggest a Feature: a button next to Report a bug. You see every word before your idea is "
-                      "sent."),
-                ("•", "Report a bug can add your screen setup: screen size, scaling, HDR and the game window's mode. "
-                      "You see it before you send, and you can leave it out."),
+                ("•", "Suggest a Feature, next to Report a bug."),
+                ("•", "Report a bug can add your screen setup."),
             ]),
             ("↻", "Changed", [
-                ("•", "Rate Mods is now Mod Lab, with a bigger intro and a picture of each item."),
-                ("•", "Mod Lab asks How valuable is each roll? A mod rated by roll gets a Next button."),
-                ("•", "League Plan: pokes are now called Reminders."),
-                ("•", "Go to anything still finds a page by its old name."),
+                ("•", "Rate Mods is now Mod Lab, with item pictures and a Next button."),
+                ("•", "League Plan: pokes are now Reminders."),
             ]),
             ("▲", "Improved", [
-                ("•", "Map Profit and Top Up look for your inventory along the whole top of the game."),
-                ("•", "When your Read Key doesn't find your inventory, the app's log says what it saw, so a bug "
-                      "report shows why."),
-                ("•", "Settings and sessions still save when another program holds the file for a moment."),
+                ("•", "Map Profit and Top Up find your inventory on more setups."),
+                ("•", "Settings save reliably."),
             ]),
         ],
     },

@@ -34,8 +34,7 @@ CLEAN_MSG = "Please keep it clean"          # the board's answer to a refused wo
 SETUP_LABEL = "Add your screen setup"
 SETUP_LINE = "Screen size, scaling, HDR, the game window's mode and the last missed inventory read."
 SETUP_TIP = ("Helps with bugs where the app doesn't read your screen. It comes from Windows' display settings and "
-             "the game window's size. Nothing is read from the game or its files, and no picture is taken or sent. "
-             "Untick it to leave it out. The box below shows it word for word.")
+             "the game window's size. Nothing is read from the game or its files, and no picture is taken or sent.")
 
 
 def os_line():
@@ -83,7 +82,9 @@ class FeedbackPage:
         """Every hour: is there a newer release? Shows the badge. 2.100.0 (feedback): it follows Preview builds (it
         only ever looked at full releases, so with previews on it never found one), and with Settings' update
         switches on, a newer version also gets a card - Install now, or it installs when the app next starts."""
-        from .config import SETTINGS
+        from .config import SETTINGS, TEST_BUILD
+        if TEST_BUILD:                                  # 3.3.0: a test build never updates itself
+            return
 
         def work():
             from .updates import latest_release

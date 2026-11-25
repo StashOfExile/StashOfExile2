@@ -30,7 +30,7 @@ class SectionBar(tk.Canvas):
     """A header strip: title on the left, a short note on the right (bar.note(text)), optional widgets on the right
     (bar.add_right(widget) - make them with this bar as parent)."""
 
-    H = 28
+    H = TH.BOX_HEAD                                       # 3.3.0: the same strip on every page
 
     def __init__(self, parent, title, note=""):
         super().__init__(parent, height=self.H, highlightthickness=0, bd=0, bg=C["panel2"])
@@ -90,8 +90,8 @@ class SectionBar(tk.Canvas):
         fg = TH.paint_bar(self, "section", tag="bar")        # (Round 18: the theme's own bar in the Drawer too)
         stops = t.grad(t.part("bars", "section", "fill") or t.part("bars", "title", "fill"))
         mid = TH.grad_at(stops, .5)
-        tid = self.create_text(12, h // 2, text=self.title, anchor="w", fill=fg, font=(TH.head_font(), 11, "bold"),
-                               tags="fore")
+        word, font = TH.head_title(t, self.title)         # (capitals in a theme that asks for them)
+        tid = self.create_text(12, h // 2, text=word, anchor="w", fill=fg, font=font, tags="fore")
         lx = (self.bbox(tid) or (0, 0, 12, 0))[2] + 12
         left, right = getattr(self, "_left", []), list(self._right)
         try:                                              # 3.0.6 (owner: Bulk Pricing in the Drawer - the strip's
@@ -131,6 +131,37 @@ class SectionBar(tk.Canvas):
                                    tags="fore")
             if (self.bbox(nid) or (lx, 0, 0, 0))[0] < lx:    # 2.126.0: no room between the two sides - left out
                 self.delete(nid)
+
+
+class PanelHead(SectionBar):
+    """3.3.0 look pass: a panel's header strip that takes a label's calls, so a heading that was a line of text can
+    become a strip with no change to the code that writes it. config(text="CHEAPEST LISTINGS · 4 of 5") shows
+    Cheapest Listings on the left and 4 of 5 on the right."""
+
+    def __init__(self, parent, title=""):
+        super().__init__(parent, title)
+        self._text = title
+        if not title:
+            tk.Canvas.configure(self, height=0)
+
+    def config(self, cnf=None, **kw):
+        kw = dict(cnf or {}, **kw)
+        if "text" in kw:
+            text = str(kw.pop("text") or "")
+            if text != self._text:
+                self._text = text
+                head, _dot, rest = text.partition(" · ")
+                self.title = head.title() if head.isupper() else head
+                self._note = rest
+                tk.Canvas.configure(self, height=self.H if text else 0)   # (nothing to say: no empty strip)
+                self.redraw()
+        if kw:
+            return super().config(**kw)
+
+    configure = config
+
+    def cget(self, key):
+        return self._text if key == "text" else super().cget(key)
 
 
 class Viewport(tk.Frame):

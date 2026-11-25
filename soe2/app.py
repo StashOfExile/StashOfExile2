@@ -104,12 +104,15 @@ from .favorites_page import FavoritesPage      # 2.84.0: Price Checks ↳ Favori
 from .boardmod_page import BoardModPage        # 2.85.0: your community name, Suggest an edit, History, reviewers
 from .gearbook_page import GearBookPage  # 2.99.0: Mod book › Gear rules, Unique rules, Learned per tab
 from .leaderboard_page import LeaderboardPage  # 2.86.0: Overlay ↳ Leaderboards
+from .calendar_page import CalendarPage        # 3.3.0 owner: Dashboard ↳ Calendar
+from .datareports_page import DataReportsPage  # 3.3.0 owner: Report a Problem on Codex pages
 from . import gamedata
 from . import modules
 from .shell import Shell
 
 
 from .config import PAGE_CHECKS       # 1.40: was "Items"
+from .listkit import _menu as menu_theme   # 3.3.0 owner: one menu look across the app
 
 
 CARD_BOX = 46                 # 2.78.3: a Min / Max / item level box on the item card (px)
@@ -298,7 +301,18 @@ def _tick(cv, x, y):
 
 def _vbox_x(cv, w, i):
     """Where the Min (i 0) / Max (i 1) box starts on a card row w px wide."""
-    return w - _s(cv, 30) - _s(cv, CARD_BOX) * (2 - i) - (_s(cv, 4) if i == 0 else 0)
+    return w - _s(cv, _star_room(cv)) - _s(cv, CARD_BOX) * (2 - i) - (_s(cv, 4) if i == 0 else 0)
+
+
+def card_has_star(rec):
+    """3.3.0 owner: no ★ Must match beside a mod on Price Checks and Favorites - every ticked mod must match there
+    already. Bulk Pricing keeps it: its search drops unstarred mods first."""
+    return (rec or {}).get("src") not in ("pc", "fav")
+
+
+def _star_room(cv):
+    """The room at a card row's right edge: the ★ column, or a small margin where no star is drawn."""
+    return 30 if getattr(cv, "_card_star", True) else 10
 
 
 from .names import CARD_SECTIONS                 # noqa: E402  (the item card's section names)
@@ -307,7 +321,7 @@ from .names import CARD_SECTIONS                 # noqa: E402  (the item card's 
 KIND_WORD = {"Implicit": "Implicit", "Enchant": "Enchant", "Rune": "Rune"}
 
 
-class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage, BoardModPage, LeaderboardPage, WellSoulsPage, RumoursPage, ListKeys, AlertsPage, AboutPage, BulkTabsPage, SearchOptsPage, ExchangePage, WealthPage, LibraryPage, RegexPage, UtilitiesPage, TrackerPage, SearchPage, CalcOverlay, InsightsPage, MoneyMakersPage, MapLibraryPage, RemnantPage, FavoursPage, LedgerPage, FeedbackPage, FeedPage, MergedOverlay, LightOverlay, SplitOverlay, GamePlanPage, FocusPokes, OverlayHelp, OverlayParts, CampaignUI, OverlayRates, CommunityPage, RateModsPage, StashScanPage, OverlayQuick, FeaturesPage, TopUpPage, MapProfitPage, TemplePage, SekhemasPage, HoverPage, SharePage, MusicPage, OverlayA8, LookPage, ReadMarkPage, DrawerHost):
+class App(CalendarPage, DataReportsPage, BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage, BoardModPage, LeaderboardPage, WellSoulsPage, RumoursPage, ListKeys, AlertsPage, AboutPage, BulkTabsPage, SearchOptsPage, ExchangePage, WealthPage, LibraryPage, RegexPage, UtilitiesPage, TrackerPage, SearchPage, CalcOverlay, InsightsPage, MoneyMakersPage, MapLibraryPage, RemnantPage, FavoursPage, LedgerPage, FeedbackPage, FeedPage, MergedOverlay, LightOverlay, SplitOverlay, GamePlanPage, FocusPokes, OverlayHelp, OverlayParts, CampaignUI, OverlayRates, CommunityPage, RateModsPage, StashScanPage, OverlayQuick, FeaturesPage, TopUpPage, MapProfitPage, TemplePage, SekhemasPage, HoverPage, SharePage, MusicPage, OverlayA8, LookPage, ReadMarkPage, DrawerHost):
     COLS = [("added", "#", 36, "e"), ("name", "Item", 170, "w"), ("type", "Type", 110, "w"), ("mark", "Status", 104, "w"),
             ("est", "Price", 104, "e"), ("conf", "Confidence", 120, "w"), ("listings", "Listings", 70, "e"), ("priced", "Priced at", 130, "w"),
             ("match", "How it was priced", 300, "w"), ("vmods", "★", 36, "center"),
@@ -411,6 +425,7 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
         self.root.after(5 * 60 * 1000, self.keys_refresh)   # 2.88.2: a fresh key watcher every 5 minutes
         self.start_utilities()                       # 2.0: chat commands & notes listen to the same keyboard watcher
         root.after(15000, self.cm_start)             # 2.31.0: the community Mod book (hourly)
+        self.dr_start()                              # 3.3.0 owner: rows an admin hid from a data report
         from . import usage as _usage                 # UI overhaul: the anonymous usage count (Settings › Privacy)
         _usage.start(root)
         root.after(20000, self.er_start)             # 2.137.0: Error reports (opt-in, hourly)
@@ -536,8 +551,8 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
                   "Esc) and it will stay minimized.", 10)
 
     def apply_topmost(self):
-        # drawer build: the Drawer is always on top while shown (SETTINGS["on_top"] = the Full window's own setting)
-        on = bool(SETTINGS.get("on_top", True)) or self.drawer_shown_as_drawer()
+        # drawer build: the Drawer is on top while the game is open (SETTINGS["on_top"] = the Full window's own setting)
+        on = self.drawer_topmost_wanted()
         try:
             self.root.attributes("-topmost", on)
             from .overlaywin import OverlayWindow
@@ -650,7 +665,7 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
         self.limit_tip = Tooltip(self.limit_pill, "")
         _meter_ws.append(self.limit_pill)
         self.rates_lbl = tk.Label(strip, text="Rates: …", bg=C["bg"], fg=C["muted"], padx=8, cursor="hand2", font=("Segoe UI", 9))   # P1: one font in the bar
-        self.rates_lbl.pack(side="right")
+        # 3.3.0 owner: the Rates text is off the status bar - Exchange Rates says when they were read
         self.rates_lbl.bind("<Button-1>", self.open_rates)
         self.status = tk.Label(strip, text="Starting...", anchor="w", bg=C["bg"], fg=C["muted"], padx=16, pady=4)
         self.status.pack(side="left", fill="x", expand=True)
@@ -682,6 +697,8 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
         self.league_var.trace_add("write", lambda *a: self._league_chip())
         self._league_chip()
         self.build_feedback()                                  # 2.48.0: ⬆ Update badge, 🐞 Report a bug
+        # 3.3.0 owner: the online count is a badge on the title bar's chest and a line under the Dashboard's greeting
+        self.root.after(1500, self.online_paint)
         self.shell.make_task_dots()
         # (2.97.3, feedback: no 📌 on the status bar - Always on top is in Settings › General › Window)
         self._top_label()
@@ -985,6 +1002,21 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
         if lead_due(SETTINGS.get("whatsnew_lead"), APP_VERSION):     # (the quick start just closed: the lead next)
             self.root.after(300, self.show_whatsnew)
         self.root.after(400, self.features_maybe)              # 2.131.1: Setup next, one at a time
+
+    def online_paint(self):
+        """The online count on the title bar's chest. Looked at again every minute; only a changed number is drawn."""
+        from . import usage as US
+        try:
+            c = US.counts() or (0, 0)
+            strip = getattr(self, "drawer_strip", None)
+            if strip is not None:
+                strip.set_online(c[0], US.tip() if (c[0] or c[1]) else "")
+        except Exception:
+            buglog.caught()
+        try:
+            self.root.after(60000, self.online_paint)
+        except Exception:
+            pass
 
     def _league_chip(self):
         self.league_chip.config(text="⚑ " + (self.league_var.get() or "pick a league"))
@@ -1345,6 +1377,14 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
         tells you (a card with Update now). Both stay quiet when you are up to date or GitHub can't be reached.
         2.100.0: every start looks once (closing and reopening the app checks again) - with both switches off it only
         lights the update badge; the hourly look (feedback_page.quiet_update_check) carries on from there."""
+        from .config import TEST_BUILD
+        try:                                            # 3.3.0 owner: new game data, once a day, test builds too
+            from . import datasync
+            datasync.refresh()
+        except Exception:
+            buglog.caught()
+        if TEST_BUILD:                                  # 3.3.0: a test build never updates itself
+            return
         if SETTINGS.get("auto_update"):
             self.check_updates(mode="auto")
         elif SETTINGS.get("auto_check_updates"):
@@ -1585,14 +1625,7 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
         return bool(SETTINGS.get("share_asked"))
 
     def cm_set_sharing(self, on, say=True):
-        was = bool(SETTINGS.get("share_prices")) and bool(SETTINGS.get("share_asked"))
-        if was and not on:                               # 2.89.3: turning it off takes your times off the leaderboards
-            try:
-                from . import board as B
-                if B.configured() and B.signed_in():
-                    threading.Thread(target=B.lb_forget, daemon=True).start()
-            except Exception:
-                buglog.caught()
+        # 3.3.0: off only stops sending. Times already on the board stay; Leave and delete my data removes them.
         SETTINGS["share_prices"] = bool(on)
         SETTINGS["share_asked"] = True
         save_json("settings.json", SETTINGS)
@@ -1925,6 +1958,10 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
             cls = ""
         if cls in ("TEntry", "Entry", "TSpinbox", "Spinbox", "TCombobox", "Text"):
             return None
+        # 3.3.0 owner: Del did nothing on Favorites. Keys went to the page in front, by name, and Favorites now
+        # lives inside Price Checks. They go to the list that has the keyboard first, whatever page it sits on.
+        if cls == "Treeview" and self.list_key_on(self.root.focus_get(), action):
+            return "break"
         if self._on_checks():
             {"all": self.hk_select_all, "undo": self.undo_mark, "delete": self.hk_clear}[action]()
             return "break"
@@ -2162,12 +2199,21 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
     def build_rates_window(self, win):
         self.rates_win = win
         # 2.4.0: tabs - Rates, Exchange Helper (2.92.0: Arbitrage removed; its flip check is under Exchange Helper)
-        self.rates_view = SegBar(win, ["Rates", "Exchange Helper"], command=lambda v: self.rates_show_page(),
+        # 3.3.0 owner: the Stockpile lives here now; League Plan has a Stock up goal for it
+        self.rates_view = SegBar(win, ["Rates", "Exchange Helper", "Stockpile"],
+                                 command=lambda v: self.rates_show_page(),
                                  size=10, pad=(16, 4))
         self.rates_view.pack(anchor="w", padx=16, pady=(8, 0))
         if getattr(self, "shell", None) is not None:          # 2.64.0: its tabs are listed in the sidebar
             self.shell.register_tabs("rates", self.rates_view)
-        self.rates_pages = {k: tk.Frame(win, bg=C["panel"]) for k in ("Rates", "Exchange Helper")}
+        self.rates_pages = {k: tk.Frame(win, bg=C["panel"]) for k in ("Rates", "Exchange Helper", "Stockpile")}
+        from .style import ScrollArea as _SA
+        ssa = _SA(self.rates_pages["Stockpile"], bg=C["panel"])
+        ssa.pack(fill="both", expand=True)
+        sp = tk.Frame(ssa.inner, bg=C["panel"], padx=16, pady=8)
+        sp.pack(fill="both", expand=True)
+        self._gp_stock(sp)
+        self._gp_stock_rows()
         w = self.rates_pages["Rates"]
         w.pack(fill="both", expand=True)
         # UI overhaul: each currency a row with its picture (rates_view.py); search first, then the sort
@@ -2280,6 +2326,8 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
                 f.pack(fill="both", expand=True)
             else:
                 f.pack_forget()
+        if pick == "Stockpile":
+            self._gp_stock_rows()
 
     def draw_rates(self):
         w = self.rates_win
@@ -4774,6 +4822,7 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
         else:
             big = "Pricing…" if st == "pricing" else "Waiting in line…"
         cv = tk.Canvas(d, width=w, height=200, bg=P2, highlightthickness=0, bd=0)
+        cv._card_star = card_has_star(rec)                   # (no ★ column on Price Checks: the boxes sit at the edge)
         cv._look = "drawer" if getattr(self, "_card_no_price", False) else ""     # (Price Checks: its own look)
         cv._k = float(getattr(self, "_card_k", 1.0) or 1.0)       # (its scale: soe2/cardscale.py)
         dl = _cl(cv)
@@ -4824,10 +4873,16 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
             # fold all / unfold all (Price Checks: a plain muted link, top right)
             keys_all = ("props", "req", "misc", "aug", "stats", "pseudo", "trade")
             all_open = any(not fold.get(k, k == "req") for k in keys_all)    # (any open: "Fold all")
-            cv.create_text(w - 4 if dl else w - 16, 2 if dl else y - 2, text="Fold all ▴" if all_open else
-                           "Unfold all ▾", anchor="ne" if dl else "e", font=_f(cv, 9),
-                           fill=C["muted"] if dl else C["accent"], tags=("cardfoldall",))
-            self._card_click(cv, "cardfoldall", lambda: self.card_fold_all(rec, all_open))
+            fold_lbl = self.pc_fold_label(d) if hasattr(self, "pc_fold_label") else None
+            if fold_lbl is not None:                           # 3.3.0: Price Checks has it in the Item strip
+                fold_lbl.config(text="Fold all ▴" if all_open else "Unfold all ▾")
+                fold_lbl.bind("<Button-1>", lambda e: self.card_fold_all(rec, all_open))
+                self.pc_item_head.redraw()                     # (its width changed: placed again at the right)
+            else:
+                cv.create_text(w - 4 if dl else w - 16, 2 if dl else y - 2, text="Fold all ▴" if all_open else
+                               "Unfold all ▾", anchor="ne" if dl else "e", font=_f(cv, 9),
+                               fill=C["muted"] if dl else C["accent"], tags=("cardfoldall",))
+                self._card_click(cv, "cardfoldall", lambda: self.card_fold_all(rec, all_open))
 
             def section(title, key, count=None, boxes=False, summary=""):
                 """▾ TITLE (n) ─── MIN MAX: a click folds / unfolds it. -> open?"""
@@ -5465,7 +5520,7 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
                 buglog.caught()
         if self._card_has_vals(rec, m):
             self._card_val_boxes(cv, rec, m, y - 1, w, on and can)
-        if can:                                              # 2.79.0: ★ = must match (a click: on / off)
+        if can and card_has_star(rec):                       # 2.79.0: ★ = must match (a click: on / off)
             imp = mod_impact(rec, m)
             star = cv.create_text(w - s_(14), y + 1, text="★" if imp == "high" else "☆", anchor="ne",
                                   font=_f(cv, 10), fill=C["good"] if imp == "high" else C["muted"],
@@ -5693,7 +5748,7 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
         what = (rec.get("item") or {}).get("name") if s.startswith("unique:") else \
             (rec.get("item") or {}).get("class") if s.startswith("gear:") else \
             {"tablet": "tablet", "jewel": "jewel", "waystone": "waystone", "relic": "relic"}.get(s, "item")
-        menu = tk.Menu(self.root, tearoff=0)
+        menu = menu_theme(self.root)
         menu.add_command(label=f"Rate this mod for every {str(what).lower()}:", state="disabled")
         for g, label in (("S", "S - the price hangs on it"), ("A", "A"), ("B", "B - adds a little"), ("C", "C"),
                          ("D", "D"), ("ignore", "F - ignore (buyers don't pay for it)")):
@@ -6131,7 +6186,8 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
 
     def save_widths(self):
         try:
-            SETTINGS["col_widths"] = {c[0]: int(self.tree.column(c[0], "width")) for c in self.COLS if c[0] != "name"}
+            SETTINGS["col_widths"] = {c[0]: int(self.tree.column(c[0], "width")) for c in self.COLS
+                                      if c[0] != "name" and int(self.tree.column(c[0], "width")) >= self.col_floor(c[0], c[2])}
             pw = int(self.outer.winfo_width())
             if pw >= 250:              # 2.0 beta 22: a closed / minimized window reports 1 - that hid the item panel
                 SETTINGS["panel_w"] = pw

@@ -268,8 +268,8 @@ class OverlayQuick:
                              highlightthickness=1)
                 b.grid(row=i // 4, column=i % 4, sticky="ew", padx=(0, 4), pady=(0, 4))
                 b.bind("<Button-1>", lambda _e, k=key: self._ovq_chip(k))
-                from .alerts_page import HELPER_BLURBS, helper_blurb
-                Tooltip(b, helper_blurb(key, self.look_key_text()) if key in HELPER_BLURBS else QUICK_TIPS.get(key, ""))
+                from .alerts_page import HELPER_BLURBS, helper_tip
+                Tooltip(b, helper_tip(key, self.look_key_text()) if key in HELPER_BLURBS else QUICK_TIPS.get(key, ""))
                 b.label = label
                 self.ovq_chips[key] = b
                 self._ovq_paint(key)
@@ -349,14 +349,14 @@ class OverlayQuick:
         self._ovq_paint(key)
 
     def _ovq_style(self):
-        """2.110.0: a style picked here - the overlay is drawn again in it (Overlay › Look shows it too)."""
+        """2.110.0: a style picked here - the overlay is drawn again in it (Overlay › Appearance shows it too)."""
         from .ovlight import STYLES
         name = self.ovq_style.get()
         key = next((k for k, v in STYLES.items() if v == name), None)
         if key and key != self.ov_look():
             self.ov_look_set(style=key)
             self._ovq_rebuild()                              # 2.125.1: the box takes the new style too, where it is
-            v = getattr(self, "ov_look_var", None)           # (Overlay › Look shows it too)
+            v = getattr(self, "ov_look_var", None)           # (Overlay › Appearance shows it too)
             if v is not None:
                 try:
                     v.set(name)
@@ -377,7 +377,7 @@ class OverlayQuick:
             pass
 
     def _ovq_layout(self, name):
-        """Bar | Panel | Split picked here - the overlay is built again (Overlay › Look shows it too)."""
+        """Bar | Panel | Split picked here - the overlay is built again (Overlay › Appearance shows it too)."""
         from .merged_page import LAYOUTS
         key = next((k for k, t in LAYOUTS.items() if t == name), None)
         if not key or key == self.merged_layout():

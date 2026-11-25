@@ -55,7 +55,18 @@ def trade_icon(btn, color=None, size=16):
             pad = Image.new("RGBA", (im.width, im.height + 3), (0, 0, 0, 0))
             pad.alpha_composite(im, (0, 3))
             img = _TRADE_IMG[key] = ImageTk.PhotoImage(pad, master=btn)
-        btn.configure(image=img, compound="right")
+        # 3.3.0 owner: a grayed-out Trade Site button showed a dotted box over the globe. Tk dithers a picture it
+        # has no disabled version of; a ttk button is given a dim one for that state.
+        dim = None
+        if isinstance(btn, ttk.Button):
+            dkey = ("trade", int(size), "dim:" + str(C["muted"]).lower())
+            dim = _TRADE_IMG.get(dkey)
+            if dim is None:
+                im2 = lineicons.image("globe", int(size), str(C["muted"]))
+                pad2 = Image.new("RGBA", (im2.width, im2.height + 3), (0, 0, 0, 0))
+                pad2.alpha_composite(im2, (0, 3))
+                dim = _TRADE_IMG[dkey] = ImageTk.PhotoImage(pad2, master=btn)
+        btn.configure(image=(img, "disabled", dim) if dim is not None else img, compound="right")
     except Exception:
         buglog.caught()
     return btn
@@ -409,6 +420,14 @@ def center_over(win, parent):
     y = max(t, min(cy - h // 2, b - h))
     win.geometry(f"+{x}+{y}")
     return x, y
+
+
+def menu_colors():
+    """One look for every menu and drop-down: the drop-down list's own colors, from the theme in use."""
+    sel_fg = C.get("sel_fg") or C["text"]
+    return {"background": C["panel2"], "foreground": C["text"], "activeBackground": C["sel"],
+            "activeForeground": sel_fg, "disabledForeground": C["muted"], "selectColor": C["text"],
+            "relief": "flat", "activeBorderWidth": 0, "borderWidth": 1}
 
 
 def over_app(win, parent):
@@ -769,6 +788,7 @@ def _setup_style(root, TH):
     s.configure("Treeview.Heading", foreground=TH.text_of(t, "heading", "text", C["text"]),
                 font=("Segoe UI", 9, "bold"), padding=(8, 8))
     sel_fg = t.c("selection_text", "#ffffff")
+    C["sel_fg"] = sel_fg                                   # (menu_colors: menus match the drop-down list)
     s.map("Treeview", background=[("selected", C["sel"])], foreground=[("selected", sel_fg)],
           bordercolor=[("focus", C["accent"])])                  # 2.100.0: a list you Tab to shows it
     s.map("Treeview.Heading", foreground=[("active", TH.text_of(t, "heading", "text_hover", t.c("text_strong")))])
@@ -801,6 +821,10 @@ def _setup_style(root, TH):
     root.option_add("*TCombobox*Listbox.foreground", C["text"])
     root.option_add("*TCombobox*Listbox.selectBackground", C["sel"])
     root.option_add("*TCombobox*Listbox.selectForeground", sel_fg)
+    # 3.3.0 owner: drop-down styling must match across the app. Every menu made with no colors of its own gets
+    # the same colors as a drop-down list; listkit._menu and menu_colors() give the same to the rest
+    for k, v in menu_colors().items():
+        root.option_add(f"*Menu.{k}", v)
     s.configure("TCheckbutton", background=C["bg"], foreground=C["text"], font=("Segoe UI", 10))
     s.map("TCheckbutton", background=[("active", C["bg"])])
     s.configure("Bar.TCheckbutton", background=C["panel"], foreground=C["text"], font=("Segoe UI", 10))

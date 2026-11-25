@@ -63,7 +63,7 @@ class LeaderboardPage:
         self.lb_acct.pack(side="right")
         self.lb_share_var = tk.BooleanVar(value=bool(SETTINGS.get("lb_share", True)))
         ttk.Checkbutton(top, text="Share my times", variable=self.lb_share_var, command=self.lb_share_switch,
-                        style="Card.TCheckbutton").pack(side="right", padx=(0, 12))
+                        style="Bar.TCheckbutton").pack(side="right", padx=(0, 12))
         self.lb_who = SegBar(top2, ["Mine", "Everyone"], value="Everyone", command=lambda v: self.lb_refresh(), size=9,
                              pad=(12, 4))
         self.lb_who.pack(side="left")
@@ -90,15 +90,16 @@ class LeaderboardPage:
         tb.bind("<<ComboboxSelected>>", lambda e: self.lb_top_pick())
         ttk.Button(top2, text="↻ Refresh", style="Quiet.TButton", command=lambda: self.lb_refresh(send=True)).pack(
             side="right")
-        # 2.138.0 (feedback: anywhere that saves player data should offer that option)
-        exb = ttk.Button(top2, text="Export my times…", style="Quiet.TButton", command=self.lb_export)
-        exb.pack(side="right", padx=(0, 8))
-        Tooltip(exb, "Your fastest maps, bosses, trials and acts to a CSV - from this PC, no character names")
         top3 = tk.Frame(body, bg=P1, padx=8)
         top3.pack(fill="x", pady=(0, 4))
         self.lb_rebuild_btn = ttk.Button(top3, text="Rebuild campaign times from the game's log", style="Quiet.TButton",
                                          command=self.lb_rebuild)
         self.lb_rebuild_btn.pack(side="left")
+        # 2.138.0 (feedback: anywhere that saves player data should offer that option). 3.3.0 owner: in the Drawer
+        # it was cut off beside Refresh; it sits on this row, packed before the gray line so it keeps its room.
+        exb = ttk.Button(top3, text="Export my times…", style="Quiet.TButton", command=self.lb_export)
+        exb.pack(side="right")
+        Tooltip(exb, "Your fastest maps, bosses, trials and acts to a CSV - from this PC, no character names")
         Tooltip(self.lb_rebuild_btn, "Reads the end of Client.txt, the game's log file, and works out your act and zone "
                                      "times again. It only reads that file - the game isn't touched. The faster of old and "
                                      "new is kept.")
@@ -111,6 +112,8 @@ class LeaderboardPage:
         left = tk.Frame(split, bg=P1, width=380)
         left.pack(side="left", fill="y")
         left.pack_propagate(False)
+        from .chrome import PanelHead, SectionBar          # 3.3.0 look pass: two titled panels
+        SectionBar(left, "Boards").pack(fill="x")
         kv = ttk.Treeview(left, columns=("mine", "best", "n"), show="tree headings", selectmode="browse")
         self.lb_sort = {}                                   # 3.1.0: table -> (column, descending), kept across tabs
         self.lb_titles = {"keys": {"#0": "Act / map", "mine": "My best", "best": "Best", "n": "Players"}}
@@ -129,7 +132,7 @@ class LeaderboardPage:
         self.lb_keys_tv = kv
         right = tk.Frame(split, bg=P1)
         right.pack(side="left", fill="both", expand=True, padx=(8, 0))
-        self.lb_title = tk.Label(right, text="", bg=P1, fg=C["accent"], font=("Segoe UI", 12, "bold"), anchor="w")
+        self.lb_title = PanelHead(right, "")              # (the board's name, then its class and league at the right)
         self.lb_title.pack(fill="x")
         cols = (("rank", "#", 40, "e"), ("name", "Player", 170, "w"), ("time", "Time", 80, "e"), ("cls", "Class", 120, "w"),
                 ("lvl", LEVEL_HEADER, 84, "e"), ("deaths", "Deaths", 66, "e"), ("league", "League", 120, "w"),
@@ -235,12 +238,8 @@ class LeaderboardPage:
         if SETTINGS["lb_share"] and B.configured() and not B.signed_in() and not getattr(self, "mm_sync", False):
             self.mm_join("show your times on the Leaderboards")       # 2.94.0: a name only when you need one
             self.cy_paint()
-        if SETTINGS["lb_share"]:
+        if SETTINGS["lb_share"]:                             # 3.3.0: off only stops sending, the board keeps your times
             self.lb_send(force=True)
-        else:                                                # 2.89.3: off = your times come off the board
-            from . import board as B
-            if B.configured() and B.signed_in():
-                self._lb_bg(B.lb_forget, lambda r: None)
 
     def lb_send(self, force=False):
         """Your best times to the board (Community data sharing on, a community name, Share my times on). At most
@@ -253,13 +252,35 @@ class LeaderboardPage:
         if not data:
             return False
         SETTINGS["lb_sent"] = time.time()
+        parts = LB.parts(data)
+        start = int(SETTINGS.get("lb_part", 0) or 0) % len(parts)
+
+        def work():
+            """3.3.0: one part per request. The board takes one request per 10 minutes from most players, so the
+            rest wait for the next send; the place is kept in lb_part."""
+            sent, refused, why = 0, 0, ""
+            for i in range(len(parts)):
+                ok, d = B.lb_send(parts[(start + i) % len(parts)])
+                if not ok:
+                    why = str(d)
+                    break
+                sent += 1
+                refused += int((d or {}).get("refused") or 0) if isinstance(d, dict) else 0
+            return sent, refused, why
 
         def done(res):
-            ok, d = res
-            if ok and getattr(self, "lb_msg", None) is not None and isinstance(d, dict) and d.get("refused"):
-                self.lb_msg.config(text=f"{d['refused']} of your times were refused as faster than anyone can play.",
-                                   fg=C["muted"])
-        self._lb_bg(lambda: B.lb_send(data), done)
+            sent, refused, why = res
+            SETTINGS["lb_part"] = (start + sent) % len(parts)
+            save_json("settings.json", SETTINGS)
+            msg = getattr(self, "lb_msg", None)
+            if why and not sent and why != "too soon":
+                buglog.record("net", "leaderboard send", why)
+                if msg is not None:
+                    msg.config(text=f"Your times were not sent: {why}", fg=C["red"])
+            elif refused and msg is not None:
+                msg.config(text=f"{refused} of your times were refused as faster than anyone can play.",
+                           fg=C["muted"])
+        self._lb_bg(work, done)
         return True
 
     # ---------------------------------------------------------------- showing

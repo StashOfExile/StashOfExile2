@@ -187,6 +187,14 @@ class SettingsPage:
             var.set(PC_SHOW.get(self.pc_show_get(), "In the app"))
         self.pc_where_paint()
 
+    def greet_switch(self):
+        SETTINGS["greet_playful"] = bool(self.greet_var.get())
+        save_json("settings.json", SETTINGS)
+
+    def dash_worth_switch(self):
+        SETTINGS["dash_worth_off"] = not self.dash_worth_var.get()
+        save_json("settings.json", SETTINGS)             # (the Dashboard draws itself each time it is opened)
+
     def build_fine_tuning(self, row, keys=None, defaults=True):
         """The fine-tuning rows for `keys` (all when None); defaults: the Defaults button (for those rows)."""
         P2 = C["panel2"]
@@ -333,10 +341,24 @@ class SettingsPage:
         self.top_btn = ttk.Checkbutton(trow, text="Keep the full window on top", variable=self.top_var,
                                        command=self.on_top_toggle)
         self.top_btn.pack(side="left")
-        tk.Label(trow, text="The Drawer is always on top while it's open.", bg=P2, fg=C["muted"],
+        tk.Label(trow, text="The Drawer is on top while the game is open.", bg=P2, fg=C["muted"],
                  font=("Segoe UI", 9)).pack(side="left", padx=(8, 0))
         from .style import flowify
         flowify(trow)                                   # D3: wraps at Drawer width
+        drow = tk.Frame(row.master, bg=P2)              # 3.3.0 owner: the Dashboard's Feature Spotlight card
+        drow.pack(fill="x", pady=(8, 0))
+        self.dash_worth_var = tk.BooleanVar(value=not SETTINGS.get("dash_worth_off"))
+        ttk.Checkbutton(drow, text="Show Feature Spotlight on the Dashboard", variable=self.dash_worth_var,
+                        command=self.dash_worth_switch).pack(side="left")
+        tk.Label(drow, text="Features you have off, or may not know.", bg=P2, fg=C["muted"],
+                 font=("Segoe UI", 9)).pack(side="left", padx=(8, 0))
+        grow = tk.Frame(row.master, bg=P2)              # 3.3.0 owner: the Dashboard's greeting
+        grow.pack(fill="x", pady=(8, 0))
+        self.greet_var = tk.BooleanVar(value=SETTINGS.get("greet_playful", True) is not False)
+        ttk.Checkbutton(grow, text="Playful greetings on the Dashboard", variable=self.greet_var,
+                        command=self.greet_switch).pack(side="left")
+        tk.Label(grow, text="Off: Good morning, Good afternoon or Good evening.", bg=P2, fg=C["muted"],
+                 font=("Segoe UI", 9)).pack(side="left", padx=(8, 0))
         wrow = tk.Frame(row.master, bg=P2)              # 2.116.0 (P10): from Price checking › Advanced fine tuning -
         wrow.pack(fill="x", pady=(8, 0))                # they're about the app's windows, not prices
         self.build_fine_tuning(wrow, keys=self.FINE_WINDOW, defaults=False)
@@ -420,11 +442,11 @@ class SettingsPage:
         # 2.119.0 (UX pass): Accent color, Text size and the start-up screen switch are gone - a theme keeps its
         # own colors and the start-up screen always shows
 
-        # 2.58.0 - 2.143.0: the overlay's look was here too. Nav phase 2: it lives on Overlay › Look (one place);
+        # 2.58.0 - 2.143.0: the overlay's look was here too. Nav phase 2: it lives on Overlay › Appearance (one place);
         # Appearance is the app's own look - this line points the way
         self.ov_look_top = self.settings_group("Appearance", "OVER THE GAME")
-        row = section("Appearance", "Overlay", "The overlay's Layout, Style and Opacity are on Overlay › Look.")
-        ttk.Button(row, text="Open Overlay › Look", command=lambda: self.ovh_open("Look")).pack(side="left")
+        row = section("Appearance", "Overlay", "The overlay's Layout, Style and Opacity are on Overlay › Appearance.")
+        ttk.Button(row, text="Open Overlay › Appearance", command=lambda: self.ovh_open("Appearance")).pack(side="left")
 
         # ======== Keys (2.116.0, P10: Hotkeys and Chat commands on one tab)
         row = section("Keybinds", "Hotkeys", "Every key the app listens for. Click a box and press the key, with Ctrl, "
@@ -452,9 +474,9 @@ class SettingsPage:
         # 2.59.0: settings that had no place in the app (only in settings.json)
         # 2.120.0 (UX pass 2: settings most players never need, in one place): the game's window title (was General ›
         # Game) (2.132.0: Hide the overlay from screen captures went back to Overlay › Options)
-        row = section("Advanced", "Over the game", "The overlay and the in-game keys work only while the window with "
-                                                   "this title is in front. Change it only if your game's window has "
-                                                   "another name.")
+        row = section("Advanced", "Over the game", "The overlay and the in-game keys work only while the game's window "
+                                                   "is in front. With the game open, Detect finds its window. You can "
+                                                   "also pick any open window from the list.")
         g = tk.Frame(row, bg=P2)
         g.pack(fill="x")
         tk.Label(g, text="Game window title", bg=P2, fg=C["text"]).grid(row=0, column=0, sticky="w", padx=(0, 8))
@@ -462,10 +484,19 @@ class SettingsPage:
         if "poe_title" not in self.ov_vars:
             self.ov_vars["poe_title"] = tk.StringVar(value=self._ensure_overlay().cfg.get("poe_title", "") or
                                                      "Path of Exile 2")
-        te = ttk.Entry(g, textvariable=self.ov_vars["poe_title"], width=24)
+        # 3.3.0 owner: a box to type a window's title in was no way to find it. A list of the open windows, the
+        # game's first, and Detect, which finds the game by its window class
+        from . import gamewin
+        te = ttk.Combobox(g, textvariable=self.ov_vars["poe_title"], width=30, state="readonly",
+                          postcommand=lambda: te.configure(values=gamewin.titles() or [self.ov_vars["poe_title"].get()]))
         te.grid(row=0, column=1, sticky="w")
-        te.bind("<FocusOut>", lambda e: self.ov_save())
-        te.bind("<Return>", lambda e: (self.ov_save(), self.root.focus_set()))
+        te.bind("<<ComboboxSelected>>", lambda e: (self.ov_save(), self.game_title_say("✓ Saved.")))
+        self.game_title_box = te
+        db = ttk.Button(g, text="Detect", width=0, command=self.game_title_detect)
+        db.grid(row=0, column=2, sticky="w", padx=(8, 0))
+        Tooltip(db, "Finds the game's window while the game is open, and uses its title")
+        self.game_title_msg = tk.Label(g, text="", bg=P2, fg=C["muted"], anchor="w")
+        self.game_title_msg.grid(row=1, column=0, columnspan=3, sticky="w", pady=(4, 0))
         # (2.132.0, feedback: it was in the wrong place: Hide the overlay from screen captures is
         # in Overlay › Options now, beside Lock position and Click-through)
         # 2.74.0: Under the hood (with the Mod book inside it) is hidden unless you want it - both keep working
@@ -477,7 +508,7 @@ class SettingsPage:
                                                     "whether they're shown or not. Learning, Community data sharing "
                                                     "and Regex's ratings carry on.")
         self.adv_var = tk.BooleanVar(value=self.shell.advanced_on())
-        cb = ttk.Checkbutton(row, text="Show advanced tools - Price Checks ↳ Under the Hood ↳ Mod Book",
+        cb = ttk.Checkbutton(row, text="Show advanced tools - Codex ↳ Under the Hood ↳ Mod Book",
                              variable=self.adv_var, command=self.advanced_switch, style="Card.TCheckbutton")
         cb.pack(side="left")
         self.adv_switch = cb
@@ -819,10 +850,10 @@ class SettingsPage:
         if getattr(self, "tk_overlay", None) is not None:              # 2.39.0: the timer's clock follows it too
             self.tracker_overlay_draw(self.tracker_numbers())
 
-    # ---- 2.43.0: the look of the windows over the game (2.44.0: Overlays › Look; 2.49.0: › Appearance; nav phase 2:
-    # Overlay › Look again - Layout, Style and Opacity, one section each)
+    # ---- 2.43.0: the look of the windows over the game (2.44.0: Overlays › Appearance; 2.49.0: › Appearance; nav phase 2:
+    # Overlay › Appearance again - Layout, Style and Opacity, one section each)
     def build_overlay_look(self, parent):
-        """Overlay › Look. Layout = Bar | Panel | Split (the overlay's shape), Style = how it looks (the 12 overlay styles),
+        """Overlay › Appearance. Layout = Bar | Panel | Split (the overlay's shape), Style = how it looks (the 12 overlay styles),
         Opacity. Theme is the app's own look (Settings › Appearance). Notes, the calculator and the remnant price tags
         use the theme's colors."""
         P2 = C["panel2"]
@@ -878,12 +909,12 @@ class SettingsPage:
         # (2.135.1: no Motion section - nothing fades any more, so Reduce motion is gone)
 
     def on_ov_look(self, style=None, colors=None):
-        """2.101.0: Overlay › Look › Style - saved and shown at once."""
+        """2.101.0: Overlay › Appearance › Style - saved and shown at once."""
         self.ov_look_set(style=style, colors=colors)
         self._ov_look_paint()
 
     def _ov_look_paint(self):
-        """Keep Overlay › Look's style picker in step (2.116.0: picked from the cog's list too)."""
+        """Keep Overlay › Appearance's style picker in step (2.116.0: picked from the cog's list too)."""
         pk = getattr(self, "ov_style_pick", None)
         if pk is not None:
             try:
@@ -900,8 +931,8 @@ class SettingsPage:
         return "#e0a352" if P.get("texture") else P.get("warn") or "#ffd25a"
 
     def appearance_open(self):
-        """2.58.0: the overlay's look (nav phase 2: Overlay › Look - it was Settings › Appearance › Over the game)."""
-        self.ovh_open("Look")
+        """2.58.0: the overlay's look (nav phase 2: Overlay › Appearance - it was Settings › Appearance › Over the game)."""
+        self.ovh_open("Appearance")
 
     def ov_opacity_get(self, key="session"):
         """The opacity of the windows over the game (2.56.1: one for all; the timer's is the one kept)."""
@@ -1042,15 +1073,54 @@ class SettingsPage:
             self.set_nb.select(self.set_nb.titles.index("Keybinds"))
         except (ValueError, AttributeError, tk.TclError):
             pass
+        if kid:                                    # 3.3.0 owner: the row was not lit. The tab builds its rows as
+            self.root.after(150, lambda: self._hotkey_row_show(kid))     # it opens, so it is lit once they exist.
+
+    def game_title_say(self, text):
+        lab = getattr(self, "game_title_msg", None)
+        if lab is not None:
+            lab.config(text=text)
+
+    def game_title_detect(self, lister=None):
+        """-> the title found, or "". The game is told by its window class, not its title."""
+        from . import gamewin
+        found = gamewin.detect(lister)
+        if not found:
+            self.game_title_say("! The game is not open. Start it, then click Detect.")
+            return ""
+        self.ov_vars["poe_title"].set(found)
+        self.ov_save()
+        self.game_title_say(f"✓ Found the game: {found}")
+        return found
+
+    def _hotkey_row_show(self, kid, secs=3.0):
+        """Scroll one key's row into view and light it for a moment: a mark and a color, never color alone."""
         row = getattr(self, "hk_rows", {}).get(kid)
-        if row:
-            lab = row[0]
+        if not row:
+            return False
+        lab, box = row
+        try:
+            self.root.update_idletasks()
+            w = lab
+            while w is not None and not hasattr(w, "canvas"):
+                w = getattr(w, "master", None)
+            if w is not None and getattr(w, "inner", None) is not None:
+                total = max(1, w.inner.winfo_height())
+                y = lab.winfo_rooty() - w.inner.winfo_rooty()
+                w.canvas.yview_moveto(max(0.0, (y - 60) / total))
+            was = lab.cget("text")
+            if not str(was).startswith("▶ "):
+                lab.config(text="▶ " + str(was))
             lab.config(bg=C["accent"], fg="#1a1206")
-            self.root.after(1600, lambda: lab.winfo_exists() and lab.config(bg=C["panel2"], fg=C["text"]))
-            try:
-                row[1].focus_set()
-            except tk.TclError:
-                pass
+
+            def unlit():
+                if lab.winfo_exists():
+                    lab.config(bg=C["panel2"], fg=C["text"], text=was)
+            self.root.after(int(secs * 1000), unlit)
+            box.focus_set()
+        except (tk.TclError, AttributeError):
+            return False
+        return True
 
     def hotkeys_defaults(self):
         """2.127.0 (feedback: a way back in case anything goes wrong): every keybind back to the app's own - after a

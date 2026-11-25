@@ -91,7 +91,7 @@
    "top": "#2a2238",
    "bottom": "#000000",
    "text": "#c9a2ff",
-   "texture": "veins",
+   "texture": "none",
    "texture_color": "#4ff0cf"
   }
  },

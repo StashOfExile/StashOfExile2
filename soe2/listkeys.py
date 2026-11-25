@@ -67,6 +67,28 @@ class ListKeys:
                 return t, d
         return None, None
 
+    def list_key_on(self, tree, action):
+        """Ctrl+A, Delete or Ctrl+Z on this very list, if it is one of ours. -> True when it was handled."""
+        key, delete = self.listkit_owner(tree)
+        if key is None or key == "checks":
+            return False
+        if action == "undo":
+            return bool(self.can_undo(key)) and (self.undo_last(key) or True)
+        try:
+            if action == "all":
+                kids = tree.get_children()
+                if kids and str(tree.cget("selectmode")) == "extended":
+                    tree.selection_set(kids)
+                return True
+            if action == "delete" and delete is not None:
+                sel = tree.selection()
+                if sel:
+                    delete(sel)
+                return True
+        except tk.TclError:
+            buglog.caught()
+        return False
+
     def list_key(self, key, action):
         """Ctrl+A / Delete / Ctrl+Z in window `key` (not the Price checks window: it has its own)."""
         if action == "undo":

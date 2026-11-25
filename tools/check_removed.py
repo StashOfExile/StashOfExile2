@@ -25,6 +25,9 @@ DOCS = ("README.md", "TOS.md", "linux/README.md", "themes/README.md", "strats/RE
 
 # (version, what it was, words a person read, names in the code / settings keys[, pending])
 REMOVED = [
+    ("3.3.0", "the Upvote button and the vote column on Price Checks' and Regex's Favorites (owner: dropped, as on "
+              "strats; the two screens now share one toolbar)",
+     (), ("fav_vote", "rx_fav_vote", "fav_share_bar", "fav_share_btns", "fav_admin_btn")),
     ("Split layout", "the overlay's \"flanks\" style, shown as Split (owner decision: Split is a Layout - Bar, Panel or "
                      "Split - in every style; a saved flanks becomes Layout Split, Style Hairline)",
      ("Flanks",), ("flanks", "_lt_flanks_bar", "_lt_flanks_panel")),
@@ -327,6 +330,46 @@ REMOVED = [
       "wealth_add_pc_tab", "wealth_pc_tab", "wealth_pc_refresh", "_wealth_add", "wealth_toggle_tab",
       "wealth_remove_tab", "wealth_open_trade", "wealth_buttons", "_w_tab_row", "_w_by_tab", "wealth_show_tab_result",
       "wealth_setup_layout", "wealth_save_account", "wealth_skip_tab")),
+    ("3.3.0", "The campaign card's act and zone line, and the lines under the rewards list and the act times "
+              "(owner: the overlay's ZONE says it; filler)",
+     ("The list comes from the guide pack", "with pauses for AFK. Each league keeps its own best"),
+     ()),
+    ("3.3.0", "League Plan's phases, Farm plan and Show on overlay (owner's redraw: one list, Next up first); the "
+              "Stockpile tab there (owner: it is on Exchange Rates)",
+     ("When I reach maps", "Long term", "I'm here now", "Farm plan", "Done, next ›", "Show on overlay",
+      "ADD A GOAL TO THIS PHASE", "ADD A FARM", "✓ On the overlay", "the phase you're in"),
+     ("gp_phase_pick", "gp_view_pick", "gp_farm_next", "_gp_farms", "_gp_farm_rows", "gp_add_farm", "gp_farm_choices",
+      "add_farm", "farm_now", "farm_done", "farm_text", "move_farm", "remove_farm", "gp_set_now", "set_phase",
+      "goals_of", "gp_summary_text", "phase_name", "gp_target_hint", "DONE_WHEN")),
+    ("3.3.0", "Market Insights' Mods worth the most table, its Delete and its list of hidden mods (owner: removed; "
+              "Mod Lab is where mods are rated)",
+     ("Mods worth the most", "the top mods", "the mods worth the most"),
+     ("ins_forget_mods", "ins_modmap", "_ins_rated_mods", "ins_hidden_mods")),
+    ("3.3.0", "Favorites as its own page and the Add to favorites button (owner: a Price Checks tab and ☆ Favorite); "
+              "Vaal Orbs in Prices in (owner: the same choices as the trade filters' Priced in)",
+     ("Add to favorites", "★ In favorites", "Trade › Favorites", "Vaal Orbs"),
+     ()),
+    ("3.2.1", "League Plan's Remind me choice for a goal and the Reminds you line (owner: in town only, no choice)",
+     ("Once, when this phase starts", "Never, keep it on the plan", "Reminds you:"),
+     ("gp_new_trig",)),
+    ("3.2.1", "A farm's Goal: level, hours, maps or a date, its reminder to move on and its switch (owner: it didn't "
+              "fit - Done, next moves you on)",
+     ("I've played it for hours", "I've run maps of it", "I move on myself", "TIME TO MOVE ON",
+      "Moving on to your next farm", "its Goal was reached"),
+     ("FARM_GOALS", "check_farms", "farm_progress", "gp_farm_hint", "gp_farm_kind", "gp_f_kind", "gp_f_target",
+      "FARM_HINTS")),
+    ("3.2.1", "The community name check against your own character names: That's your character name, too close to "
+              "your character name (owner: reading your names to refuse one felt too invasive)",
+     ("That's your character name", "too close to your character name"),
+     ("name_problem",)),
+    ("3.2.0", "League Plan's Build lock: your character, build and Locked until, and a reminder at a new level 1 "
+              "character (owner: the app can't know your build, character or divines, so it enforced nothing)",
+     ("Build lock", "Locked until", "My build", "I'm sure - unlock", "Stop the reroll itch"),
+     ("_gp_lock", "gp_lock_save", "gp_lock_on", "gp_lock_vars")),
+    ("3.2.0", "League Plan reminders' Tone and the switches for what now always happens: Say why it showed up, Only in "
+              "town or hideout, Only during a session, Quieter after 3 Not today (owner: too many settings)",
+     ("Drill sergeant", "Say why it showed up", "Only during a session", "Quieter after 3", "Eyes on the plan"),
+     ("TONE_WORDS", "gp_tone")),
     ("3.1.0", "Rate Mods By roll's Top | Middle and Middle | Low arrows that moved a group's edge one tier "
               "(owner: not self-explanatory; the groups keep their default split)",
      ("Top | Middle", "Middle | Low", "One tier fewer in", "Each group keeps at least one tier"),

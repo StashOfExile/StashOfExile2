@@ -32,6 +32,9 @@ def pretty_version(v=None):
 TAGLINE = "One tool to rule them all."          # 2.73.2
 APP_TITLE = f"StashOfExile2 v{pretty_version()}  -  {TAGLINE}"
 UI_OVERHAUL = False       # True only in a local test build: no error reports (3.0.0: the release has them, opt-in)
+# 3.3.0 owner: a test build updated itself to the release. build_soe2.bat names it StashOfExile2-Test.exe - that one
+# never updates
+TEST_BUILD = "-test" in os.path.basename(sys.executable).lower()
 
 
 APP_DIR = os.path.dirname(sys.executable if getattr(sys, "frozen", False)     # the folder with the exe / launcher:
@@ -151,8 +154,8 @@ import_old_data()
 # ---- bundled reference data (1.37): modlists.json (the tablet / jewel mods; was tabs.txt + jewels.txt) comes inside the app. A newer copy in a new version
 # replaces the one in the data folder (the old one is kept as a .bak); your own files (settings, rules, lists) are
 # never touched. Bump a number here when you ship a changed file.
-BUNDLED_DATA = {"modlists.json": 1, "gamedata.json": 1, "regexdata.json": 3, "default_rules.json": 5, "searchdata.json": 2, "anointdata.json": 1, "cxnames.json": 1,
-                "gamedb.json": 4, "gamedb_hide.json": 2, "atlasmasters.json": 2}   # gamedata 1.38, regexdata 1.44
+BUNDLED_DATA = {"modlists.json": 2, "gamedata.json": 1, "regexdata.json": 4, "default_rules.json": 5, "searchdata.json": 2, "anointdata.json": 1, "cxnames.json": 1,
+                "gamedb.json": 6, "gamedb_hide.json": 2, "atlasmasters.json": 2, "uniquedata.json": 2}   # gamedata 1.38, regexdata 1.44
 DATA_UPDATED = []
 
 

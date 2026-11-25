@@ -17,6 +17,8 @@ from .style import C, SegBar, Tooltip, menu_popup
 from .chrome import section as chrome_section
 from .stratview import StratViews, scroller
 from .stratnew import StratNewPage
+from . import cleanguard as _cleanguard
+from .listkit import _menu as menu_theme   # 3.3.0 owner: one menu look across the app
 
 ORIGIN = {"community": "Official", "mine": "Mine", "example": "Example", "board": "Community"}
 VIEWS = ("All", "Official", "Community", "Mine")             # 3.0.6: All by default (yours show with the rest)
@@ -93,6 +95,7 @@ class MoneyMakersPage(StratViews, StratNewPage):
         tk.Label(sbox, text="⌕", bg=C["odd"], fg=C["muted"], font=("Segoe UI Symbol", 10)).pack(side="left", padx=(8, 0))
         se = tk.Entry(sbox, textvariable=self.mm_q, width=38, bg=C["odd"], fg=C["text"], insertbackground=C["text"],
                       relief="flat", highlightthickness=0, bd=0, font=("Segoe UI", 10))
+        _cleanguard.free(se)        # 3.3.0: a search
         se.pack(side="left", padx=8, ipady=8, fill="x", expand=True)
         self.mm_search = se
         ph = tk.Label(sbox, text="Search strats, for example breach", bg=C["odd"], fg=C["muted"], font=("Segoe UI", 10))
@@ -275,8 +278,7 @@ class MoneyMakersPage(StratViews, StratNewPage):
                 pass
 
     def _mm_menu(self):
-        return tk.Menu(self.root, tearoff=0, bg=C["panel2"], fg=C["text"], activebackground="#2c4a84",
-                       selectcolor=C["accent"])
+        return menu_theme(self.root)
 
     def mm_drop_menu(self, key, at=None):
         """A dropdown's menu (radio items: the picked one has its mark). No tooltip while it's open."""
@@ -711,7 +713,7 @@ class MoneyMakersPage(StratViews, StratNewPage):
         if not s:
             return None
         post, me = s.get("_post") or {}, B.signed_in() or {}
-        m = tk.Menu(self.root, tearoff=0, bg=C["panel2"], fg=C["text"], activebackground="#2c4a84")
+        m = menu_theme(self.root)
         if not getattr(self, "mm_detail_on", False):
             m.add_command(label="Open", command=lambda k=self.mm_sel: self.mm_open(k))
         m.add_command(label="Run this strat", command=self.mm_track)
@@ -956,8 +958,9 @@ class MoneyMakersPage(StratViews, StratNewPage):
 
     def mm_admin_key(self, key=None):
         from tkinter import simpledialog
-        key = key or simpledialog.askstring("Community board", "Admin key:",
-                                            parent=self.root, show="•")
+        with _cleanguard.paused():                         # (a key is not words)
+            key = key or simpledialog.askstring("Community board", "Admin key:",
+                                                parent=self.root, show="•")
         if key:
             ok, d = B.become_admin(key)
             self.mm_account_paint()
@@ -1110,7 +1113,7 @@ class MoneyMakersPage(StratViews, StratNewPage):
     def mm_more_menu(self, btn):
         """The toolbar's ⋯: Refresh, Import file… (P6), your community name (2.94.0: Settings › Privacy & community)."""
         from .community_page import chip_text
-        m = tk.Menu(self.root, tearoff=0, bg=C["panel2"], fg=C["text"], activebackground="#2c4a84")
+        m = menu_theme(self.root)
         m.add_command(label="↻ Refresh", command=self.mm_refresh)
         m.add_command(label="Import file…", command=self.mm_import)
         m.add_separator()
@@ -1380,7 +1383,7 @@ class MoneyMakersPage(StratViews, StratNewPage):
         if not o:
             return None
         post, me = (o or {}).get("_post") or {}, B.signed_in() or {}
-        m = tk.Menu(self.root, tearoff=0, bg=C["panel2"], fg=C["text"], activebackground="#2c4a84")
+        m = menu_theme(self.root)
         m.add_command(label="Copy text", command=self.mm_one_copy)
         if post:
             m.add_command(label="▲ Remove my upvote" if post.get("voted") else "▲ Upvote", command=self.mm_one_vote)
@@ -1733,7 +1736,7 @@ class MoneyMakersPage(StratViews, StratNewPage):
         if row not in self.mm_tab_tree.selection():
             self.mm_tab_tree.selection_set(row)
         sel = [i for i in self.mm_tab_tree.selection() if i in self.mm_tab_rows]
-        m = tk.Menu(self.root, tearoff=0, bg=C["panel2"], fg=C["text"], activebackground="#2c4a84")
+        m = menu_theme(self.root)
         for t in SHOWN_TIERS:
             m.add_command(label=f"Rate {t}" + ("  (ignore)" if t == "F" else ""), command=lambda t_=t: self.mm_tab_rate(sel, t_))
         m.add_command(label="Clear my rating", command=lambda: self.mm_tab_rate(sel, None))

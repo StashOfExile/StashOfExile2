@@ -43,11 +43,15 @@ ICONS = {
     "circle": '<circle cx="12" cy="12" r="6"/>',
     "warn": '<path d="M12 4l9 16H3z"/><path d="M12 10v4M12 17v.5"/>',
     "open": '<path d="M9 5H5v14h14v-4"/><path d="M13 5h6v6M19 5l-8 8"/>',
-    "mark": '<path d="M12 3l8 9-8 9-8-9z"/><path d="M12 8l3.5 4-3.5 4-3.5-4z"/>',
+    # the app's mark: its chest icon as one line, lid, body and the hex lock (3.3.0 owner; it was a diamond)
+    "mark": '<path d="M8.5 6.5V5a1.5 1.5 0 0 1 1.5-1.5h4A1.5 1.5 0 0 1 15.5 5v1.5"/>'
+            '<path d="M3 6.5h18V11H3z"/><path d="M4 11v8.5h16V11"/>'
+            '<path d="M12 8.2l2.4 1.4v2.8L12 13.8l-2.4-1.4V9.6z"/>',
     "up": '<path d="M12 19V5"/><path d="M6 11l6-6 6 6"/>',
     "note": '<path d="M6 4h9l4 4v12H6z"/><path d="M14 4v5h5"/><path d="M9 13h7M9 16h5"/>',
     "bars": '<path d="M5 20V11M10 20V6M15 20v-7M20 20V9"/>',
     "dot": '<circle cx="12" cy="12" r="3"/>',
+    "calendar": '<rect x="4" y="6" width="16" height="14"/><path d="M4 10.5h16M8.5 3.5v4M15.5 3.5v4"/>',
     "globe": '<path d="M17.74 11.56A7.5 7.5 0 1 1 12.44 6.26"/><ellipse cx="10.5" cy="13.5" rx="3" ry="7.5"/>'
              '<path d="M3 13.5h15M14.5 9.5L21 3M15.5 3H21v5.5"/>',       # 3.0.6: Trade Site - a web browser, opens outside
 }                                                          # (owner: a globe with an arrow)
@@ -59,7 +63,7 @@ PAGE_ICON = {
     "checks": "stack", "favorites": "star", "ratemods": "rate", "rates": "swap", "insights": "bars",
     "wealth": "coins", "regex": "regex", "crafthelper": "hammer", "plan": "flag", "mapprofit": "route",
     "money": "trend", "maps": "map", "leaderboards": "trophy", "search": "book",
-    "library": "history", "modbook": "book", "notes": "note",
+    "library": "history", "modbook": "book", "notes": "note", "calendar": "calendar",
 }
 
 SS = 4                       # drawn this many times larger, then scaled down (smooth edges)

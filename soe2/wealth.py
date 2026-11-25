@@ -304,6 +304,8 @@ class WealthPrices:
             save_json("wealth_prices.json", {"v": PRICES_VERSION, "league": self.league, "src": self.src, "ts": self.ts,
                                              "parts": self.parts, "etags": self.etags})
             self._index()
+            from . import movers                                # 3.3.0: this read is kept for the Dashboard's Hourly
+            movers.note(self)
 
     def ensure_types(self, league, types=("Delirium",)):
         """2.17.0: just these categories (plus Currency, for the divine rate) when they're over an hour old - Game

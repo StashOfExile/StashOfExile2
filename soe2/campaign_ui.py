@@ -410,17 +410,18 @@ class CampaignUI:
 
     def camp_rows(self, P, width, d=None):
         """The Campaign Bar's line laid out in width px -> [[(text, font, role)], ...] one list per line:
-          the head (act · zone, and the step n / N with ⓘ when the step has a tip, at the right: role "step"),
-          what to do now (its gain in the gain role), wrapped - never cut,
+          what to do now (its gain in the gain role), wrapped - never cut - with the step n / N at the right of its
+          first line (ⓘ when the step has a tip: role "step"),
           then → where next (dimmed).
-        role: head / step / do / gain / then / to."""
+        3.3.0 owner: no act · zone line on top - the overlay's ZONE says where you are.
+        role: step / do / gain / then / to."""
         d = d or CP.line()
         if not d:
             return []
         fh, fd, fi, fb = self._camp_fonts(P)
         step = d["step"] + ("  ⓘ" if d.get("tip") else "")
-        out = [[(fit_lines(fh, d["head"], max(40, width - (_measure(fi, step) + 16 if step else 0)), 1), fh, "head")]
-               + ([(step, fi, "step")] if step else [])]
+        room = width - (_measure(fi, step) + 16 if step else 0)       # (the step keeps its place at the right)
+        out = []
         words = []                                            # (a gain stays in one piece: never "(+10% cold" / "res)")
         for part in re.split(r"(\((?:their )?\+[^)]*\))", d["do"]):
             if not part.strip():
@@ -430,7 +431,9 @@ class CampaignUI:
                 continue
             for wd in part.split():
                 words.append((wd, fd, "gain" if wd == "✓" else "do"))
-        out += _wrap(words, width)
+        out += _wrap(words, max(40, room)) or [[]]
+        if step:
+            out[0] = out[0] + [(step, fi, "step")]
         if d.get("then"):
             out += _wrap([("then →", fi, "then")] + [(w, fb, "to") for w in d["then"].split(" ")], width)
         return out
@@ -508,7 +511,12 @@ class CampaignUI:
         return (f"{z}, level {zl} - from the game's log ('Generating level {zl} area \"{aid}\"').\n"
                 + (f"Here for {CP.fmt(zt)}." if zt is not None else "Time here: from the next zone you enter."))
 
+    NOT_NAMED = "–"
+
     def camp_you_text(self):
+        from . import identity as ID
+        if not ID.known():                                   # 3.3.0 owner: no level until the log names you
+            return self.NOT_NAMED
         d = CP.line() or {}
         you, zl = d.get("level") or (CP.char_level(), 0)
         t = CP.level_text(you, zl)
@@ -519,11 +527,18 @@ class CampaignUI:
 
     @staticmethod
     def camp_you_tip():
+        from . import identity as ID
+        if not ID.known():
+            return "The game's log hasn't named your character yet. Click to pick it."
         d = CP.line() or {}
         you, zl = d.get("level") or (CP.char_level(), 0)
-        return CP.level_how(you, zl) + "\nYour level: from the game's log ('is now level ...')."
+        return (CP.level_how(you, zl) + f"\n{ID.current()}: from the game's log ('is now level ...'). Click to "
+                "change character.")
 
     def camp_got_text(self, mode=None):
+        from . import identity as ID
+        if not ID.known():
+            return self.NOT_NAMED
         g = CP.got_so_far()
         mode = mode or getattr(self, "_camp_got_mode", "full")
         p, sp = g["points"], g["spirit"]
@@ -535,7 +550,105 @@ class CampaignUI:
 
     @staticmethod
     def camp_got_tip():
+        from . import identity as ID
+        if not ID.known():
+            return "Shows once the game's log names your character, or you pick it under YOU."
         return CP.got_how(CP.got_so_far())
+
+    # ---------------------------------------------------------------- 3.3.0 owner: which character is this?
+    def camp_you_menu(self, e=None):
+        """A click on YOU: your characters (the current one ticked) and Not my character, in a small window of the
+        overlay's own above the pointer - it never covers the bar. It closes on a pick, on ✕, on Esc, on a second
+        click on YOU, or a moment after the mouse leaves it."""
+        from . import identity as ID
+        from .overlaywin import pal
+        if self.camp_you_close():                            # (a second click on YOU closes it)
+            return
+        P = pal()
+        bg, fg, mut = P.get("bg", "#151311"), P.get("text", "#efe6d2"), P.get("muted", "#9a8f7a")
+        rim = P.get("rim") or P.get("line", "#3a3226")
+        font = P.get("body") or P.get("font") or "Segoe UI"
+        w = self._camp_you_win = tk.Toplevel(self.root)
+        w.overrideredirect(True)
+        try:
+            w.attributes("-topmost", True)
+        except tk.TclError:
+            pass
+        box = tk.Frame(w, bg=bg, highlightthickness=1, highlightbackground=rim, padx=8, pady=8)
+        box.pack()
+        head = tk.Frame(box, bg=bg)
+        head.pack(fill="x")
+        tk.Label(head, text="YOUR CHARACTER", bg=bg, fg=mut, font=(font, 8, "bold")).pack(side="left")
+        x = tk.Label(head, text="✕", bg=bg, fg=mut, font=(font, 10), cursor="hand2", padx=4)
+        x.pack(side="right", padx=(16, 0))
+        x.bind("<Button-1>", lambda ev: self.camp_you_close())
+
+        def row(text, fn, color=fg):
+            r = tk.Label(box, text=text, bg=bg, fg=color, font=(font, 10), anchor="w", cursor="hand2", padx=4, pady=2)
+            r.pack(fill="x")
+            r.bind("<Button-1>", lambda ev: (self.camp_you_close(), fn()))
+            r.bind("<Enter>", lambda ev: r.config(bg=P.get("cell_bg", rim)))
+            r.bind("<Leave>", lambda ev: r.config(bg=bg))
+        cur = ID.current() if ID.known() else ""
+        rows = ID.characters()
+        for name, cls, lvl in rows[:16]:
+            bits = " · ".join(v for v in (cls, f"level {lvl}" if lvl else "") if v)
+            row(("✓ " if name == cur else "    ") + name + (f"   {bits}" if bits else ""),
+                lambda n=name: self.camp_you_pick(n))
+        if not rows:
+            tk.Label(box, text="No character seen yet", bg=bg, fg=mut, font=(font, 10), anchor="w", padx=4,
+                     pady=2).pack(fill="x")
+        if ID.current() and not ID.typed():
+            tk.Frame(box, bg=rim, height=1).pack(fill="x", pady=4)
+            row(f"Not my character: {ID.current()}", self.camp_you_not_mine, mut)
+        w.bind("<Escape>", lambda ev: self.camp_you_close())
+        w.bind("<Leave>", lambda ev: self._camp_you_leave())
+        w.bind("<Enter>", lambda ev: self._camp_you_stay())
+        w.update_idletasks()
+        px, py = (e.x_root, e.y_root) if e is not None else self.root.winfo_pointerxy()
+        ww, wh = w.winfo_reqwidth(), w.winfo_reqheight()
+        sw = w.winfo_screenwidth()
+        y = py - wh - 28                                     # above the pointer: the bar under it stays readable
+        if y < 0:
+            y = py + 28
+        w.geometry(f"+{max(0, min(int(px - ww // 2), sw - ww))}+{int(y)}")
+        self._camp_you_leave(8000)                           # never opened and left there: gone after 8 s untouched
+
+    def _camp_you_stay(self):
+        j, self._camp_you_job = getattr(self, "_camp_you_job", None), None
+        if j is not None:
+            try:
+                self.root.after_cancel(j)
+            except Exception:
+                pass
+
+    def _camp_you_leave(self, ms=1200):
+        self._camp_you_stay()
+        self._camp_you_job = self.root.after(ms, self.camp_you_close)
+
+    def camp_you_close(self):
+        """-> True when the list was open."""
+        w, self._camp_you_win = getattr(self, "_camp_you_win", None), None
+        if getattr(self, "_camp_you_job", None) is not None:
+            self._camp_you_stay()
+        if w is None:
+            return False
+        try:
+            w.destroy()
+        except tk.TclError:
+            pass
+        return True
+
+    def camp_you_pick(self, name):
+        from . import identity as ID
+        if ID.pick(name):
+            self.camp_refresh()
+
+    def camp_you_not_mine(self):
+        from . import identity as ID
+        if ID.not_mine(ID.current()):
+            ID.purge()
+            self.camp_refresh()
 
     @staticmethod
     def camp_act_text():
@@ -809,7 +922,22 @@ class CampaignUI:
         tk.Label(head, text="route: " + dict(CP.ROUTES).get(CP.route_of(), ""), bg=bg, fg=P["muted"],
                  font=(P["font"], self.ov_font(9))).pack(side="right")
         rows = CP.steps(key, run)
-        self.camp_row_frames = []                  # the route page's rows; camp_rows() lays out the overlay line
+        # 3.3.0 owner: how far along the act is, and a filter - all steps, the ones with a reward, the ones with a boss
+        self.camp_count = tk.Label(head, text=self.camp_count_text(rows), bg=bg, fg=P["text"],
+                                   font=(P["font"], self.ov_font(9)))
+        self.camp_count.pack(side="left", padx=(8, 0))
+        flt = c.get("route_filter") if c.get("route_filter") in dict(self.CAMP_FILTERS) else "all"
+        frow = tk.Frame(page, bg=bg)
+        frow.pack(fill="x", pady=(2, 4))
+        for fk, flab in self.CAMP_FILTERS:
+            on = fk == flt
+            b = tk.Label(frow, text=("✓ " if on else "") + flab, bg=P.get("cell_bg", bg) if on else bg,
+                         fg=P["head"] if on else P["muted"], font=(P["font"], self.ov_font(9), "bold" if on else "normal"),
+                         cursor="hand2", padx=8, pady=1)
+            b.pack(side="left", padx=(0, 4))
+            b.bind("<Button-1>", lambda e, fk=fk: self.camp_filter(fk))
+        self.camp_row_frames, self.camp_row_idx = [], []      # the rows shown, and which steps they are
+        self.camp_rows_n = len(rows)
         self.camp_marks = marks = {"done": ("✓", P["on"]), "here": ("▸", P["head"]), "todo": ("○", P["muted"]),
                  "passed": ("–", P["muted"])}
         state = {}                                             # pack 4: the line has the reward in it - the
@@ -817,7 +945,11 @@ class CampaignUI:
             st = run["rewards"].get(r["id"])
             state.setdefault(CP.norm(r["zone"]), []).append(st)
         patch = CP.pack().get("patch", "?")
+        shown = 0
         for i, s in enumerate(rows):
+            if (flt == "rewards" and CP.norm(s["zone"]) not in state) or (flt == "bosses" and not s.get("boss")):
+                continue
+            shown += 1
             here = s["state"] == "here"
             rbg = P.get("cell_bg", bg) if here else bg
             f = tk.Frame(page, bg=rbg, cursor="hand2")
@@ -849,6 +981,7 @@ class CampaignUI:
             for wdg in [f] + list(f.winfo_children()):
                 wdg.bind("<Button-1>", lambda e, i=i: self.camp_here(i))
             self.camp_row_frames.append(f)
+            self.camp_row_idx.append(i)
             if here and s.get("tip") and c["tips"]:
                 tk.Label(page, text="ⓘ " + s["tip"], bg=bg, fg=P["muted"], font=(P["font"], self.ov_font(9)),
                          anchor="w", justify="left", wraplength=self.ov_px(480)).pack(fill="x", padx=(24, 0))
@@ -857,6 +990,10 @@ class CampaignUI:
         if not rows:
             tk.Label(page, text="The guide has no steps for this act yet - they're added as you go.", bg=bg,
                      fg=P["muted"], font=(P["font"], self.ov_font(10))).pack(anchor="w")
+        elif not shown:
+            tk.Label(page, text="No steps with a reward in this act." if flt == "rewards" else
+                     "No steps with a boss in this act.", bg=bg, fg=P["muted"],
+                     font=(P["font"], self.ov_font(10))).pack(anchor="w")
         nav = tk.Frame(page, bg=bg)
         nav.pack(fill="x", pady=(8, 0))
         ttk.Button(nav, text="◀", width=3, style=self.ov_btn(), command=lambda: self.camp_step(-1)).pack(side="left")
@@ -867,6 +1004,19 @@ class CampaignUI:
         if tip and c["tips"]:
             tk.Label(page, text="Tip: " + tip, bg=bg, fg=P["muted"], font=(P["font"], self.ov_font(9)), anchor="w",
                      justify="left", wraplength=self.ov_px(520)).pack(fill="x", pady=(8, 0))
+
+    CAMP_FILTERS = (("all", "All steps"), ("rewards", "Rewards only"), ("bosses", "Bosses only"))
+
+    @staticmethod
+    def camp_count_text(rows):
+        """ "9 of 22 done" - the act's steps behind you, of all of them."""
+        return f"· {sum(1 for s in rows if s['state'] in ('done', 'passed'))} of {len(rows)} done" if rows else ""
+
+    def camp_filter(self, key):
+        """All steps / Rewards only / Bosses only on the route card."""
+        CP.cfg()["route_filter"] = key if key in dict(self.CAMP_FILTERS) else "all"
+        CP.save()
+        self.camp_refresh()
 
     def _camp_unknown_row(self, page, P, s):
         """P: a zone the guide doesn't know - a note for it, or Mark optional (a newer guide arrives on its own)."""
@@ -925,16 +1075,14 @@ class CampaignUI:
                 tk.Label(row, text={"missed": "✕ missed", "skip": "– skipped", "remind": "○ not yet"}[st], bg=bg,
                          fg=P.get("off", P["muted"]) if st == "missed" else P["muted"],
                          font=(P["font"], self.ov_font(9))).pack(side="right")
-        tk.Label(page, text=f"The list comes from the guide pack ({CP.pack().get('name', '')}). A boss's line in the "
-                            "game's log ticks its reward; the rest are asked in town. Tick or untick any by hand.",
-                 bg=bg, fg=P["muted"],
-                 font=(P["font"], self.ov_font(9)), anchor="w", justify="left", wraplength=self.ov_px(520)).pack(fill="x", pady=(8, 0))
 
     def _camp_splits_page(self, page, P):
         bg = P["bg"]
         g = tk.Frame(page, bg=bg)
         g.pack(fill="x")
-        for c, h in enumerate(("ACT", "THIS RUN", "BEST", "+/-")):
+        from .style import Tooltip
+        marks = CP.split_marks()
+        for c, h in enumerate(("ACT", "THIS RUN", "BEST", "+/-", "")):
             tk.Label(g, text=h, bg=bg, fg=P["muted"], font=(P["font"], self.ov_font(8), "bold")).grid(row=0, column=c, sticky="w",
                                                                                      padx=(0, 24))
         self.camp_split_rows = []
@@ -951,9 +1099,14 @@ class CampaignUI:
             for c, v in enumerate(vals):
                 tk.Label(g, text=v, bg=bg, fg=dcol if c == 3 else (P["text"] if mine is not None else P["muted"]),
                          font=(P["font"], self.ov_font(10))).grid(row=i, column=c, sticky="w", padx=(0, 24))
+            mk = marks[i - 1] if i - 1 < len(marks) else None
+            if mk is not None:                              # 3.3.0 owner: a mark and a word, never color alone
+                lab = tk.Label(g, text="★ Ranked" if mk else "○ Personal", bg=bg, fg=P["on"] if mk else P["muted"],
+                               font=(P["font"], self.ov_font(9)))
+                lab.grid(row=i, column=4, sticky="w")
+                Tooltip(lab, "Sent to the Leaderboards when you share times." if mk else
+                        "Ranked times are one character, start to finish. This one stays on your PC.")
             self.camp_split_rows.append(vals)
-        tk.Label(page, text="From the game log's zone changes, with pauses for AFK. Each league keeps its own best.",
-                 bg=bg, fg=P["muted"], font=(P["font"], self.ov_font(9)), anchor="w").pack(fill="x", pady=(8, 0))
 
     # ---------------------------------------------------------------- actions
     def camp_here(self, i):
@@ -971,11 +1124,17 @@ class CampaignUI:
         """The route page's rows take their new state (✓ ▸ ○ –) in place. -> False when the steps changed."""
         rows, P = CP.steps(self.camp_view, CP.char()), self.camp_P
         frames = getattr(self, "camp_row_frames", None) or []
-        if len(rows) != len(frames) or any(s.get("learned") for s in rows):
+        idx = getattr(self, "camp_row_idx", None)
+        if idx is None:
+            idx = list(range(len(frames)))
+        if len(idx) != len(frames) or len(rows) != getattr(self, "camp_rows_n", len(frames)) or \
+                any(s.get("learned") for s in rows):
             return False
         bg = P["bg"]
         try:
-            for s, f in zip(rows, frames):
+            if getattr(self, "camp_count", None) is not None:
+                self.camp_count.configure(text=self.camp_count_text(rows))
+            for s, f in zip([rows[i] for i in idx], frames):
                 here = s["state"] == "here"
                 rbg = P.get("cell_bg", bg) if here else bg
                 mk, col = self.camp_marks[s["state"]]
@@ -1068,7 +1227,7 @@ class CampaignUI:
         row = tk.Frame(body, bg=bg)
         row.pack(fill="x", pady=(8, 0))
         from .style import Tooltip
-        for k, label, style, tip in (("got", "Got it", "Primary.TButton", "Ticks it in Got so far"),
+        for k, label, style, tip in (("got", "Got it", "Primary.TButton", "Ticks it in Rewards"),
                                      ("not_yet", "Not yet", "TButton", "Leaves it open - asks once more next town")):
             b = ttk.Button(row, text=label, style=self.ov_btn(style), command=lambda k=k: self.camp_answer(r["id"], k))
             b.pack(side="left", padx=(0, 8))

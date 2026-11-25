@@ -321,7 +321,7 @@ def build(kind, want, avoid, want_all=False, options=None):
         parts.append(_q("!corrupted"))
     s = " ".join(parts)
     if len(s) > LIMIT:
-        notes.append(f"{len(s)} characters: the game only takes {LIMIT}. Remove some mods, or tick Round down to 10.")
+        notes.append(f"{len(s)} characters: the game only takes {LIMIT}. Remove some mods, or tick Shorter search.")
     return s, notes
 
 

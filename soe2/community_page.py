@@ -107,9 +107,9 @@ class CommunityPage:
                                wraplength=640)
         self.cy_msg.pack(fill="x", pady=(8, 0))
         # ---- your rights
-        row = section(PAGE, "Your rights", "Turn any switch off at any time - your leaderboard times come off at once. "
-                                           "Leave and delete my data under your name above removes everything of "
-                                           "yours from the board.")
+        row = section(PAGE, "Your rights", "Turn any switch off at any time to stop sending. Times already on the "
+                                           "board stay. Leave and delete my data under your name above removes "
+                                           "everything of yours from the board.")
         self.cy_rights = tk.Label(row, text="", bg=P2, fg=C["muted"], font=("Segoe UI", 9), anchor="w")
         self.cy_rights.pack(fill="x")
         lr = tk.Frame(row, bg=P2)

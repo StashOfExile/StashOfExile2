@@ -337,5 +337,10 @@
     ]
    ]
   }
+ },
+ "box": {
+  "shape": "flat",
+  "head": "rule",
+  "caps": false
  }
 }

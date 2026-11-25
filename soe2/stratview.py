@@ -774,7 +774,7 @@ class StratViews:
         if master:
             tiles.append("master")
         cols = 2 if (narrow or W < 900) and len(tiles) > 2 else len(tiles)
-        gap = 16
+        gap = 0                                          # 3.3.0 look pass: one row of numbers, a line between them
         tw = (W - 2 * pad - (cols - 1) * gap) / cols
         th = 120
         rows_n = -(-len(tiles) // cols)
@@ -854,6 +854,27 @@ class StratViews:
         card = cv.card(x0, y, x1, y + 10, None, lift=False)
         tx = x0 + 20
         tags = ()
+        t_ = TH.ST.theme
+        ink = TH.box_strip(cv, t_, x0, y, x1, R) if t_ is not None else None
+        if ink is not None:                              # 3.3.0 look pass: the title on the theme's header strip
+            word, font = TH.head_title(t_, title)
+            mid = y + TH.BOX_HEAD // 2
+            if fold is not None:
+                ftag = f"fold_{title}"
+                tags = (ftag,)
+                cv.acts[ftag] = fold[1]
+                cv.tips[ftag] = "Click to fold" if fold[0] else "Click to open"
+                cv.create_rectangle(x0 + 1, y + 1, x1 - 1, y + TH.BOX_HEAD, fill="", outline="", tags=tags)
+                cv.text(tx, mid, "▾" if fold[0] else "▸", ("Segoe UI", 10), fill=ink, anchor="w", tags=tags)
+                tx += 16
+            t = cv.text(tx, mid, word, font, fill=ink, anchor="w", tags=tags)
+            x = cv.bbox(t)[2]
+            if note:
+                x = cv.bbox(cv.text(x + 10, mid, note, ("Segoe UI", 9), fill=cv.c("text_muted"), anchor="w",
+                                    tags=tags))[2]
+            if how:
+                cv.info(x + 8, mid, tag or "box_i", how)
+            return card, y + TH.BOX_HEAD + 18
         if fold is not None:                             # (Tips / Risks: the title folds it - the mockup's look;
             ftag = f"fold_{title}"                       # From the author shows its ▸ / ▾)
             tags = (ftag,)
@@ -884,12 +905,13 @@ class StratViews:
         rx = s.get("regex") or (MM.item_regex([MM.card_item(c) for c in cards]) if cards else "")
         made = MM.made_for_you("tablet", cards, SETTINGS.get("league")) if cards else {"url": None}
         bx = x1 - 20
-        bx0, _ = cv.button(bx, y + 12, "Trade Site ↗", "dev_trade",
+        by = yy - 6 if TH.ST.theme is not None and TH.headed(TH.ST.theme) else y + 12    # (under the title strip)
+        bx0, _ = cv.button(bx, by, "Trade Site ↗", "dev_trade",
                            lambda: (__import__("webbrowser").open(made["url"]) if made.get("url") else None),
                            enabled=bool(made.get("url")), anchor="e", h=34,
                            tip=("Opens the trade site in your browser: " + made["caption"]) if made.get("url")
                            else "No tablet mods to search")
-        cv.button(bx0 - 8, y + 12, "Copy regex", "dev_regex", lambda: self.mm_item_copy(rx, "the tablets"),
+        cv.button(bx0 - 8, by, "Copy regex", "dev_regex", lambda: self.mm_item_copy(rx, "the tablets"),
                   enabled=bool(rx), anchor="e", h=34,
                   tip="Copy the stash search. In game: Ctrl+V in the stash search." if rx else "No stash search")
         yy += 6

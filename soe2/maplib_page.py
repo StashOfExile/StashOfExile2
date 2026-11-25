@@ -8,6 +8,7 @@ from . import maplib as ML
 from .style import over_app
 from .style import C, Tooltip, place_near
 from .chrome import SectionBar, Viewport
+from .listkit import _menu as menu_theme   # 3.3.0 owner: one menu look across the app
 
 RANK_TAG = {"S": "s", "A": "a", "B": "b", "C": "c", "D": "d", "Avoid": "avoid"}
 
@@ -43,10 +44,11 @@ class MapLibraryPage:
             side="right", padx=(0, 8))
         grp = tk.Frame(bar, bg=C["line"], padx=1, pady=1)
         grp.pack(side="right", padx=(0, 8))
-        cols = {"S": "#ffcf40", "A": "#ffd9a8", "B": C["text"], "C": C["text"], "D": C["muted"], "Avoid": C["red"]}
+        cols = {}                                         # 3.3.0 owner: one quiet color - six bright ones were hard to
+                                                          # look at; each still says what it is, letter and tooltip
         self.ml_rank_btns = {}
         for i, r in enumerate(ML.RANKS):
-            lab = tk.Label(grp, text="✖" if r == "Avoid" else r, bg=C["panel2"], fg=cols.get(r, C["text"]),
+            lab = tk.Label(grp, text="✕" if r == "Avoid" else r, bg=C["panel2"], fg=cols.get(r, C["text"]),
                            font=("Segoe UI", 10, "bold"), width=3, pady=4, cursor="hand2")
             lab.pack(side="left", padx=(1 if i else 0, 0))
             lab.bind("<Button-1>", lambda e, rr=r: self.ml_set(rr))
@@ -172,7 +174,7 @@ class MapLibraryPage:
             return
         if row not in tv.selection():
             tv.selection_set(row)
-        m = tk.Menu(self.root, tearoff=0, bg=C["panel2"], fg=C["text"], activebackground="#2c4a84")
+        m = menu_theme(self.root)
         for r in ML.RANKS:
             m.add_command(label=("✖ Avoid" if r == "Avoid" else f"Rank {r}"), command=lambda rr=r: self.ml_set(rr))
         m.add_command(label="Clear rank", command=lambda: self.ml_set(None))
@@ -181,6 +183,8 @@ class MapLibraryPage:
         if learned:
             m.add_separator()
             m.add_command(label="Not a map", command=lambda: self.ml_not_map(learned))
+        m.add_separator()                                    # 3.3.0 owner: a wrong map, for an admin to review
+        m.add_command(label="Report a Problem…", command=lambda: self.dr_report("maps", row, row, ""))
         m.tk_popup(e.x_root, e.y_root)
 
     def ml_not_map(self, names):
@@ -191,7 +195,7 @@ class MapLibraryPage:
 
     # ---------------- share: export / import (files) and the community's ranks
     def ml_share_menu(self, btn):
-        m = tk.Menu(self.root, tearoff=0, bg=C["panel2"], fg=C["text"], activebackground="#2c4a84")
+        m = menu_theme(self.root)
         m.add_command(label="Export my ranks…", command=self.ml_export)
         m.add_command(label="Import ranks…", command=self.ml_import)
         m.add_separator()

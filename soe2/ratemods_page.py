@@ -22,6 +22,7 @@ from . import themes as TH
 from .inplace import set_cfg
 from .mods import F_TIP
 from .style import C, SegBar, Tooltip, letter_color, text_on
+from . import cleanguard as _cleanguard
 
 SETS = RM.MAP_SETS + (RM.JEWEL_SET,)
 # Owner, after 3.1.0: Mod Lab's intro stands out - bigger, in the heading font, key words bold in the accent color
@@ -86,6 +87,22 @@ def _letter(g):
     return "F" if g == "ignore" else g
 
 
+UNIQ_TITLE = "UNIQUES"                    # 3.3.0 owner: every unique in the game, folded by type (was: you've checked)
+
+
+def _is_base(name):
+    """An item base's name, not a unique's: the game data knows it as a base, or it ends like one."""
+    from . import uniquedata as UD
+    if UD.get(name):
+        return False
+    if str(name).endswith((" Tablet", " Waystone", " Relic", " Jewel")):
+        return True
+    try:
+        from .gearbook import base_cat
+        return bool(base_cat(name))
+    except Exception:
+        return False
+
 class RateModsPage:
     """Mixed into App."""
 
@@ -95,24 +112,40 @@ class RateModsPage:
         price checked."""
         from . import gearbook as GB
         out = list(SETS) + [(f"gear:{c}", n) for c, n in GB.classes()]
-        uniq = sorted(GB.store(), key=str.lower)
-        return out + [(f"unique:{n.lower()}", n) for n in uniq]
+        # 3.3.0 owner: every unique in the game (uniquedata.json), not only the ones you price checked. Megalomaniac
+        # showed 0 of 0: a unique with no mods to rate, only passives it allocates, is left out of the list
+        # 3.3.0 owner: an unidentified unique was learned by its base name, Utility Belt or Ritual Tablet - not a unique
+        return out + [(f"unique:{n.lower()}", n) for n in GB.all_uniques()
+                      if not _is_base(n) and self.rm_entries(f"unique:{n.lower()}")]
 
     def rm_gear_mods(self, set_name):
         from . import gearbook as GB
         if set_name.startswith("gear:"):                     # 2.99.0: every line that rolls on the class
             out = [(r["key"], r["text"]) for r in GB.class_mods(set_name[5:])]
         else:
-            name = next((n for n in GB.store() if f"unique:{n.lower()}" == set_name), None)
+            name = next((n for n in GB.all_uniques() if f"unique:{n.lower()}" == set_name), None)
             out = [(r["key"], r["text"]) for r in GB.unique_rows(name)] if name else []
-        for rec in self.records.values():
-            if RM.set_of(rec) != set_name:
-                continue
+        for rec in self._rm_records_by_set().get(set_name, ()):
             for m in (rec.get("item") or {}).get("mods") or []:
                 k = RM.key_for(rec, m)
                 if k:
                     out.append((k, m.get("shown") or m["text"]))
         return out
+
+    def _rm_records_by_set(self):
+        """Your price checks by the set they belong to, worked out once while the list of checks is the same: with
+        every unique listed, going through every check for every set was slow."""
+        recs = getattr(self, "records", None) or {}
+        stamp = (id(recs), len(recs))
+        cache = self.__dict__.get("_rm_by_set")
+        if cache is None or cache[0] != stamp:
+            by = {}
+            for rec in list(recs.values()):
+                s = RM.set_of(rec)
+                if s:
+                    by.setdefault(s, []).append(rec)
+            cache = self.__dict__["_rm_by_set"] = (stamp, by)
+        return cache[1]
 
     def rm_queue(self, s):
         return RM.queue(s, self.rm_gear_mods(s) if s.startswith(("gear:", "unique:")) else None)
@@ -121,7 +154,10 @@ class RateModsPage:
         """The set's mods as the page shows them (kept while the page is up; again on each show)."""
         cache = self.__dict__.setdefault("_rm_ent", {})
         if s not in cache:
-            cache[s] = RM.entries(s, self.rm_gear_mods(s) if s.startswith(("gear:", "unique:")) else None)
+            ents = RM.entries(s, self.rm_gear_mods(s) if s.startswith(("gear:", "unique:")) else None)
+            from . import datareports as DR                  # 3.3.0 owner: a row an admin hid from a report is left out
+            gone = DR.hidden("ratemods")
+            cache[s] = [e for e in ents if not gone.intersection(e["keys"])] if gone else ents
         return cache[s]
 
     def rm_count(self, s):
@@ -134,10 +170,19 @@ class RateModsPage:
         sets = self.rm_sets()
         gear = [(s, lab) for s, lab in sets if s.startswith("gear:")]
         kinds = [(k, t, [(s, lab) for s, lab in gear if RM.gear_kind(s[5:]) == k]) for k, t in RM.GEAR_KINDS]
-        out = [("MAP ITEMS", list(RM.MAP_SETS)), ("JEWELS", [RM.JEWEL_SET]), ("GEAR", [k for k in kinds if k[2]])]
+        # 3.3.0 owner: Tablets, Waystones, Relics and Jewels fold the way Armour, Weapons and Jewelry do. Each is
+        # a group of its own ("set:<set>"), its mod groups inside it
+        one = lambda s, lab: (f"set:{s}", lab, [(s, lab)])                       # noqa: E731
+        out = [("MAP ITEMS", [one(*x) for x in RM.MAP_SETS]), ("JEWELS", [one(*RM.JEWEL_SET)]),
+               ("GEAR", [k for k in kinds if k[2]])]
         uniq = [(s, lab) for s, lab in sets if s.startswith("unique:")]
-        if uniq:
-            out.append(("UNIQUES YOU'VE CHECKED", uniq))
+        if uniq:                                             # 3.3.0 owner: folded by type, like Gear
+            from . import uniquedata as UD
+            by = {}
+            for s, lab in uniq:
+                by.setdefault(UD.group_of(lab), []).append((s, lab))
+            order = list(UD.GROUP_ORDER) + [UD.OTHER]
+            out.append((UNIQ_TITLE, [(f"u:{g}", g, by[g]) for g in order if g in by]))
         return out
 
     # ---------------------------------------------------------------- the page
@@ -266,6 +311,7 @@ class RateModsPage:
         tk.Label(box, text="⌕", bg=bg, fg=C["muted"], font=("Segoe UI Symbol", 10)).pack(side="left", padx=(8, 0))
         ent = tk.Entry(box, textvariable=self.rm_qv, bg=bg, fg=C["text"], insertbackground=C["text"], relief="flat",
                        font=("Segoe UI", 9), highlightthickness=0, bd=0, width=26)
+        _cleanguard.free(ent)        # 3.3.0: a search
         ent.pack(side="left", fill="x", expand=True, padx=(4, 8), ipady=4)
         ph = tk.Label(box, text=SEARCH_HINT, bg=bg, fg=C["muted"], font=("Segoe UI", 9))
         ph.bind("<Button-1>", lambda e: ent.focus_set())
@@ -332,6 +378,7 @@ class RateModsPage:
     def rm_on_show(self):
         """The page came up: counts again (they change as you price check), the last set picked."""
         self.__dict__["_rm_ent"] = {}
+        RM.kinds_forget()                              # lines learned since need their kinds too
         self._rm_recount_all()
         if not getattr(self, "rm_set", None):
             from .config import SETTINGS
@@ -381,6 +428,11 @@ class RateModsPage:
         self.rm_set_label = RM.set_label(set_name)
         if set_name.startswith("gear:"):
             self.rm_fold.add(RM.gear_kind(set_name[5:]))
+        elif set_name.startswith("unique:"):
+            from . import uniquedata as UD
+            self.rm_fold.add(f"u:{UD.group_of(RM.set_label(set_name))}")    # its type's group opens
+        else:
+            self.rm_fold.add(f"set:{set_name}")              # the picked set's group opens
         self.rm_ticked.clear()
         self.rm_tpick = None
         self.rm_load()
@@ -403,8 +455,8 @@ class RateModsPage:
         q = self.rm_qv.get().strip().lower()
         ents = self.rm_entries(s)
         cat = getattr(self, "rm_cat", None)
-        if cat:                                                # (a category picked in the set list)
-            ents = [e for e in ents if e.get("cat") == cat]
+        if cat:                                                # a base picked in the set list: every mod on it
+            ents = [e for e in ents if cat in (e.get("cats") or [e.get("cat")])]
         self.rm_q = ents if not q or q in self.rm_set_label.lower() else [e for e in ents if self._rm_match(e, q)]
         if not keep:
             cur = [i for i, e in enumerate(self.rm_q) if RM.current(e["keys"]) is None]
@@ -454,11 +506,14 @@ class RateModsPage:
 
     def rm_set_menu(self, btn):
         """The sets as a drop-down (the Drawer, and the Table view): grouped, each with how many you've rated."""
-        menu = tk.Menu(self.root, tearoff=0)
+        from .listkit import _menu
+        menu = _menu(self.root)                               # 3.3.0 owner: the app's own menu colors
         for title, items in self.rm_groups():
             menu.add_command(label=title, state="disabled")
             for it in items:
-                if len(it) == 3:
+                if len(it) == 3 and str(it[0]).startswith("set:"):
+                    self._rm_menu_row(menu, *it[2][0])
+                elif len(it) == 3:
                     for s, lab in it[2]:
                         self._rm_menu_row(menu, s, f"{it[1]} › {lab}")
                 else:
@@ -495,8 +550,18 @@ class RateModsPage:
                     shown.append(it)
             if not shown:
                 continue
-            cv.text(8, y + 8, title, F_CAP, fill=cv.c("text_muted"))
-            y += 28
+            if title == UNIQ_TITLE:                    # 3.3.0 owner: the uniques fold
+                folded = self.rm_uniq_folded() and not self.rm_qv.get().strip()
+                tag = "grp:uniq"
+                cv.text(8, y + 8, ("▸ " if folded else "▾ ") + title, F_CAP, fill=cv.c("text_muted"), tags=(tag,))
+                cv.acts[tag] = self.rm_uniq_flip
+                cv.tips[tag] = f"{'Open' if folded else 'Fold'} the uniques you've checked"
+                y += 28
+                if folded:
+                    continue
+            else:
+                cv.text(8, y + 8, title, F_CAP, fill=cv.c("text_muted"))
+                y += 28
             for it in shown:
                 if len(it) == 3:
                     y = self._rm_draw_kind(cv, it, y, w)
@@ -507,7 +572,59 @@ class RateModsPage:
             y = 40
         return y + 8
 
+    def _rm_set_cats(self, s):
+        """{mod group: [rated, mods]} of a set, when it has more than one group."""
+        cats = {}
+        order = RM.base_order(s)                               # 3.3.0 owner: the bases, in the game's order
+        for b in order:
+            cats[b] = [0, 0]
+        for e in self.rm_entries(s):
+            done = RM.current(e["keys"]) is not None
+            for c in e.get("cats") or ([e["cat"]] if e.get("cat") else []):
+                c = cats.setdefault(c, [0, 0])
+                c[1] += 1
+                c[0] += done
+        cats = {k: v for k, v in cats.items() if v[1]}
+        return cats if len(cats) >= 2 else {}
+
+    def _rm_draw_one_set(self, cv, it, y, w):
+        """Tablets, Waystones, Relics, Jewels: a header that folds, like Armour. Open: Every mod, then its groups."""
+        kind, title, kids = it
+        s, _lab = kids[0]
+        q = bool(self.rm_qv.get().strip())
+        opened = kind in self.rm_fold or q
+        r, n = self.rm_counts.get(s, (0, 0))
+        cats = self._rm_set_cats(s)
+        tag = f"kind:{kind}"
+        on = s == self.rm_set
+        cv.card(2, y, w - 4, y + 36, tag=tag, fill=cv.c("surface_raised"), outline=cv.c("accent") if on and not opened
+                else cv.c("border"), r=8)
+        pic = self.rm_pic(s, None, 24)
+        tx = 12
+        cv.text(tx, y + 18, "▾" if opened else "▸", F_BODY, anchor="w", tags=(tag,))
+        tx += 16
+        if pic is not None:
+            cv.create_image(tx + 12, y + 18, image=pic, anchor="center", tags=(tag,))
+            tx += 30
+        cv.text(tx, y + 18, title, F_BOLD if on else F_BODY, anchor="w", tags=(tag,))
+        groups = f"{len(cats)} groups · " if cats else ""
+        cv.text(w - 12, y + 18, f"{groups}{r} of {n} rated" + (" ✓" if n and r == n else ""), F_SMALL,
+                fill=cv.c("text_muted"), anchor="e", tags=(tag,))
+        cv.acts[tag] = lambda k=kind: self.rm_fold_flip(k)
+        cv.tips[tag] = f"{'Fold' if opened else 'Open'} {title}"
+        y += 40
+        if not opened:
+            return y
+        top = y
+        y = self._rm_set_row(cv, s, "Every mod", 16, y, w, groups=False, whole=title)
+        if cats:
+            y = self._rm_cat_rows(cv, s, 18, w - 4, y, cats)
+        cv.create_line(10, top, 10, y - 4, fill=cv.c("border"))
+        return y + 4
+
     def _rm_draw_kind(self, cv, it, y, w):
+        if str(it[0]).startswith("set:"):
+            return self._rm_draw_one_set(cv, it, y, w)
         kind, title, kids = it
         q = bool(self.rm_qv.get().strip())
         opened = kind in self.rm_fold or q
@@ -516,7 +633,8 @@ class RateModsPage:
         tag = f"kind:{kind}"
         cv.card(2, y, w - 4, y + 32, tag=tag, fill=cv.c("surface_raised"), outline=cv.c("border"), r=8)
         cv.text(12, y + 16, ("▾ " if opened else "▸ ") + title, F_BODY, anchor="w", tags=(tag,))
-        cv.text(w - 12, y + 16, f"{len(kids)} sets · {r} of {n} rated", F_SMALL, fill=cv.c("text_muted"), anchor="e",
+        word = "uniques" if str(kind).startswith("u:") else "sets"
+        cv.text(w - 12, y + 16, f"{len(kids)} {word} · {r} of {n} rated", F_SMALL, fill=cv.c("text_muted"), anchor="e",
                 tags=(tag,))
         cv.acts[tag] = lambda k=kind: self.rm_fold_flip(k)
         cv.tips[tag] = f"{'Fold' if opened else 'Open'} the {title} sets"
@@ -529,13 +647,25 @@ class RateModsPage:
         cv.create_line(10, top, 10, y - 4, fill=cv.c("border"))
         return y + 4
 
+    @staticmethod
+    def rm_uniq_folded():
+        from .config import SETTINGS
+        return bool(SETTINGS.get("rm_uniq_folded"))
+
+    def rm_uniq_flip(self):
+        from .config import SETTINGS, save_json
+        SETTINGS["rm_uniq_folded"] = not self.rm_uniq_folded()
+        save_json("settings.json", SETTINGS)
+        self.rm_setcv.later(0)
+
     def rm_fold_flip(self, kind):
         self.rm_fold.symmetric_difference_update({kind})
         self.rm_setcv.later(0)
 
-    def _rm_set_row(self, cv, s, lab, ind, y, w):
+    def _rm_set_row(self, cv, s, lab, ind, y, w, groups=True, whole=None):
+        """A set's row. whole: the set's own name when this row stands for all of it inside its folding group."""
         r, n = self.rm_counts.get(s, (0, 0))
-        on = s == self.rm_set
+        on = s == self.rm_set and (whole is None or not self.rm_cat)
         tag = f"set:{s}"
         x0, x1 = 2 + ind, w - 4
         fill = cv.c("selection") if on else cv.c("surface")
@@ -555,29 +685,33 @@ class RateModsPage:
             cv.create_rectangle(bx0, by, bx0 + max(2, int((bx1 - bx0) * r / n)), by + 3, outline="", tags=(tag,),
                                 fill=cv.c("accent") if on else cv.c("text_muted"))
         cv.acts[tag] = lambda s=s: self.rm_pick(s)
-        cv.tips[tag] = f"{r} of {n} {lab} mods rated by you"
+        cv.tips[tag] = f"{r} of {n} {whole or lab} mods rated by you"
         y += 42
-        if on and not s.startswith(("gear:", "unique:")):     # its categories, each with its progress
+        if groups and on and not s.startswith(("gear:", "unique:")):     # its categories, each with its progress
             y = self._rm_cat_rows(cv, s, x0 + 14, x1, y)
         return y
 
-    def _rm_cat_rows(self, cv, s, x0, x1, y):
-        cats = {}
-        for e in self.rm_entries(s):
-            c = cats.setdefault(e.get("cat") or "", [0, 0])
-            c[1] += 1
-            c[0] += RM.current(e["keys"]) is not None
-        names = sorted(cats, key=lambda g: (g.startswith("All "), g.lower()))
+    def _rm_cat_rows(self, cv, s, x0, x1, y, cats=None):
+        if cats is None:
+            cats = self._rm_set_cats(s) or {"": [0, 0]}
+        order = RM.base_order(s)
+        names = sorted(cats, key=lambda g: (order.index(g) if g in order else len(order), g.startswith("All "),
+                                            g.lower()))
         if len(names) < 2:
             return y
         top = y
         for name in names:
             r, n = cats[name]
-            on = name == self.rm_cat
+            on = name == self.rm_cat and s == self.rm_set
             tag = f"cat:{s}:{name}"
             cv.card(x0, y, x1, y + 30, tag=tag, fill=cv.c("surface_high") if on else cv.c("surface"),
                     outline=cv.c("surface_high") if on else cv.c("surface"), r=6)
-            cv.text(x0 + 10, y + 6, ("▸ " if on else "") + name, F_BOLD if on else F_SMALL, tags=(tag,),
+            pic = self.rm_pic(s, {"cat": name}, 18)
+            tx = x0 + 10
+            if pic is not None:                                # 3.3.0 owner: each group shows its item
+                cv.create_image(tx + 9, y + 13, image=pic, anchor="center", tags=(tag,))
+                tx += 24
+            cv.text(tx, y + 6, ("▸ " if on else "") + name, F_BOLD if on else F_SMALL, tags=(tag,),
                     fill=cv.c("text_strong") if on else cv.c("text"))
             cv.text(x1 - 8, y + 6, f"{r} of {n}" + (" ✓" if n and r == n else ""), F_SMALL, anchor="ne",
                     fill=cv.c("text_muted"), tags=(tag,))
@@ -664,6 +798,10 @@ class RateModsPage:
                       lift=False, r=12)
         cv.tag_lower(box, t)
         y += th + 40 + 12
+        if e.get("kind"):                              # 3.3.0 owner: what kind of mod it is, in words
+            kt = cv.text((x0 + x1) / 2, y, e["kind"], F_SMALL, fill=cv.c("text_muted"), anchor="n", tags=("kind",))
+            cv.tips["kind"] = f"A {e['kind'].lower()} mod"
+            y = cv.bottom(kt, y + 16) + 8
         y = self._rm_rolls(cv, e, (x0 + x1) / 2, y, x1 - x0 - 2 * pad)
         y = self._rm_facts(cv, e, cur, x0 + pad, x1 - pad, y, narrow)
         key = self.rm_roll_key(e)
@@ -683,7 +821,11 @@ class RateModsPage:
         else:
             self._rm_btn(cv, bx + bw + gap, y, bw, 32, "Skip", "nav:skip", lambda: self.rm_step(1), off=last,
                          tip="The next mod, without rating this one. Key: →")
-        y += 32 + 16
+        nw = 170                                       # 3.3.0 owner: on the item, nothing to do with its price
+        self._rm_btn(cv, (x0 + x1) / 2 - nw / 2, y + 32 + 10, nw, 28, "Doesn't affect price", "nav:notprice",
+                     self.rm_not_price, font=F_SMALL,
+                     tip="Takes this mod out of the list")
+        y += 32 + 10 + 28 + 16
         rated, total = self.rm_counts.get(self.rm_set, (0, 0))
         if total and rated == total:
             cv.text((x0 + x1) / 2, y + 4, f"✓ All {total} rated - thanks!", F_SMALL, fill=cv.c("good"), anchor="n")
@@ -756,19 +898,31 @@ class RateModsPage:
 
     def rm_pic_url(self, s, e=None):
         try:
-            from .pricecheck_page import art_url, icons
+            from .pricecheck_page import art_url, icons, JEWEL_ART
         except Exception:
             return None
         rolls = [r for r in (e or {}).get("rolls") or [] if r != "All types"]
+        cat = (e or {}).get("cat")
+        if cat is not None:                                    # 3.3.0 owner: a base group's own picture
+            if s == "jewel":
+                return JEWEL_ART.get(cat) or JEWEL_ART["Diamond"]
+            if s in ("tablet", "relic"):
+                return art_url(cat)
+            if s == "waystone":
+                import re as _re
+                m = _re.findall(r"\d+", cat)
+                return art_url(f"Waystone Tier {m[-1]}" if m else "Waystone Tier 16")
         if s == "tablet":
-            return art_url(f"{rolls[0]} Tablet" if len(rolls) == 1 else "Irradiated Tablet")
+            return art_url(rolls[0] if len(rolls) == 1 else "Irradiated Tablet")
         if s == "waystone":
             return art_url("Waystone")
         ic = icons()
         if s.startswith("unique:"):
             return ic.get(RM.set_label(s))
-        if s == "jewel" and rolls and ic.get(rolls[0]):
-            return ic[rolls[0]]
+        if s == "relic":
+            return art_url(rolls[0] if len(rolls) == 1 else "Amphora Relic")
+        if s == "jewel":                                       # 3.3.0 owner: a jewel's own picture, a Diamond for
+            return JEWEL_ART[rolls[0] if len(rolls) == 1 and rolls[0] in JEWEL_ART else "Diamond"]   # many
         by = self.__dict__.get("_rm_pics")
         if by is None or by[0] != len(ic):                    # a picture per set: the lowest base of that class the
             from .gearbook import base_cat                    # app has a picture of - never a unique's own art
@@ -922,11 +1076,15 @@ class RateModsPage:
                 cv.tips[tag] = tip
                 y += 30 + 6
             return y + 10
-        fw = (x1 - x0 - 2 * gap) / 3
+        fw = (x1 - x0) / 3                                # 3.3.0 look pass: one box, a column each (no box each)
+        del gap
+        cv.card(x0, y, x1, y + 52, fill=cv.c("surface"), outline=cv.c("border"), r=8, lift=False)
         for i, (lab, val, tip) in enumerate(facts):
             tag = f"fact:{i}"
-            fx = x0 + i * (fw + gap)
-            cv.card(fx, y, fx + fw, y + 52, tag=tag, fill=cv.c("surface"), outline=cv.c("border"), r=8, lift=False)
+            fx = x0 + i * fw
+            if i:
+                cv.create_line(fx, y + 8, fx, y + 44, fill=cv.c("border"))
+            cv.create_rectangle(fx + 1, y + 1, fx + fw - 1, y + 51, fill="", outline="", tags=(tag,))
             cv.text(fx + 12, y + 9, lab, F_CAP, fill=cv.c("text_muted"), tags=(tag,))
             cv.text(fx + 12, y + 27, cv.fit(val, F_BODY, fw - 24), F_BODY, tags=(tag,))
             cv.tips[tag] = tip
@@ -1051,8 +1209,8 @@ class RateModsPage:
         return y + 28 + bh + 6 + 20 + 16
 
     def _rm_letter(self, cv, x, y, w, h, g, on, font, tip, fn=None, tag=None):
-        """A letter button: the letter's own color strip along its top (filled with that color when it's yours, with a
-        ✓) - the group's word stays under it, so the color is never alone."""
+        """A letter button: the letter drawn in its own color (the button filled with that color when it's yours, with
+        a ✓) - the group's word stays under it, so the color is never alone. 3.3.0 owner: no color strip on it."""
         col = letter_color(g)
         tag = tag or f"rate:{g}"
         if on:
@@ -1060,8 +1218,7 @@ class RateModsPage:
             ink = text_on(col)
         else:
             cv.card(x, y, x + w, y + h, tag=tag, fill=cv.c("surface_raised"), outline=cv.c("border_light"), r=8)
-            cv.create_rectangle(x + 6, y + 3, x + w - 6, y + 6, fill=col, outline="", tags=(tag,))
-            ink = cv.c("text")
+            ink = letter_color(g, cv.c("surface_raised"))
         cv.text(x + w / 2, y + h / 2 + 1, _letter(g), font, fill=ink, anchor="center", tags=(tag,))
         if on:
             cv.text(x + w - 6, y + 4, "✓", F_SMALL, fill=ink, anchor="ne", tags=(tag,))
@@ -1117,6 +1274,27 @@ class RateModsPage:
             self.rm_i += 1
         self._rm_redraw()
         return grade
+
+    def rm_not_price(self):
+        """3.3.0 owner: this mod leaves the list - a toast can bring it back."""
+        e = self.rm_current()
+        if e is None:
+            return
+        RM.mark_not_price(e["keys"])
+        self.__dict__.pop("_rm_ent", None)
+        i = self.rm_i
+        self.rm_load()
+        self.rm_i = min(i, max(0, len(self.rm_q) - 1))
+        self._rm_redraw()
+        if hasattr(self, "app_toast"):
+            self.app_toast(f"{e['text']} left the list.", title="Doesn't affect price",
+                           actions=(("Undo", lambda k=e["keys"]: self.rm_not_price_undo(k)),))
+
+    def rm_not_price_undo(self, keys):
+        RM.mark_not_price(keys, on=False)
+        self.__dict__.pop("_rm_ent", None)
+        self.rm_load()
+        self._rm_redraw()
 
     def rm_step(self, d):
         if self.rm_view == "Table":
@@ -1275,7 +1453,8 @@ class RateModsPage:
 
     def rm_row_menu(self, e, x, y):
         cur = RM.current(e["keys"])
-        menu = tk.Menu(self.root, tearoff=0)
+        from .listkit import _menu
+        menu = _menu(self.root)
         menu.add_command(label="Rate this mod:", state="disabled")
         for g, label in SHOWN:
             word = RM.GRADE_WORD[g]
@@ -1284,6 +1463,9 @@ class RateModsPage:
         if cur:
             menu.add_separator()
             menu.add_command(label="Clear my rating", command=lambda: self.rm_rate_one(e, None))
+        menu.add_separator()
+        menu.add_command(label="Report a Problem…", command=lambda: self.dr_report(
+            "ratemods", e["keys"][0], getattr(self, "rm_set_label", ""), e.get("text") or ""))
         self.rm_menu_open = menu
         try:
             menu.tk_popup(x, y)
@@ -1430,8 +1612,11 @@ class RateModsPage:
         bottom = cv.bottom(t, y + 26)
         cv.acts[f"mod:{i}"] = lambda e=e: self.rm_tpick_row(e)
         cv.tips[f"mod:{i}"] = "Open it on the card (One at a Time)" if self.rm_narrow else "Show it in the side panel"
+        if not narrow and e.get("kind"):                      # 3.3.0 owner: its kind, in words, under the mod
+            t2 = cv.text(mx0 + 12, bottom + 2, e["kind"], F_SMALL, fill=cv.c("text_muted"), width=mx1 - mx0 - 24)
+            bottom = cv.bottom(t2, bottom + 16)
         if narrow:
-            bits = []
+            bits = [e["kind"]] if e.get("kind") else []
             if e.get("rolls"):
                 bits.append("Rolls on " + ", ".join(e["rolls"][:2]) + (f" +{len(e['rolls']) - 2}" if
                                                                         len(e["rolls"]) > 2 else ""))

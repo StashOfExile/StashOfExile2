@@ -1,0 +1,51 @@
+{
+ "files": {
+  "anointdata.json": {
+   "sha256": "c5a27c769b414086ed494e4d173397323bac906aa62d51c89218f40fb165f376",
+   "version": 1
+  },
+  "atlasmasters.json": {
+   "sha256": "d2b6aa5add4aecf11aaa0eb48ae50058747c3c610a97358694811bf217f5a306",
+   "version": 2
+  },
+  "cxnames.json": {
+   "sha256": "09bdce62bd44b1f150656f4cb300742a918480d765aa3422ccb50663712d2d8f",
+   "version": 1
+  },
+  "default_rules.json": {
+   "sha256": "41a283d1819853016140f3525578f702ada2b67a88916794842507453c5957d0",
+   "version": 5
+  },
+  "gamedata.json": {
+   "sha256": "d74bc9d5b249b58ffa4401a40eff15d3483f05b30ad2d86bac93fec88a09b245",
+   "version": 1
+  },
+  "gamedb.json": {
+   "sha256": "e16b5dc0aa7bf23baaf2320ca4e5162b3350f45d9101a70929d7ed365482fd1b",
+   "version": 6
+  },
+  "gamedb_hide.json": {
+   "sha256": "6574681fcee109a349df7a536db0f8dac61d10e72f6dc79ce85b010352060e64",
+   "version": 2
+  },
+  "modlists.json": {
+   "sha256": "eed60481e6c799fff745b5e01c48c57deb7134740e7d3dbe8eae7cb99c4c3a9e",
+   "version": 2
+  },
+  "regexdata.json": {
+   "sha256": "67d2be9c4a37ac28664aa0524330b204744abdf5c20f0b02e4b1018393cee44e",
+   "version": 4
+  },
+  "searchdata.json": {
+   "sha256": "82144d6599cf2fa08b4ec5fcc1bd2f6cf9e4e68f39e5811d2c62cc6df4e2eeea",
+   "version": 2
+  },
+  "uniquedata.json": {
+   "sha256": "ad61b0b1b07d3334b01a3e751e9f72f27f57d6a36861bb7a797a20d427be735b",
+   "version": 2
+  }
+ },
+ "snapshots": {
+  "poe2-0.5.5.10.json.gz": "ab6fc9bf06bc085dc5c573366b6ec251a696181ac3d959397b13969b1277a9c9"
+ }
+}

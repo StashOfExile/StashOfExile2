@@ -13,7 +13,7 @@ from . import buglog
 from .config import save_json, SETTINGS
 from .gamelog import find_log, LogReader
 from .overlay import game_active, key_label, parse_key
-from .style import ScrollArea, C, SegBar
+from .style import ScrollArea, C, SegBar, Tooltip
 from .chrome import section as chrome_section
 from . import tracker as TR
 from .tracker import fmt_time, Session, Sessions
@@ -100,10 +100,47 @@ class TrackerPage:
     # Overlay, Look, Options - then Sessions, the Session timer's records (Map Runs takes them in nav phase 4).
     # Overlay Settings (a child page, 2.82.0 - 2.143.0) is gone: its parts are these tabs; the overlay's look moved
     # here from Settings › Appearance. The overlay's one on / off switch sits above every tab.
-    OVH_TABS = ("Helpers", "On the Overlay", "Look", "Options", "Sessions")
+    OVH_TABS = ("Helpers", "On the Overlay", "Appearance", "Options", "Sessions")
     # what older code and old links ask for -> the tab it is on now
     OVH_OLD = {"Mechanic Helper": "Helpers", "Settings": "Helpers", "Overlay": "Helpers", "Notes": "On the Overlay",
-               "Appearance": "Look", "Session timer": "Sessions"}
+               "Look": "Appearance", "Session timer": "Sessions"}       # 3.3.0 owner: Look is Appearance
+
+    def _helpers_howto(self, parent):
+        """3.3.0 owner: one plain place that says how to use the helpers, with the Read Key shown as a key and a
+        button to change it. One line on the panel itself, no box of its own. It follows the key when it changes,
+        and goes while no key is set: that state has its own line and button."""
+        P2 = C["panel2"]
+        row = tk.Frame(parent, bg=P2)
+        line = tk.Frame(row, bg=P2)
+        # 3.3.0 owner: the first wording read as generic. It names the key as yours and says what a press does.
+        tk.Label(line, text="Your Read Key is", bg=P2, fg=C["text"], font=("Segoe UI", 10, "bold")).pack(
+            side="left", padx=(0, 8))
+        cap = tk.Label(line, text="", bg=C["bg"], fg=C["text"], font=("Segoe UI", 10, "bold"), padx=8, pady=1,
+                       highlightthickness=1, highlightbackground=C["line"])
+        cap.pack(side="left")
+        tk.Label(line, text="One press in game runs the helper for what is on your screen.", bg=P2,
+                 fg=C["text"], font=("Segoe UI", 10)).pack(side="left", padx=(8, 12))
+        link = tk.Label(line, text="Change key", bg=P2, fg=C["accent"], cursor="hand2",
+                        font=("Segoe UI", 10, "underline"))
+        link.pack(side="left")
+        link.bind("<Button-1>", lambda e: self.look_key_open())
+        Tooltip(link, "Opens Settings, Keybinds, with the Read Key's row lit.")
+
+        def paint(_e=None):
+            k = self.look_key_label()
+            try:
+                if k:
+                    cap.config(text=k)
+                    if not line.winfo_manager():
+                        line.pack(anchor="w")
+                elif line.winfo_manager():
+                    line.pack_forget()
+            except tk.TclError:
+                pass
+        row.bind("<Map>", paint, add="+")
+        self._helpers_howto_paint = paint
+        paint()
+        return row
 
     def build_overlays_hub(self, body):
         P1 = C["panel"]
@@ -166,7 +203,7 @@ class TrackerPage:
 
     def ovh_open(self, tab):
         """Open the Overlay page on one of its tabs (the ⚙ on the overlay, Quick settings' All settings…, old links:
-        "Mechanic Helper" / "Settings" -> Helpers, "Notes" -> On the Overlay, "Appearance" -> Look)."""
+        "Mechanic Helper" / "Settings" -> Helpers, "Notes" -> On the Overlay, "Look" -> Appearance)."""
         tab = self.OVH_OLD.get(tab, tab)
         if tab not in self.OVH_TABS:
             tab = self.OVH_TABS[0]
@@ -454,7 +491,7 @@ class TrackerPage:
         P1 = C["panel"]
         self.tk_ov_switches = {}
         self.ovh_areas = {}
-        for t in ("Helpers", "On the Overlay", "Look", "Options"):
+        for t in ("Helpers", "On the Overlay", "Appearance", "Options"):
             sa = ScrollArea(self.ovh_pages[t], bg=P1)
             sa.pack(fill="both", expand=True, padx=8, pady=8)
             self.ovh_areas[t] = sa
@@ -469,8 +506,9 @@ class TrackerPage:
                                 "Set it in Settings › Keybinds. A helper marked BETA still has rough edges.")
         mo.pack(fill="x")
         self.look_needed(mb, C["panel2"]).pack(fill="x")      # (no Read Key yet: one line, Set the Read Key)
+        self._helpers_howto(mb).pack(fill="x", pady=(0, 8))
         self.build_alerts_panel(mb).pack(fill="x")
-        self.build_overlay_look(self.ovh_areas["Look"].inner)
+        self.build_overlay_look(self.ovh_areas["Appearance"].inner)
         self.tracker_campaign_card(self.ovh_areas["Options"].inner)        # 2.96.1: its own card, full width
 
     def _ov_rows(self, parent, items, prefix="", min_w=330):
@@ -860,6 +898,13 @@ class TrackerPage:
         if self.tk_last_area is not None:                # Round 18: started in your hideout - no Campaign Bar there
             self.campaign_where(self.tk_last_area)
         self.tk_others = {e[2]["who"].lower() for e in evs if e[0] == "party"}       # 2.7.0: other players seen
+        from . import identity as ID                     # 3.3.0: who you are, for the whole app (identity.py)
+        for e in evs:
+            if e[0] == "party":
+                ID.note("party", e[2], e[1])
+        if hasattr(self, "run_bg"):                      # each start, into memory only: who joined your areas
+            self.run_bg(lambda: ID.backfill(path), lambda _n: self.camp_refresh()
+                        if hasattr(self, "camp_refresh") else None)
         self.tk_last_scene = next((e for e in reversed(evs) if e[0] == "scene" and e[2]["name"] != "Atlas"), None)
         size = os.path.getsize(path) / 1048576 if os.path.exists(path) else 0
         self.tk_log_lbl.config(text=f"Following {path} ({size:,.0f} MB - only new lines are read). "
@@ -884,12 +929,13 @@ class TrackerPage:
     def tracker_is_me(self, who):
         """Is this death yours? Your character name (Options) if you set it; otherwise anyone who hasn't joined or
         left your area (the game only logs that for other players). The first death counted that way names you."""
+        from . import identity as ID
         cfg = self.tracker_cfg()
         mine = (cfg.get("character") or "").strip().lower()
         w = (who or "").strip().lower()
         if mine:
             return w == mine
-        if w in getattr(self, "tk_others", set()):
+        if w in getattr(self, "tk_others", set()) or ID.is_other(w):
             return False
         if cfg.get("character_guess", "").lower() != w:
             cfg["character_guess"] = who
@@ -898,12 +944,28 @@ class TrackerPage:
                 self.tracker_char_hint()
         return True
 
+    def identity_log(self, kind, ts, data):
+        """One log event for identity.py. The log named a different one of your characters than the one assumed:
+        the time since the character screen went to the wrong run, so both acts are Personal."""
+        from . import campaign as CP
+        from . import identity as ID
+        try:
+            what = ID.note(kind, data, ts)
+            if what == "switch":
+                CP.mark_personal(data.get("was"))
+                CP.mark_personal(ID.current())
+            if what and hasattr(self, "camp_refresh"):
+                self.camp_refresh()
+        except Exception:
+            buglog.caught()
+
     def tracker_tick(self):
         try:
             s = self.tk_session
             if s is not None and s.ended is None and self.tk_reader is not None:
                 changed = False
                 for kind, ts, data in self.tk_reader.poll():
+                    self.identity_log(kind, ts, data)         # 3.3.0: first - everything below asks who you are
                     if kind == "party":
                         self.tk_others = getattr(self, "tk_others", set()) | {data["who"].lower()}
                         continue
@@ -1236,7 +1298,9 @@ class TrackerPage:
             return
         from tkinter import simpledialog
         s = self.tk_sessions.items[int(iid)]
-        txt = simpledialog.askstring("Note", "A note for this session:", initialvalue=s.note, parent=self.root)
+        from . import cleanguard                               # 3.3.0 owner: a note takes any words
+        with cleanguard.paused():
+            txt = simpledialog.askstring("Note", "A note for this session:", initialvalue=s.note, parent=self.root)
         if txt is not None:
             s.note = txt.strip()
             self.tk_sessions.save()
@@ -1325,6 +1389,7 @@ class TrackerPage:
             zt = _CP.zone_time()
             texts.update(map=f"Zone: {fmt_time(zt) if zt is not None else '-'}", where="", rank="", maps="", avg="")
         texts["focus"] = self.focus_line()[0]                 # 2.73.0: League Focus's line
+        texts["calendar"] = self.cal_overlay_text()           # 3.3.0 owner: the Calendar's next event
         try:
             texts["profit"] = self.mp_bar_text()              # 2.132.0: Map profit's part on the bar
         except Exception:

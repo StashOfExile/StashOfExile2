@@ -79,10 +79,10 @@ def load(app):
     from .crafthelper import CraftHelper
     from .maps import MapLibrary
     from .plan import GamePlan
-    from .favorites import Favorites
     from .leaderboards import Leaderboards
     from .mapprofit import MapProfit
     from .ratemods import RateMods
-    return [cls(app) for cls in (Dashboard, PriceCheck, PriceChecks, Wealth, ModBook, Library, Regex, Search, Tracker, Notes,
-                                 Rates, Insights, Favorites, RateMods, MoneyMakers, CraftHelper, MapLibrary, MapProfit, Leaderboards, GamePlan,
+    from .calendar import Calendar
+    return [cls(app) for cls in (Dashboard, Calendar, PriceCheck, PriceChecks, Wealth, ModBook, Library, Regex, Search, Tracker, Notes,
+                                 Rates, Insights, RateMods, MoneyMakers, CraftHelper, MapLibrary, MapProfit, Leaderboards, GamePlan,
                                  Settings)]

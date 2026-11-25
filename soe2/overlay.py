@@ -18,6 +18,7 @@ import threading
 import time
 import tkinter as tk
 from . import buglog
+from . import cleanguard as _cleanguard
 
 POE_TITLE = "Path of Exile 2"
 
@@ -199,6 +200,16 @@ def send_copy(sender=None):
     send([(0x10, None, True),                                                       # Shift up (it changes the copy)
           (0x11, None, False), (0x12, None, False), (0x43, None, False), (0x43, None, True),
           (0x12, None, True), (0x11, None, True)])
+
+
+ALT_AGAIN = (0.08, 0.3)     # seconds after the copy: Alt is let go again, in case the game missed the first one
+
+
+def release_alt(sender=None):
+    """3.3.0 owner: after a price check the game's item window stayed up as if Alt were still held. The copy
+    presses and lets go of Alt in one burst; if the game is not in front for that instant it never sees Alt
+    let go. Letting go once more is harmless: a key that is already up stays up."""
+    (sender or _send_keys)([(0x12, None, True)])
 
 
 CLIP_HOOK = [None]          # the app sets this: fn(text) -> "ignore this clipboard text for a moment"
@@ -468,6 +479,7 @@ class Overlay:
         text = tk.Text(host, bg=bg, fg=fg, insertbackground=fg, relief="flat", highlightthickness=0, wrap="word",
                        font=(self.note_body_font(), int(c.get("notes_font", 11))), padx=8, pady=4,
                        spacing1=2, spacing3=2)
+        _cleanguard.free(text)        # 3.3.0: Notes take any words, by the owner's word
         text.pack(fill="both", expand=True)
         tabs, i = self.note_tabs(), self.note_index()
         text.insert("1.0", tabs[i]["text"])
@@ -731,8 +743,9 @@ class Overlay:
     def rename_tab(self, i, name=None):
         if name is None:
             from tkinter import simpledialog
-            name = simpledialog.askstring("Rename note", "Name:", initialvalue=self.note_tabs()[i]["name"],
-                                          parent=self.notes)
+            with _cleanguard.paused():                         # 3.3.0 owner: notes take any words
+                name = simpledialog.askstring("Rename note", "Name:", initialvalue=self.note_tabs()[i]["name"],
+                                              parent=self.notes)
         if name and name.strip():
             self.note_tabs()[i]["name"] = name.strip()[:30]
             self.save_settings()
