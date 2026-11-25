@@ -431,6 +431,17 @@ class Dashboard(tk.Canvas):
                          fill=acc if self.hover == "cal_open" else brass, tags=("cal_open",))
         self.acts["cal_open"] = lambda: sh.open("calendar")
         self.tips["cal_open"] = "Every league, Twitch Drops campaign, event and race, by month."
+        try:                                                 # admins: drafts from Steam news that wait for a review
+            waiting = self.app.cal_drafts_count()
+        except Exception:
+            waiting = 0
+        if waiting:
+            ox = self.bbox(self.find_withtag("cal_open")[0])[0]
+            self.create_text(ox - 20, y + 22 - up, anchor="ne", tags=("cal_drafts",),
+                             text=f"● {waiting} draft{'s' if waiting != 1 else ''} to review",
+                             font=("Segoe UI", 10, "underline" if self.hover == "cal_drafts" else "bold"), fill=acc)
+            self.acts["cal_drafts"] = lambda: (sh.open("calendar"), self.app.cal_drafts())
+            self.tips["cal_drafts"] = "Admin: events the board drafted from Steam news. None reaches a user until you post it."
         if not rows:
             self.create_text(x0 + 20, y + top + rh / 2, anchor="w", font=plain_f, fill=mut, width=x1 - x0 - 40,
                              text="Nothing coming up yet. Leagues, Twitch Drops, events and races show here.")

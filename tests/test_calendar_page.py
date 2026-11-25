@@ -165,6 +165,22 @@ class Page(unittest.TestCase):
         self.assertEqual(labels, ["Add Reminder…", "Change Reminder…", "Open Link", "Delete"])
         self.assertEqual(str(m.entrycget(labels.index("Delete") + 2, "state")), "disabled", "a board event")
 
+    def test_the_month_waits_for_its_real_size(self):
+        """3.3.0 owner: the first open drew one tiny square. No size yet means nothing is drawn, and it tries again."""
+        again = []
+        self.h.cal_grid.config(width=1, height=1)
+        self.h.cal_grid.pack_propagate(False)
+        with mock.patch.object(self.h.cal_grid, "winfo_width", lambda: 1), \
+                mock.patch.object(self.h, "cal_draw_soon", lambda tries=0: again.append(tries)):
+            self.h.cal_draw()
+        self.assertEqual(self.h.cal_cells, [], "no squashed grid")
+        self.assertEqual(self.h.cal_grid.find_all(), ())
+        self.assertEqual(again, [1], "it draws again once it has a size")
+        with mock.patch.object(self.h.cal_grid, "winfo_width", lambda: 1), \
+                mock.patch.object(self.h, "cal_draw_soon", lambda tries=0: again.append(tries)):
+            self.h.cal_draw(tries=40)
+        self.assertEqual(again, [1], "and gives up quietly, never a loop")
+
     def test_remind_me_sets_then_clears(self):
         self.h.cal_remind_me("b1")
         self.assertEqual(CD.reminders({"id": "b1"}), [86400, 0])
@@ -341,6 +357,21 @@ class AdminPage(Page):
             dlg.destroy()
 
 
+    def test_waiting_drafts_are_said_in_words_on_the_button(self):
+        self.assertEqual(self.h.cal_drafts_btn.cget("text"), "Drafts")
+        with mock.patch("soe2.board.event_drafts", lambda: (True, {"events": [
+                {"id": "b30", "kind": "drops", "name": "A", "start": 5}, {"id": "b31", "kind": "league", "name": "B", "start": 5}]})):
+            self.h.cal_drafts_pull()
+        self.assertEqual(self.h.cal_drafts_count(), 2)
+        self.assertEqual(self.h.cal_drafts_btn.cget("text"), "● Drafts: 2 to review", "a mark and words, not a color")
+        self.assertNotEqual(str(self.h.cal_drafts_btn.cget("style")), "Primary.TButton", "still one orange button")
+        with mock.patch("soe2.board.event_drafts", lambda: (False, "down")):
+            self.h.cal_drafts_pull()
+        self.assertEqual(self.h.cal_drafts_count(), 2, "a board that does not answer changes nothing")
+        self.h.cal_drafts_set(0)
+        self.assertEqual(self.h.cal_drafts_btn.cget("text"), "Drafts")
+
+
 class NotAdmin(Page):
     def test_no_admin_parts_for_everyone_else(self):
         self.assertFalse(self.h.cal_post_btn.winfo_manager())
@@ -348,6 +379,10 @@ class NotAdmin(Page):
         self.assertIsNone(self.h.cal_post())
         self.assertIsNone(self.h.cal_drafts())
         self.assertFalse(self.h.cal_drafts_btn.winfo_manager())
+        with mock.patch("soe2.board.event_drafts", lambda: self.fail("only an admin asks the board for drafts")):
+            self.h.cal_drafts_pull()
+        self.h.cal_drafts_n = 5
+        self.assertEqual(self.h.cal_drafts_count(), 0)
         self.assertIsNone(self.h.cal_delete_event())
         self.assertFalse(any(a and str(a[0]).startswith("Admin") for a in self.h.cal_menu_actions()))
 

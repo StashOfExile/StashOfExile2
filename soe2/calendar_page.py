@@ -17,6 +17,7 @@ from .style import C, over_app
 
 KEY = "calendar"
 TICK_MS = 20000
+SMALLEST = 140                     # a grid narrower or shorter than this has not been laid out yet
 PULL_SECS = 1800                   # the board's events are asked for when the app starts and every 30 minutes
 DEFAULT_LEADS = (86400, 0)
 VIEWS = ("Month", "List")
@@ -74,7 +75,7 @@ class CalendarPage:
         self.undo_button(bar, KEY, side="right", padx=(0, 8))
         self.cal_post_btn = ttk.Button(bar, text="Post Event", width=0, command=self.cal_post)
         Tooltip(self.cal_post_btn, "Admin: posts an event to the board. Every user's Calendar shows it.")
-        self.cal_drafts_btn = ttk.Button(bar, text="Drafts", width=0, command=self.cal_drafts)
+        self.cal_drafts_btn = ttk.Button(bar, text=self.cal_drafts_words(), width=0, command=self.cal_drafts)
         Tooltip(self.cal_drafts_btn, "Admin: events the board drafted from Steam news. None reaches a user until "
                                      "you post it.")
         if self.cal_is_admin():
@@ -97,6 +98,7 @@ class CalendarPage:
         self.cal_head.pack(fill="x")
         self.cal_grid = tk.Canvas(lf, bg=P1, highlightthickness=0, bd=0)
         self.cal_grid.bind("<Configure>", lambda e: self.cal_draw())
+        self.cal_grid.bind("<Map>", lambda e: self.cal_draw_soon())
         self.cal_grid.bind("<Button-1>", self.cal_grid_click)
         self.cal_grid.bind("<Double-Button-1>", lambda e: (self.cal_grid_click(e), self.cal_add()))
         self.cal_grid.bind("<Button-3>", self.cal_grid_menu)
@@ -134,9 +136,47 @@ class CalendarPage:
         except Exception:
             return False
 
+    def cal_drafts_count(self):
+        """How many drafts wait for an admin; 0 for everyone else."""
+        return int(getattr(self, "cal_drafts_n", 0) or 0) if self.cal_is_admin() else 0
+
+    def cal_drafts_words(self):
+        """What the Drafts button says: the number is in the words, with a mark, never a color alone."""
+        n = self.cal_drafts_count()
+        return f"● Drafts: {n} to review" if n else "Drafts"
+
+    def cal_drafts_set(self, n):
+        self.cal_drafts_n = max(0, int(n or 0))
+        btn = getattr(self, "cal_drafts_btn", None)
+        try:
+            if btn is not None and btn.winfo_exists():
+                btn.config(text=self.cal_drafts_words())
+        except tk.TclError:
+            pass
+        dash = getattr(getattr(self, "shell", None), "modules", {}).get("dashboard")
+        page = getattr(dash, "page", None)
+        if page is not None:
+            page.later()
+
+    def cal_drafts_pull(self):
+        """Admins only: ask the board how many drafts wait. Everyone else never asks."""
+        if not self.cal_is_admin():
+            return
+        from . import board as B
+
+        def done(res):
+            ok, data = res if isinstance(res, tuple) and len(res) == 2 else (False, None)
+            if ok and isinstance(data, dict):
+                self.cal_drafts_set(len(CD.clean_board_rows(data.get("events"))))
+        try:
+            self.run_bg(B.event_drafts, done)
+        except Exception:
+            buglog.caught()
+
     def cal_pull(self, then=None):
         """The board's events, asked for off the window's thread and put in place on it."""
         self.cal_pulled_at = time.time()
+        self.cal_drafts_pull()
 
         def done(rows):
             if rows is not None:
@@ -214,9 +254,27 @@ class CalendarPage:
         except Exception:
             buglog.caught()
 
-    def cal_draw(self, evs=None):
+    def cal_draw_soon(self, tries=0):
+        """Draw once the grid has its real size."""
+        try:
+            self.root.after(60, lambda: self.cal_draw(tries=tries))
+        except tk.TclError:
+            pass
+
+    def cal_draw(self, evs=None, tries=0):
+        """3.3.0 owner: the month came up as one tiny square on the first open. A page that was never shown has
+        no size yet, so the grid waits for its real size and draws then."""
         cv = self.cal_grid
-        if not cv.winfo_ismapped() and evs is None:
+        try:
+            if not cv.winfo_exists():
+                return
+        except tk.TclError:
+            return
+        if cv.winfo_width() < SMALLEST or cv.winfo_height() < SMALLEST:
+            cv.delete("all")
+            self.cal_cells = []
+            if cv.winfo_manager() and tries < 40:
+                self.cal_draw_soon(tries + 1)
             return
         evs = self.cal_events() if evs is None else evs
         import tkinter.font as tkfont
@@ -639,6 +697,7 @@ class CalendarPage:
                     CD.label(ev), f"{CD.day_words(CD.local_day(ev['start']))}, {CD.clock(ev['start'])}"))
             msg.config(fg=C["muted"], text=f"{len(rows)} waiting. Pick one, then Review." if rows else
                        "No drafts. Nothing new on Steam since the last check.")
+            self.cal_drafts_set(len(rows))
             greys()
 
         def load():
