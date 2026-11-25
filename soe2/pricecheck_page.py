@@ -220,6 +220,20 @@ def waystone_tier_icons():
     return _WAY_TIERS["urls"]
 
 
+# 3.3.0 owner: jewels had no picture: the name "Ruby" matched other art. Each base jewel's own picture, from Exiled
+# Exchange 2's item data, MIT, see THIRD_PARTY_NOTICES.txt
+JEWEL_ART = {
+    "Diamond": "https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvSmV3ZWxzL0RpYW1vbmRKZXdlbCIsInciOjEsImgiOjEsInNjYWxlIjoxLCJyZWFsbSI6InBvZTIifV0/0c6491a0b2/DiamondJewel.png",
+    "Emerald": "https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvSmV3ZWxzL0VtZXJhbGRKZXdlbCIsInciOjEsImgiOjEsInNjYWxlIjoxLCJyZWFsbSI6InBvZTIifV0/0df7b1d23b/EmeraldJewel.png",
+    "Ruby": "https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvSmV3ZWxzL1J1YnlKZXdlbCIsInciOjEsImgiOjEsInNjYWxlIjoxLCJyZWFsbSI6InBvZTIifV0/8ef1a48ec8/RubyJewel.png",
+    "Sapphire": "https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvSmV3ZWxzL1NhcHBoaXJlSmV3ZWwiLCJ3IjoxLCJoIjoxLCJzY2FsZSI6MSwicmVhbG0iOiJwb2UyIn1d/976a8c1642/SapphireJewel.png",
+    "Time-Lost Diamond": "https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvSmV3ZWxzL1RpbWVsb3N0RGlhbW9uZEpld2VsIiwidyI6MSwiaCI6MSwic2NhbGUiOjEsInJlYWxtIjoicG9lMiJ9XQ/1f62c0f62a/TimelostDiamondJewel.png",
+    "Time-Lost Emerald": "https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvSmV3ZWxzL1NwZWNpYWxFbWVyYWxkSmV3ZWwiLCJ3IjoxLCJoIjoxLCJzY2FsZSI6MSwicmVhbG0iOiJwb2UyIn1d/9acdb9443b/SpecialEmeraldJewel.png",
+    "Time-Lost Ruby": "https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvSmV3ZWxzL1NwZWNpYWxSdWJ5SmV3ZWwiLCJ3IjoxLCJoIjoxLCJzY2FsZSI6MSwicmVhbG0iOiJwb2UyIn1d/3c28c96282/SpecialRubyJewel.png",
+    "Time-Lost Sapphire": "https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvSmV3ZWxzL1NwZWNpYWxTYXBwaGlyZUpld2VsIiwidyI6MSwiaCI6MSwic2NhbGUiOjEsInJlYWxtIjoicG9lMiJ9XQ/d370c05c11/SpecialSapphireJewel.png",
+}
+
+
 def art_url(base):
     """The picture for an item base (or a unique's name): its own (learned from listings), else a waystone's tier
     picture (the trade site's static list), else the shipped waystone picture. 3.3.0: else, for currency, runes,
@@ -1827,8 +1841,9 @@ class PriceCheckPage:
                 im = Image.open(path)
                 if px == ART_PX:
                     im.thumbnail((px, px))
-                else:
-                    im = im.convert("RGBA").resize((px, max(1, round(px * im.height / max(1, im.width)))),
+                else:                                # 3.3.0 owner: a tall picture, a flask, a relic or a spear,
+                    k = px / max(1, im.width, im.height)          # spilled over its row. It fits a px square now
+                    im = im.convert("RGBA").resize((max(1, round(im.width * k)), max(1, round(im.height * k))),
                                                    Image.LANCZOS)
                 ph = ImageTk.PhotoImage(im, master=self.root)
                 self._pc_art_cache[key] = ph

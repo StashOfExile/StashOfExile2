@@ -439,7 +439,9 @@ class RateModsPage:
         q = self.rm_qv.get().strip().lower()
         ents = self.rm_entries(s)
         cat = getattr(self, "rm_cat", None)
-        if cat:                                                # (a category picked in the set list)
+        if cat == RM.DIAMOND and s == "jewel":                # every Ruby, Emerald and Sapphire mod
+            ents = [e for e in ents if RM.on_diamond(e)]
+        elif cat:                                              # a category picked in the set list
             ents = [e for e in ents if e.get("cat") == cat]
         self.rm_q = ents if not q or q in self.rm_set_label.lower() else [e for e in ents if self._rm_match(e, q)]
         if not keep:
@@ -563,6 +565,10 @@ class RateModsPage:
             c = cats.setdefault(e.get("cat") or "", [0, 0])
             c[1] += 1
             c[0] += RM.current(e["keys"]) is not None
+            if s == "jewel" and RM.on_diamond(e):              # 3.3.0 owner: a Diamond rolls them all
+                d = cats.setdefault(RM.DIAMOND, [0, 0])
+                d[1] += 1
+                d[0] += RM.current(e["keys"]) is not None
         return cats if len(cats) >= 2 else {}
 
     def _rm_draw_one_set(self, cv, it, y, w):
@@ -869,7 +875,7 @@ class RateModsPage:
 
     def rm_pic_url(self, s, e=None):
         try:
-            from .pricecheck_page import art_url, icons
+            from .pricecheck_page import art_url, icons, JEWEL_ART
         except Exception:
             return None
         rolls = [r for r in (e or {}).get("rolls") or [] if r != "All types"]
@@ -880,8 +886,9 @@ class RateModsPage:
         ic = icons()
         if s.startswith("unique:"):
             return ic.get(RM.set_label(s))
-        if s == "jewel" and rolls and ic.get(rolls[0]):
-            return ic[rolls[0]]
+        if s == "jewel":                                       # 3.3.0 owner: a jewel's own picture, a Diamond for
+            kinds = [r for r in rolls if r in JEWEL_ART]       # the whole set - never a unique jewel's art
+            return JEWEL_ART[kinds[0] if len(kinds) == 1 else "Diamond"]
         by = self.__dict__.get("_rm_pics")
         if by is None or by[0] != len(ic):                    # a picture per set: the lowest base of that class the
             from .gearbook import base_cat                    # app has a picture of - never a unique's own art

@@ -349,7 +349,7 @@ class PoE1Filter(unittest.TestCase):
 
 class Shipped(unittest.TestCase):
     def test_bundled_and_built_everywhere(self):
-        self.assertEqual(config.BUNDLED_DATA["gamedb.json"], 4)
+        self.assertEqual(config.BUNDLED_DATA["gamedb.json"], 5)
         self.assertEqual(config.BUNDLED_DATA["atlasmasters.json"], 2)
         self.assertEqual(config.BUNDLED_DATA["gamedb_hide.json"], 2)
         self.assertGreaterEqual(config.BUNDLED_DATA["searchdata.json"], 2)         # (the PoE1 rows left it)

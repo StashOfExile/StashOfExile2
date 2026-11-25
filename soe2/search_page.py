@@ -14,6 +14,7 @@ from . import cleanguard as _cleanguard
 PAGE = 60
 
 
+
 class SearchPage:
     def build_search_window(self, body):
         P1, P2 = C["panel"], C["panel2"]
@@ -133,10 +134,10 @@ class SearchPage:
         """The card's picture when the app knows one (the trade site's art: a tablet, a waystone, an item you priced)."""
         if not SETTINGS.get("pc_art", True) or not hasattr(self, "pc_art"):
             return None
-        if row.get("c") == "Jewel" and row.get("g") == "Jewels":
-            return None                          # 3.0.6 (owner): a base jewel's name matched other art - no picture
-        from .pricecheck_page import art_url
+        from .pricecheck_page import art_url, JEWEL_ART
         try:
+            if row.get("g") == "Jewels":         # 3.3.0 owner: a base jewel's own picture, by its exact name
+                return self.pc_art(JEWEL_ART.get(row["n"]), px=ICON) if row["n"] in JEWEL_ART else None
             return self.pc_art(art_url(row["n"]), px=ICON)
         except Exception:
             buglog.caught()

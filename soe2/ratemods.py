@@ -735,6 +735,14 @@ def players_tip(p):
             "count as High, B C D as Normal, F as Ignore), sent with Community data sharing. One vote per install.")
 
 
+DIAMOND = "Diamond"
+
+
+def on_diamond(e):
+    """A Diamond, made from a Ruby, an Emerald and a Sapphire at the reforging bench, rolls every mod of the three."""
+    return any(t in ("Ruby", "Emerald", "Sapphire") for t in ((e.get("info") or {}).get("tags") or []))
+
+
 def category(set_name, tags):
     """The Table's group for a mod: its tablet type ("All tablets" for the shared ones), jewel type, waystone tiers or
     relic size."""

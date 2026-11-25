@@ -151,7 +151,7 @@ class DataReportsPage:
         tk.Label(dlg, text="What is wrong", bg=P2, fg=C["text"]).pack(anchor="w", pady=(8, 2))
         kind = tk.StringVar(value="")
         for k, words in DR.KINDS:
-            ttk.Radiobutton(dlg, text=words, value=k, variable=kind).pack(anchor="w")
+            ttk.Radiobutton(dlg, text=words, value=k, variable=kind, style="Card.TRadiobutton").pack(anchor="w")
         tk.Label(dlg, text="Note, if it helps", bg=P2, fg=C["text"]).pack(anchor="w", pady=(8, 2))
         note = tk.StringVar()
         ent = ttk.Entry(dlg, textvariable=note, width=56)

@@ -481,9 +481,19 @@ class Build:
     # ---------------------------------------------------------------- Leagues
     def leagues(self):
         G = "Leagues"
+        # 3.3.0 owner: every league so far, with its game version, update and dates
+        hist = py_const(self.root, "soe2/moneymakers.py", "LEAGUE_HISTORY")
+        for name, ver, update, start, end in hist:
+            now = name in self.league
+            self.add(f"league/{slug(name)}", name, G, "Current League" if now else "League",
+                     f"league, game version, {update.lower()}",
+                     [("Game version", ver), ("Update", update), ("Started", start),
+                      ("Ended", end or ("Still running" if now or name in ("Standard", "Runes of Aldur") else ""))],
+                     "soe2/moneymakers.py LEAGUE_HISTORY", ver)
         for name, ver in self.league.items():
-            self.add(f"league/{slug(name)}", name, G, "League", "league, game version",
-                     [("Game version", ver)], "soe2/moneymakers.py LEAGUE_VERSIONS", ver)
+            if not any(h[0] == name for h in hist):
+                self.add(f"league/{slug(name)}", name, G, "League", "league, game version",
+                         [("Game version", ver)], "soe2/moneymakers.py LEAGUE_VERSIONS", ver)
         files = [("modlists.json", self.ml.get("game_version"), "tablet and jewel mods (RePoE)"),
                  ("anointdata.json", read_json(self.root, "anointdata.json").get("version"), "anoints"),
                  ("searchdata.json", self.sd.get("version"), "Game Search's other groups"),

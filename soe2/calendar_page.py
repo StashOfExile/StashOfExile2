@@ -595,7 +595,7 @@ class CalendarPage:
         vars_ = {}
         for words, secs in CD.LEADS:
             v = vars_[secs] = tk.BooleanVar(value=secs in leads)
-            ttk.Checkbutton(dlg, text=words, variable=v).pack(anchor="w")
+            ttk.Checkbutton(dlg, text=words, variable=v, style="Card.TCheckbutton").pack(anchor="w")
         return vars_
 
     def cal_change_reminder(self):
@@ -647,7 +647,7 @@ class CalendarPage:
             step(0)
         day_row("Day", day)
         many = tk.BooleanVar(value=first != last)            # a Shift-clicked range comes filled in
-        ttk.Checkbutton(dlg, text="It runs for more than one day", variable=many).pack(anchor="w")
+        ttk.Checkbutton(dlg, text="It runs for more than one day", variable=many, style="Card.TCheckbutton").pack(anchor="w")
         day_row("Last day", day2)
         tk.Label(dlg, text="Time, on this PC's clock", bg=P2, fg=C["text"]).pack(anchor="w")
         trow, clock = self._cal_time(dlg)
@@ -920,7 +920,7 @@ class CalendarPage:
         tk.Label(dlg, text="Every user sees it in their own time.", bg=P2, fg=C["muted"]).pack(
             anchor="w", pady=(0, 8))
         has_end = tk.BooleanVar(value=bool(ev and ev.get("end")) or (not ev and first != last))
-        ttk.Checkbutton(dlg, text="It has an end", variable=has_end).pack(anchor="w")
+        ttk.Checkbutton(dlg, text="It has an end", variable=has_end, style="Card.TCheckbutton").pack(anchor="w")
         eday, eclock = when("Ends", ev["end"] if ev and ev.get("end") else 0, last)
         tk.Label(dlg, text="Link to its announcement", bg=P2, fg=C["text"]).pack(anchor="w", pady=(8, 0))
         link = tk.StringVar(value=ev.get("link", "") if ev else "")
