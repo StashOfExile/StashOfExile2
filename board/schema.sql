@@ -156,3 +156,22 @@ CREATE TABLE IF NOT EXISTS app_errors (
 CREATE TABLE IF NOT EXISTS app_error_installs (sig TEXT NOT NULL, cid TEXT NOT NULL, last INTEGER NOT NULL, PRIMARY KEY (sig, cid));
 -- UI overhaul: the anonymous usage count (sha256 of a random id per install, when it was last seen)
 CREATE TABLE IF NOT EXISTS usage_pings (pid TEXT PRIMARY KEY, last INTEGER NOT NULL);
+-- 3.3.0: how often the shared data is downloaded: a count per day, kind and app version, nothing about who
+CREATE TABLE IF NOT EXISTS downloads (day TEXT NOT NULL, what TEXT NOT NULL, v TEXT NOT NULL DEFAULT '',
+  n INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (day, what, v));
+-- 3.3.0: the Calendar's events. Posted by admins only; a draft is one the board suggested and no admin approved yet
+CREATE TABLE IF NOT EXISTS events (id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, name TEXT NOT NULL,
+  start INTEGER NOT NULL, end INTEGER NOT NULL DEFAULT 0, link TEXT NOT NULL DEFAULT '', note TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'live', source TEXT NOT NULL DEFAULT '', by_id TEXT NOT NULL DEFAULT '',
+  at INTEGER NOT NULL DEFAULT 0);
+-- 3.3.0: pooled prices kept per install (a hashed install id), so the pool is the middle of many players and fades
+-- with time. The older mod_prices, base_prices and gem_prices tables are read once into these, then left alone.
+CREATE TABLE IF NOT EXISTS mod_shares (league TEXT NOT NULL, base TEXT NOT NULL, sid TEXT NOT NULL, cid TEXT NOT NULL,
+  n INTEGER NOT NULL DEFAULT 0, w REAL NOT NULL DEFAULT 0, slog REAL NOT NULL DEFAULT 0, updated INTEGER NOT NULL,
+  PRIMARY KEY (league, base, sid, cid));
+CREATE TABLE IF NOT EXISTS base_shares (league TEXT NOT NULL, base TEXT NOT NULL, cid TEXT NOT NULL,
+  n INTEGER NOT NULL DEFAULT 0, w REAL NOT NULL DEFAULT 0, slog REAL NOT NULL DEFAULT 0, updated INTEGER NOT NULL,
+  PRIMARY KEY (league, base, cid));
+CREATE TABLE IF NOT EXISTS gem_shares (league TEXT NOT NULL, kind TEXT NOT NULL, level INTEGER NOT NULL,
+  name TEXT NOT NULL, cid TEXT NOT NULL, div REAL NOT NULL, updated INTEGER NOT NULL,
+  PRIMARY KEY (league, kind, level, name, cid));
