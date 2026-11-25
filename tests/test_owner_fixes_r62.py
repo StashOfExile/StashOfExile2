@@ -40,3 +40,22 @@ class PictureFits(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ModLabGroups(unittest.TestCase):
+    def test_waystone_tiers_in_order(self):
+        from soe2 import ratemods as RM
+        self.assertEqual(RM.waystone_group(["T1-5", "T11-15", "T16", "T6-10"]), "All waystones")
+        self.assertEqual(RM.waystone_group(["T16", "T11-15"]), "Tier 11-16")
+        self.assertEqual(RM.waystone_group(["Any"]), "All waystones")
+
+    def test_relic_sizes_in_words(self):
+        from soe2 import ratemods as RM
+        self.assertEqual(RM.category("relic", ["Large", "Medium"]), "Large and Medium Relics")
+        self.assertEqual(RM.category("relic", ["Small"]), "Small Relics")
+
+    def test_a_learned_base_is_not_a_unique(self):
+        from soe2.ratemods_page import _is_base
+        self.assertTrue(_is_base("Utility Belt"))
+        self.assertTrue(_is_base("Ritual Tablet"))
+        self.assertFalse(_is_base("Headhunter"))

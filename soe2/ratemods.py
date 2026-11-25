@@ -736,6 +736,31 @@ def players_tip(p):
 
 
 DIAMOND = "Diamond"
+RELIC_SIZES = ("Large", "Medium", "Small")
+RELIC_ART = {"Large": "Vase Relic", "Medium": "Amphora Relic", "Small": "Urn Relic"}
+
+
+def waystone_group(tags):
+    """("T11-15", "T16") -> "Tier 11-16"; every tier, or "Any" -> "All waystones"."""
+    import re as _re
+    spans = []
+    for t in tags or []:
+        m = _re.match(r"T(\d+)(?:-(\d+))?$", str(t))
+        if m:
+            spans.append((int(m.group(1)), int(m.group(2) or m.group(1))))
+    if not spans or "Any" in (tags or []):
+        return "All waystones"
+    spans.sort()
+    lo, hi = spans[0]
+    joined = True
+    for a, b in spans[1:]:
+        joined &= a <= hi + 1
+        hi = max(hi, b)
+    if joined and lo <= 1 and hi >= 16:
+        return "All waystones"
+    if joined:
+        return f"Tier {lo}-{hi}" if lo != hi else f"Tier {lo}"
+    return "Tier " + ", ".join(f"{a}-{b}" if a != b else str(a) for a, b in spans)
 
 
 def on_diamond(e):
@@ -752,10 +777,11 @@ def category(set_name, tags):
     if set_name == "jewel":
         kinds = [t for t in tags if t != "Time-Lost"]
         return " / ".join(kinds) if kinds else ("Time-Lost" if tags else "All jewels")
-    if set_name == "waystone":
-        return "All waystones" if "Any" in tags or not tags else " / ".join(tags)
-    if set_name == "relic":
-        return " / ".join(tags) if tags else "All relics"
+    if set_name == "waystone":                       # 3.3.0 owner: tiers in order, every tier is All waystones
+        return waystone_group(tags)
+    if set_name == "relic":                          # 3.3.0 owner: the sizes it rolls on, said in words
+        sizes = [z for z in RELIC_SIZES if z in tags]
+        return (" and ".join(sizes) + " Relics") if sizes and len(sizes) < len(RELIC_SIZES) else "All relics"
     return set_label(set_name)
 
 

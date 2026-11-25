@@ -89,6 +89,20 @@ def _letter(g):
 
 UNIQ_TITLE = "UNIQUES"                    # 3.3.0 owner: every unique in the game, folded by type (was: you've checked)
 
+
+def _is_base(name):
+    """An item base's name, not a unique's: the game data knows it as a base, or it ends like one."""
+    from . import uniquedata as UD
+    if UD.get(name):
+        return False
+    if str(name).endswith((" Tablet", " Waystone", " Relic", " Jewel")):
+        return True
+    try:
+        from .gearbook import base_cat
+        return bool(base_cat(name))
+    except Exception:
+        return False
+
 class RateModsPage:
     """Mixed into App."""
 
@@ -100,7 +114,9 @@ class RateModsPage:
         out = list(SETS) + [(f"gear:{c}", n) for c, n in GB.classes()]
         # 3.3.0 owner: every unique in the game (uniquedata.json), not only the ones you price checked. Megalomaniac
         # showed 0 of 0: a unique with no mods to rate, only passives it allocates, is left out of the list
-        return out + [(f"unique:{n.lower()}", n) for n in GB.all_uniques() if self.rm_entries(f"unique:{n.lower()}")]
+        # 3.3.0 owner: an unidentified unique was learned by its base name, Utility Belt or Ritual Tablet - not a unique
+        return out + [(f"unique:{n.lower()}", n) for n in GB.all_uniques()
+                      if not _is_base(n) and self.rm_entries(f"unique:{n.lower()}")]
 
     def rm_gear_mods(self, set_name):
         from . import gearbook as GB
@@ -688,7 +704,12 @@ class RateModsPage:
             tag = f"cat:{s}:{name}"
             cv.card(x0, y, x1, y + 30, tag=tag, fill=cv.c("surface_high") if on else cv.c("surface"),
                     outline=cv.c("surface_high") if on else cv.c("surface"), r=6)
-            cv.text(x0 + 10, y + 6, ("▸ " if on else "") + name, F_BOLD if on else F_SMALL, tags=(tag,),
+            pic = self.rm_pic(s, {"cat": name}, 18)
+            tx = x0 + 10
+            if pic is not None:                                # 3.3.0 owner: each group shows its item
+                cv.create_image(tx + 9, y + 13, image=pic, anchor="center", tags=(tag,))
+                tx += 24
+            cv.text(tx, y + 6, ("▸ " if on else "") + name, F_BOLD if on else F_SMALL, tags=(tag,),
                     fill=cv.c("text_strong") if on else cv.c("text"))
             cv.text(x1 - 8, y + 6, f"{r} of {n}" + (" ✓" if n and r == n else ""), F_SMALL, anchor="ne",
                     fill=cv.c("text_muted"), tags=(tag,))
@@ -879,6 +900,21 @@ class RateModsPage:
         except Exception:
             return None
         rolls = [r for r in (e or {}).get("rolls") or [] if r != "All types"]
+        cat = (e or {}).get("cat")
+        if cat is not None:                                    # 3.3.0 owner: a group row's own picture
+            if s == "tablet":
+                return art_url(f"{cat} Tablet" if not cat.startswith("All ") else "Irradiated Tablet")
+            if s == "jewel":
+                kinds = [k for k in cat.split(" / ") if k in JEWEL_ART]
+                return JEWEL_ART["Time-Lost Diamond" if cat == "Time-Lost" else
+                                 kinds[0] if len(kinds) == 1 else "Diamond"]
+            if s == "relic":
+                size = next((z for z in RM.RELIC_SIZES if cat.startswith(z)), None)
+                return art_url(RM.RELIC_ART[size]) if size else art_url("Amphora Relic")
+            if s == "waystone":
+                import re as _re
+                m = _re.findall(r"\d+", cat)
+                return art_url(f"Waystone Tier {m[-1]}" if m else "Waystone Tier 16")
         if s == "tablet":
             return art_url(f"{rolls[0]} Tablet" if len(rolls) == 1 else "Irradiated Tablet")
         if s == "waystone":
@@ -886,6 +922,9 @@ class RateModsPage:
         ic = icons()
         if s.startswith("unique:"):
             return ic.get(RM.set_label(s))
+        if s == "relic":
+            size = next((z for z in RM.RELIC_SIZES if z in rolls), None)
+            return art_url(RM.RELIC_ART[size] if size else "Amphora Relic")
         if s == "jewel":                                       # 3.3.0 owner: a jewel's own picture, a Diamond for
             kinds = [r for r in rolls if r in JEWEL_ART]       # the whole set - never a unique jewel's art
             return JEWEL_ART[kinds[0] if len(kinds) == 1 else "Diamond"]
