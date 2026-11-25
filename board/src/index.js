@@ -1618,11 +1618,13 @@ async function usageCount(env) {
   return json({ online, week });
 }
 
+const MAP_MIN_VOTERS = 2;                     // 3.3.0 owner: a map's rank shows once 2 or more players voted
 async function mapRatings(env) {
   const rows = await env.DB.prepare("SELECT name, rank, COUNT(*) AS n FROM map_votes GROUP BY name, rank").all();
   const by = {};
   for (const r of rows.results) (by[r.name] ??= {})[r.rank] = r.n;
-  return json({ maps: Object.entries(by) });
+  const enough = (ranks) => Object.values(ranks).reduce((a, b) => a + b, 0) >= MAP_MIN_VOTERS;
+  return json({ maps: Object.entries(by).filter(([, ranks]) => enough(ranks)) });
 }
 
 // 2.77.0: zones players' logs showed that their guide pack didn't have - pooled for tools/build_guide.py

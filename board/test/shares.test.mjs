@@ -127,4 +127,11 @@ assert.equal(raw.prepare("SELECT COUNT(*) AS c FROM gem_shares").get().c, 1);
 raw.exec("DELETE FROM mod_shares");
 await B.seedShares(env);
 assert.equal(raw.prepare("SELECT COUNT(*) AS c FROM mod_shares").get().c, 0, "once only");
+// a map's rank shows once 2 or more players voted
+const mr = src.slice(src.indexOf("const MAP_MIN_VOTERS"), src.indexOf("// 2.77.0: zones players' logs showed"));
+const votes = [{ name: "Burial Bog", rank: "S", n: 1 }, { name: "Savannah", rank: "S", n: 1 }, { name: "Savannah", rank: "A", n: 1 },
+  { name: "Mire", rank: "B", n: 3 }];
+const M = new Function("json", mr + "; return { mapRatings };")((o) => o);
+const maps = (await M.mapRatings({ DB: { prepare: () => ({ all: async () => ({ results: votes }) }) } })).maps;
+assert.deepEqual(maps.map((m) => m[0]), ["Savannah", "Mire"], "one voter is not enough");
 console.log("shares: ok");
