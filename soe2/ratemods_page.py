@@ -99,7 +99,9 @@ class RateModsPage:
         from . import gearbook as GB
         out = list(SETS) + [(f"gear:{c}", n) for c, n in GB.classes()]
         uniq = sorted(GB.store(), key=str.lower)
-        return out + [(f"unique:{n.lower()}", n) for n in uniq]
+        # 3.3.0 owner: Megalomaniac showed 0 of 0. A unique with no mods to rate, only passives it allocates, is
+        # left out of the list
+        return out + [(f"unique:{n.lower()}", n) for n in uniq if self.rm_entries(f"unique:{n.lower()}")]
 
     def rm_gear_mods(self, set_name):
         from . import gearbook as GB
