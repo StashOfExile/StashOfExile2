@@ -344,10 +344,8 @@ class Dashboard(tk.Canvas):
         h = top + max(1, len(rows)) * rh + 8
         self._card(x0, y, x1, y + h)
         _hid, up = self._head(x0, y, x1, "Patch Notes")
-        self.create_text(x1 - 20, y + 22 - up, text="From GGG's forum", anchor="ne", font=plain_f, fill=mut,
-                         tags=("pn_src",))
-        self.tips["pn_src"] = ("Every patch and hotfix for Path of Exile 2, read from GGG's forum once an hour by "
-                               "the community board. Click a patch to read it all.")
+        self.create_text(x1 - 20, y + 22 - up, text="From GGG's forum and Steam", anchor="ne", font=plain_f,
+                         fill=mut, tags=("pn_src",))
         feed, quiet = PN.admin_state()
         if quiet and self._is_admin():                       # admins: the board read nothing for a week
             ox = self.bbox(self.find_withtag("pn_src")[0])[0]
@@ -374,7 +372,6 @@ class Dashboard(tk.Canvas):
             self.create_text(x0 + 20, ry + rh / 2, anchor="w", text=n["title"], width=room, tags=(tag,),
                              font=("Segoe UI", 10, "bold underline") if lit else bold, fill=acc if lit else brass)
             self.acts[tag] = lambda u=n["url"]: webbrowser.open(u)
-            self.tips[tag] = "Open the full patch notes on GGG's forum."
         return y + h + GAP
 
     def _is_admin(self):

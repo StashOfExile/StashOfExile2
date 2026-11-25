@@ -1576,6 +1576,15 @@ async function steamCheck(env, force = false) {
       items = (await res.json())?.appnews?.newsitems ?? [];
       read += 1;
     } catch (_e) { continue; }                          // Steam is down: the next check tries again
+    if (String(appid) === "2694490") {                  // 3.3.0 owner: big patches' notes are on Steam too
+      const found = items.filter((it) => /\b(patch notes?|hotfix)\b/i.test(it?.title ?? ""))
+        .map((it) => ({ title: String(it.title), url: String(it.url ?? ""), at: Number(it.date) || 0 }));
+      if (found.length) {
+        const kept = JSON.parse((await metaGet(env, "patch_notes")) || "[]");
+        const m = patchMerge(kept, found, now());
+        if (m.added) await metaSet(env, "patch_notes", JSON.stringify(m.list));
+      }
+    }
     for (const d of steamDrafts(appid, items, now())) {
       if (added >= STEAM_MAX_NEW) break;
       const has = await env.DB.prepare("SELECT 1 AS x FROM events WHERE source = ?1 LIMIT 1").bind(d.source).all();
@@ -1596,7 +1605,7 @@ async function eventCheckNow(env, me) {
 }
 // events: end
 
-// ------------------------------------------------------------------ 3.3.0 owner: patch notes, from GGG's forum
+// ------------------------------------------------------------------ 3.3.0 owner: patch notes, from GGG's forum and Steam
 // The board reads the Path of Exile 2 patch-notes forum once an hour, on its own schedule (wrangler.toml crons), so
 // no app ever asks the forum. Its address is an admin setting (POST /admin/patchfeed): when the forum moves at 1.0,
 // an admin pastes the new one, no app update. A notes list is only ever added to. A post naming a 3.x version is
@@ -1638,11 +1647,19 @@ function patchParse(body, base = "https://www.pathofexile.com") {
   return out;
 }
 // The kept list plus what is new, newest first, never dropping one that was kept
+// One patch posted on the forum and on Steam is one entry: the same version in the title, or the same address
+function patchKey(n) {
+  const v = /\b(\d+\.\d+\.\d+[a-z]?)\b/.exec(n.title ?? "");
+  const hot = /\bhotfix\s*(\d+)?/i.exec(n.title ?? "");
+  return v ? `v${v[1].toLowerCase()}${hot ? " hotfix " + (hot[1] ?? "") : ""}` : n.url;
+}
 function patchMerge(kept, found, nowSecs) {
   const by = new Map((kept ?? []).map((n) => [n.url, n]));
+  const keys = new Set((kept ?? []).map(patchKey));
   let added = 0;
   for (const f of found ?? []) {
-    if (!patchIsPoe2(f.title) || !/^https:\/\//.test(f.url) || by.has(f.url)) continue;
+    if (!patchIsPoe2(f.title) || !/^https:\/\//.test(f.url) || by.has(f.url) || keys.has(patchKey(f))) continue;
+    keys.add(patchKey(f));
     by.set(f.url, { title: f.title.slice(0, 160), url: f.url, at: f.at || nowSecs, seen: nowSecs });
     added++;
   }
