@@ -139,7 +139,11 @@ class RateModsPage:
         sets = self.rm_sets()
         gear = [(s, lab) for s, lab in sets if s.startswith("gear:")]
         kinds = [(k, t, [(s, lab) for s, lab in gear if RM.gear_kind(s[5:]) == k]) for k, t in RM.GEAR_KINDS]
-        out = [("MAP ITEMS", list(RM.MAP_SETS)), ("JEWELS", [RM.JEWEL_SET]), ("GEAR", [k for k in kinds if k[2]])]
+        # 3.3.0 owner: Tablets, Waystones, Relics and Jewels fold the way Armour, Weapons and Jewelry do. Each is
+        # a group of its own ("set:<set>"), its mod groups inside it
+        one = lambda s, lab: (f"set:{s}", lab, [(s, lab)])                       # noqa: E731
+        out = [("MAP ITEMS", [one(*x) for x in RM.MAP_SETS]), ("JEWELS", [one(*RM.JEWEL_SET)]),
+               ("GEAR", [k for k in kinds if k[2]])]
         uniq = [(s, lab) for s, lab in sets if s.startswith("unique:")]
         if uniq:
             out.append((UNIQ_TITLE, uniq))
@@ -387,6 +391,8 @@ class RateModsPage:
         self.rm_set_label = RM.set_label(set_name)
         if set_name.startswith("gear:"):
             self.rm_fold.add(RM.gear_kind(set_name[5:]))
+        elif not set_name.startswith("unique:"):
+            self.rm_fold.add(f"set:{set_name}")              # the picked set's group opens
         self.rm_ticked.clear()
         self.rm_tpick = None
         self.rm_load()
@@ -460,11 +466,14 @@ class RateModsPage:
 
     def rm_set_menu(self, btn):
         """The sets as a drop-down (the Drawer, and the Table view): grouped, each with how many you've rated."""
-        menu = tk.Menu(self.root, tearoff=0)
+        from .listkit import _menu
+        menu = _menu(self.root)                               # 3.3.0 owner: the app's own menu colors
         for title, items in self.rm_groups():
             menu.add_command(label=title, state="disabled")
             for it in items:
-                if len(it) == 3:
+                if len(it) == 3 and str(it[0]).startswith("set:"):
+                    self._rm_menu_row(menu, *it[2][0])
+                elif len(it) == 3:
                     for s, lab in it[2]:
                         self._rm_menu_row(menu, s, f"{it[1]} › {lab}")
                 else:
@@ -523,7 +532,53 @@ class RateModsPage:
             y = 40
         return y + 8
 
+    def _rm_set_cats(self, s):
+        """{mod group: [rated, mods]} of a set, when it has more than one group."""
+        cats = {}
+        for e in self.rm_entries(s):
+            c = cats.setdefault(e.get("cat") or "", [0, 0])
+            c[1] += 1
+            c[0] += RM.current(e["keys"]) is not None
+        return cats if len(cats) >= 2 else {}
+
+    def _rm_draw_one_set(self, cv, it, y, w):
+        """Tablets, Waystones, Relics, Jewels: a header that folds, like Armour. Open: Every mod, then its groups."""
+        kind, title, kids = it
+        s, _lab = kids[0]
+        q = bool(self.rm_qv.get().strip())
+        opened = kind in self.rm_fold or q
+        r, n = self.rm_counts.get(s, (0, 0))
+        cats = self._rm_set_cats(s)
+        tag = f"kind:{kind}"
+        on = s == self.rm_set
+        cv.card(2, y, w - 4, y + 36, tag=tag, fill=cv.c("surface_raised"), outline=cv.c("accent") if on and not opened
+                else cv.c("border"), r=8)
+        pic = self.rm_pic(s, None, 24)
+        tx = 12
+        cv.text(tx, y + 18, "▾" if opened else "▸", F_BODY, anchor="w", tags=(tag,))
+        tx += 16
+        if pic is not None:
+            cv.create_image(tx + 12, y + 18, image=pic, anchor="center", tags=(tag,))
+            tx += 30
+        cv.text(tx, y + 18, title, F_BOLD if on else F_BODY, anchor="w", tags=(tag,))
+        groups = f"{len(cats)} groups · " if cats else ""
+        cv.text(w - 12, y + 18, f"{groups}{r} of {n} rated" + (" ✓" if n and r == n else ""), F_SMALL,
+                fill=cv.c("text_muted"), anchor="e", tags=(tag,))
+        cv.acts[tag] = lambda k=kind: self.rm_fold_flip(k)
+        cv.tips[tag] = f"{'Fold' if opened else 'Open'} {title}"
+        y += 40
+        if not opened:
+            return y
+        top = y
+        y = self._rm_set_row(cv, s, "Every mod", 16, y, w, groups=False, whole=title)
+        if cats:
+            y = self._rm_cat_rows(cv, s, 18, w - 4, y, cats)
+        cv.create_line(10, top, 10, y - 4, fill=cv.c("border"))
+        return y + 4
+
     def _rm_draw_kind(self, cv, it, y, w):
+        if str(it[0]).startswith("set:"):
+            return self._rm_draw_one_set(cv, it, y, w)
         kind, title, kids = it
         q = bool(self.rm_qv.get().strip())
         opened = kind in self.rm_fold or q
@@ -560,9 +615,10 @@ class RateModsPage:
         self.rm_fold.symmetric_difference_update({kind})
         self.rm_setcv.later(0)
 
-    def _rm_set_row(self, cv, s, lab, ind, y, w):
+    def _rm_set_row(self, cv, s, lab, ind, y, w, groups=True, whole=None):
+        """A set's row. whole: the set's own name when this row stands for all of it inside its folding group."""
         r, n = self.rm_counts.get(s, (0, 0))
-        on = s == self.rm_set
+        on = s == self.rm_set and (whole is None or not self.rm_cat)
         tag = f"set:{s}"
         x0, x1 = 2 + ind, w - 4
         fill = cv.c("selection") if on else cv.c("surface")
@@ -582,25 +638,22 @@ class RateModsPage:
             cv.create_rectangle(bx0, by, bx0 + max(2, int((bx1 - bx0) * r / n)), by + 3, outline="", tags=(tag,),
                                 fill=cv.c("accent") if on else cv.c("text_muted"))
         cv.acts[tag] = lambda s=s: self.rm_pick(s)
-        cv.tips[tag] = f"{r} of {n} {lab} mods rated by you"
+        cv.tips[tag] = f"{r} of {n} {whole or lab} mods rated by you"
         y += 42
-        if on and not s.startswith(("gear:", "unique:")):     # its categories, each with its progress
+        if groups and on and not s.startswith(("gear:", "unique:")):     # its categories, each with its progress
             y = self._rm_cat_rows(cv, s, x0 + 14, x1, y)
         return y
 
-    def _rm_cat_rows(self, cv, s, x0, x1, y):
-        cats = {}
-        for e in self.rm_entries(s):
-            c = cats.setdefault(e.get("cat") or "", [0, 0])
-            c[1] += 1
-            c[0] += RM.current(e["keys"]) is not None
+    def _rm_cat_rows(self, cv, s, x0, x1, y, cats=None):
+        if cats is None:
+            cats = self._rm_set_cats(s) or {"": [0, 0]}
         names = sorted(cats, key=lambda g: (g.startswith("All "), g.lower()))
         if len(names) < 2:
             return y
         top = y
         for name in names:
             r, n = cats[name]
-            on = name == self.rm_cat
+            on = name == self.rm_cat and s == self.rm_set
             tag = f"cat:{s}:{name}"
             cv.card(x0, y, x1, y + 30, tag=tag, fill=cv.c("surface_high") if on else cv.c("surface"),
                     outline=cv.c("surface_high") if on else cv.c("surface"), r=6)
@@ -1330,7 +1383,8 @@ class RateModsPage:
 
     def rm_row_menu(self, e, x, y):
         cur = RM.current(e["keys"])
-        menu = tk.Menu(self.root, tearoff=0)
+        from .listkit import _menu
+        menu = _menu(self.root)
         menu.add_command(label="Rate this mod:", state="disabled")
         for g, label in SHOWN:
             word = RM.GRADE_WORD[g]

@@ -210,8 +210,8 @@ HISTORY = History()
 
 # ================================================================ the menus
 def _menu(widget):
-    return tk.Menu(widget, tearoff=0, bg=C["panel2"], fg=C["text"], activebackground="#2c4a84",
-                   activeforeground="#ffffff", disabledforeground=C["muted"], selectcolor=C["text"])
+    from .style import menu_colors                      # 3.3.0 owner: one menu look, the drop-down list's
+    return tk.Menu(widget, tearoff=0, **{k.lower(): v for k, v in menu_colors().items()})
 
 
 def _own_menu(widget):
