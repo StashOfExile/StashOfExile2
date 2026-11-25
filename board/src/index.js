@@ -322,6 +322,7 @@ async function housekeeping(env) {
     env.DB.prepare("DELETE FROM mod_shares WHERE updated < ?").bind(now() - SHARE_FADE),                  // 3.3.0
     env.DB.prepare("DELETE FROM base_shares WHERE updated < ?").bind(now() - SHARE_FADE),
     env.DB.prepare("DELETE FROM gem_shares WHERE updated < ?").bind(now() - GEM_DAYS * 86400),
+    env.DB.prepare("DELETE FROM data_reports WHERE status IN ('fixed', 'dismissed') AND done_at < ?").bind(now() - REPORT_KEEP),
     // 2.137.0: a flood of made-up errors can't fill the database - the newest 5,000 kinds stay
     env.DB.prepare("DELETE FROM app_errors WHERE sig NOT IN (SELECT sig FROM app_errors ORDER BY last DESC LIMIT 5000)"),
     env.DB.prepare(`DELETE FROM images WHERE created < ? AND NOT EXISTS (SELECT 1 FROM posts p WHERE instr(p.data, '"b:' || images.key || '"') > 0)
@@ -340,6 +341,11 @@ function sameText(a, b) {                  // constant-time compare for the admi
 // 2.85.0: new columns and tables on an existing database (each statement fails harmlessly once it's done)
 let migrated = false;
 const MIGRATIONS = [
+  // 3.3.0 owner: players report a wrong or missing line on a Codex page; admins review, and Hide reaches every app
+  `CREATE TABLE IF NOT EXISTS data_reports (id INTEGER PRIMARY KEY AUTOINCREMENT, page TEXT NOT NULL, ref TEXT NOT NULL,
+    kind TEXT NOT NULL, item TEXT NOT NULL DEFAULT '', line TEXT NOT NULL DEFAULT '', note TEXT NOT NULL DEFAULT '',
+    version TEXT NOT NULL DEFAULT '', n INTEGER NOT NULL DEFAULT 1, status TEXT NOT NULL DEFAULT 'open',
+    at INTEGER NOT NULL, done_at INTEGER NOT NULL DEFAULT 0, UNIQUE (page, ref, kind))`,
   // 3.3.0: pooled prices kept per install, so the pool is the middle of many players and moves with the market
   `CREATE TABLE IF NOT EXISTS mod_shares (league TEXT NOT NULL, base TEXT NOT NULL, sid TEXT NOT NULL, cid TEXT NOT NULL,
     n INTEGER NOT NULL DEFAULT 0, w REAL NOT NULL DEFAULT 0, slog REAL NOT NULL DEFAULT 0, updated INTEGER NOT NULL,
@@ -1588,6 +1594,63 @@ async function eventCheckNow(env, me) {
 }
 // events: end
 
+// ------------------------------------------------------------------ 3.3.0 owner: data reports from Codex pages
+// POST /reports, no account: a page, the row's ref, what is wrong, a note. The same row and kind again adds one to
+// its count. GET /reports and POST /reports/:id are for admins: hide, fixed, dismiss, reopen. GET /reports/hidden is
+// for every app: the rows an admin hid, which the app leaves out at once.
+const REPORT_PAGES = ["search", "ratemods", "maps", "library"];
+const REPORT_KINDS = ["wrong", "missing", "removed", "other"];
+const REPORT_ACTIONS = { hide: "hidden", fixed: "fixed", dismiss: "dismissed", reopen: "open" };
+const REPORTS_PER_DAY = 30, REPORT_KEEP = 180 * 86400;
+function reportProblem(d) {
+  if (!d || typeof d !== "object" || Array.isArray(d)) return "bad report";
+  if (!REPORT_PAGES.includes(d.page)) return "that page cannot be reported from";
+  if (!REPORT_KINDS.includes(d.kind)) return "pick what is wrong";
+  const ref = String(d.ref ?? "");
+  if (!ref.trim() || ref.length > 300 || /[\u0000-\u001f]/.test(ref)) return "nothing to report";
+  for (const [k, max] of [["item", 120], ["line", 300], ["note", 500], ["version", 30]]) {
+    const v = d[k] ?? "";
+    if (typeof v !== "string" || v.length > max || /[\u0000-\u0009\u000b-\u001f]/.test(v)) return `the ${k} is too long`;
+  }
+  return textProblem(String(d.note ?? "")) || textProblem(String(d.item ?? ""));
+}
+async function reportSend(req, env) {
+  if (!/^application\/json/i.test(req.headers.get("content-type") || "") || req.headers.get("x-soe2") !== "1")
+    return fail(400, "bad request");
+  const d = await readBody(req);
+  const why = reportProblem(d);
+  if (why) return fail(400, why);
+  if (!(await allowance(env, "report_ip", await ipKey(req, env, "report"), REPORTS_PER_DAY)))
+    return fail(429, "That's a lot of reports today - try tomorrow.");
+  await env.DB.prepare(`INSERT INTO data_reports (page, ref, kind, item, line, note, version, at)
+    VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8) ON CONFLICT(page, ref, kind) DO UPDATE SET n = n + 1, at = ?8,
+    note = CASE WHEN ?6 <> '' THEN ?6 ELSE note END, status = CASE WHEN status IN ('fixed', 'dismissed') THEN 'open'
+    ELSE status END`).bind(d.page, String(d.ref).trim(), d.kind, String(d.item ?? "").trim(), String(d.line ?? "").trim(),
+    String(d.note ?? "").trim(), String(d.version ?? ""), now()).run();
+  return json({ ok: true }, 201);
+}
+async function reportList(env, me) {
+  if (!canPostEvents(me)) return fail(403, "admins only");
+  const rows = await env.DB.prepare(`SELECT id, page, ref, kind, item, line, note, version, n, status, at FROM data_reports
+    WHERE status IN ('open', 'hidden') ORDER BY status = 'hidden', n DESC, at DESC LIMIT 500`).all();
+  return json({ reports: rows.results });
+}
+async function reportAct(req, env, me, id) {
+  if (!canPostEvents(me)) return fail(403, "admins only");
+  const { action } = await readBody(req);
+  const status = REPORT_ACTIONS[action];
+  if (!status) return fail(400, "pick hide, fixed, dismiss or reopen");
+  const done = await env.DB.prepare("UPDATE data_reports SET status = ?1, done_at = ?2 WHERE id = ?3")
+    .bind(status, now(), id).run();
+  if (!done?.meta?.changes) return fail(404, "no such report");
+  return json({ ok: true, status });
+}
+async function reportHidden(env) {
+  const rows = await env.DB.prepare("SELECT DISTINCT page, ref FROM data_reports WHERE status = 'hidden' LIMIT 5000").all();
+  return json({ hidden: rows.results.map((r) => [r.page, r.ref]) });
+}
+// reports: end
+
 function countedVersion(ua) {
   const m = /^StashOfExile2\/(\d+)\.(\d+)/.exec(String(ua ?? ""));
   return !!m && (Number(m[1]) > 3 || (Number(m[1]) === 3 && Number(m[2]) >= 1));
@@ -1816,6 +1879,8 @@ export default {
       if (path === "/maps/ratings") return mapRatings(env);
       if (path === "/campaign/zones") return campaignZones(env);
       if (path === "/events" && req.method === "GET") return eventList(env);                // 3.3.0: no account needed
+      if (path === "/reports" && req.method === "POST") return reportSend(req, env);          // 3.3.0: no account needed
+      if (path === "/reports/hidden" && req.method === "GET") return reportHidden(env);
       if (path === "/bugs" && req.method === "POST") return bugReport(req, env);
       if (path === "/errors" && req.method === "POST") return errorBatch(req, env);       // 2.137.0
 
@@ -1848,6 +1913,9 @@ export default {
       if (path === "/downloads" && req.method === "GET") return downloadList(env, me);         // 3.3.0: admins
       const ev = /^\/events\/(\d+)$/.exec(path);
       if (path === "/events/drafts" && req.method === "GET") return eventDrafts(env, me);
+      if (path === "/reports" && req.method === "GET") return reportList(env, me);
+      const rp = /^\/reports\/(\d+)$/.exec(path);
+      if (rp && req.method === "POST") return reportAct(req, env, me, Number(rp[1]));
       if (path === "/events/check" && req.method === "POST") return eventCheckNow(env, me);
       if (path === "/events" && req.method === "POST") return eventSave(req, env, me);
       if (ev && req.method === "PUT") return eventSave(req, env, me, Number(ev[1]));
