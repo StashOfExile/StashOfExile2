@@ -101,6 +101,84 @@ class SharePage:
         self.share_fetch(kind, done)
         return True
 
+    # 3.3.0 owner: the two Favorites screens were built apart and did not match. One toolbar builds both: the
+    # same rows, the same names, the same order. A page passes only the actions it has.
+    TOOL_ORDER = ("main", "open", None, "rename", "tags", "key", "post", None, "take")
+
+    def share_toolbar(self, parent, key, q_var, on_view, actions, q_tip="Search names and tags"):
+        """Rows 1 and 2 of a Favorites screen. Row 1: find, then Official | Community | Mine, Undo at the right.
+        Row 2: the orange main action, open elsewhere, Rename, Tags, Key, Post, Add to Mine; Delete at the right,
+        with the admin's Make Official beside it. actions: {id: (text, command, tip)} with ids from TOOL_ORDER,
+        "official" and "delete". -> (frame, the view bar, {id: button})"""
+        from .style import SegBar, Tooltip
+        from . import cleanguard
+        P1 = C["panel"]
+        box = tk.Frame(parent, bg=P1, padx=8)
+        r1 = tk.Frame(box, bg=P1)
+        r1.pack(fill="x", pady=(8, 0))
+        tk.Label(r1, text="🔍", bg=P1, fg=C["muted"], font=("Segoe UI Symbol", 10)).pack(side="left", padx=(0, 4))
+        q = ttk.Entry(r1, textvariable=q_var, width=22)
+        q.pack(side="left")
+        cleanguard.free(q)                                  # a search
+        Tooltip(q, q_tip)
+        view = SegBar(r1, list(VIEWS), value="Mine", command=lambda v: on_view(), size=10, pad=(12, 4))
+        view.pack(side="left", padx=(12, 0))
+        self.undo_button(r1, key, side="right")
+        r2 = tk.Frame(box, bg=P1)
+        r2.pack(fill="x", pady=(8, 8))
+        btns = {}
+
+        def add(aid, side="left"):
+            text, fn, tip = actions[aid]
+            b = ttk.Button(r2, text=text, command=fn, style="Primary.TButton" if aid == "main" else "TButton",
+                           width=0)                         # as wide as its words, so the row fits a Drawer
+            b.pack(side=side, padx=(0, 8) if side == "left" else (8, 0))
+            Tooltip(b, tip)
+            b.state(["disabled"])                           # gray until a row that it works on is picked
+            btns[aid] = b
+            return b
+        gap = False
+        for aid in self.TOOL_ORDER:
+            if aid is None:
+                gap = bool(btns)
+                continue
+            if aid not in actions:
+                continue
+            if gap:
+                tk.Frame(r2, bg=C["line"], width=1).pack(side="left", fill="y", padx=(2, 8), pady=4)
+                gap = False
+            add(aid)
+        if "delete" in actions:
+            add("delete", side="right")
+        if "official" in actions:                           # packed only for an admin, by share_tool_greys
+            text, fn, tip = actions["official"]
+            b = btns["official"] = ttk.Button(r2, text=text, command=fn, width=0)
+            Tooltip(b, tip)
+        try:
+            from .style import flowify
+            flowify(r2)                                     # too narrow: the row wraps, nothing is cut off
+        except Exception:
+            buglog.caught()
+        return box, view, btns
+
+    def share_tool_greys(self, btns, on, post=None):
+        """Gray out what does not work on the picked row. on: {id: bool}. post: the picked board post, for the
+        admin's button, which only admins ever see."""
+        for aid, b in btns.items():
+            if aid == "official":
+                continue
+            b.state(["!disabled"] if on.get(aid) else ["disabled"])
+        ab = btns.get("official")
+        if ab is None:
+            return
+        if self.share_is_admin():
+            ab.config(text="Remove from Official" if (post or {}).get("promoted") else "Make Official")
+            ab.state(["!disabled"] if post else ["disabled"])
+            if not ab.winfo_manager():
+                ab.pack(side="right", padx=(8, 0))
+        elif ab.winfo_manager():
+            ab.pack_forget()
+
     # 3.3.0 owner: an admin had no way to make a favorite Official
     def share_is_admin(self):
         return bool((B.signed_in() or {}).get("admin"))

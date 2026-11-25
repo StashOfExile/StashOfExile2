@@ -25,6 +25,9 @@ DOCS = ("README.md", "TOS.md", "linux/README.md", "themes/README.md", "strats/RE
 
 # (version, what it was, words a person read, names in the code / settings keys[, pending])
 REMOVED = [
+    ("3.3.0", "the Upvote button and the vote column on Price Checks' and Regex's Favorites (owner: dropped, as on "
+              "strats; the two screens now share one toolbar)",
+     (), ("fav_vote", "rx_fav_vote", "fav_share_bar", "fav_share_btns", "fav_admin_btn")),
     ("Split layout", "the overlay's \"flanks\" style, shown as Split (owner decision: Split is a Layout - Bar, Panel or "
                      "Split - in every style; a saved flanks becomes Layout Split, Style Hairline)",
      ("Flanks",), ("flanks", "_lt_flanks_bar", "_lt_flanks_panel")),

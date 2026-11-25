@@ -74,8 +74,8 @@ class Wiring(unittest.TestCase):
         self.assertIn("def share_admin(", inspect.getsource(share_page))
         fav = inspect.getsource(favorites_page)
         self.assertIn('self.share_admin_actions("trade"', fav)
-        self.assertIn("fav_admin_btn", fav)
-        self.assertIn("if self.share_is_admin():", fav, "only admins see the button")
+        self.assertIn('"official": ("Make Official", self.fav_admin_official', fav)
+        self.assertIn("if self.share_is_admin():", inspect.getsource(share_page), "only admins see the button")
         self.assertIn('self.share_admin_actions("regex"', inspect.getsource(regex_page))
 
     def test_empty_box_sits_on_the_favorites_list(self):

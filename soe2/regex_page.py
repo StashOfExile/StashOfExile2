@@ -835,44 +835,43 @@ class RegexPage:
 
     def rx_build_favorites(self, page):
         P1 = C["panel"]
-        bar = tk.Frame(page, bg=P1, padx=8, pady=8)
-        bar.pack(fill="x")
-        # 2.132.6 (feedback: publish regexes to the database, with sorting for Official | Community | Mine):
-        # search first, the three views, then what you can do with the picked one (gray until there is one)
+        # 3.3.0 owner: the same three rows as Price Checks' Favorites: find, act, add (share_page.share_toolbar)
         self.rx_fav_q = tk.StringVar()
-        tk.Label(bar, text="🔍", bg=P1, fg=C["muted"], font=("Segoe UI Symbol", 10)).pack(side="left", padx=(0, 4))
-        q = ttk.Entry(bar, textvariable=self.rx_fav_q, width=22)
-        q.pack(side="left")
-        Tooltip(q, "Search names, searches and tags")
         self.rx_fav_q.trace_add("write", lambda *_a: self.root.after_idle(self.rx_fill_favorites))
-        self.rx_fav_view = SegBar(bar, list(SHARE_VIEWS), value="Mine", command=lambda v: self.rx_fav_view_changed(),
-                                  size=10, pad=(12, 4))
-        self.rx_fav_view.pack(side="left", padx=(12, 0))
-        self.rx_fav_btns = {}
-        for text, fn, accent, tip in (
-                ("📋 Copy", self.rx_fav_copy, True, "Copy the search, or double-click it"),
-                ("Open in the builder", self.rx_fav_open, False, "Open it in Build a search"),
-                ("⌨ Key…", self.rx_fav_hotkey, False, "Put it on a Regex key: in game, the key types it in the "
-                                                     "stash search"),
-                ("🏷 Tags…", self.rx_fav_tags, False, "Tag one of yours"),
-                ("📤 Post", self.rx_fav_post, False, "Share one of yours on the Community board"),
-                ("▲ Upvote", self.rx_fav_vote, False, "Upvote a Community one"),
-                ("☆ Add to Mine", self.rx_fav_take, False, "Keep a Community or Official one in your Favorites"),
-                ("Delete", lambda: self.rx_fav_delete(self.rx_fav_tv.selection()), False, "Delete yours (Ctrl+Z undoes)")):
-            b = ttk.Button(bar, text=text, command=fn, style="Primary.TButton" if accent else "TButton")
-            b.pack(side="left", padx=(8 if text == "📋 Copy" else 0, 8))
-            Tooltip(b, tip)
-            self.rx_fav_btns[text] = b
-        self.undo_button(bar, "regex").pack(side="left", padx=(0, 8))
-        flowify(bar) if callable(flowify) else None
+        tools, self.rx_fav_view, self.rx_fav_btns = self.share_toolbar(
+            page, "regex", self.rx_fav_q, self.rx_fav_view_changed, {
+                "main": ("Copy", self.rx_fav_copy, "Copy the search, or double-click it"),
+                "open": ("Open in the builder", self.rx_fav_open, "Open it in Build a search"),
+                "rename": ("Rename", self.rx_fav_rename, "Rename one of yours"),
+                "tags": ("Tags…", self.rx_fav_tags, "Tag one of yours"),
+                "key": ("Key…", self.rx_fav_hotkey, "Put it on a Regex key: in game, the key types it in the "
+                                                    "stash search"),
+                "post": ("Post", self.rx_fav_post, "Share one of yours on the Community board"),
+                "take": ("Add to Mine", self.rx_fav_take, "Keep a Community or Official one in your Favorites"),
+                "official": ("Make Official", self.rx_fav_official,
+                             "Admin: moves this favorite to the Official list, or takes it back off."),
+                "delete": ("Delete", lambda: self.rx_fav_delete(self.rx_fav_tv.selection()),
+                           "Delete yours. Ctrl+Z undoes it.")},
+            q_tip="Search names, searches and tags")
+        tools.pack(fill="x")
+        bar = tk.Frame(page, bg=P1, padx=8)
+        bar.pack(fill="x")
+        tk.Label(bar, text="Add", bg=P1, fg=C["muted"], font=("Segoe UI", 9)).pack(side="left", padx=(0, 8))
+        tk.Label(bar, text="Build a search, then press Add to Favorites.", bg=P1, fg=C["muted"],
+                 font=("Segoe UI", 9)).pack(side="left")
+        ttk.Button(bar, text="Open Build a search",
+                   command=lambda: self.rx_page.pick("Build a search")).pack(side="left", padx=(8, 0))
         self.rx_fav_msg = tk.Label(page, text="Your saved searches, and the community's.", bg=P1, fg=C["muted"],
                                    anchor="w", justify="left", padx=12)
-        self.rx_fav_msg.pack(fill="x")
+        self.rx_fav_msg.pack(fill="x", pady=(8, 0))
         tf = tk.Frame(page, bg=P1)
         tf.pack(fill="both", expand=True, padx=8, pady=(8, 8))
+        from .chrome import PanelHead
+        self.rx_fav_head = PanelHead(tf, "Favorites")     # the theme's header strip, as on Price Checks' Favorites
+        self.rx_fav_head.pack(fill="x")
         cols = (("copy", "", 70, "center"), ("name", "Name", 180, "w"), ("kind", "For", 80, "w"),
                 ("search", "Search", 360, "w"), ("len", "Length", 56, "e"), ("tags", "Tags", 130, "w"),
-                ("key", "Key", 70, "w"), ("score", "▲", 40, "center"), ("by", "By", 100, "w"))
+                ("key", "Key", 70, "w"), ("by", "By", 100, "w"))    # 3.3.0 owner: no votes
         tv = ttk.Treeview(tf, columns=[c[0] for c in cols], show="headings")
         for cid, title, w, anchor in cols:
             tv.heading(cid, text=title)
@@ -889,11 +888,16 @@ class RegexPage:
         self.rx_fav_tv = tv
         self.rx_rows = {}
         self.list_register("regex", tv, delete=self.rx_fav_delete)
-        tv.menu_actions = lambda sel: [("📋 Copy the search", self.rx_fav_copy, len(sel) == 1),     # 2.36.0
-                                       ("Open in Build a search", self.rx_fav_open, len(sel) == 1),
-                                       ("⌨ Put on a Regex key…", self.rx_fav_hotkey, self._rx_one_mine()),
-                                       ("Rename…", self.rx_fav_rename, self._rx_one_mine()),
-                                       ("⚑ Report…", self.rx_fav_report, bool(self._rx_post()))] + \
+        tv.bind("<Return>", lambda e: (self.rx_fav_copy(), "break")[-1])
+        tv.bind("<F2>", lambda e: (self._rx_one_mine() and self.rx_fav_rename(), "break")[-1])
+        tv.menu_actions = lambda sel: [("Copy the search", self.rx_fav_copy, len(sel) == 1, "Enter"),   # 2.36.0
+                                       ("Open in the builder", self.rx_fav_open, len(sel) == 1),
+                                       ("Rename…", self.rx_fav_rename, self._rx_one_mine(), "F2"),
+                                       ("Tags…", self.rx_fav_tags, self._rx_one_mine()),
+                                       ("Put on a Regex key…", self.rx_fav_hotkey, self._rx_one_mine()),
+                                       ("Post to Community", self.rx_fav_post, self._rx_one_mine()),
+                                       ("Add to Mine", self.rx_fav_take, len(sel) == 1 and not self._rx_one_mine()),
+                                       ("Report…", self.rx_fav_report, bool(self._rx_post()))] + \
             self.share_admin_actions("regex", self._rx_post(), self.rx_fill_favorites)
         self.rx_fav_empty = tk.Label(tf, text="No Favorites yet.\nBuild a search, then press ☆ Add to Favorites.",
                                      bg=P1, fg=C["muted"], font=("Segoe UI", 10), justify="center")
@@ -953,8 +957,7 @@ class RegexPage:
             by = "Me" if r["origin"] == "mine" else (post.get("author", {}) or {}).get("name") or f.get("author", "")
             out.append((iid, dict(values=("📋 Copy", f["name"], KIND_NAMES[f["kind"]][:-1], s or "(empty)", len(s),
                                           ", ".join(f.get("tags") or []),
-                                          self.rx_key_of(f) if r["origin"] == "mine" else "",
-                                          post.get("score", "") if post else "", by),
+                                          self.rx_key_of(f) if r["origin"] == "mine" else "", by),
                                   tags=(("odd",) if n % 2 else ()) + (("mine",) if r["origin"] == "mine" else ()))))
             n += 1
         tv_sync(tv, out)                                  # (UI rule 22: a typed search keeps the scroll and the pick)
@@ -963,7 +966,8 @@ class RegexPage:
         else:
             self.rx_fav_empty.config(text="No Favorites yet.\nBuild a search, then press ☆ Add to Favorites."
                                      if view == "Mine" else "Nothing here yet.")
-            self.rx_fav_empty.place(relx=0.5, rely=0.4, anchor="center")
+            self.rx_fav_empty.place(in_=self.rx_fav_tv, relx=0.5, rely=0.5, anchor="center", y=12)
+            self.rx_fav_empty.lift()
         self.rx_fav_greys()
 
     def _rx_sel_rows(self):
@@ -985,13 +989,13 @@ class RegexPage:
         rows = self._rx_sel_rows()
         one, mine = len(rows) == 1, self._rx_one_mine()
         post = self._rx_post()
-        for text, ok in (("📋 Copy", one), ("Open in the builder", one and bool(rows[0].get("state"))),
-                         ("⌨ Key…", mine), ("🏷 Tags…", mine), ("📤 Post", mine), ("▲ Upvote", bool(post)),
-                         ("☆ Add to Mine", one and not mine), ("Delete", bool(rows) and all(r["_origin"] == "mine"
-                                                                                         for r in rows))):
-            b = getattr(self, "rx_fav_btns", {}).get(text)
-            if b is not None:
-                b.state(["!disabled"] if ok else ["disabled"])
+        self.share_tool_greys(getattr(self, "rx_fav_btns", {}), {
+            "main": one, "open": one and bool(rows[0].get("state")), "rename": mine, "tags": mine, "key": mine,
+            "post": mine, "take": one and not mine,
+            "delete": bool(rows) and all(r["_origin"] == "mine" for r in rows)}, post)
+        head = getattr(self, "rx_fav_head", None)
+        if head is not None:
+            head.config(text=f"FAVORITES · {len(self.rx_fav_tv.get_children())} · {self.rx_fav_view.get()}")
 
     def rx_fav_click(self, e):
         """A click on a row's "📋 Copy" cell copies that favorite."""
@@ -1065,8 +1069,12 @@ class RegexPage:
             data["tags"] = list(f["tags"])
         return self.share_post("regex", data, self.rx_fill_favorites)
 
-    def rx_fav_vote(self):
-        return self.share_vote("regex", self._rx_post(), self.rx_fill_favorites)
+    def rx_fav_official(self):
+        post = self._rx_post()
+        if not post:
+            return None
+        return self.share_admin("regex", post, "unpromote" if post.get("promoted") else "promote",
+                                self.rx_fill_favorites)
 
     def rx_fav_report(self):
         return self.share_report("regex", self._rx_post(), self.rx_fill_favorites)
