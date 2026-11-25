@@ -26,7 +26,7 @@ EOF
 for t in tesseract grim socat xdotool; do command -v "$t" >/dev/null || echo "note: $t not found - needed at run time on Hyprland (linux/README.md)"; done
 
 "$PY" -m PyInstaller --noconfirm --clean --onefile --name StashOfExile2 --collect-submodules soe2 \
-  --add-data "modlists.json:." --add-data "gamedata.json:." --add-data "regexdata.json:." \
+  --add-data "modlists.json:." --add-data "gamedata.json:." --add-data "uniquedata.json:." --add-data "regexdata.json:." \
   --add-data "default_rules.json:." --add-data "searchdata.json:." --add-data "anointdata.json:." \
   --add-data "cxnames.json:." --add-data "gamedb.json:." --add-data "gamedb_hide.json:." --add-data "atlasmasters.json:." --add-data "moneymakers.json:." --add-data "mapdata.json:." --add-data "campaign.json:." \
   --add-data "crafthelper.json:." --add-data "tierdata.json:." --add-data "themes:themes" \

@@ -193,7 +193,7 @@ def set_label(set_name):
         return GB.class_name(set_name[5:])
     if set_name.startswith("unique:"):
         from . import gearbook as GB
-        return next((n for n in GB.store() if n.lower() == set_name[7:]), set_name[7:].title())
+        return next((n for n in GB.all_uniques() if n.lower() == set_name[7:]), set_name[7:].title())
     return set_name
 
 

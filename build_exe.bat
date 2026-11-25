@@ -7,7 +7,7 @@ py -m pip install -r requirements-build.txt
 if errorlevel 1 goto fail
 echo Building StashOfExile2.exe - this takes a few minutes...
 py -m PyInstaller --noconfirm --clean --onefile --windowed --name StashOfExile2 --icon stashofexile2.ico --collect-submodules soe2 ^
-  --add-data "modlists.json;." --add-data "gamedata.json;." --add-data "regexdata.json;." --add-data "default_rules.json;." --add-data "searchdata.json;." --add-data "anointdata.json;." --add-data "cxnames.json;." --add-data "gamedb.json;." --add-data "gamedb_hide.json;." --add-data "atlasmasters.json;." --add-data "moneymakers.json;." --add-data "mapdata.json;." --add-data "campaign.json;." --add-data "crafthelper.json;." --add-data "tierdata.json;." --add-data "themes;themes" --add-data "stashofexile2.ico;." ^
+  --add-data "modlists.json;." --add-data "gamedata.json;." --add-data "uniquedata.json;." --add-data "regexdata.json;." --add-data "default_rules.json;." --add-data "searchdata.json;." --add-data "anointdata.json;." --add-data "cxnames.json;." --add-data "gamedb.json;." --add-data "gamedb_hide.json;." --add-data "atlasmasters.json;." --add-data "moneymakers.json;." --add-data "mapdata.json;." --add-data "campaign.json;." --add-data "crafthelper.json;." --add-data "tierdata.json;." --add-data "themes;themes" --add-data "stashofexile2.ico;." ^
   --add-data "soe2\sekhemas.json;soe2" --add-data "soe2\cleanwords.json;soe2" --add-data "soe2\fonts;soe2\fonts" --hidden-import pystray._win32 --hidden-import PIL._tkinter_finder ^
   --hidden-import cv2 --hidden-import mss --hidden-import numpy --collect-submodules winrt stashofexile2.py
 if errorlevel 1 goto fail

@@ -87,7 +87,7 @@ def _letter(g):
     return "F" if g == "ignore" else g
 
 
-UNIQ_TITLE = "UNIQUES YOU'VE CHECKED"
+UNIQ_TITLE = "UNIQUES"                    # 3.3.0 owner: every unique in the game, folded by type (was: you've checked)
 
 class RateModsPage:
     """Mixed into App."""
@@ -98,26 +98,38 @@ class RateModsPage:
         price checked."""
         from . import gearbook as GB
         out = list(SETS) + [(f"gear:{c}", n) for c, n in GB.classes()]
-        uniq = sorted(GB.store(), key=str.lower)
-        # 3.3.0 owner: Megalomaniac showed 0 of 0. A unique with no mods to rate, only passives it allocates, is
-        # left out of the list
-        return out + [(f"unique:{n.lower()}", n) for n in uniq if self.rm_entries(f"unique:{n.lower()}")]
+        # 3.3.0 owner: every unique in the game (uniquedata.json), not only the ones you price checked. Megalomaniac
+        # showed 0 of 0: a unique with no mods to rate, only passives it allocates, is left out of the list
+        return out + [(f"unique:{n.lower()}", n) for n in GB.all_uniques() if self.rm_entries(f"unique:{n.lower()}")]
 
     def rm_gear_mods(self, set_name):
         from . import gearbook as GB
         if set_name.startswith("gear:"):                     # 2.99.0: every line that rolls on the class
             out = [(r["key"], r["text"]) for r in GB.class_mods(set_name[5:])]
         else:
-            name = next((n for n in GB.store() if f"unique:{n.lower()}" == set_name), None)
+            name = next((n for n in GB.all_uniques() if f"unique:{n.lower()}" == set_name), None)
             out = [(r["key"], r["text"]) for r in GB.unique_rows(name)] if name else []
-        for rec in self.records.values():
-            if RM.set_of(rec) != set_name:
-                continue
+        for rec in self._rm_records_by_set().get(set_name, ()):
             for m in (rec.get("item") or {}).get("mods") or []:
                 k = RM.key_for(rec, m)
                 if k:
                     out.append((k, m.get("shown") or m["text"]))
         return out
+
+    def _rm_records_by_set(self):
+        """Your price checks by the set they belong to, worked out once while the list of checks is the same: with
+        every unique listed, going through every check for every set was slow."""
+        recs = getattr(self, "records", None) or {}
+        stamp = (id(recs), len(recs))
+        cache = self.__dict__.get("_rm_by_set")
+        if cache is None or cache[0] != stamp:
+            by = {}
+            for rec in list(recs.values()):
+                s = RM.set_of(rec)
+                if s:
+                    by.setdefault(s, []).append(rec)
+            cache = self.__dict__["_rm_by_set"] = (stamp, by)
+        return cache[1]
 
     def rm_queue(self, s):
         return RM.queue(s, self.rm_gear_mods(s) if s.startswith(("gear:", "unique:")) else None)
@@ -145,8 +157,13 @@ class RateModsPage:
         out = [("MAP ITEMS", [one(*x) for x in RM.MAP_SETS]), ("JEWELS", [one(*RM.JEWEL_SET)]),
                ("GEAR", [k for k in kinds if k[2]])]
         uniq = [(s, lab) for s, lab in sets if s.startswith("unique:")]
-        if uniq:
-            out.append((UNIQ_TITLE, uniq))
+        if uniq:                                             # 3.3.0 owner: folded by type, like Gear
+            from . import uniquedata as UD
+            by = {}
+            for s, lab in uniq:
+                by.setdefault(UD.group_of(lab), []).append((s, lab))
+            order = list(UD.GROUP_ORDER) + [UD.OTHER]
+            out.append((UNIQ_TITLE, [(f"u:{g}", g, by[g]) for g in order if g in by]))
         return out
 
     # ---------------------------------------------------------------- the page
@@ -391,7 +408,10 @@ class RateModsPage:
         self.rm_set_label = RM.set_label(set_name)
         if set_name.startswith("gear:"):
             self.rm_fold.add(RM.gear_kind(set_name[5:]))
-        elif not set_name.startswith("unique:"):
+        elif set_name.startswith("unique:"):
+            from . import uniquedata as UD
+            self.rm_fold.add(f"u:{UD.group_of(RM.set_label(set_name))}")    # its type's group opens
+        else:
             self.rm_fold.add(f"set:{set_name}")              # the picked set's group opens
         self.rm_ticked.clear()
         self.rm_tpick = None
@@ -587,7 +607,8 @@ class RateModsPage:
         tag = f"kind:{kind}"
         cv.card(2, y, w - 4, y + 32, tag=tag, fill=cv.c("surface_raised"), outline=cv.c("border"), r=8)
         cv.text(12, y + 16, ("▾ " if opened else "▸ ") + title, F_BODY, anchor="w", tags=(tag,))
-        cv.text(w - 12, y + 16, f"{len(kids)} sets · {r} of {n} rated", F_SMALL, fill=cv.c("text_muted"), anchor="e",
+        word = "uniques" if str(kind).startswith("u:") else "sets"
+        cv.text(w - 12, y + 16, f"{len(kids)} {word} · {r} of {n} rated", F_SMALL, fill=cv.c("text_muted"), anchor="e",
                 tags=(tag,))
         cv.acts[tag] = lambda k=kind: self.rm_fold_flip(k)
         cv.tips[tag] = f"{'Fold' if opened else 'Open'} the {title} sets"
