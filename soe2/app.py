@@ -406,6 +406,7 @@ class App(CalendarPage, DataReportsPage, BulkPage, SettingsPage, GearBookPage, P
         from . import listkit                        # 2.12.0: keys, right-click menus and striped rows everywhere
         listkit.install(self)
         SETTINGS.setdefault("poe2db_key", "Ctrl+Shift+D")
+        SETTINGS.setdefault("ninja_key", "Ctrl+Shift+N")         # 3.3.0 owner: opens poe.ninja
         SETTINGS.setdefault("copy_marker", True)            # 2.19.0: a mark where you pressed Ctrl+Alt+C
         SETTINGS.setdefault("copy_marker_secs", 10)         # 2.24.0: how long it stays
         SETTINGS.setdefault("copy_marker_hold", False)      # 2.24.0: or until Esc is tapped twice (2.25.0)

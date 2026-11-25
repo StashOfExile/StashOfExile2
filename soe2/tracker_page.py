@@ -28,6 +28,7 @@ DEFAULT_KEYS = {"key_pause": "Pause",            # 2.74.3: the keyboard's Pause 
                 "key_overlay": "F6"}             # Ctrl+Alt+S is gone - Ctrl+Alt keys got in the way of game input)           # 2.59.0: F6 shows / hides the whole overlay       # 2.10.0: set once, change them in Options
 # 2.127.0: Settings › Keybinds › ↺ Defaults - every keybind as the app comes (key id as all_hotkeys gives it)
 DEFAULT_HOTKEYS = {"checks:pc_key": "Ctrl+D", "checks:pc_close_key": "Esc", "checks:poe2db_key": "Ctrl+Shift+D",
+                   "checks:ninja_key": "Ctrl+Shift+N",  # 3.3.0 owner
                    "tracker:key_pause": DEFAULT_KEYS["key_pause"],
                    "tracker:key_overlay": DEFAULT_KEYS["key_overlay"], "tracker:key_camp_prev": "",
                    "tracker:key_camp_next": "", "checks:ledger_key": "Ctrl+Alt+N", "overlay:hideout_key": "F1",
@@ -1458,33 +1459,31 @@ class TrackerPage:
         tc = self.tracker_cfg()
         # 2.57.0 (feedback: every key in Settings › Hotkeys, nowhere else): the third field is the group the key
         # belongs to (a heading on the Hotkeys page); every key but Ctrl+Alt+C is set here and only here
-        rows = [("Show or hide the app", SETTINGS.get("drawer_key", "Ctrl+Shift+Space"), "App",
+        # 3.3.0 owner: short action names, the way games and apps label their keybinds
+        rows = [("Show/Hide App", SETTINGS.get("drawer_key", "Ctrl+Shift+Space"), "App",
                  "checks:drawer_key"),                        # drawer build: the Drawer key
-                ("Price check the item under the mouse", SETTINGS.get("pc_key", "Ctrl+D"), "Price Checks",
-                 "checks:pc_key"),
-                ("Close the price check", SETTINGS.get("pc_close_key", "Esc"),
+                ("Price Check", SETTINGS.get("pc_key", "Ctrl+D"), "Price Checks", "checks:pc_key"),
+                ("Close Price Check", SETTINGS.get("pc_close_key", "Esc"),
                  "Price Checks", "checks:pc_close_key"),      # 2.121.1
-                ("Add the item under the mouse to Bulk Pricing", "Ctrl+Alt+C", "Bulk Pricing", None),
-                ("Open poe2db's modifier list in your browser", SETTINGS.get("poe2db_key", ""), "Tools",
-                 "checks:poe2db_key"),                        # (2.98.3: its own group - not Bulk Pricing)
-                ("Pause or resume the session timer", tc.get("key_pause", ""), "Overlay",
-                 "tracker:key_pause"),
-                ("Show or hide the overlay", tc.get("key_overlay", ""), "Overlay", "tracker:key_overlay"),
-                ("Go back one campaign step", tc.get("key_camp_prev", ""), "Overlay", "tracker:key_camp_prev"),
-                ("Go on to the next campaign step", tc.get("key_camp_next", ""), "Overlay", "tracker:key_camp_next"),
-                ("Read the screen once for the helpers",
-                 self.look_key(), "Overlay", "checks:look_key"),       # GGG policy (Nov 2026)
-                ("Mark a run as done in the Strat Tracker", SETTINGS.get("ledger_key") or "Ctrl+Alt+N",
+                ("Add to Bulk Pricing", "Ctrl+Alt+C", "Bulk Pricing", None),
+                ("Open poe2db", SETTINGS.get("poe2db_key", ""), "Tools", "checks:poe2db_key"),
+                ("Open poe.ninja", SETTINGS.get("ninja_key", ""), "Tools", "checks:ninja_key"),
+                ("Pause/Resume Timer", tc.get("key_pause", ""), "Overlay", "tracker:key_pause"),
+                ("Show/Hide Overlay", tc.get("key_overlay", ""), "Overlay", "tracker:key_overlay"),
+                ("Previous Campaign Step", tc.get("key_camp_prev", ""), "Overlay", "tracker:key_camp_prev"),
+                ("Next Campaign Step", tc.get("key_camp_next", ""), "Overlay", "tracker:key_camp_next"),
+                ("Screen Read", self.look_key(), "Overlay", "checks:look_key"),       # GGG policy (Nov 2026)
+                ("Mark Run Done", SETTINGS.get("ledger_key") or "Ctrl+Alt+N",
                  "Farming Strategies", "checks:ledger_key"),
-                ("Go to hideout", oc.get("hideout_key", ""), "Chat commands", "overlay:hideout_key")]
+                ("Go to Hideout", oc.get("hideout_key", ""), "Chat commands", "overlay:hideout_key")]
         rx = self.rx_keys() if hasattr(self, "rx_keys") else []
         at = next((n + 1 for n, r in enumerate(rows) if r[2] == "Tools"), len(rows))
         for i, k in enumerate(rx):                     # 2.132.7: Regex keys - each copies one favorite (Regex › Favorites)
-            rows.insert(at + i, (f"Regex key {i + 1}: copy {self.rx_ref_label(k['fav'])}", k.get("key", ""), "Regex",
+            rows.insert(at + i, (f"Regex: {self.rx_ref_label(k['fav'])}", k.get("key", ""), "Regex",
                                  f"rxkey:{i}"))
         for i, c in enumerate(oc.get("commands", []) or []):
             if c.get("cmd"):
-                rows.append((f"Send the chat command {c.get('name') or c.get('cmd', '')}", c.get("key", ""), "Chat commands",
+                rows.append((f"Send {c.get('name') or c.get('cmd', '')}", c.get("key", ""), "Chat commands",
                              f"cmd:{i}"))
         return rows
 

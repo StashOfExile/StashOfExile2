@@ -418,6 +418,18 @@ def install(app):
         root.bind_class("Treeview", ev, lambda e: schedule_restripe(e.widget), add="+")
 
 
+NINJA_URL = "https://poe.ninja/poe2/economy"
+
+
+def open_ninja():
+    """3.3.0 owner: Ctrl+Shift+N - poe.ninja's Path of Exile 2 economy pages."""
+    try:
+        webbrowser.open(NINJA_URL)
+        return True
+    except Exception:
+        return False
+
+
 def open_poe2db():
     try:
         webbrowser.open(POE2DB_URL)
