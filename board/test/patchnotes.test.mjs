@@ -31,6 +31,12 @@ assert.deepEqual(list.map((n) => n.title).sort(), ["0.5.5h Patch Notes", "Hotfix
 assert.equal(list.length, 2, "an empty read drops nothing");
 assert.equal(added, 0);
 
+// the same patch from the forum and from Steam is one entry
+({ list } = patchMerge(list, [{ title: "Path of Exile 2: 0.5.5h Patch Notes", url: "https://store.steampowered.com/news/x", at: 5 }], 3000));
+assert.equal(list.length, 2, "0.5.5h once");
+({ list } = patchMerge(list, [{ title: "0.5.5h Hotfix 2", url: "https://www.pathofexile.com/forum/view-thread/7", at: 6 }], 3000));
+assert.equal(list.length, 3, "a hotfix is its own entry");
+
 const page = `<a href="/forum/view-thread/9">1.0.1 Patch Notes</a> <a href="/forum/view-thread/9">1.0.1 Patch Notes</a>`;
 assert.equal(patchParse(page).length, 1, "the forum page works too");
 console.log("patchnotes: ok");
