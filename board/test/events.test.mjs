@@ -25,7 +25,7 @@ const wrap = (sql, args = []) => ({
   },
   all: async () => ({ results: raw.prepare(named(sql)).all(params(sql, args)) }),
 });
-const env = { DB: { prepare: (sql) => wrap(sql) } };
+const env = { DB: { prepare: (sql) => wrap(sql) }, AUTO_EVENTS: "0" };   // the draft flow; AUTO_EVENTS on: below
 const json = (o, status = 200) => ({ status, body: o });
 const fail = (status, error) => ({ status, body: { error } });
 let NOW = 1795000000;
@@ -128,7 +128,7 @@ const kinds = {
   "Path of Exile 1 ExileCon Qualifiers Begin Next Week": null,
   "The Last of the Druids Microtransactions Are Now Available in Store": null,
   "The Third Edict Mystery Box Microtransactions Now Available in Store": null,
-  "New Skill Effects - Kirac's Vault is Now Available": "league",
+  "New Skill Effects - Kirac's Vault is Now Available": null,
   "Weekend Stash Tab Sale": null,
   "Fan Art Competition Winners": null,
   "Path of Exile: Covens of Umbra - What We’re Working On": null,
@@ -139,10 +139,9 @@ const kinds = {
   "New Unique - The Draugur’s Lantern": null,
   "Hideout Showcase": null,
 };
-delete kinds["New Skill Effects - Kirac's Vault is Now Available"];      // known miss, checked below
 for (const [title, want] of Object.entries(kinds)) assert.equal(E.steamKind(title), want, title);
-// a wrong guess is only ever a draft an admin dismisses: this one is a shop post the rules take for a league
-assert.equal(E.steamKind("New Skill Effects - Kirac's Vault is Now Available"), "league");
+// events go live on their own now, so a shop post must never read as a league
+assert.equal(E.steamKind("New Skill Effects - Kirac's Vault is Now Available"), null);
 
 const P = Math.floor(Date.UTC(2026, 10, 3, 21) / 1000);          // posted 3 Nov 2026
 const utc = (y, m, d) => Math.floor(Date.UTC(y, m, d, 20) / 1000);
@@ -207,4 +206,15 @@ FEEDS = {};
 await E.eventCheckNow(env, admin);
 assert.equal(raw.prepare("SELECT COUNT(*) AS n FROM events WHERE status <> 'live'").get().n, 0, "old drafts are swept");
 assert.equal(raw.prepare("SELECT COUNT(*) AS n FROM events WHERE status = 'live'").get().n, 1, "live events are kept");
+
+// AUTO_EVENTS on (the default): a Steam post goes live with no admin
+{
+  raw.exec("DELETE FROM events");
+  const live = { DB: env.DB };
+  FEEDS = { 238960: [item("31", "Covens of Umbra Twitch Drops", { date: NOW })], 2694490: [] };
+  steamDown = false;
+  NOW += 7 * 3600;
+  await E.steamCheck(live, true);
+  assert.deepEqual((await E.eventList(live)).body.events.map((e) => e.name), ["Covens of Umbra Twitch Drops"], "live at once");
+}
 console.log("events: ok");
