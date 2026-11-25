@@ -195,6 +195,22 @@ class Days(Base):
             e = {"id": 1, "kind": "league", "name": "l", "start": ts(2026, 12, 11, 20), "end": 0}
             self.assertEqual(CD.starts_line(e, NOW), "Fri 11 Dec, 8:00 PM · in 9 days")
 
+    def test_the_time_pickers_round_trip(self):
+        hours, mins, halves = CD.clock_choices()
+        self.assertEqual((len(hours), mins[:3], halves), (24, ["00", "05", "10"], []))
+        self.assertEqual(CD.clock_parts(20, 5), ("20", "05", ""))
+        self.assertEqual(CD.clock_from_parts("20", "05"), (20, 5))
+        with mock.patch.object(CD, "h24", lambda: False):
+            hours, mins, halves = CD.clock_choices()
+            self.assertEqual((hours[0], len(hours), halves), ("12", 12, ["AM", "PM"]))
+            for h in range(24):
+                for m in (0, 35):
+                    self.assertEqual(CD.clock_from_parts(*CD.clock_parts(h, m)), (h, m))
+            self.assertEqual(CD.clock_parts(0, 0), ("12", "00", "AM"))
+            self.assertEqual(CD.clock_parts(12, 0), ("12", "00", "PM"))
+        for bad in (("x", "00", ""), ("25", "00", ""), ("13", "00", "PM"), ("8", "75", "AM"), ("", "", "")):
+            self.assertIsNone(CD.clock_from_parts(*bad), bad)
+
     def test_clock(self):
         for text, want in (("20:00", (20, 0)), ("8pm", (20, 0)), ("2030", (20, 30)), ("9", (9, 0)), ("12am", (0, 0)),
                            ("12pm", (12, 0)), ("7.15", (7, 15))):

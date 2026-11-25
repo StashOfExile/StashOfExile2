@@ -274,6 +274,39 @@ def clock_hint():
     return "Like 20:00." if h24() else "Like 8pm or 8:30 PM."
 
 
+MINUTE_STEP = 5
+
+
+def clock_choices():
+    """What the time pickers offer: (hours, minutes, AM and PM or nothing), in the app clock's own format."""
+    mins = [f"{m:02d}" for m in range(0, 60, MINUTE_STEP)]
+    if h24():
+        return [f"{h:02d}" for h in range(24)], mins, []
+    return [str(h) for h in (12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11)], mins, ["AM", "PM"]
+
+
+def clock_parts(hour, minute):
+    """An hour and a minute as the three picker values: ('8', '30', 'PM') or ('20', '30', '')."""
+    if h24():
+        return f"{hour:02d}", f"{minute:02d}", ""
+    return str(hour % 12 or 12), f"{minute:02d}", "PM" if hour >= 12 else "AM"
+
+
+def clock_from_parts(hour, minute, half=""):
+    """The pickers' three values back to (hour, minute), or None when one is not a number in range."""
+    try:
+        h, m = int(str(hour)), int(str(minute))
+    except ValueError:
+        return None
+    if half in ("AM", "PM"):
+        if not 1 <= h <= 12:
+            return None
+        h = h % 12 + (12 if half == "PM" else 0)
+    if not (0 <= h <= 23 and 0 <= m <= 59):
+        return None
+    return h, m
+
+
 def away(ts, now=None):
     """'in 9 days', 'tomorrow', 'in 3 hours', 'now'. Days are counted by the date, not by 24 hours."""
     now = time.time() if now is None else now

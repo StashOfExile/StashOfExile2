@@ -273,6 +273,24 @@ class Page(unittest.TestCase):
             dlg.cal_save()
         self.assertEqual(next(e for e in CD.events() if e["name"] == "One day")["end"], 0)
 
+    def test_time_is_picked_never_typed(self):
+        """3.3.0 owner: the time box took any typing. Three pickers, in the app clock's own format."""
+        for h24, want_boxes, hm in ((True, 2, ("21", "15", "")), (False, 3, ("9", "15", "PM"))):
+            with mock.patch.object(CD, "h24", lambda v=h24: v):
+                dlg = self.h.cal_add()
+                boxes = [w for w in all_widgets(dlg) if isinstance(w, ttk.Combobox)]
+                self.assertEqual(len(boxes), want_boxes)
+                self.assertTrue(all(str(b.cget("state")) == "readonly" for b in boxes), "nothing can be typed")
+                typed = [w for w in all_widgets(dlg) if isinstance(w, ttk.Entry) and not isinstance(w, ttk.Combobox)]
+                self.assertEqual(len(typed), 2, "only Name and Note are typed")
+                for box, val in zip(boxes, hm):
+                    box.set(val)
+                dlg.cal_vars["name"].set(f"T{h24}")
+                dlg.cal_save()
+                ev = next(e for e in CD.events() if e["name"] == f"T{h24}")
+                t = dt.datetime.fromtimestamp(ev["start"])
+                self.assertEqual((t.hour, t.minute), (21, 15))
+
     def test_the_overlay_line_has_one_switch_and_is_off_until_turned_on(self):
         from soe2.config import SETTINGS
         self.addCleanup(SETTINGS.pop, "cal_overlay", None)
@@ -376,10 +394,6 @@ class AdminPage(Page):
             dlg.cal_save()
             self.assertEqual(v["msg"].cget("text"), "The link must start with https://")
             v["link"].set("")
-            v["sclock"].set("nonsense")
-            dlg.cal_save()
-            self.assertIn("not clear", v["msg"].cget("text"))
-            v["sclock"].set("20:00")
             dlg.cal_save()
         self.assertEqual(sent, [({"kind": "race", "name": "Launch race", "start": int(CD.at(self.day, 20)), "end": 0,
                                   "link": "", "note": ""}, None)])

@@ -569,6 +569,26 @@ class CalendarPage:
         dlg.bind("<Escape>", lambda e: dlg.destroy())
         return dlg
 
+    @staticmethod
+    def _cal_time(parent, hour=20, minute=0):
+        """3.3.0 owner: the time was a box that took any typing. Three pickers that cannot hold a wrong time:
+        hour, minute, and AM or PM when the app clock is a 12 hour one. -> (the frame, read) where read() gives
+        (hour, minute)."""
+        P2 = C["panel2"]
+        hours, mins, halves = CD.clock_choices()
+        h, m, half = CD.clock_parts(hour, minute)
+        if m not in mins:                                   # an event at 9:17 keeps its minute
+            mins = sorted(set(mins) | {m})
+        row = tk.Frame(parent, bg=P2)
+        hv, mv, av = tk.StringVar(value=h), tk.StringVar(value=m), tk.StringVar(value=half)
+        ttk.Combobox(row, textvariable=hv, values=hours, state="readonly", width=3).pack(side="left")
+        tk.Label(row, text=":", bg=P2, fg=C["text"]).pack(side="left", padx=2)
+        ttk.Combobox(row, textvariable=mv, values=mins, state="readonly", width=3).pack(side="left")
+        if halves:
+            ttk.Combobox(row, textvariable=av, values=halves, state="readonly", width=4).pack(side="left", padx=(8, 0))
+        row.cal_vars = (hv, mv, av)
+        return row, lambda: CD.clock_from_parts(hv.get(), mv.get(), av.get())
+
     def _cal_lead_boxes(self, dlg, leads):
         P2 = C["panel2"]
         tk.Label(dlg, text="Tell me", bg=P2, fg=C["text"]).pack(anchor="w")
@@ -630,9 +650,8 @@ class CalendarPage:
         ttk.Checkbutton(dlg, text="It runs for more than one day", variable=many).pack(anchor="w")
         day_row("Last day", day2)
         tk.Label(dlg, text="Time, on this PC's clock", bg=P2, fg=C["text"]).pack(anchor="w")
-        clock = tk.StringVar(value=CD.clock(CD.at(day[0], 20)))
-        ttk.Entry(dlg, textvariable=clock, width=10).pack(anchor="w", pady=(2, 0))
-        tk.Label(dlg, text=CD.clock_hint(), bg=P2, fg=C["muted"]).pack(anchor="w", pady=(0, 8))
+        trow, clock = self._cal_time(dlg)
+        trow.pack(anchor="w", pady=(2, 8))
         vars_ = self._cal_lead_boxes(dlg, (0,))
         tk.Label(dlg, text="Note", bg=P2, fg=C["text"]).pack(anchor="w", pady=(8, 0))
         note = tk.StringVar()
@@ -643,9 +662,9 @@ class CalendarPage:
         msg.pack(fill="x")
 
         def save():
-            hm = CD.parse_clock(clock.get())
+            hm = clock()
             if hm is None:
-                return msg.config(text="That time is not clear. " + CD.clock_hint())
+                return msg.config(text="Pick a time.")
             end = CD.at(day2[0], 23, 59) if many.get() else 0
             got = CD.add_mine(name.get(), CD.at(day[0], *hm), end=end, note=note.get(),
                               leads=[s for s, v in vars_.items() if v.get()])
@@ -892,12 +911,13 @@ class CalendarPage:
             lab.pack(side="left")
             ttk.Button(row, text="›", width=3, command=lambda: step(1)).pack(side="left")
             step(0)
-            clock = tk.StringVar(value=CD.clock(ts if ts else CD.at(day0, 20)))
-            ttk.Entry(row, textvariable=clock, width=10).pack(side="left", padx=(12, 0))
+            t = _dt.datetime.fromtimestamp(ts) if ts else None
+            trow, clock = self._cal_time(row, t.hour if t else 20, t.minute if t else 0)
+            trow.pack(side="left", padx=(12, 0))
             return day, clock
         first, last = self.cal_range()
         sday, sclock = when("Starts, on this PC's clock", ev["start"] if ev else 0, first)
-        tk.Label(dlg, text=CD.clock_hint() + " Every user sees it in their own time.", bg=P2, fg=C["muted"]).pack(
+        tk.Label(dlg, text="Every user sees it in their own time.", bg=P2, fg=C["muted"]).pack(
             anchor="w", pady=(0, 8))
         has_end = tk.BooleanVar(value=bool(ev and ev.get("end")) or (not ev and first != last))
         ttk.Checkbutton(dlg, text="It has an end", variable=has_end).pack(anchor="w")
@@ -916,9 +936,9 @@ class CalendarPage:
         msg.pack(fill="x")
 
         def save():
-            s, e = CD.parse_clock(sclock.get()), CD.parse_clock(eclock.get())
+            s, e = sclock(), eclock()
             if s is None or (has_end.get() and e is None):
-                return msg.config(text="That time is not clear. " + CD.clock_hint())
+                return msg.config(text="Pick a time.")
             body = CD.event_body(words.get(kind.get()), name.get(), CD.at(sday[0], *s),
                                  CD.at(eday[0], *e) if has_end.get() else 0, link.get(), note.get())
             if isinstance(body, str):
