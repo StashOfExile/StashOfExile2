@@ -117,8 +117,11 @@ class SearchPage:
         self.gs_text, self.gs_sb = t, sb
         # 3.0.6: the results are item cards on one canvas (cardlist.py); the text above is kept for the pages that are
         # words (the empty page, nothing matched, Anoints with their prices)
+        from . import gamesearch as _GS
         self.gs_cards = CardList(res, bg=P2, art=self._gs_art, on_toggle=self.gs_toggle, on_wiki=self.gs_wiki,
-                                 on_more=self.gs_more)
+                                 on_more=self.gs_more,
+                                 on_report=lambda r: self.dr_report("search", _GS.report_ref(r), r.get("n") or "",
+                                                                    (r.get("t") or "").split("\n")[0][:200]))
         self._art_hooks = getattr(self, "_art_hooks", []) + [lambda done: self.gs_cards.refresh_art()]
         self.gs_save_job = None
         # (UI overhaul: Anoints is a category again, in the column on the left - not a page of its own)

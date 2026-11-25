@@ -175,3 +175,8 @@ CREATE TABLE IF NOT EXISTS base_shares (league TEXT NOT NULL, base TEXT NOT NULL
 CREATE TABLE IF NOT EXISTS gem_shares (league TEXT NOT NULL, kind TEXT NOT NULL, level INTEGER NOT NULL,
   name TEXT NOT NULL, cid TEXT NOT NULL, div REAL NOT NULL, updated INTEGER NOT NULL,
   PRIMARY KEY (league, kind, level, name, cid));
+-- 3.3.0: data reports from Codex pages; admins review them, and hidden rows reach every app
+CREATE TABLE IF NOT EXISTS data_reports (id INTEGER PRIMARY KEY AUTOINCREMENT, page TEXT NOT NULL, ref TEXT NOT NULL,
+  kind TEXT NOT NULL, item TEXT NOT NULL DEFAULT '', line TEXT NOT NULL DEFAULT '', note TEXT NOT NULL DEFAULT '',
+  version TEXT NOT NULL DEFAULT '', n INTEGER NOT NULL DEFAULT 1, status TEXT NOT NULL DEFAULT 'open',
+  at INTEGER NOT NULL, done_at INTEGER NOT NULL DEFAULT 0, UNIQUE (page, ref, kind));

@@ -270,7 +270,41 @@ class PageBar(GradientBar):
                     self.create_text(bb[2] + 8, y_blurb, text="ⓘ", anchor="w", font=("Segoe UI", 9), fill=mut,
                                      tags=("pg", "pgtip"))
                     self._blurb_tip_bind(mod)
+            self._report_links(mod, w, y_name, t)
         self.tag_lower("grad")
+
+    def redraw(self):
+        self.paint()
+
+    def _report_links(self, mod, w, y, t):
+        """3.3.0 owner: a Codex page's header has Report a Problem; an admin also gets Reports with how many wait.
+        Words, never an icon alone."""
+        page = getattr(mod, "report_page", None)
+        app = getattr(self.win.shell, "app", None)
+        if not page or app is None or not hasattr(app, "dr_report_page"):
+            return
+        link, hot = t.c("accent_2"), t.c("accent")
+        x = w - 24
+        try:
+            n = app.dr_count() if app.dr_is_admin() else None
+        except Exception:
+            n = None
+        if n is not None:
+            rid = self.create_text(x, y, text=f"● Reports: {n} to review" if n else "Reports", anchor="e",
+                                   font=("Segoe UI", 9, "bold" if n else "normal"), fill=hot if n else link,
+                                   tags=("pg", "pgreports"))
+            x = (self.bbox(rid) or (x, 0, x, 0))[0] - 18
+            if not getattr(self, "_reports_bound", False):
+                self.tag_bind("pgreports", "<Button-1>", lambda e: app.dr_reports(), add="+")
+                self._reports_bound = True
+        self.create_text(x, y, text="⚑ Report a Problem", anchor="e", font=("Segoe UI", 9), fill=link,
+                         tags=("pg", "pgreport"))
+        if not getattr(self, "_report_bound", False):
+            self.tag_bind("pgreport", "<Button-1>", lambda e: app.dr_report_page(page), add="+")
+            for tag in ("pgreport", "pgreports"):
+                self.tag_bind(tag, "<Enter>", lambda e: self.configure(cursor="hand2"), add="+")
+                self.tag_bind(tag, "<Leave>", lambda e: self.configure(cursor=""), add="+")
+            self._report_bound = True
 
     def _blurb_tip_bind(self, mod):
         """The ⓘ's hover (its words asked for each time: they follow the settings) and its click - bound once."""

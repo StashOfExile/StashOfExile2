@@ -105,6 +105,7 @@ from .boardmod_page import BoardModPage        # 2.85.0: your community name, Su
 from .gearbook_page import GearBookPage  # 2.99.0: Mod book › Gear rules, Unique rules, Learned per tab
 from .leaderboard_page import LeaderboardPage  # 2.86.0: Overlay ↳ Leaderboards
 from .calendar_page import CalendarPage        # 3.3.0 owner: Dashboard ↳ Calendar
+from .datareports_page import DataReportsPage  # 3.3.0 owner: Report a Problem on Codex pages
 from . import gamedata
 from . import modules
 from .shell import Shell
@@ -319,7 +320,7 @@ from .names import CARD_SECTIONS                 # noqa: E402  (the item card's 
 KIND_WORD = {"Implicit": "Implicit", "Enchant": "Enchant", "Rune": "Rune"}
 
 
-class App(CalendarPage, BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage, BoardModPage, LeaderboardPage, WellSoulsPage, RumoursPage, ListKeys, AlertsPage, AboutPage, BulkTabsPage, SearchOptsPage, ExchangePage, WealthPage, LibraryPage, RegexPage, UtilitiesPage, TrackerPage, SearchPage, CalcOverlay, InsightsPage, MoneyMakersPage, MapLibraryPage, RemnantPage, FavoursPage, LedgerPage, FeedbackPage, FeedPage, MergedOverlay, LightOverlay, SplitOverlay, GamePlanPage, FocusPokes, OverlayHelp, OverlayParts, CampaignUI, OverlayRates, CommunityPage, RateModsPage, StashScanPage, OverlayQuick, FeaturesPage, TopUpPage, MapProfitPage, TemplePage, SekhemasPage, HoverPage, SharePage, MusicPage, OverlayA8, LookPage, ReadMarkPage, DrawerHost):
+class App(CalendarPage, DataReportsPage, BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, FavoritesPage, BoardModPage, LeaderboardPage, WellSoulsPage, RumoursPage, ListKeys, AlertsPage, AboutPage, BulkTabsPage, SearchOptsPage, ExchangePage, WealthPage, LibraryPage, RegexPage, UtilitiesPage, TrackerPage, SearchPage, CalcOverlay, InsightsPage, MoneyMakersPage, MapLibraryPage, RemnantPage, FavoursPage, LedgerPage, FeedbackPage, FeedPage, MergedOverlay, LightOverlay, SplitOverlay, GamePlanPage, FocusPokes, OverlayHelp, OverlayParts, CampaignUI, OverlayRates, CommunityPage, RateModsPage, StashScanPage, OverlayQuick, FeaturesPage, TopUpPage, MapProfitPage, TemplePage, SekhemasPage, HoverPage, SharePage, MusicPage, OverlayA8, LookPage, ReadMarkPage, DrawerHost):
     COLS = [("added", "#", 36, "e"), ("name", "Item", 170, "w"), ("type", "Type", 110, "w"), ("mark", "Status", 104, "w"),
             ("est", "Price", 104, "e"), ("conf", "Confidence", 120, "w"), ("listings", "Listings", 70, "e"), ("priced", "Priced at", 130, "w"),
             ("match", "How it was priced", 300, "w"), ("vmods", "★", 36, "center"),
@@ -423,6 +424,7 @@ class App(CalendarPage, BulkPage, SettingsPage, GearBookPage, PriceCheckPage, Pr
         self.root.after(5 * 60 * 1000, self.keys_refresh)   # 2.88.2: a fresh key watcher every 5 minutes
         self.start_utilities()                       # 2.0: chat commands & notes listen to the same keyboard watcher
         root.after(15000, self.cm_start)             # 2.31.0: the community Mod book (hourly)
+        self.dr_start()                              # 3.3.0 owner: rows an admin hid from a data report
         from . import usage as _usage                 # UI overhaul: the anonymous usage count (Settings › Privacy)
         _usage.start(root)
         root.after(20000, self.er_start)             # 2.137.0: Error reports (opt-in, hourly)

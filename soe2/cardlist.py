@@ -17,9 +17,10 @@ CLOSED_LINES = 3
 
 
 class CardList(tk.Frame):
-    def __init__(self, parent, bg, art=None, on_toggle=None, on_wiki=None, on_more=None):
+    def __init__(self, parent, bg, art=None, on_toggle=None, on_wiki=None, on_more=None, on_report=None):
         super().__init__(parent, bg=bg)
         self.bg, self.art, self.on_toggle, self.on_wiki, self.on_more = bg, art, on_toggle, on_wiki, on_more
+        self.on_report = on_report                           # 3.3.0 owner: Report a Problem on a result
         self.sb = ttk.Scrollbar(self, orient="vertical", command=self._yview)
         self.sb.pack(side="right", fill="y")
         self.canvas = tk.Canvas(self, bg=bg, highlightthickness=0, bd=0, yscrollcommand=self._sb_set)
@@ -329,12 +330,16 @@ class CardList(tk.Frame):
         return None
 
     def _menu(self, e):
-        """Right click on a database card: copy its row id (for gamedb_hide.json). Only writes to the clipboard."""
+        """Right click on a card: Report a Problem; on a database card also copy its row id (for gamedb_hide.json)."""
         r = self.row_at(e)
-        if not r or not r.get("db") or not r.get("id"):
+        if not r or not (self.on_report or (r.get("db") and r.get("id"))):
             return
-        m = tk.Menu(self.canvas, tearoff=0)
-        m.add_command(label="Copy id for the hide list", command=lambda: self.copy_id(r["id"]))
+        from .listkit import _menu
+        m = _menu(self.canvas)
+        if self.on_report:
+            m.add_command(label="Report a Problem…", command=lambda: self.on_report(r))
+        if r.get("db") and r.get("id"):
+            m.add_command(label="Copy id for the hide list", command=lambda: self.copy_id(r["id"]))
         try:
             m.tk_popup(e.x_root, e.y_root)
         finally:

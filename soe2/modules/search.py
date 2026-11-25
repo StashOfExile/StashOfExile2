@@ -3,6 +3,7 @@ from . import Module
 
 class Search(Module):
     key, title, short, icon, kind = "search", "Game Search", "Search", "🔎", "tool"
+    report_page = "search"                # 3.3.0 owner: Report a Problem in its header
     blurb = "Search every skill, support, unique, base, currency, rune, modifier and keyword - on your PC."
 
     def build(self, body):

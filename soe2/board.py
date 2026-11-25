@@ -63,7 +63,8 @@ def call(method, path, params=None, body=None, get=None):
         return False, "The community board isn't set up yet."
     import requests
     # 3.3.0: reading the Calendar's events needs no account, so the key is not sent with it
-    anon = path.startswith(ANON) or (method == "GET" and path == "/events")
+    anon = path.startswith(ANON) or (method == "GET" and path in ("/events", "/reports/hidden")) or \
+        (method == "POST" and path == "/reports")             # 3.3.0: a data report is never tied to your account
     tok = None if anon else session().get("token")
     headers = {"User-Agent": APP_UA, "X-SOE2": "1"}
     if tok:

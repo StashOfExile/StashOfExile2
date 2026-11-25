@@ -3,6 +3,7 @@ from . import Module
 
 class MapLibrary(Module):
     key, title, short, icon, kind = "maps", "Map Library", "Maps", "🗺", "tool"
+    report_page = "maps"                # 3.3.0 owner: Report a Problem in its header
     parent = None                      # UI overhaul: its own page (was under Overlay - it isn't an overlay setting)
     blurb = "Every map, tower, citadel and pinnacle fight - rank them S to D or Avoid, share your ranks, see the community's."
 

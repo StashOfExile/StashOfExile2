@@ -126,13 +126,40 @@ def _hide_entries():
         return []
 
 
+def report_ref(row):
+    """3.3.0 owner: what a data report names a Game Search row by: its id, or its group and name."""
+    return row["id"] if row.get("db") and row.get("id") else f"{row.get('g', '')}|{row.get('n', '')}"
+
+
+def _board_hidden():
+    from . import datareports as DR
+    try:
+        return DR.hidden("search")
+    except Exception:
+        buglog.caught()
+        return set()
+
+
 def hidden_ids():
-    return {e["id"] for e in _hide_entries() if e.get("id")}
+    """gamedb_hide.json ids, and 3.3.0: rows an admin hid from a data report."""
+    return {e["id"] for e in _hide_entries() if e.get("id")} | {r for r in _board_hidden() if "|" not in r}
 
 
 def hidden_names():
-    """gamedb_hide.json entries with a "name" (and optionally a "group") hide a Game Search row that has no id."""
-    return gamesearch_clean.hide_names(_hide_entries())
+    """gamedb_hide.json entries with a "name" (and optionally a "group") hide a Game Search row that has no id; and
+    3.3.0: rows an admin hid from a data report, by group and name."""
+    out = gamesearch_clean.hide_names(_hide_entries())
+    for r in _board_hidden():
+        if "|" in r:
+            g, n = r.split("|", 1)
+            out.add((n, g))
+    return out
+
+
+def forget():
+    """The rows are read again next time: an admin hid a row."""
+    _DATA.clear()
+    _DATA["rows"] = None
 
 
 def emotion_counts(em):

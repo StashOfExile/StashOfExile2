@@ -138,7 +138,10 @@ class RateModsPage:
         """The set's mods as the page shows them (kept while the page is up; again on each show)."""
         cache = self.__dict__.setdefault("_rm_ent", {})
         if s not in cache:
-            cache[s] = RM.entries(s, self.rm_gear_mods(s) if s.startswith(("gear:", "unique:")) else None)
+            ents = RM.entries(s, self.rm_gear_mods(s) if s.startswith(("gear:", "unique:")) else None)
+            from . import datareports as DR                  # 3.3.0 owner: a row an admin hid from a report is left out
+            gone = DR.hidden("ratemods")
+            cache[s] = [e for e in ents if not gone.intersection(e["keys"])] if gone else ents
         return cache[s]
 
     def rm_count(self, s):
@@ -1414,6 +1417,9 @@ class RateModsPage:
         if cur:
             menu.add_separator()
             menu.add_command(label="Clear my rating", command=lambda: self.rm_rate_one(e, None))
+        menu.add_separator()
+        menu.add_command(label="Report a Problem…", command=lambda: self.dr_report(
+            "ratemods", e["keys"][0], getattr(self, "rm_set_label", ""), e.get("text") or ""))
         self.rm_menu_open = menu
         try:
             menu.tk_popup(x, y)

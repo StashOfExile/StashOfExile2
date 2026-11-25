@@ -182,6 +182,8 @@ class MapLibraryPage:
         if learned:
             m.add_separator()
             m.add_command(label="Not a map", command=lambda: self.ml_not_map(learned))
+        m.add_separator()                                    # 3.3.0 owner: a wrong map, for an admin to review
+        m.add_command(label="Report a Problem…", command=lambda: self.dr_report("maps", row, row, ""))
         m.tk_popup(e.x_root, e.y_root)
 
     def ml_not_map(self, names):
