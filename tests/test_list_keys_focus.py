@@ -83,9 +83,20 @@ class Wiring(unittest.TestCase):
 
     def test_helpers_has_one_how_to_row(self):
         src = inspect.getsource(tracker_page)
-        self.assertEqual(src.count('text="How to use a helper"'), 1)
+        self.assertEqual(src.count('text="How to use:"'), 1)
         self.assertIn('text="Change key"', src)
-        self.assertIn("command=self.look_key_open", src)
+        self.assertIn("self.look_key_open()", src)
+        self.assertNotIn("flowify(box)", src, "no box of its own: one plain line")
+
+    def test_change_key_lights_the_read_key_row(self):
+        from soe2 import settings_page
+        src = inspect.getsource(settings_page)
+        self.assertIn("def _hotkey_row_show(", src)
+        self.assertIn('lab.config(text="▶ " + str(was))', src, "a mark, never color alone")
+        self.assertIn("yview_moveto", src)
+
+    def test_one_name_for_the_favorites_tab(self):
+        self.assertNotIn("★ Favorites", inspect.getsource(regex_page))
 
 
 if __name__ == "__main__":

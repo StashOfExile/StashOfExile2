@@ -107,42 +107,39 @@ class TrackerPage:
 
     def _helpers_howto(self, parent):
         """3.3.0 owner: one plain place that says how to use the helpers, with the Read Key shown as a key and a
-        button to change it. It follows the key when it changes, and goes while no key is set: that state has
-        its own line and button."""
+        button to change it. One line on the panel itself, no box of its own. It follows the key when it changes,
+        and goes while no key is set: that state has its own line and button."""
         P2 = C["panel2"]
         row = tk.Frame(parent, bg=P2)
-        box = tk.Frame(row, bg=C["odd"], highlightthickness=1, highlightbackground=C["line"], padx=12, pady=8)
-        tk.Label(box, text="How to use a helper", bg=C["odd"], fg=C["text"],
-                 font=("Segoe UI", 10, "bold")).pack(side="left")
-        tk.Label(box, text="In game, press", bg=C["odd"], fg=C["text"]).pack(side="left", padx=(16, 8))
-        cap = tk.Label(box, text="", bg=P2, fg=C["text"], font=("Segoe UI", 10, "bold"), padx=8, pady=2,
-                       highlightthickness=1, highlightbackground=C["accent"])
+        line = tk.Frame(row, bg=P2)
+        tk.Label(line, text="How to use:", bg=P2, fg=C["text"], font=("Segoe UI", 10, "bold")).pack(side="left")
+        tk.Label(line, text="in game, press", bg=P2, fg=C["text"], font=("Segoe UI", 10)).pack(side="left",
+                                                                                              padx=(8, 8))
+        cap = tk.Label(line, text="", bg=C["bg"], fg=C["text"], font=("Segoe UI", 10, "bold"), padx=8, pady=1,
+                       highlightthickness=1, highlightbackground=C["line"])
         cap.pack(side="left")
-        tk.Label(box, text="where the helper works. Its green line says where.", bg=C["odd"],
-                 fg=C["text"]).pack(side="left", padx=(8, 0))
-        btn = ttk.Button(box, text="Change key", style="Quiet.TButton", command=self.look_key_open)
-        btn.pack(side="right")
-        Tooltip(btn, "Opens Settings, Keybinds, on the Read Key.")
+        tk.Label(line, text="where a helper's green line says.", bg=P2, fg=C["text"],
+                 font=("Segoe UI", 10)).pack(side="left", padx=(8, 12))
+        link = tk.Label(line, text="Change key", bg=P2, fg=C["accent"], cursor="hand2",
+                        font=("Segoe UI", 10, "underline"))
+        link.pack(side="left")
+        link.bind("<Button-1>", lambda e: self.look_key_open())
+        Tooltip(link, "Opens Settings, Keybinds, with the Read Key's row lit.")
 
         def paint(_e=None):
             k = self.look_key_label()
             try:
                 if k:
                     cap.config(text=k)
-                    if not box.winfo_manager():
-                        box.pack(fill="x")
-                elif box.winfo_manager():
-                    box.pack_forget()
+                    if not line.winfo_manager():
+                        line.pack(anchor="w")
+                elif line.winfo_manager():
+                    line.pack_forget()
             except tk.TclError:
                 pass
         row.bind("<Map>", paint, add="+")
         self._helpers_howto_paint = paint
         paint()
-        try:
-            from .style import flowify
-            flowify(box)                                   # a narrow Drawer wraps it instead of cutting it off
-        except Exception:
-            buglog.caught()
         return row
 
     def build_overlays_hub(self, body):

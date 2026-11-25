@@ -1064,15 +1064,37 @@ class SettingsPage:
             self.set_nb.select(self.set_nb.titles.index("Keybinds"))
         except (ValueError, AttributeError, tk.TclError):
             pass
+        if kid:                                    # 3.3.0 owner: the row was not lit. The tab builds its rows as
+            self.root.after(150, lambda: self._hotkey_row_show(kid))     # it opens, so it is lit once they exist.
+
+    def _hotkey_row_show(self, kid, secs=3.0):
+        """Scroll one key's row into view and light it for a moment: a mark and a color, never color alone."""
         row = getattr(self, "hk_rows", {}).get(kid)
-        if row:
-            lab = row[0]
+        if not row:
+            return False
+        lab, box = row
+        try:
+            self.root.update_idletasks()
+            w = lab
+            while w is not None and not hasattr(w, "canvas"):
+                w = getattr(w, "master", None)
+            if w is not None and getattr(w, "inner", None) is not None:
+                total = max(1, w.inner.winfo_height())
+                y = lab.winfo_rooty() - w.inner.winfo_rooty()
+                w.canvas.yview_moveto(max(0.0, (y - 60) / total))
+            was = lab.cget("text")
+            if not str(was).startswith("▶ "):
+                lab.config(text="▶ " + str(was))
             lab.config(bg=C["accent"], fg="#1a1206")
-            self.root.after(1600, lambda: lab.winfo_exists() and lab.config(bg=C["panel2"], fg=C["text"]))
-            try:
-                row[1].focus_set()
-            except tk.TclError:
-                pass
+
+            def unlit():
+                if lab.winfo_exists():
+                    lab.config(bg=C["panel2"], fg=C["text"], text=was)
+            self.root.after(int(secs * 1000), unlit)
+            box.focus_set()
+        except (tk.TclError, AttributeError):
+            return False
+        return True
 
     def hotkeys_defaults(self):
         """2.127.0 (feedback: a way back in case anything goes wrong): every keybind back to the app's own - after a

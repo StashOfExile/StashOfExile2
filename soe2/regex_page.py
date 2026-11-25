@@ -56,7 +56,7 @@ class RegexPage:
 
         # ---- 2.4.0: two pages - building a search, and your Favorites
         outer = tab
-        self.rx_page = SegBar(outer, ["Build a search", "★ Favorites"], command=lambda v: self.rx_show_page(),
+        self.rx_page = SegBar(outer, ["Build a search", "Favorites"], command=lambda v: self.rx_show_page(),
                               size=10, pad=(16, 4))
         self.rx_page.pack(anchor="w", padx=8, pady=(8, 0))
         if getattr(self, "shell", None) is not None:          # 2.64.0: its tabs are listed in the sidebar
@@ -108,7 +108,7 @@ class RegexPage:
         tk.Label(hk, text="A key that copies it: save it to Favorites, then", bg=P2, fg=C["muted"], font=sm).pack(side="left")
         go = tk.Label(hk, text="⌨ Key…", bg=P2, fg=C["accent"], font=sm, cursor="hand2")
         go.pack(side="left", padx=(4, 0))
-        go.bind("<Button-1>", lambda e: self.rx_page.pick("★ Favorites"))
+        go.bind("<Button-1>", lambda e: self.rx_page.pick("Favorites"))
         self.rx_keys_link = go
 
         # ---- option cards (rebuilt per item type)
@@ -827,7 +827,7 @@ class RegexPage:
         self.rx_fill_favorites()
 
     def rx_show_page(self):
-        fav = self.rx_page.get() == "★ Favorites"
+        fav = self.rx_page.get() == "Favorites"
         (self.rx_build_page.pack_forget if fav else self.rx_fav_page.pack_forget)()
         (self.rx_fav_page if fav else self.rx_build_page).pack(fill="both", expand=True)
         if fav:
