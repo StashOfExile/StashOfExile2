@@ -202,6 +202,23 @@ def unique_history(name):
     return [f"Before {patch}: {ln}" for ln in gone[:6]]
 
 
+CHANGE_MARK = {"changed": "~ Changed:", "new": "+ New:", "removed": "− Removed:"}
+
+
+def _change_card(it, cls):
+    """A changed, new or removed unique or gem: each line with a mark and a word, the old number beside the new."""
+    ov, nv = it.get("vs") or ("", "")
+    lines = []
+    for kind, now, was in it.get("chg") or []:
+        lines.append(f"{CHANGE_MARK[kind]} {now}" + (f"   · was: {was}" if was else ""))
+    status = it.get("chg_status") or "Changed"
+    if status == "Removed":
+        lines = [f"Not in the {nv} game files."]
+    return {"kind": f"{cls} · {status} in {nv}", "props": [], "req": "", "lines": lines,
+            "muted": ["Compared with the game data saved for the patch before."], "chips": [status],
+            "db": False}
+
+
 def card(it):
     """A Game Search row -> {kind, props, req, lines, muted, chips, db} (cached on the row)."""
     c = it.get("_card")
@@ -209,7 +226,9 @@ def card(it):
         return c
     tags = [x.strip() for x in (it.get("k") or "").split(",")]
     cls = it.get("c") or ""
-    if it.get("db"):
+    if it.get("chg") is not None:                             # 3.3.0 owner: Changed in <patch>
+        c = _change_card(it, cls)
+    elif it.get("db"):
         c = _db_card(it, cls)
     else:
         props, req, lines, muted = parse_text(it.get("t") or "")

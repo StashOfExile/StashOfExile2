@@ -106,3 +106,73 @@ def compare(old, new):
     out["new_uniques"], out["gone_uniques"] = sorted(set(nu) - set(ou)), sorted(set(ou) - set(nu))
     out["new_gems"], out["gone_gems"] = sorted(set(ng) - set(og)), sorted(set(og) - set(ng))
     return out
+
+
+# ---------------------------------------------------------------- 3.3.0 owner: Game Search's "Changed in <patch>"
+_NUM = re.compile(r"[+-]?\(?\d+(?:\.\d+)?(?:[-–]\d+(?:\.\d+)?)?\)?")
+
+
+def _shape(line):
+    return _NUM.sub("#", str(line)).strip().lower()
+
+
+def pair(added, removed):
+    """Lines that only changed a number become one "changed" line. -> [("changed", after, before) |
+    ("new", line, "") | ("removed", line, "")]."""
+    out, left = [], list(removed or [])
+    for a in added or []:
+        hit = next((r for r in left if _shape(r) == _shape(a)), None)
+        if hit is not None:
+            left.remove(hit)
+            out.append(("changed", a, hit))
+        else:
+            out.append(("new", a, ""))
+    return out + [("removed", r, "") for r in left]
+
+
+def short(version):
+    """"1.0.0.3" -> "1.0"; the category says the patch, not the build."""
+    parts = str(version).split(".")
+    return ".".join(parts[:2]) if len(parts) >= 2 else str(version)
+
+
+def change_rows(path=None):
+    """Game Search rows for what changed between the two newest snapshots: each changed, new or removed unique
+    and gem. [] while there is only one snapshot."""
+    vs = versions(path)
+    if len(vs) < 2:
+        return []
+    ov, nv = vs[-2], vs[-1]
+    old, new = load(ov, path), load(nv, path)
+    cmp = compare(old, new)
+    group = f"Changed in {short(nv)}"
+    rows = []
+
+    def add(name, cls, status, changes):
+        text = " ".join(f"{a} {b}" for _k, a, b in changes)
+        rows.append({"n": name, "g": group, "c": cls, "k": status.lower(), "t": "", "ln": name.lower(),
+                     "lk": status.lower(), "lt": (name + " " + text).lower(), "chg": changes, "chg_status": status,
+                     "vs": (ov, nv)})
+    nu, ng = new.get("uniques") or {}, new.get("gems") or {}
+    ou, og = old.get("uniques") or {}, old.get("gems") or {}
+    for n, d in cmp["uniques"].items():
+        add(n, "Unique " + (nu[n].get("group") or "Item").rstrip("s"), "Changed", pair(d["added"], d["removed"]))
+    for n in cmp["new_uniques"]:
+        u = nu[n]
+        add(n, "Unique " + (u.get("group") or "Item").rstrip("s"), "New",
+            [("new", x, "") for x in (u.get("implicit") or []) + (u.get("explicit") or [])])
+    for n in cmp["gone_uniques"]:
+        add(n, "Unique " + (ou[n].get("group") or "Item").rstrip("s"), "Removed", [])
+    for n, d in cmp["gems"].items():
+        ch = []
+        if "text" in d:
+            ch.append(("changed", d["text"]["after"], d["text"]["before"]))
+        for k in ("first_level", "last_level"):
+            if k in d:
+                ch += pair(d[k]["added"], d[k]["removed"])
+        add(n, ng[n].get("type") or "Gem", "Changed", ch)
+    for n in cmp["new_gems"]:
+        add(n, ng[n].get("type") or "Gem", "New", [("new", ng[n].get("text") or "", "")])
+    for n in cmp["gone_gems"]:
+        add(n, og[n].get("type") or "Gem", "Removed", [])
+    return rows

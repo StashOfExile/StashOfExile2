@@ -51,6 +51,14 @@ def load():
         db_rows, db_order = gamedb_rows()
         rows += db_rows
         rows = gamesearch_clean.clean_rows(rows, hidden_names())      # no developer-only entries, no placeholder text
+        try:                                             # 3.3.0 owner: what the newest patch changed, first in the list
+            from . import gamesnap
+            chg = gamesnap.change_rows()
+            if chg:
+                rows = chg + rows
+                order.insert(0, chg[0]["g"])
+        except Exception:
+            buglog.caught()
         for g in reversed(db_order):                       # the new categories follow Endgame Items, in the file's order
             if g not in order:
                 order.insert(order.index("Endgame Items") + 1 if "Endgame Items" in order else len(order), g)
