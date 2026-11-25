@@ -1594,6 +1594,100 @@ async function eventCheckNow(env, me) {
 }
 // events: end
 
+// ------------------------------------------------------------------ 3.3.0 owner: patch notes, from GGG's forum
+// The board reads the Path of Exile 2 patch-notes forum once an hour, on its own schedule (wrangler.toml crons), so
+// no app ever asks the forum. Its address is an admin setting (POST /admin/patchfeed): when the forum moves at 1.0,
+// an admin pastes the new one, no app update. A notes list is only ever added to. A post naming a 3.x version is
+// Path of Exile 1 and is left out. GET /patchnotes: the list, for everyone.
+// patch notes: start
+const PATCH_EVERY = 3600, PATCH_KEEP = 60, PATCH_QUIET = 7 * 86400;
+const PATCH_HOST = /^https:\/\/www\.pathofexile\.com\/forum\//;
+const PATCH_IS = /\b(patch notes?|hotfix(es)?|restart)\b|\b\d+\.\d+\.\d+[a-z]?\b/i;
+const PATCH_POE1 = /\b3\.\d+\.\d+[a-z]?\b/;
+function patchIsPoe2(title) {
+  const t = String(title ?? "");
+  return PATCH_IS.test(t) && !PATCH_POE1.test(t);
+}
+function patchText(s) {
+  return String(s ?? "").replace(/<!\[CDATA\[|\]\]>/g, "").replace(/<[^>]+>/g, "").replace(/&amp;/g, "&")
+    .replace(/&quot;/g, "\"").replace(/&#0?39;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">").trim();
+}
+// An RSS or Atom feed, or the forum's own page: [{title, url, at}]
+function patchParse(body, base = "https://www.pathofexile.com") {
+  const out = [];
+  const s = String(body ?? "");
+  for (const it of s.match(/<(item|entry)\b[\s\S]*?<\/\1>/g) ?? []) {
+    const title = patchText((/<title[^>]*>([\s\S]*?)<\/title>/.exec(it) ?? [])[1]);
+    let link = patchText((/<link[^>]*>([\s\S]*?)<\/link>/.exec(it) ?? [])[1]);
+    if (!link) link = (/<link[^>]*href="([^"]+)"/.exec(it) ?? [])[1] ?? "";
+    const when = patchText((/<(pubDate|published|updated)[^>]*>([\s\S]*?)<\/\1>/.exec(it) ?? [])[2]);
+    const at = Math.floor((Date.parse(when) || 0) / 1000);
+    if (title && link) out.push({ title, url: link.startsWith("/") ? base + link : link, at });
+  }
+  if (out.length) return out;
+  const seen = new Set();
+  for (const m of s.matchAll(/<a[^>]+href="((?:https:\/\/www\.pathofexile\.com)?\/forum\/view-thread\/\d+)[^"]*"[^>]*>([\s\S]*?)<\/a>/g)) {
+    const url = m[1].startsWith("/") ? base + m[1] : m[1];
+    const title = patchText(m[2]);
+    if (!title || seen.has(url)) continue;
+    seen.add(url);
+    out.push({ title, url, at: 0 });
+  }
+  return out;
+}
+// The kept list plus what is new, newest first, never dropping one that was kept
+function patchMerge(kept, found, nowSecs) {
+  const by = new Map((kept ?? []).map((n) => [n.url, n]));
+  let added = 0;
+  for (const f of found ?? []) {
+    if (!patchIsPoe2(f.title) || !/^https:\/\//.test(f.url) || by.has(f.url)) continue;
+    by.set(f.url, { title: f.title.slice(0, 160), url: f.url, at: f.at || nowSecs, seen: nowSecs });
+    added++;
+  }
+  const list = [...by.values()].sort((a, b) => (b.at || 0) - (a.at || 0)).slice(0, PATCH_KEEP);
+  return { list, added };
+}
+// patch notes: end
+async function patchCheck(env, force = false) {
+  const feed = await metaGet(env, "patch_feed");
+  if (!feed) return { checked: false, why: "no feed address set" };
+  const last = Number(await metaGet(env, "patch_at")) || 0;
+  if (!force && now() - last < PATCH_EVERY - 60) return { checked: false };
+  await metaSet(env, "patch_at", now());
+  let found = [];
+  try {
+    const res = await fetch(feed, { headers: { "User-Agent": "StashOfExile2 board (patch notes, once an hour)" } });
+    if (res.ok) found = patchParse(await res.text());
+  } catch (_e) { /* next hour */ }
+  const kept = JSON.parse((await metaGet(env, "patch_notes")) || "[]");
+  const { list, added } = patchMerge(kept, found, now());
+  if (added) {
+    await metaSet(env, "patch_notes", JSON.stringify(list));
+    await metaSet(env, "patch_new_at", now());
+  }
+  if (found.length) await metaSet(env, "patch_read_at", now());
+  return { checked: true, read: found.length, added };
+}
+async function patchList(env, me) {
+  const notes = JSON.parse((await metaGet(env, "patch_notes")) || "[]");
+  const out = { notes };
+  if (me?.admin) {                                        // admins: is the feed still working?
+    const feed = await metaGet(env, "patch_feed");
+    const read = Number(await metaGet(env, "patch_read_at")) || 0;
+    out.feed = feed || "";
+    out.quiet = !feed || now() - read > PATCH_QUIET;
+  }
+  return json(out);
+}
+async function patchFeedSet(req, env, me) {
+  if (!me?.admin) return fail(403, "admins only");
+  const b = await readBody(req);
+  const url = String(b?.url ?? "").trim();
+  if (!PATCH_HOST.test(url) || url.length > 300) return fail(400, "The address must be a page of GGG's forum.");
+  await metaSet(env, "patch_feed", url);
+  return json(await patchCheck(env, true));
+}
+
 // ------------------------------------------------------------------ 3.3.0 owner: data reports from Codex pages
 // POST /reports, no account: a page, the row's ref, what is wrong, a note. The same row and kind again adds one to
 // its count. GET /reports and POST /reports/:id are for admins: hide, fixed, dismiss, reopen. GET /reports/hidden is
@@ -1879,6 +1973,7 @@ export default {
       if (path === "/maps/ratings") return mapRatings(env);
       if (path === "/campaign/zones") return campaignZones(env);
       if (path === "/events" && req.method === "GET") return eventList(env);                // 3.3.0: no account needed
+      if (path === "/patchnotes" && req.method === "GET" && !req.headers.get("Authorization")) return patchList(env, null);
       if (path === "/reports" && req.method === "POST") return reportSend(req, env);          // 3.3.0: no account needed
       if (path === "/reports/hidden" && req.method === "GET") return reportHidden(env);
       if (path === "/bugs" && req.method === "POST") return bugReport(req, env);
@@ -1917,6 +2012,8 @@ export default {
       const rp = /^\/reports\/(\d+)$/.exec(path);
       if (rp && req.method === "POST") return reportAct(req, env, me, Number(rp[1]));
       if (path === "/events/check" && req.method === "POST") return eventCheckNow(env, me);
+      if (path === "/patchnotes" && req.method === "GET") return patchList(env, me);
+      if (path === "/admin/patchfeed" && req.method === "POST") return patchFeedSet(req, env, me);
       if (path === "/events" && req.method === "POST") return eventSave(req, env, me);
       if (ev && req.method === "PUT") return eventSave(req, env, me, Number(ev[1]));
       if (ev && req.method === "DELETE") return eventDelete(env, me, Number(ev[1]));
@@ -1948,5 +2045,13 @@ export default {
       if (e instanceof SyntaxError || e.message === "too big") return fail(400, "bad request");
       return fail(500, "server error");
     }
+  },
+  // 3.3.0 owner: once an hour, on Cloudflare's schedule - patch notes, and Steam news when it is due
+  async scheduled(_event, env, ctx) {
+    ctx.waitUntil((async () => {
+      await migrate(env);
+      await patchCheck(env).catch(() => null);
+      await steamCheck(env).catch(() => null);
+    })());
   },
 };
