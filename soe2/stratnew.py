@@ -29,6 +29,7 @@ from . import themes as TH
 from .config import SETTINGS
 from .style import C
 from .stratview import R, _rr_points
+from .listkit import _menu as menu_theme   # 3.3.0 owner: one menu look across the app
 
 PLAY = MM.TAG_GROUPS["Play style"]
 ALSO = MM.TAG_GROUPS["Also uses"]                 # the mechanics: the first picked is the main one, the rest Also uses
@@ -338,7 +339,7 @@ class StratNewPage:
     def mm_new_slot_menu(self, which, x, y):
         """Right-click a slot: remove it."""
         from .style import menu_popup
-        m = tk.Menu(self.root, tearoff=0, bg=C["panel2"], fg=C["text"], activebackground="#2c4a84")
+        m = menu_theme(self.root)
         m.add_command(label="Remove it", command=lambda: self.mm_new_remove(which))
         self.mm_last_menu = m
         try:
@@ -352,7 +353,7 @@ class StratNewPage:
         """Pick by hand ▾: the waystone, or the next tablet."""
         from .style import menu_popup
         d = self.mm_nd
-        m = tk.Menu(self.root, tearoff=0, bg=C["panel2"], fg=C["text"], activebackground="#2c4a84")
+        m = menu_theme(self.root)
         m.add_command(label="Waystone" + (" - replaces yours" if d["way"] else ""),
                       command=lambda: self.mm_new_hand_open("way"))
         m.add_command(label="Tablet", command=lambda: self.mm_new_hand_open(len(d["cards"])),

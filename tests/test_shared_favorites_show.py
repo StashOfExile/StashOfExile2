@@ -81,7 +81,8 @@ class Looks(unittest.TestCase):
     def test_menu_check_marks_have_a_color_that_shows(self):
         m = listkit._menu(self.root)
         self.assertEqual(str(m.cget("selectcolor")).lower(), style.C["text"].lower())
-        self.assertIn('selectcolor=C["text"]', inspect.getsource(bulk_page))
+        # 3.3.0 owner: one menu look - Bulk Pricing's Columns menu is the shared menu, check marks and all
+        self.assertIn("m = menu_theme(self.root)", inspect.getsource(bulk_page.BulkPage.cols_menu))
 
     def test_under_the_hood_left_side_is_a_titled_panel(self):
         src = inspect.getsource(library_page)

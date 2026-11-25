@@ -158,12 +158,15 @@ def unique_rows(name):
     d = next((v for k, v in store().items() if k.lower() == str(name).lower()), None) or {}
     rows, seen = [], set()
     u = UD.get(name) or {}
-    for kind, lines in (("Implicit", u.get("implicit") or []), ("Explicit", u.get("explicit") or [])):
+    for kind, lines in (("Implicit", u.get("implicit") or []), ("Explicit", u.get("explicit") or []),
+                        ("Corruption", u.get("corruption") or [])):
         for text in lines:
             k = unique_key(name, UD.as_rolled(text))
             if k not in seen:
                 seen.add(k)
-                rows.append({"key": k, "text": text, "kind": kind, "option": False})
+                # 3.3.0 owner: a Vaal Orb's enchantment says so on its row; its rule key is the line's own
+                rows.append({"key": k, "text": f"{UD.CORRUPT_MARK}{text}" if kind == "Corruption" else text,
+                             "kind": kind, "option": False})
     for k, v in (d.get("lines") or {}).items():
         if k not in seen:
             seen.add(k)
@@ -178,7 +181,8 @@ def unique_rows(name):
                                  "option": True})
     if u:                                                 # the game data's order: implicits, then the item's own lines
         order = {r["key"]: i for i, r in enumerate(rows)}
-        rows.sort(key=lambda r: (r["kind"] != "Implicit", order[r["key"]]))
+        rank = {"Implicit": 0, "Corruption": 2}
+        rows.sort(key=lambda r: (rank.get(r["kind"], 1), order[r["key"]]))
     else:
         rows.sort(key=lambda r: (not r["option"], r["text"].lower()))
     return rows

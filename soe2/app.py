@@ -112,6 +112,7 @@ from .shell import Shell
 
 
 from .config import PAGE_CHECKS       # 1.40: was "Items"
+from .listkit import _menu as menu_theme   # 3.3.0 owner: one menu look across the app
 
 
 CARD_BOX = 46                 # 2.78.3: a Min / Max / item level box on the item card (px)
@@ -5742,7 +5743,7 @@ class App(CalendarPage, DataReportsPage, BulkPage, SettingsPage, GearBookPage, P
         what = (rec.get("item") or {}).get("name") if s.startswith("unique:") else \
             (rec.get("item") or {}).get("class") if s.startswith("gear:") else \
             {"tablet": "tablet", "jewel": "jewel", "waystone": "waystone", "relic": "relic"}.get(s, "item")
-        menu = tk.Menu(self.root, tearoff=0)
+        menu = menu_theme(self.root)
         menu.add_command(label=f"Rate this mod for every {str(what).lower()}:", state="disabled")
         for g, label in (("S", "S - the price hangs on it"), ("A", "A"), ("B", "B - adds a little"), ("C", "C"),
                          ("D", "D"), ("ignore", "F - ignore (buyers don't pay for it)")):

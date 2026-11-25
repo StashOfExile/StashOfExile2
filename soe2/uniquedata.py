@@ -2,7 +2,8 @@
 from Path of Building Community's PoE2 data, MIT license, see THIRD_PARTY_NOTICES.txt). The item data belongs to
 Grinding Gear Games. Nothing is looked up while the app runs.
 
-  get(name)  -> {"base", "kind", "group", "implicit": [...], "explicit": [...]} or None
+  get(name)  -> {"base", "kind", "group", "implicit": [...], "explicit": [...], "corruption": [...]} or None
+               "corruption": the enchantments a Vaal Orb can give its base, from RePoE's export
   names()    -> every unique the file has
   GROUP_ORDER - the groups Mod Lab folds them under, in its order"""
 import json
@@ -15,6 +16,7 @@ GROUP_ORDER = ("Amulets", "Rings", "Belts", "Body Armours", "Helmets", "Gloves",
                "Axes", "Bows", "Claws", "Crossbows", "Daggers", "Flails", "Maces", "Sceptres", "Spears", "Staves",
                "Swords", "Talismans", "Wands", "Jewels", "Flasks and Charms", "Soul Cores")
 OTHER = "Other uniques"
+CORRUPT_MARK = "Corrupted: "        # a corruption enchantment's row in Mod Lab starts with this
 RANGE = re.compile(r"\((-?\d+(?:\.\d+)?)-(-?\d+(?:\.\d+)?)\)")
 _lock = threading.Lock()
 _data = None

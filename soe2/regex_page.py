@@ -13,6 +13,7 @@ from .style import C, MONO, SegBar, Tooltip, flowify
 from .chrome import section as chrome_section
 from .share_page import VIEWS as SHARE_VIEWS
 from . import cleanguard as _cleanguard
+from .listkit import _menu as menu_theme   # 3.3.0 owner: one menu look across the app
 
 MAX_KEYS = 4                             # 2.132.7 Regex keys: one favorite each, pressed = copied
 KIND_NAMES = {"tablet": "Tablets", "waystone": "Waystones", "relic": "Relics", "jewel": "Jewels",
@@ -510,7 +511,7 @@ class RegexPage:
         from .mods import norm, rule_key
         kind = self.rx_kind.get()
         keys = [rule_key(kind, norm(l)) for l in (m.get("lines") or [m["line"]])]
-        menu = tk.Menu(self.root, tearoff=0, bg=C["panel2"], fg=C["text"], activebackground="#2c4a84")
+        menu = menu_theme(self.root)
         for label, imp in (("★ Valuable (Mod Book: High)", "high"), ("Normal", "normal"), ("Not worth anything (F - ignore)", "ignore")):
             menu.add_command(label=label, command=lambda i=imp: (self.set_rules(keys, i), self.rx_refresh_values()))
         menu.tk_popup(e.x_root, e.y_root)

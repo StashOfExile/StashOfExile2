@@ -2,7 +2,10 @@
 
     git clone --depth 1 --filter=blob:none --sparse https://github.com/PathOfBuildingCommunity/PathOfBuilding-PoE2 pob2
     cd pob2 && git sparse-checkout set src/Data/Uniques && cd ..
-    py tools/build_uniquedata.py pob2 [uniquedata.json]
+    py tools/build_uniquedata.py pob2 [uniquedata.json] [--repoe repoe2/data]
+
+With --repoe (RePoE's PoE2 export, as tools/build_tierdata.py uses): each unique also gets the corruption
+enchantments its base can roll (mods.json, generation type "corrupted"), matched by the base's tags (base_items.json).
 
 Source: Path of Building Community for PoE2 (https://github.com/PathOfBuildingCommunity/PathOfBuilding-PoE2, MIT
 license, see THIRD_PARTY_NOTICES.txt), its src/Data/Uniques/*.lua files. The item data in them belongs to Grinding Gear
@@ -18,7 +21,42 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-VERSION = 1
+VERSION = 2                     # 2: "corruption", the enchantments a Vaal Orb can give its base
+MARKUP = re.compile(r"\[([^\]|]+)\|([^\]]+)\]|\[([^\]]+)\]")
+
+
+RANGE = re.compile(r"\((-?\d+(?:\.\d+)?)-(-?\d+(?:\.\d+)?)\)")
+
+
+def plain(text):
+    """RePoE's wording markup: "[Armour|Armour]" -> "Armour", "[Physical]" -> "Physical". A range RePoE prints
+    backwards, "(20-10)%", is put the right way round."""
+    text = MARKUP.sub(lambda m: m.group(2) or m.group(3), str(text))
+    return RANGE.sub(lambda m: f"({m.group(1)}-{m.group(2)})" if float(m.group(1)) <= float(m.group(2))
+                     else f"({m.group(2)}-{m.group(1)})", text)
+
+
+def corruption_pool(repoe):
+    """(base name -> tags, [(spawn weights, lines)]) from RePoE's export."""
+    with open(os.path.join(repoe, "base_items.json"), encoding="utf-8") as f:
+        bases = {v["name"]: set(v.get("tags") or []) for v in json.load(f).values()
+                 if v.get("domain") == "item" and v.get("release_state") != "unreleased" and v.get("name")}
+    with open(os.path.join(repoe, "mods.json"), encoding="utf-8") as f:
+        mods = [v for v in json.load(f).values() if v.get("generation_type") == "corrupted" and v.get("domain") == "item"]
+    pool = []
+    for v in mods:
+        lines = [ln.strip() for ln in plain(v.get("text") or "").split("\n") if ln.strip()]
+        if lines:
+            pool.append((v.get("spawn_weights") or [], lines))
+    return bases, pool
+
+
+def rolls_on(weights, tags):
+    """RePoE spawn weights: the first tag the base has decides."""
+    for w in weights:
+        if w.get("tag") in tags:
+            return (w.get("weight") or 0) > 0
+    return False
 # a PoB file -> the group Mod Lab folds it under, and the group's name for one item
 FILES = {
     "amulet": ("jewelry", "Amulets"), "ring": ("jewelry", "Rings"), "belt": ("jewelry", "Belts"),
@@ -110,8 +148,29 @@ def main(argv):
     if len(argv) < 2:
         print(__doc__)
         return 2
-    out_path = argv[2] if len(argv) > 2 else os.path.join(ROOT, "uniquedata.json")
-    got = read(argv[1])
+    args = list(argv[1:])
+    repoe = None
+    if "--repoe" in args:
+        i = args.index("--repoe")
+        repoe = args[i + 1]
+        del args[i:i + 2]
+    out_path = args[1] if len(args) > 1 else os.path.join(ROOT, "uniquedata.json")
+    got = read(args[0])
+    if repoe:
+        bases, pool = corruption_pool(repoe)
+        no_base = []
+        for n, u in got.items():
+            tags = bases.get(u["base"])
+            if tags is None:
+                no_base.append(n)
+                continue
+            lines = []
+            for weights, ls in pool:
+                if rolls_on(weights, tags):
+                    lines += [ln for ln in ls if ln not in lines]
+            u["corruption"] = lines
+        if no_base:
+            print(f"No base in RePoE, so no corruption lines: {len(no_base)}: " + ", ".join(sorted(no_base)[:30]))
     known = known_names()
     if known:
         left = sorted(n for n in got if n not in known)
@@ -122,11 +181,14 @@ def main(argv):
         if missing:
             print(f"In gamedata.json with no mods here: {len(missing)}: " + ", ".join(missing[:40]))
     data = {"version": VERSION, "source": "Path of Building Community PoE2, MIT license",
-            "uniques": {n: {k: got[n][k] for k in ("base", "kind", "group", "implicit", "explicit")}
+            "uniques": {n: {k: got[n].get(k) or [] if k == "corruption" else got[n][k]
+                            for k in ("base", "kind", "group", "implicit", "explicit", "corruption")}
                         for n in sorted(got, key=str.lower)}}
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, separators=(",", ":"))
     lines = sum(len(u["explicit"]) + len(u["implicit"]) for u in data["uniques"].values())
+    cor = sum(1 for u in data["uniques"].values() if u["corruption"])
+    print(f"Corruption lines on {cor} uniques.")
     print(f"Wrote {out_path}: {len(data['uniques'])} uniques, {lines} lines.")
     return 0
 

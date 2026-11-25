@@ -8,6 +8,7 @@ from . import maplib as ML
 from .style import over_app
 from .style import C, Tooltip, place_near
 from .chrome import SectionBar, Viewport
+from .listkit import _menu as menu_theme   # 3.3.0 owner: one menu look across the app
 
 RANK_TAG = {"S": "s", "A": "a", "B": "b", "C": "c", "D": "d", "Avoid": "avoid"}
 
@@ -173,7 +174,7 @@ class MapLibraryPage:
             return
         if row not in tv.selection():
             tv.selection_set(row)
-        m = tk.Menu(self.root, tearoff=0, bg=C["panel2"], fg=C["text"], activebackground="#2c4a84")
+        m = menu_theme(self.root)
         for r in ML.RANKS:
             m.add_command(label=("✖ Avoid" if r == "Avoid" else f"Rank {r}"), command=lambda rr=r: self.ml_set(rr))
         m.add_command(label="Clear rank", command=lambda: self.ml_set(None))
@@ -194,7 +195,7 @@ class MapLibraryPage:
 
     # ---------------- share: export / import (files) and the community's ranks
     def ml_share_menu(self, btn):
-        m = tk.Menu(self.root, tearoff=0, bg=C["panel2"], fg=C["text"], activebackground="#2c4a84")
+        m = menu_theme(self.root)
         m.add_command(label="Export my ranks…", command=self.ml_export)
         m.add_command(label="Import ranks…", command=self.ml_import)
         m.add_separator()

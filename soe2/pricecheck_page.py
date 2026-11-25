@@ -26,6 +26,7 @@ from .inplace import set_cfg, tv_sync
 from .style import C, Splitter, Tooltip, flowify, trade_icon
 from .trade import ago, RAW_LISTINGS, strip_markup
 from . import cleanguard as _cleanguard
+from .listkit import _menu as menu_theme   # 3.3.0 owner: one menu look across the app
 
 PC_MAX = 20                  # items kept in Recent
 ART_PX = 78
@@ -752,8 +753,7 @@ class PriceCheckPage:
         self.pc_recent_all = tk.Label(row, text="History ›", bg=C["panel"], fg=C["muted"], cursor="hand2",
                                       font=("Segoe UI", 9))
         self.pc_recent_all.pack(side="right")
-        self.pc_recent_menu = tk.Menu(self.pc_recent_all, tearoff=0, bg=C["panel2"], fg=C["text"],
-                                      activebackground=C["accent"])
+        self.pc_recent_menu = menu_theme(self.pc_recent_all)
         self.pc_recent_all.bind("<Button-1>", lambda e: self.shell.open_tab("pricecheck", "History"))
         Tooltip(self.pc_recent_all, "Every item you priced, on its own page")
         self.pc_recent.bind("<Configure>", self._pc_recent_resized, add="+")

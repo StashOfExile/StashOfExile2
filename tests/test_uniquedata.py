@@ -53,11 +53,29 @@ class Builder(unittest.TestCase):
             self.assertIn(u["group"], UD.GROUP_ORDER, name)
 
 
+class Corruption(unittest.TestCase):
+    def test_a_base_gets_what_its_tags_allow_first_tag_decides(self):
+        self.assertTrue(BU.rolls_on([{"tag": "amulet", "weight": 1}, {"tag": "default", "weight": 0}], {"amulet", "default"}))
+        self.assertFalse(BU.rolls_on([{"tag": "ring", "weight": 1}, {"tag": "default", "weight": 0}], {"amulet", "default"}))
+        self.assertFalse(BU.rolls_on([{"tag": "default", "weight": 0}, {"tag": "amulet", "weight": 1}], {"amulet", "default"}))
+        self.assertEqual(BU.plain("(20-10)% reduced [Attribute|Attribute] Requirements"), "(10-20)% reduced Attribute Requirements")
+        self.assertEqual(BU.plain("Leech 3% of [Physical] [Attack] Damage"), "Leech 3% of Physical Attack Damage")
+
+    def test_the_shipped_file_has_them(self):
+        with open(os.path.join(ROOT, "uniquedata.json"), encoding="utf-8") as f:
+            d = json.load(f)["uniques"]
+        self.assertGreater(sum(1 for u in d.values() if u.get("corruption")), 300)
+        for name, u in d.items():
+            for line in u.get("corruption") or []:
+                self.assertNotIn("[", line, name)
+
+
 class Rows(unittest.TestCase):
     def setUp(self):
         UD.reset({"Astramentis": {"base": "Stellar Amulet", "kind": "jewelry", "group": "Amulets",
                                   "implicit": ["+(5-7) to all Attributes"],
-                                  "explicit": ["+(50-100) to all Attributes", "-4 Physical Damage taken from Attack Hits"]}})
+                                  "explicit": ["+(50-100) to all Attributes", "-4 Physical Damage taken from Attack Hits"],
+                                  "corruption": ["+1 to Level of all Skills"]}})
         self.addCleanup(UD.reset)
 
     def test_every_line_and_the_price_checked_ones_are_one_rule(self):
@@ -70,7 +88,10 @@ class Rows(unittest.TestCase):
             # the implicit and the explicit all Attributes share one wording, so they are one rule and one row
             self.assertEqual([r["text"] for r in rows], ["+(5-7) to all Attributes",
                                                           "-4 Physical Damage taken from Attack Hits",
-                                                          "10% increased Spirit"])
+                                                          "10% increased Spirit",
+                                                          "Corrupted: +1 to Level of all Skills"])
+            self.assertEqual(rows[-1]["key"], GB.unique_key("Astramentis", "+1 to Level of all Skills"),
+                             "the same rule as the line copied off a corrupted item")
             self.assertEqual(rows[0]["kind"], "Implicit")
             self.assertEqual(GB.all_uniques(), ["Astramentis"])
 

@@ -20,6 +20,7 @@ from .inplace import set_cfg, tv_sync
 from .wealth import WEALTH, wealth_display_name, wealth_rows, WPRICES, parse_stack
 from .style import C, SegBar, Tooltip, autowrap
 from . import cleanguard as _cleanguard
+from .listkit import _menu as menu_theme   # 3.3.0 owner: one menu look across the app
 
 
 class _MenuItem:
@@ -66,7 +67,7 @@ class WealthPage:
         self.w_synced.pack(side="left", fill="x", expand=True)
         more = tk.Menubutton(abar, text="More ▾", bg="#1b2a48", fg=C["text"], activebackground="#2c4a84",
                              activeforeground="#ffffff", relief="flat", padx=8, pady=4, cursor="hand2")
-        mm = tk.Menu(more, tearoff=0, bg=C["panel2"], fg=C["text"], activebackground="#2c4a84")
+        mm = menu_theme(more)
         mm.add_command(label="Update prices from poe.ninja", command=self.wealth_update_prices)
         # UI overhaul (feedback: drop the duplicate - Count by hand stays as a fallback): Scan stash is the
         # way; Count by hand is for a currency it can't read
@@ -822,7 +823,7 @@ class WealthPage:
         if not it or not it.get("held"):
             return
         self.w_items.selection_set(iid)
-        m = tk.Menu(self.root, tearoff=0, bg=C["panel2"], fg=C["text"], activebackground="#2c4a84")
+        m = menu_theme(self.root)
         m.add_command(label="Change the amount…", command=lambda: self._w_held_ask(it["type"]))
         m.tk_popup(e.x_root, e.y_root)
 

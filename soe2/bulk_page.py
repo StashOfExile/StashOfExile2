@@ -17,6 +17,7 @@ from .cardscale import BULK
 from .pricecheck_page import CONF_CHIP, WIDE_PX, search_tip
 from .style import C, Splitter, Tooltip, flowify, flow_show, trade_icon
 from . import cleanguard as _cleanguard
+from .listkit import _menu as menu_theme   # 3.3.0 owner: one menu look across the app
 
 ITEM_W = 480            # the picked item's side in a wide window, at first (drag the grip; remembered: panel_w) -
                         # owner: about 10% narrower than Price Checks' card side
@@ -279,8 +280,7 @@ class BulkPage:
 
     def cols_menu(self):
         """Columns ▾: the extra columns, the list's order (as added) and Export CSV."""
-        m = tk.Menu(self.root, tearoff=0, bg=C["panel2"], fg=C["text"], activebackground=C["accent"],
-                    selectcolor=C["text"])                 # 3.3.0 owner: the check marks showed only on hover
+        m = menu_theme(self.root)                 # 3.3.0 owner: the check marks showed only on hover
         off = set(self.bulk_cols_off())
         self._cols_vars = {}
         for cid, label in self.EXTRA_COLS:
