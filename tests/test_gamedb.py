@@ -107,7 +107,8 @@ class BuildChecks(unittest.TestCase):
     def test_trial_of_chaos_comes_only_from_the_export(self):
         b = BG.Build().run()
         tc = [r for r in b.rows if r["group"] == "Trial of Chaos"]
-        self.assertTrue(all(r["version"] == "0.5.5.9" and "RePoE" in r["source"] for r in tc))
+        ver = BG.read_json(BG.ROOT, "trialdata.json").get("game_version")            # follows the export
+        self.assertTrue(all(r["version"] == ver and "RePoE" in r["source"] for r in tc))
         names_ = {r["name"] for r in tc}
         for n in ("Cowardly Fate", "Deadly Fate", "Victorious Fate", "Inscribed Ultimatum", "Ruin",
                   "The Trialmaster's Reliquary Key", "The Trial of Chaos", "Trial Modifier: of Exposure"):
@@ -349,7 +350,7 @@ class PoE1Filter(unittest.TestCase):
 
 class Shipped(unittest.TestCase):
     def test_bundled_and_built_everywhere(self):
-        self.assertEqual(config.BUNDLED_DATA["gamedb.json"], 5)
+        self.assertGreaterEqual(config.BUNDLED_DATA["gamedb.json"], 6)       # raised by tools/update_game_data.py
         self.assertEqual(config.BUNDLED_DATA["atlasmasters.json"], 2)
         self.assertEqual(config.BUNDLED_DATA["gamedb_hide.json"], 2)
         self.assertGreaterEqual(config.BUNDLED_DATA["searchdata.json"], 2)         # (the PoE1 rows left it)

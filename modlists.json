@@ -1,7 +1,7 @@
 {
  "version": 3,
- "source": "RePoE export of Path of Exile 2's game files, game version 0.5.5.4.2 (tools/build_modlists.py)",
- "game_version": "0.5.5.4.2",
+ "source": "RePoE export of Path of Exile 2's game files, game version 0.5.5.10 (tools/build_modlists.py)",
+ "game_version": "0.5.5.10",
  "tablets": {
   "Abyss Tablet": {
    "Prefix": [

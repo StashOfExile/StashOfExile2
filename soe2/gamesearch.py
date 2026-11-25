@@ -30,9 +30,14 @@ def load():
         with open(path, encoding="utf-8") as f:
             d = json.load(f)
         rows = []
+        gone, new = d.get("gone") or {}, d.get("added") or {}     # 3.3.0: tools/update_game_data.py's marks
         for n, g, c, k, t in d["rows"]:
             rows.append({"n": n, "g": g, "c": c, "k": k, "t": t, "ln": n.lower(), "lk": (k or "").lower(),
                          "lt": (t or "").lower()})
+            if gone.get(f"{n}|{g}"):
+                rows[-1]["gone"] = gone[f"{n}|{g}"]
+            elif new.get(f"{n}|{g}"):
+                rows[-1]["added"] = new[f"{n}|{g}"]
         order = list(d.get("order") or [])
         # 3.0.6 (owner): jewels get their own category, right after the rings and belts one
         for r in rows:

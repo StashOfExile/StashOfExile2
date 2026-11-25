@@ -35,6 +35,7 @@ PAGES = {
 
 FEATURES = (
     "Upcoming",                 # 3.3.0 Dashboard: the next 3 events from the Calendar
+    "Patch Notes",              # 3.3.0 Dashboard: the newest patch posts from Steam news
     "Add Reminder",             # 3.3.0 Calendar: a reminder of your own, kept on this PC
     "Next event on the overlay",   # 3.3.0 Calendar: one line on the overlay for the next event, its switch on Calendar
     "Top Movers",               # 3.3.0 Dashboard: what went up and down the most, Daily and Hourly, from poe.ninja

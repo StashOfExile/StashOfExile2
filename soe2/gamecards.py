@@ -221,6 +221,10 @@ def card(it):
             kind = f"Unique {KIND_WORDS.get(cls, cls)}"
             lines = [x for x in lines if x != f"Unique {cls}"] + list(it.get("ul") or [])
             muted = list(muted) + unique_history(it.get("n"))
+        if it.get("gone"):                                   # kept by tools/update_game_data.py, never removed
+            muted = list(muted) + [f"Not in the {it['gone']} files"]
+        elif it.get("added"):
+            muted = list(muted) + [f"New in {it['added']}"]
         c = {"kind": kind + (f" · {attr}" if attr else ""), "props": props, "req": req, "lines": lines, "muted": muted,
              "chips": chips(it.get("k"), skip=(cls, humanize(cls), *attr.split("/"))), "db": False}
         if it.get("g") == "Modifiers":                        # a mod row's tags are its stat group ids: one chip each is noise

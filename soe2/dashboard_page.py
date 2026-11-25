@@ -331,6 +331,43 @@ class Dashboard(tk.Canvas):
         """How far a box's content starts under its top edge: under its title."""
         return TH.BOX_HEAD + 4 if TH.headed(TH.ST.theme) else 52
 
+    def _patch_notes(self, x0, y, x1):
+        """The 3 newest patch posts. Click one: Steam's page with the full notes, in the browser."""
+        from . import patchnotes as PN
+        PN.refresh(done=lambda: self.after(0, self.redraw) if hasattr(self, "redraw") else None)
+        rows = PN.latest(3)
+        t = TH.ST.theme
+        mut, acc, brass = t.c("text_muted"), t.c("accent"), t.c("accent_2")
+        plain_f, bold = ("Segoe UI", 10), ("Segoe UI", 10, "bold")
+        rh = self._line_h(bold) + 20
+        top = self._top()
+        h = top + max(1, len(rows)) * rh + 8
+        self._card(x0, y, x1, y + h)
+        _hid, up = self._head(x0, y, x1, "Patch Notes")
+        self.create_text(x1 - 20, y + 22 - up, text="From Steam news", anchor="ne", font=plain_f, fill=mut,
+                         tags=("pn_src",))
+        self.tips["pn_src"] = ("Grinding Gear Games posts every patch's notes on Steam. Checked every 6 hours. "
+                               "Click a patch to read it all.")
+        if not rows:
+            self.create_text(x0 + 20, y + top + rh / 2, anchor="w", font=plain_f, fill=mut, width=x1 - x0 - 40,
+                             text="No patch notes yet. The newest show here once Steam has been checked.")
+            return y + h + GAP
+        import webbrowser
+        for i, n in enumerate(rows):
+            ry = y + top + i * rh
+            if i:
+                self.create_line(x0 + 20, ry, x1 - 20, ry, fill=t.c("border"))
+            tag = f"pn_{i}"
+            lit = self.hover == tag
+            day = time.strftime("%b %d", time.localtime(n["date"])) if n.get("date") else ""
+            did = self.create_text(x1 - 20, ry + rh / 2, anchor="e", text=day, font=plain_f, fill=mut, tags=(tag,))
+            room = max(80, self.bbox(did)[0] - x0 - 40)
+            self.create_text(x0 + 20, ry + rh / 2, anchor="w", text=n["title"], width=room, tags=(tag,),
+                             font=("Segoe UI", 10, "bold underline") if lit else bold, fill=acc if lit else brass)
+            self.acts[tag] = lambda u=n["url"]: webbrowser.open(u)
+            self.tips[tag] = "Open the full patch notes on Steam."
+        return y + h + GAP
+
     def _head(self, x0, y, x1, title):
         """A box's title in the theme's style. -> (the title's id, how far the controls beside it move up)."""
         return TH.box_head(self, TH.ST.theme, x0, y, x1, R, title)
@@ -897,6 +934,12 @@ class Dashboard(tk.Canvas):
         # -- 3.3.0 owner: Upcoming, the next 3 events from the Calendar
         try:
             y = self._upcoming(PAD, y, W - PAD, narrow)
+        except Exception:
+            buglog.caught()
+
+        # -- 3.3.0 owner: Patch Notes, the newest posts from Steam news
+        try:
+            y = self._patch_notes(PAD, y, W - PAD)
         except Exception:
             buglog.caught()
 

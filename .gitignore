@@ -23,3 +23,5 @@ counts.json
 
 # Claude Code: this PC's own permissions - never in git
 .claude/settings.local.json
+_update_backup/
+_update_report.md
