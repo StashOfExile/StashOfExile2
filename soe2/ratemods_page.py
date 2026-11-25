@@ -455,10 +455,8 @@ class RateModsPage:
         q = self.rm_qv.get().strip().lower()
         ents = self.rm_entries(s)
         cat = getattr(self, "rm_cat", None)
-        if cat == RM.DIAMOND and s == "jewel":                # every Ruby, Emerald and Sapphire mod
-            ents = [e for e in ents if RM.on_diamond(e)]
-        elif cat:                                              # a category picked in the set list
-            ents = [e for e in ents if e.get("cat") == cat]
+        if cat:                                                # a base picked in the set list: every mod on it
+            ents = [e for e in ents if cat in (e.get("cats") or [e.get("cat")])]
         self.rm_q = ents if not q or q in self.rm_set_label.lower() else [e for e in ents if self._rm_match(e, q)]
         if not keep:
             cur = [i for i, e in enumerate(self.rm_q) if RM.current(e["keys"]) is None]
@@ -577,14 +575,16 @@ class RateModsPage:
     def _rm_set_cats(self, s):
         """{mod group: [rated, mods]} of a set, when it has more than one group."""
         cats = {}
+        order = RM.base_order(s)                               # 3.3.0 owner: the bases, in the game's order
+        for b in order:
+            cats[b] = [0, 0]
         for e in self.rm_entries(s):
-            c = cats.setdefault(e.get("cat") or "", [0, 0])
-            c[1] += 1
-            c[0] += RM.current(e["keys"]) is not None
-            if s == "jewel" and RM.on_diamond(e):              # 3.3.0 owner: a Diamond rolls them all
-                d = cats.setdefault(RM.DIAMOND, [0, 0])
-                d[1] += 1
-                d[0] += RM.current(e["keys"]) is not None
+            done = RM.current(e["keys"]) is not None
+            for c in e.get("cats") or ([e["cat"]] if e.get("cat") else []):
+                c = cats.setdefault(c, [0, 0])
+                c[1] += 1
+                c[0] += done
+        cats = {k: v for k, v in cats.items() if v[1]}
         return cats if len(cats) >= 2 else {}
 
     def _rm_draw_one_set(self, cv, it, y, w):
@@ -694,7 +694,9 @@ class RateModsPage:
     def _rm_cat_rows(self, cv, s, x0, x1, y, cats=None):
         if cats is None:
             cats = self._rm_set_cats(s) or {"": [0, 0]}
-        names = sorted(cats, key=lambda g: (g.startswith("All "), g.lower()))
+        order = RM.base_order(s)
+        names = sorted(cats, key=lambda g: (order.index(g) if g in order else len(order), g.startswith("All "),
+                                            g.lower()))
         if len(names) < 2:
             return y
         top = y
@@ -901,33 +903,26 @@ class RateModsPage:
             return None
         rolls = [r for r in (e or {}).get("rolls") or [] if r != "All types"]
         cat = (e or {}).get("cat")
-        if cat is not None:                                    # 3.3.0 owner: a group row's own picture
-            if s == "tablet":
-                return art_url(f"{cat} Tablet" if not cat.startswith("All ") else "Irradiated Tablet")
+        if cat is not None:                                    # 3.3.0 owner: a base group's own picture
             if s == "jewel":
-                kinds = [k for k in cat.split(" / ") if k in JEWEL_ART]
-                return JEWEL_ART["Time-Lost Diamond" if cat == "Time-Lost" else
-                                 kinds[0] if len(kinds) == 1 else "Diamond"]
-            if s == "relic":
-                size = next((z for z in RM.RELIC_SIZES if cat.startswith(z)), None)
-                return art_url(RM.RELIC_ART[size]) if size else art_url("Amphora Relic")
+                return JEWEL_ART.get(cat) or JEWEL_ART["Diamond"]
+            if s in ("tablet", "relic"):
+                return art_url(cat)
             if s == "waystone":
                 import re as _re
                 m = _re.findall(r"\d+", cat)
                 return art_url(f"Waystone Tier {m[-1]}" if m else "Waystone Tier 16")
         if s == "tablet":
-            return art_url(f"{rolls[0]} Tablet" if len(rolls) == 1 else "Irradiated Tablet")
+            return art_url(rolls[0] if len(rolls) == 1 else "Irradiated Tablet")
         if s == "waystone":
             return art_url("Waystone")
         ic = icons()
         if s.startswith("unique:"):
             return ic.get(RM.set_label(s))
         if s == "relic":
-            size = next((z for z in RM.RELIC_SIZES if z in rolls), None)
-            return art_url(RM.RELIC_ART[size] if size else "Amphora Relic")
+            return art_url(rolls[0] if len(rolls) == 1 else "Amphora Relic")
         if s == "jewel":                                       # 3.3.0 owner: a jewel's own picture, a Diamond for
-            kinds = [r for r in rolls if r in JEWEL_ART]       # the whole set - never a unique jewel's art
-            return JEWEL_ART[kinds[0] if len(kinds) == 1 else "Diamond"]
+            return JEWEL_ART[rolls[0] if len(rolls) == 1 and rolls[0] in JEWEL_ART else "Diamond"]   # many
         by = self.__dict__.get("_rm_pics")
         if by is None or by[0] != len(ic):                    # a picture per set: the lowest base of that class the
             from .gearbook import base_cat                    # app has a picture of - never a unique's own art

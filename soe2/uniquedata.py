@@ -14,7 +14,7 @@ import threading
 FILE = "uniquedata.json"
 GROUP_ORDER = ("Amulets", "Rings", "Belts", "Body Armours", "Helmets", "Gloves", "Boots", "Shields", "Foci", "Quivers",
                "Axes", "Bows", "Claws", "Crossbows", "Daggers", "Flails", "Maces", "Sceptres", "Spears", "Staves",
-               "Swords", "Talismans", "Wands", "Jewels", "Flasks and Charms", "Soul Cores")
+               "Swords", "Talismans", "Wands", "Jewels", "Flasks and Charms", "Soul Cores", "Tablets", "Relics")
 OTHER = "Other uniques"
 CORRUPT_MARK = "Corrupted: "        # a corruption enchantment's row in Mod Lab starts with this
 RANGE = re.compile(r"\((-?\d+(?:\.\d+)?)-(-?\d+(?:\.\d+)?)\)")
@@ -67,7 +67,30 @@ def get(name):
 def group_of(name):
     u = get(name)
     g = (u or {}).get("group")
-    return g if g in GROUP_ORDER else OTHER
+    if g in GROUP_ORDER:
+        return g
+    return _group_from_base(name) or OTHER
+
+
+def _group_from_base(name):
+    """3.3.0 owner: a unique Path of Building doesn't list, a unique tablet, by its base in the game data."""
+    try:
+        from . import gamedata
+        from .gearbook import base_cat
+        bases = (gamedata.load().get("uniques") or {}).get(name) or []
+        cat = base_cat(bases[0]) if bases else None
+    except Exception:
+        return None
+    if not cat:
+        return None
+    simple = {"tablet": "Tablets", "relic": "Relics", "jewel": "Jewels"}
+    if cat in simple:
+        return simple[cat]
+    word = cat.split(":", 1)[-1].replace("_", " ").title()
+    for g in GROUP_ORDER:
+        if g.lower().rstrip("s") == word.lower() or g.lower() == word.lower() + "s":
+            return g
+    return None
 
 
 def as_rolled(text):

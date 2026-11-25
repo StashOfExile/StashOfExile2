@@ -59,3 +59,28 @@ class ModLabGroups(unittest.TestCase):
         self.assertTrue(_is_base("Utility Belt"))
         self.assertTrue(_is_base("Ritual Tablet"))
         self.assertFalse(_is_base("Headhunter"))
+
+
+class RollsOnChips(unittest.TestCase):
+    def test_waystone_chip_is_one_in_order(self):
+        from soe2 import ratemods as RM
+        self.assertEqual(RM.rolls_on("waystone", "k", {"tags": ["T1-5", "T11-15", "T16", "T6-10"]}), ["All tiers"])
+        self.assertEqual(RM.rolls_on("waystone", "k", {"tags": ["T16", "T11-15"]}), ["Tier 11-16"])
+
+
+class BaseGroups(unittest.TestCase):
+    def test_groups_are_bases_never_mixes(self):
+        from soe2 import ratemods as RM
+        for s in ("jewel", "tablet", "relic"):
+            for e in RM.entries(s):
+                self.assertTrue(e["cats"])
+                self.assertTrue(all(" / " not in c for c in e["cats"]))
+                self.assertTrue(set(e["cats"]) <= set(RM.base_order(s)))
+
+    def test_waystones_have_one_pool(self):
+        from soe2 import ratemods as RM
+        self.assertTrue(all(not e["cats"] and not e["cat"] for e in RM.entries("waystone")))
+
+    def test_unique_tablet_has_a_group(self):
+        from soe2 import uniquedata as UD
+        self.assertEqual(UD.group_of("Freedom of Faith"), "Tablets")
