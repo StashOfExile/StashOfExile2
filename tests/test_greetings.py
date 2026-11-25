@@ -81,5 +81,53 @@ class Greetings(unittest.TestCase):
         self.assertEqual(GR.greeting("", at(2)), "Good evening, Exile")
 
 
+
+class NoRepeats(unittest.TestCase):
+    """3.3.0 owner: a person should not see the same greeting again."""
+
+    def setUp(self):
+        self.was = {k: SETTINGS.get(k) for k in ("greet_playful", GR.SEEN_KEY, GR.NOW_KEY)}
+        self.start = GR._START
+        SETTINGS["greet_playful"] = True
+        SETTINGS.pop(GR.SEEN_KEY, None)
+        SETTINGS.pop(GR.NOW_KEY, None)
+
+    def tearDown(self):
+        GR._START = self.start
+        for k, v in self.was.items():
+            if v is None:
+                SETTINGS.pop(k, None)
+            else:
+                SETTINGS[k] = v
+
+    def test_it_stays_put_while_you_look_at_it(self):
+        a = GR.greeting("Worm", at(9))
+        self.assertEqual([GR.greeting("Worm", at(9)) for _ in range(5)], [a] * 5)
+
+    def test_each_app_start_shows_one_not_seen_before(self):
+        every = [r for r in list(GR.POOLS["morning"]) + list(GR.ANY)]
+        seen = []
+        for n in range(len(every) + 12):
+            GR._START = self.start + 1000 * (n + 1)
+            GR.greeting("Worm", at(9))
+            seen.append(SETTINGS[GR.NOW_KEY]["line"])
+        first = seen[:len(every)]
+        self.assertEqual(sorted(first), sorted(every), "every morning line once before any comes back")
+        self.assertFalse([i for i in range(1, len(seen)) if seen[i] == seen[i - 1]], "never the same twice running")
+
+    def test_when_all_were_seen_it_starts_over_without_the_last_one(self):
+        rows = ["a", "b", "c"]
+        SETTINGS[GR.SEEN_KEY] = ["a", "b", "c"]
+        self.assertEqual(GR.fresh(rows, "k1"), ["a", "b"])
+        SETTINGS[GR.SEEN_KEY] = ["a"]
+        self.assertEqual(GR.fresh(rows, "k1"), ["b", "c"])
+        SETTINGS[GR.SEEN_KEY] = ["a", "b"]
+        self.assertEqual(GR.fresh(["a", "b"], "k1", ["a", "b", "z"]), ["z"], "nothing new here: the wider list")
+
+    def test_tests_with_a_seed_do_not_touch_what_was_seen(self):
+        GR.greeting("Worm", at(9), seed=3)
+        self.assertNotIn(GR.NOW_KEY, SETTINGS)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -6177,7 +6177,8 @@ class App(BulkPage, SettingsPage, GearBookPage, PriceCheckPage, PricePopup, Favo
 
     def save_widths(self):
         try:
-            SETTINGS["col_widths"] = {c[0]: int(self.tree.column(c[0], "width")) for c in self.COLS if c[0] != "name"}
+            SETTINGS["col_widths"] = {c[0]: int(self.tree.column(c[0], "width")) for c in self.COLS
+                                      if c[0] != "name" and int(self.tree.column(c[0], "width")) >= self.col_floor(c[0], c[2])}
             pw = int(self.outer.winfo_width())
             if pw >= 250:              # 2.0 beta 22: a closed / minimized window reports 1 - that hid the item panel
                 SETTINGS["panel_w"] = pw

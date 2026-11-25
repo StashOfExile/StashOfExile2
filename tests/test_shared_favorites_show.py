@@ -56,7 +56,7 @@ class Links(unittest.TestCase):
         src = inspect.getsource(favorites_page)
         self.assertIn("return self.fav_shared_show()", src)
         self.assertIn('("Search now", self.fav_search, bool(r), "Enter")', src)
-        self.assertIn('{"main": bool(r), "open": bool(r), "take": bool(r)}', src)
+        self.assertIn('{"main": bool(r), "open": bool(r), "take": bool(r),', src)
 
 
 @unittest.skipUnless(os.environ.get("DISPLAY") or sys.platform == "win32", "needs a display")

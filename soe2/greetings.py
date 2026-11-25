@@ -154,6 +154,42 @@ def lines(part, named):
     return rows if named else [r for r in rows if r not in NAME_ONLY]
 
 
+SEEN_KEY, NOW_KEY = "greet_seen", "greet_now"
+
+
+def fresh(rows, key, both=None):
+    """3.3.0 owner: a person should not see the same greeting again. -> the lines not shown yet. The one on
+    screen for this time of day and app start stays the one on screen. rows: the lines this pick would draw
+    from; both: every line that fits this time of day, used once rows has nothing new. When every one of those
+    has been seen, they start over, without the one shown last."""
+    both = list(both or rows)
+    cur = SETTINGS.get(NOW_KEY) or {}
+    if cur.get("key") == key and cur.get("line") in both:
+        return [cur["line"]]
+    seen = [s for s in SETTINGS.get(SEEN_KEY) or [] if isinstance(s, str)]
+    for pool in (rows, both):
+        left = [r for r in pool if r not in seen]
+        if left:
+            return left
+    last = seen[-1] if seen else None
+    SETTINGS[SEEN_KEY] = [s for s in seen if s not in both]       # this time of day starts over
+    return [r for r in both if r != last] or list(both)
+
+
+def remember(line, key):
+    cur = SETTINGS.get(NOW_KEY) or {}
+    if cur.get("key") == key and cur.get("line") == line:
+        return
+    seen = [s for s in SETTINGS.get(SEEN_KEY) or [] if isinstance(s, str) and s != line]
+    SETTINGS[SEEN_KEY] = (seen + [line])[-400:]
+    SETTINGS[NOW_KEY] = {"key": key, "line": line}
+    try:
+        from .config import save_json
+        save_json("settings.json", SETTINGS)
+    except Exception:
+        pass
+
+
 def greeting(name="", now=None, seed=None):
     """The hello for right now. name: your board name, "" without one."""
     now = now or time.time()
@@ -162,10 +198,16 @@ def greeting(name="", now=None, seed=None):
     if not playful():
         return PLAIN[part].format(name=who or "Exile")
     day = time.strftime("%Y%m%d", time.localtime(now))
-    rng = random.Random(seed if seed is not None else f"{day}-{part}-{int(_START)}")
+    key = f"{day}-{part}-{int(_START)}"
+    rng = random.Random(seed if seed is not None else key)
     pool = ANY if rng.random() < ANY_SHARE else POOLS[part]
     rows = [r for r in pool if who or r not in NAME_ONLY]
+    if seed is None:
+        both = [r for r in list(POOLS[part]) + list(ANY) if who or r not in NAME_ONLY]
+        rows = fresh(rows, key, both)
     line = rng.choice(rows)
+    if seed is None:
+        remember(line, key)
     if "{name}" in line and line not in NAME_ONLY and rng.random() < PET_CHANCE:
         return line.format(name=rng.choice(PET_NAMES))
     return line.format(name=who or "Exile")

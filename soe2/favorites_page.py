@@ -221,7 +221,8 @@ class FavoritesPage:
             return
         if self.fav_view.get() != "Mine":
             r = self._fav_shared_one()
-            self.share_tool_greys(tools, {"main": bool(r), "open": bool(r), "take": bool(r)},
+            self.share_tool_greys(tools, {"main": bool(r), "open": bool(r), "take": bool(r),
+                                          "delete": self.share_can_delete((r or {}).get("_post"))},
                                   (r or {}).get("_post"))
         else:
             sel = self.fav_tv.selection()
@@ -690,6 +691,11 @@ class FavoritesPage:
                 self.favs().save()
 
     def fav_delete(self, rows):
+        if getattr(self, "fav_view", None) is not None and self.fav_view.get() != "Mine":
+            post = (self._fav_shared_one() or {}).get("_post")      # one of the board's: its author or an admin
+            if not self.share_can_delete(post):
+                return self.fav_say("Only its author or an admin can delete a favorite from the board.")
+            return self.share_delete("trade", post, self.fav_shared_fill)
         st = self.favs()
         ids, gids = self._fav_ids(rows), self._fav_groups_sel(rows)
         undo = []

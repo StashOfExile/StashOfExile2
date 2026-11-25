@@ -262,6 +262,21 @@ class BulkPage:
             b.config(text=txt)
             bk_flow(self.bk_tb)
 
+    @staticmethod
+    def col_floor(cid, w):
+        """The narrowest a column may get: enough to read its heading and a value."""
+        return 140 if cid == "name" else max(36, min(int(w), max(56, int(w * 0.6))))
+
+    def cols_reset(self):
+        """Columns ▾ › Reset widths: every column back to the app's own width."""
+        for cid, _title, w, _anchor in self.COLS:
+            try:
+                self.tree.column(cid, width=max(w, self.col_floor(cid, w), {"conf": 120, "ilvl": 80, "mark": 104}.get(cid, 0)))
+            except tk.TclError:
+                pass
+        SETTINGS["col_widths"] = {}
+        save_json("settings.json", SETTINGS)
+
     def cols_menu(self):
         """Columns ▾: the extra columns, the list's order (as added) and Export CSV."""
         m = tk.Menu(self.root, tearoff=0, bg=C["panel2"], fg=C["text"], activebackground=C["accent"],
@@ -273,6 +288,7 @@ class BulkPage:
             self._cols_vars[cid] = v
             m.add_checkbutton(label=label, variable=v, command=lambda c=cid, vv=v: self.cols_set(c, bool(vv.get())))
         m.add_separator()
+        m.add_command(label="Reset widths", command=self.cols_reset)
         m.add_command(label="Order added", command=self.sort_added)
         m.add_separator()
         m.add_command(label="Export CSV…", command=self.export)
@@ -310,9 +326,13 @@ class BulkPage:
         self.tree.menu_actions = self.checks_menu_actions          # 2.36.0: right-click / Menu key
         for cid, title, w, anchor in self.COLS:
             self.tree.heading(cid, text=title, command=lambda c=cid: self.sort_by(c))
+            # 3.3.0 owner: columns shrank to slivers and stayed that way. A narrow window squeezed them to the old
+            # 36 px floor, and that was then saved. Each column has its own floor now, and a saved width under
+            # it is not used; the list scrolls sideways instead.
+            floor = self.col_floor(cid, w)
             keep = w if cid == "name" else min(self.COL_MAX_W, int(SETTINGS.get("col_widths", {}).get(cid, w)))
-            self.tree.column(cid, width=max(keep, {"conf": 120, "ilvl": 80, "mark": 104}.get(cid, 0)), minwidth=36,
-                             anchor=anchor, stretch=(cid == "name"))
+            self.tree.column(cid, width=max(keep, floor, {"conf": 120, "ilvl": 80, "mark": 104}.get(cid, 0)),
+                             minwidth=floor, anchor=anchor, stretch=(cid == "name"))
         self.cols_apply()
         sb = ttk.Scrollbar(left, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=sb.set)

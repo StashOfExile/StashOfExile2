@@ -88,9 +88,6 @@ class SharePage:
             self.run_bg(lambda: B.report(post["id"], why), lambda r: self._share_result(r, kind, "Reported - thanks.",
                                                                                        done))
 
-    def share_delete(self, kind, post, done=None):
-        self.run_bg(lambda: B.delete(post["id"]), lambda r: self._share_result(r, kind, "Deleted.", done))
-
     def _share_result(self, res, kind, text, done):
         ok, d = res
         if not ok:
@@ -194,6 +191,29 @@ class SharePage:
                 self.run_bg(B.official, lambda r: (self._mm_official_done(r) if hasattr(self, "_mm_official_done")
                                                    else None, done and done()))
         self.run_bg(lambda: B.admin(post["id"], action), after)
+        return True
+
+    def share_can_delete(self, post):
+        """Its author or an admin may take a post off the board."""
+        return bool(post) and bool(post.get("mine") or self.share_is_admin())
+
+    def share_delete(self, kind, post, done=None):
+        """3.3.0 owner: Delete did nothing on a Community favorite, even for an admin. It asks first: a post
+        deleted from the board is gone for everyone and cannot be brought back."""
+        if not self.share_can_delete(post):
+            return None
+        from tkinter import messagebox
+        name = str((post.get("data") or {}).get("name") or "this post")
+        if not messagebox.askyesno("Delete from the board", f"Delete \"{name}\" from the Community board?\n\n"
+                                   "It is removed for everyone and cannot be brought back.",
+                                   parent=self.dlg_parent() if hasattr(self, "dlg_parent") else self.root):
+            return False
+
+        def after(res):
+            if self._share_result(res, kind, f"\"{name}\" is deleted from the board.", done):
+                self.run_bg(B.official, lambda r: (self._mm_official_done(r) if hasattr(self, "_mm_official_done")
+                                                   else None, done and done()))
+        self.run_bg(lambda: B.delete(post["id"]), after)
         return True
 
     def share_admin_actions(self, kind, post, done=None):

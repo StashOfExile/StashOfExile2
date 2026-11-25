@@ -992,7 +992,8 @@ class RegexPage:
         self.share_tool_greys(getattr(self, "rx_fav_btns", {}), {
             "main": one, "open": one and bool(rows[0].get("state")), "rename": mine, "tags": mine, "key": mine,
             "post": mine, "take": one and not mine,
-            "delete": bool(rows) and all(r["_origin"] == "mine" for r in rows)}, post)
+            "delete": (bool(rows) and all(r["_origin"] == "mine" for r in rows)) or self.share_can_delete(post)},
+            post)
         head = getattr(self, "rx_fav_head", None)
         if head is not None:
             head.config(text=f"FAVORITES · {len(self.rx_fav_tv.get_children())} · {self.rx_fav_view.get()}")
@@ -1105,8 +1106,9 @@ class RegexPage:
         idx = sorted({self.rx_rows[r]["_i"] for r in rows if r in getattr(self, "rx_rows", {})
                       and self.rx_rows[r]["_origin"] == "mine"}, reverse=True)
         gone = [(i, self.rx_favs[i]) for i in idx if i < len(self.rx_favs)]
-        if not gone:
-            return
+        if not gone:                                  # 3.3.0 owner: a board post: its author or an admin deletes it
+            post = self._rx_post()
+            return self.share_delete("regex", post, self.rx_fill_favorites) if self.share_can_delete(post) else None
         for i, _f in gone:
             del self.rx_favs[i]
         label = f"{len(gone)} favorite{'s' if len(gone) != 1 else ''}"
