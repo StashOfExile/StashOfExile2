@@ -189,6 +189,19 @@ def _db_card(it, cls):
     return {"kind": cls, "props": props, "req": "", "lines": lines, "muted": [], "chips": chips, "db": True}
 
 
+def unique_history(name):
+    """3.3.0 owner: what a unique had before its last change, as muted lines on its card: "Before 0.4.0: ..."."""
+    try:
+        from . import gamesnap
+        h = gamesnap.history(name)
+    except Exception:
+        return []
+    if not h:
+        return []
+    patch, gone = h
+    return [f"Before {patch}: {ln}" for ln in gone[:6]]
+
+
 def card(it):
     """A Game Search row -> {kind, props, req, lines, muted, chips, db} (cached on the row)."""
     c = it.get("_card")
@@ -206,7 +219,8 @@ def card(it):
             kind = "Radius Jewel"                             # 3.0.6: Time-Lost jewels say so in words, not tag chips
         if it.get("g") == "Unique Items":                     # the text only said "Unique <class>": that is the kind
             kind = f"Unique {KIND_WORDS.get(cls, cls)}"
-            lines = [x for x in lines if x != f"Unique {cls}"]
+            lines = [x for x in lines if x != f"Unique {cls}"] + list(it.get("ul") or [])
+            muted = list(muted) + unique_history(it.get("n"))
         c = {"kind": kind + (f" · {attr}" if attr else ""), "props": props, "req": req, "lines": lines, "muted": muted,
              "chips": chips(it.get("k"), skip=(cls, humanize(cls), *attr.split("/"))), "db": False}
         if it.get("g") == "Modifiers":                        # a mod row's tags are its stat group ids: one chip each is noise

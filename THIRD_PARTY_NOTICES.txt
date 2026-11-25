@@ -305,7 +305,8 @@ OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 ------------------------------------------------------------------------------
 StashOfExile2 uses data from Path of Building Community for Path of Exile 2
 (https://github.com/PathOfBuildingCommunity/PathOfBuilding-PoE2): every unique item's name, base and modifier lines in
-uniquedata.json (built by tools/build_uniquedata.py from its src/Data/Uniques files), used by Mod Lab. The item data
+uniquedata.json (built by tools/build_uniquedata.py from its src/Data/Uniques files), used by Mod Lab. The same data, with every
+older version of each unique it keeps, is frozen in snapshots/ by tools/build_snapshot.py, with RePoE's gems and mods. The item data
 belongs to Grinding Gear Games. Its licence:
 
 MIT License

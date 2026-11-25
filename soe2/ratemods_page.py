@@ -362,6 +362,7 @@ class RateModsPage:
     def rm_on_show(self):
         """The page came up: counts again (they change as you price check), the last set picked."""
         self.__dict__["_rm_ent"] = {}
+        RM.kinds_forget()                              # lines learned since need their kinds too
         self._rm_recount_all()
         if not getattr(self, "rm_set", None):
             from .config import SETTINGS
@@ -768,6 +769,10 @@ class RateModsPage:
                       lift=False, r=12)
         cv.tag_lower(box, t)
         y += th + 40 + 12
+        if e.get("kind"):                              # 3.3.0 owner: what kind of mod it is, in words
+            kt = cv.text((x0 + x1) / 2, y, e["kind"], F_SMALL, fill=cv.c("text_muted"), anchor="n", tags=("kind",))
+            cv.tips["kind"] = f"A {e['kind'].lower()} mod"
+            y = cv.bottom(kt, y + 16) + 8
         y = self._rm_rolls(cv, e, (x0 + x1) / 2, y, x1 - x0 - 2 * pad)
         y = self._rm_facts(cv, e, cur, x0 + pad, x1 - pad, y, narrow)
         key = self.rm_roll_key(e)
@@ -1566,8 +1571,11 @@ class RateModsPage:
         bottom = cv.bottom(t, y + 26)
         cv.acts[f"mod:{i}"] = lambda e=e: self.rm_tpick_row(e)
         cv.tips[f"mod:{i}"] = "Open it on the card (One at a Time)" if self.rm_narrow else "Show it in the side panel"
+        if not narrow and e.get("kind"):                      # 3.3.0 owner: its kind, in words, under the mod
+            t2 = cv.text(mx0 + 12, bottom + 2, e["kind"], F_SMALL, fill=cv.c("text_muted"), width=mx1 - mx0 - 24)
+            bottom = cv.bottom(t2, bottom + 16)
         if narrow:
-            bits = []
+            bits = [e["kind"]] if e.get("kind") else []
             if e.get("rolls"):
                 bits.append("Rolls on " + ", ".join(e["rolls"][:2]) + (f" +{len(e['rolls']) - 2}" if
                                                                         len(e["rolls"]) > 2 else ""))

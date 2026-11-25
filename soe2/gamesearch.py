@@ -42,6 +42,7 @@ def load():
             at = order.index("Jewellery & Belts") + 1 if "Jewellery & Belts" in order else len(order)  # game text
             order.insert(at, JEWELS)
         rows += anoint_rows()
+        _unique_lines(rows)                              # 3.3.0 owner: a unique's mods, so its effects can be searched
         db_rows, db_order = gamedb_rows()
         rows += db_rows
         rows = gamesearch_clean.clean_rows(rows, hidden_names())      # no developer-only entries, no placeholder text
@@ -124,6 +125,23 @@ def _hide_entries():
     except Exception:
         buglog.caught()
         return []
+
+
+def _unique_lines(rows):
+    """Each unique row gets its lines from uniquedata.json (soe2/uniquedata.py): shown on its card and searched."""
+    try:
+        from . import uniquedata as UD
+        for r in rows:
+            if r.get("g") != "Unique Items":
+                continue
+            u = UD.get(r.get("n"))
+            if not u:
+                continue
+            lines = list(u.get("implicit") or []) + list(u.get("explicit") or [])
+            r["ul"] = lines
+            r["lt"] = (r.get("lt") or "") + " " + " ".join(lines).lower()
+    except Exception:
+        buglog.caught()
 
 
 def report_ref(row):

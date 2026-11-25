@@ -368,6 +368,34 @@ def game_text(set_name, keys, text, info=None):
     return " / ".join(out)
 
 
+KIND_WORDS = {"prefix": "Prefix", "suffix": "Suffix", "either": "Prefix or Suffix", "implicit": "Implicit",
+              "explicit": "Explicit", "corruption": "Corrupted", "enchant": "Enchant", "rune": "Rune",
+              "desecrated": "Desecrated", "fractured": "Fractured", "crafted": "Crafted", "unique": "Unique"}
+_KIND_CACHE = {}
+
+
+def mod_kind(set_name, keys, info=None):
+    """3.3.0 owner: what kind of mod a row is, as a word: Prefix, Suffix, Implicit, Explicit, Corrupted, Enchant ...
+    or "" when the data does not say."""
+    if info and info.get("side"):
+        return KIND_WORDS.get(str(info["side"]).lower(), str(info["side"]).title())
+    key = keys[0] if keys else ""
+    if set_name.startswith(("gear:", "unique:")):
+        if set_name not in _KIND_CACHE:
+            from . import gearbook as GB
+            rows = GB.class_mods(set_name[5:]) if set_name.startswith("gear:") else \
+                GB.unique_rows(next((n for n in GB.all_uniques() if n.lower() == set_name[7:]), set_name[7:]))
+            _KIND_CACHE[set_name] = {r["key"]: r.get("kind") or "" for r in rows}
+        k = _KIND_CACHE[set_name].get(key, "")
+        return KIND_WORDS.get(str(k).lower(), str(k).title()) if k else ""
+    return ""
+
+
+def kinds_forget():
+    """The kinds are worked out again: new lines were learned."""
+    _KIND_CACHE.clear()
+
+
 def entries(set_name, gear_mods=None):
     """Every mod of a set as the page shows it: [{"keys", "text", "game", "rolls"}], in the queue's order."""
     infos = {}
@@ -381,7 +409,7 @@ def entries(set_name, gear_mods=None):
         info = infos.get(tuple(keys))
         out.append({"keys": keys, "text": text, "game": game_text(set_name, keys, text, info),
                     "rolls": rolls_on(set_name, keys[0], info), "info": info, "set": set_name,
-                    "cat": category(set_name, (info or {}).get("tags"))})
+                    "cat": category(set_name, (info or {}).get("tags")), "kind": mod_kind(set_name, keys, info)})
     return out
 
 
