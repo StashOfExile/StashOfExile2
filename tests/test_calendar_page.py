@@ -160,7 +160,7 @@ class Page(unittest.TestCase):
         class E:
             x, y, x_root, y_root = (x0 + x1) / 2, (y0 + y1) / 2, 0, 0
         with mock.patch("tkinter.Menu.tk_popup", lambda *a, **k: None):
-            self.h.cal_day = None
+            self.h.cal_day = self.day + dt.timedelta(days=30)
             self.h.cal_grid_menu(E)
         self.assertEqual(self.h.cal_day, self.day, "the day under the mouse is picked")
         m = self.h.cal_day_menu
@@ -201,6 +201,78 @@ class Page(unittest.TestCase):
             self.h.cal_refresh()
             self.assertIn("Add to League Plan", self.buttons(self.h.cal_day_box), "ticked off: it can be added again")
 
+    def click(self, day, shift=False):
+        self.h.cal_grid.config(width=700, height=500)
+        self.root.update()
+        self.h.cal_draw()
+        x0, y0, x1, y1, _d = next(c for c in self.h.cal_cells if c[4] == day)
+
+        class E:
+            x, y, x_root, y_root, state = (x0 + x1) / 2, (y0 + y1) / 2, 0, 0, 1 if shift else 0
+        return E
+
+    def month_days(self, a, b):
+        """Two days of the shown month, a and b days after its 10th: always on the grid together."""
+        y, m = self.h.cal_ym
+        return dt.date(y, m, 10 + a), dt.date(y, m, 10 + b)
+
+    def test_shift_click_picks_a_range_and_add_reminder_comes_filled_in(self):
+        d1, d2 = self.month_days(0, 3)
+        self.h.cal_grid_click(self.click(d1))
+        self.assertEqual(self.h.cal_range(), (d1, d1))
+        self.h.cal_grid_click(self.click(d2, shift=True))
+        self.assertEqual(self.h.cal_range(), (d1, d2))
+        self.assertEqual(self.h.cal_range_words(), f"{CD.day_words(d1)} to {CD.day_words(d2)}")
+        self.h.cal_draw()
+        lit = [i for i in self.h.cal_grid.find_all() if self.h.cal_grid.type(i) == "rectangle"]
+        self.assertGreaterEqual(len(lit), 4, "every day in the range is lit")
+        with mock.patch.object(CD, "h24", lambda: True):
+            dlg = self.h.cal_add()
+            v = dlg.cal_vars
+            self.assertTrue(v["many"].get(), "the range is already ticked")
+            self.assertEqual((v["day"][0], v["day2"][0]), (d1, d2))
+            v["name"].set("Sell week")
+            dlg.cal_save()
+        ev = next(e for e in CD.events() if e["name"] == "Sell week")
+        self.assertEqual(CD.span(ev), (d1, d2))
+        for d in (d1, d1 + dt.timedelta(days=1), d2):
+            self.assertIn(ev["id"], [e["id"] for e in CD.on_day(CD.events(), d)], "it shows on every day it runs")
+        self.assertEqual(self.h.cal_range(), (d1, d1), "after saving, one day is picked again")
+
+    def test_shift_click_backwards_and_a_plain_click_ends_the_range(self):
+        d1, d2 = self.month_days(5, 1)
+        self.h.cal_grid_click(self.click(d1))
+        self.h.cal_grid_click(self.click(d2, shift=True))
+        self.assertEqual(self.h.cal_range(), (d2, d1), "first and last, whichever was clicked first")
+        self.h.cal_grid_click(self.click(d2))
+        self.assertEqual(self.h.cal_range(), (d2, d2))
+
+    def test_right_click_inside_a_range_keeps_it(self):
+        d1, d2 = self.month_days(0, 3)
+        self.h.cal_grid_click(self.click(d1))
+        self.h.cal_grid_click(self.click(d2, shift=True))
+        with mock.patch("tkinter.Menu.tk_popup", lambda *a, **k: None):
+            self.h.cal_grid_menu(self.click(d1 + dt.timedelta(days=1)))
+            self.assertEqual(self.h.cal_range(), (d1, d2))
+            self.h.cal_grid_menu(self.click(d2 + dt.timedelta(days=2)))
+        self.assertEqual(self.h.cal_range(), (d2 + dt.timedelta(days=2),) * 2, "outside it: that day alone")
+
+    def test_one_day_reminder_has_no_end_and_a_backwards_range_is_refused(self):
+        d1, _d = self.month_days(0, 0)
+        self.h.cal_grid_click(self.click(d1))
+        with mock.patch.object(CD, "h24", lambda: True):
+            dlg = self.h.cal_add()
+            v = dlg.cal_vars
+            self.assertFalse(v["many"].get())
+            v["name"].set("One day")
+            v["many"].set(True)
+            v["day2"][0] = d1 - dt.timedelta(days=2)
+            dlg.cal_save()
+            self.assertEqual(v["msg"].cget("text"), "It ends before it starts.")
+            v["many"].set(False)
+            dlg.cal_save()
+        self.assertEqual(next(e for e in CD.events() if e["name"] == "One day")["end"], 0)
+
     def test_the_overlay_line_has_one_switch_and_is_off_until_turned_on(self):
         from soe2.config import SETTINGS
         self.addCleanup(SETTINGS.pop, "cal_overlay", None)
@@ -208,6 +280,7 @@ class Page(unittest.TestCase):
         CD.set_board([{"id": "b1", "kind": "league", "name": "Start", "start": CD.at(self.day, 20), "end": 0}])
         self.assertEqual(self.h.cal_overlay_text(), "", "off as the app comes")
         switches = [w for w in all_widgets(self.body) if isinstance(w, ttk.Checkbutton)]
+        self.assertTrue(switches)
         self.assertEqual([str(w.cget("text")) for w in switches], ["Next event on the overlay"])
         built = []
         self.h.mg_win, self.h.goal_rows, self.h.tk_ov_lbls = object(), [], {}
@@ -313,6 +386,20 @@ class AdminPage(Page):
         self.assertFalse(dlg.winfo_exists(), "the box closes once the board said yes")
         self.assertEqual(pulls, [1])
         self.assertEqual([e["id"] for e in CD.events()], ["b9"], "the Calendar shows what the board now has")
+
+    def test_post_event_takes_a_picked_range(self):
+        d1, d2 = self.month_days(0, 4)
+        self.h.cal_grid_click(self.click(d1))
+        self.h.cal_grid_click(self.click(d2, shift=True))
+        sent = []
+        with mock.patch("soe2.board.event_save", lambda body, eid=None: (sent.append(body), (True, {}))[1]), \
+                mock.patch.object(CD, "pull", lambda call=None: None), mock.patch.object(CD, "h24", lambda: True):
+            dlg = self.h.cal_post()
+            self.assertTrue(dlg.cal_vars["has_end"].get(), "a range: It has an end is ticked")
+            dlg.cal_vars["kind"].set("▶ Twitch Drops")
+            dlg.cal_vars["name"].set("Launch drops")
+            dlg.cal_save()
+        self.assertEqual((CD.local_day(sent[0]["start"]), CD.local_day(sent[0]["end"])), (d1, d2))
 
     def test_the_board_s_no_is_shown_in_the_box(self):
         with mock.patch("soe2.board.event_save", lambda body, eid=None: (False, "admins only")), \

@@ -36,6 +36,7 @@ class CalendarPage:
         P1, P2 = C["panel"], C["panel2"]
         today = _dt.date.today()
         self.cal_ym, self.cal_day, self.cal_pick = (today.year, today.month), today, None
+        self.cal_day2 = None                                # the other end of a Shift-clicked range of days
         self.cal_cells = []
         bar = tk.Frame(body, bg=P1, padx=8)
         bar.pack(fill="x", pady=(8, 8))
@@ -234,6 +235,7 @@ class CalendarPage:
     def cal_today(self):
         today = _dt.date.today()
         self.cal_ym, self.cal_day, self.cal_pick = (today.year, today.month), today, None
+        self.cal_day2 = None
         self.cal_refresh()
 
     # ---------------------------------------------------------------- drawing
@@ -300,9 +302,11 @@ class CalendarPage:
             for c, day in enumerate(week):
                 x0, y0, x1, y1 = c * cw, head + r * ch, (c + 1) * cw, head + (r + 1) * ch
                 self.cal_cells.append((x0, y0, x1, y1, day))
-                picked, out = day == self.cal_day, day.month != m
+                first, last = self.cal_range()
+                picked, out = first <= day <= last, day.month != m
                 if picked:
-                    cv.create_rectangle(x0 + 1, y0 + 1, x1, y1, fill=C["sel"], outline=C["accent"])
+                    cv.create_rectangle(x0 + 1, y0 + 1, x1, y1, fill=C["sel"],
+                                        outline=C["accent"] if day in (first, last) else "")
                 elif day == today:
                     cv.create_rectangle(x0 + 1, y0 + 1, x1, y1, fill=C["odd"], outline="")
                 if c:
@@ -336,19 +340,39 @@ class CalendarPage:
             text = text[:-1]
         return text.rstrip() + "…"
 
-    def cal_grid_click(self, e):
+    def cal_range(self):
+        """The picked days, first and last. One day picked: both are that day."""
+        a, b = self.cal_day, getattr(self, "cal_day2", None) or self.cal_day
+        return (a, b) if a <= b else (b, a)
+
+    def cal_range_words(self):
+        first, last = self.cal_range()
+        if first == last:
+            return CD.day_words(first)
+        return f"{CD.day_words(first)} to {CD.day_words(last)}"
+
+    def cal_grid_click(self, e, keep_range=False):
+        """A click picks a day. Shift and a click picks every day from the picked one to this one. keep_range:
+        a right-click inside the picked range leaves it as it is."""
         for x0, y0, x1, y1, day in self.cal_cells:
             if x0 <= e.x < x1 and y0 <= e.y < y1:
-                self.cal_day, self.cal_pick = day, None
-                if (day.year, day.month) != self.cal_ym:
-                    self.cal_ym = (day.year, day.month)
+                first, last = self.cal_range()
+                if keep_range and first != last and first <= day <= last:
+                    return
+                if int(getattr(e, "state", 0) or 0) & 0x0001 and not keep_range:
+                    self.cal_day2 = day                      # the first day picked stays the range's other end
+                else:
+                    self.cal_day, self.cal_day2 = day, None
+                    if (day.year, day.month) != self.cal_ym:
+                        self.cal_ym = (day.year, day.month)
+                self.cal_pick = None
                 self.cal_refresh()
                 return
 
     def cal_grid_menu(self, e):
         """Right-click a day: it is picked, and a menu offers Add Reminder first, then what the day's event takes."""
         from .listkit import _menu
-        self.cal_grid_click(e)
+        self.cal_grid_click(e, keep_range=True)
         ev = self.cal_picked()
         m = _menu(self.cal_grid)
         m.add_command(label="Add Reminder…", command=self.cal_add)
@@ -397,13 +421,14 @@ class CalendarPage:
             return
         ev = next((e for e in CD.events() if str(e["id"]) == sel[0]), None)
         if ev:
-            self.cal_pick, self.cal_day = ev["id"], CD.local_day(ev["start"])
+            self.cal_pick, self.cal_day, self.cal_day2 = ev["id"], CD.local_day(ev["start"]), None
             self.cal_show_day(self.cal_events())
 
     def cal_picked(self, evs=None):
         """The event the right side is about: the one clicked, else the day's first."""
         evs = self.cal_events() if evs is None else evs
-        todays = CD.on_day(evs, self.cal_day)
+        first, last = self.cal_range()
+        todays = [e for e in evs if CD.span(e)[0] <= last and CD.span(e)[1] >= first]
         return next((e for e in todays if e["id"] == self.cal_pick), todays[0] if todays else None)
 
     def cal_show_day(self, evs):
@@ -411,10 +436,13 @@ class CalendarPage:
         box, P1 = self.cal_day_box, C["panel"]
         for w in box.winfo_children():
             w.destroy()
-        todays = CD.on_day(evs, self.cal_day)
-        self.cal_day_head.set_title(CD.day_words(self.cal_day))
+        first, last = self.cal_range()
+        todays = [e for e in evs if CD.span(e)[0] <= last and CD.span(e)[1] >= first]
+        self.cal_day_head.set_title(self.cal_range_words())
         self.cal_day_head.note("1 event" if len(todays) == 1 else f"{len(todays)} events")
         if not todays:
+            self.cal_empty.set_text("Nothing on this day\nAdd Reminder puts one of your own here." if first == last
+                                    else "Nothing on these days\nAdd Reminder puts one of your own across them.")
             self.cal_empty.place(relx=0.5, rely=0.4, anchor="center")
             return
         self.cal_empty.place_forget()
@@ -577,23 +605,30 @@ class CalendarPage:
         from . import cleanguard
         dlg = self._cal_dialog("Add Reminder")
         P2 = C["panel2"]
-        day = [self.cal_day]
+        first, last = self.cal_range()
+        day, day2 = [first], [last]
         tk.Label(dlg, text="Name", bg=P2, fg=C["text"]).pack(anchor="w")
         name = tk.StringVar()
         ent = ttk.Entry(dlg, textvariable=name, width=44)
         ent.pack(fill="x", pady=(2, 8))
-        tk.Label(dlg, text="Day", bg=P2, fg=C["text"]).pack(anchor="w")
-        drow = tk.Frame(dlg, bg=P2)
-        drow.pack(fill="x", pady=(2, 8))
-        dlab = tk.Label(drow, text="", bg=P2, fg=C["text"], font=("Segoe UI", 10, "bold"), width=18)
 
-        def step(by):
-            day[0] = day[0] + _dt.timedelta(days=by)
-            dlab.config(text=f"{CD.day_words(day[0])} {day[0].year}")
-        ttk.Button(drow, text="‹", width=3, command=lambda: step(-1)).pack(side="left")
-        dlab.pack(side="left")
-        ttk.Button(drow, text="›", width=3, command=lambda: step(1)).pack(side="left")
-        step(0)
+        def day_row(title, hold):
+            tk.Label(dlg, text=title, bg=P2, fg=C["text"]).pack(anchor="w")
+            drow = tk.Frame(dlg, bg=P2)
+            drow.pack(fill="x", pady=(2, 8))
+            dlab = tk.Label(drow, text="", bg=P2, fg=C["text"], font=("Segoe UI", 10, "bold"), width=18)
+
+            def step(by):
+                hold[0] = hold[0] + _dt.timedelta(days=by)
+                dlab.config(text=f"{CD.day_words(hold[0])} {hold[0].year}")
+            ttk.Button(drow, text="‹", width=3, command=lambda: step(-1)).pack(side="left")
+            dlab.pack(side="left")
+            ttk.Button(drow, text="›", width=3, command=lambda: step(1)).pack(side="left")
+            step(0)
+        day_row("Day", day)
+        many = tk.BooleanVar(value=first != last)            # a Shift-clicked range comes filled in
+        ttk.Checkbutton(dlg, text="It runs for more than one day", variable=many).pack(anchor="w")
+        day_row("Last day", day2)
         tk.Label(dlg, text="Time, on this PC's clock", bg=P2, fg=C["text"]).pack(anchor="w")
         clock = tk.StringVar(value=CD.clock(CD.at(day[0], 20)))
         ttk.Entry(dlg, textvariable=clock, width=10).pack(anchor="w", pady=(2, 0))
@@ -611,12 +646,13 @@ class CalendarPage:
             hm = CD.parse_clock(clock.get())
             if hm is None:
                 return msg.config(text="That time is not clear. " + CD.clock_hint())
-            got = CD.add_mine(name.get(), CD.at(day[0], *hm), note=note.get(),
+            end = CD.at(day2[0], 23, 59) if many.get() else 0
+            got = CD.add_mine(name.get(), CD.at(day[0], *hm), end=end, note=note.get(),
                               leads=[s for s, v in vars_.items() if v.get()])
             if isinstance(got, str):
                 return msg.config(text=got)
             dlg.destroy()
-            self.cal_day, self.cal_pick = day[0], got["id"]
+            self.cal_day, self.cal_day2, self.cal_pick = day[0], None, got["id"]
             self.cal_ym = (day[0].year, day[0].month)
             if not self.cal_kind_vars["mine"].get():        # it would be hidden the moment it is made
                 self.cal_kind_vars["mine"].set(True)
@@ -629,6 +665,8 @@ class CalendarPage:
         dlg.bind("<Return>", lambda e: save())
         ent.focus_set()
         self._cal_grab(dlg)
+        dlg.cal_save, dlg.cal_vars = save, {"name": name, "many": many, "day": day, "day2": day2, "msg": msg,
+                                            "clock": clock}
         return dlg
 
     # ---------------------------------------------------------------- the overlay's line
@@ -857,12 +895,13 @@ class CalendarPage:
             clock = tk.StringVar(value=CD.clock(ts if ts else CD.at(day0, 20)))
             ttk.Entry(row, textvariable=clock, width=10).pack(side="left", padx=(12, 0))
             return day, clock
-        sday, sclock = when("Starts, on this PC's clock", ev["start"] if ev else 0, self.cal_day)
+        first, last = self.cal_range()
+        sday, sclock = when("Starts, on this PC's clock", ev["start"] if ev else 0, first)
         tk.Label(dlg, text=CD.clock_hint() + " Every user sees it in their own time.", bg=P2, fg=C["muted"]).pack(
             anchor="w", pady=(0, 8))
-        has_end = tk.BooleanVar(value=bool(ev and ev.get("end")))
+        has_end = tk.BooleanVar(value=bool(ev and ev.get("end")) or (not ev and first != last))
         ttk.Checkbutton(dlg, text="It has an end", variable=has_end).pack(anchor="w")
-        eday, eclock = when("Ends", ev["end"] if ev and ev.get("end") else 0, self.cal_day)
+        eday, eclock = when("Ends", ev["end"] if ev and ev.get("end") else 0, last)
         tk.Label(dlg, text="Link to its announcement", bg=P2, fg=C["text"]).pack(anchor="w", pady=(8, 0))
         link = tk.StringVar(value=ev.get("link", "") if ev else "")
         le = ttk.Entry(dlg, textvariable=link, width=48)
