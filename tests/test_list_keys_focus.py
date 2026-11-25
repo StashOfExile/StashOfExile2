@@ -83,7 +83,7 @@ class Wiring(unittest.TestCase):
 
     def test_helpers_has_one_how_to_row(self):
         src = inspect.getsource(tracker_page)
-        self.assertEqual(src.count('text="How to use:"'), 1)
+        self.assertEqual(src.count('text="Your Read Key is"'), 1)
         self.assertIn('text="Change key"', src)
         self.assertIn("self.look_key_open()", src)
         self.assertNotIn("flowify(box)", src, "no box of its own: one plain line")

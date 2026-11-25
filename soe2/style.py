@@ -55,7 +55,18 @@ def trade_icon(btn, color=None, size=16):
             pad = Image.new("RGBA", (im.width, im.height + 3), (0, 0, 0, 0))
             pad.alpha_composite(im, (0, 3))
             img = _TRADE_IMG[key] = ImageTk.PhotoImage(pad, master=btn)
-        btn.configure(image=img, compound="right")
+        # 3.3.0 owner: a grayed-out Trade Site button showed a dotted box over the globe. Tk dithers a picture it
+        # has no disabled version of; a ttk button is given a dim one for that state.
+        dim = None
+        if isinstance(btn, ttk.Button):
+            dkey = ("trade", int(size), "dim:" + str(C["muted"]).lower())
+            dim = _TRADE_IMG.get(dkey)
+            if dim is None:
+                im2 = lineicons.image("globe", int(size), str(C["muted"]))
+                pad2 = Image.new("RGBA", (im2.width, im2.height + 3), (0, 0, 0, 0))
+                pad2.alpha_composite(im2, (0, 3))
+                dim = _TRADE_IMG[dkey] = ImageTk.PhotoImage(pad2, master=btn)
+        btn.configure(image=(img, "disabled", dim) if dim is not None else img, compound="right")
     except Exception:
         buglog.caught()
     return btn

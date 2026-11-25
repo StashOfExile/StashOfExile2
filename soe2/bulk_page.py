@@ -264,7 +264,8 @@ class BulkPage:
 
     def cols_menu(self):
         """Columns ▾: the extra columns, the list's order (as added) and Export CSV."""
-        m = tk.Menu(self.root, tearoff=0, bg=C["panel2"], fg=C["text"], activebackground=C["accent"])
+        m = tk.Menu(self.root, tearoff=0, bg=C["panel2"], fg=C["text"], activebackground=C["accent"],
+                    selectcolor=C["text"])                 # 3.3.0 owner: the check marks showed only on hover
         off = set(self.bulk_cols_off())
         self._cols_vars = {}
         for cid, label in self.EXTRA_COLS:

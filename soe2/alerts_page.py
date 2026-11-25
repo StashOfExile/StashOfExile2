@@ -171,6 +171,21 @@ def helper_short(name):
 
 
 class AlertsPage:
+    def _helper_line_no_key(self, txt):
+        """A helper's status line without the key's own name: "your Read Key (Ctrl+Shift+R)" -> "your Read Key"."""
+        try:
+            named = self.look_key_text()
+        except Exception:
+            return txt
+        return str(txt).replace(named, "your Read Key") if "(" in named else txt
+
+    @staticmethod
+    def _plain_count(text):
+        """"Crystals 12/60 (2 runs)" -> "Crystals 12/60, 2 runs": no aside in brackets."""
+        import re
+        return re.sub(r"\s*\(([^)]*)\)", r", \1", str(text))
+
+
     """Mixed into App."""
 
     # ================================================================ settings
@@ -972,8 +987,10 @@ class AlertsPage:
         from . import temple as _TMs                                                    # 2.132.6: Temple's row
         rows["temple"]["on"].set(bool(self.temple_on()))
         _st = _TMs.state()
-        ttxt = (("On - " + _TMs.count_text(_st)) if _st else
-                self.look_status(f"On - press {self.look_key_text()} with the Temple Console open.")) \
+        # 3.3.0 owner: Temple's green line said only the crystal count; it says where to press like the others,
+        # then the count.
+        ttxt = self.look_status(f"On - press {self.look_key_text()} with the Temple Console open."
+                                + ((" " + self._plain_count(_TMs.count_text(_st)) + ".") if _st else "")) \
             if self.temple_on() \
             else rows["temple"]["what"]
         rows["sekhemas"]["on"].set(bool(self.sek_on()))                                 # Trial of the Sekhemas
@@ -1006,6 +1023,9 @@ class AlertsPage:
                 st, txt = _OE.row_state(k, st, txt)
                 if _OE.NEEDS in txt and not rows[k].get("ocr_tip"):
                     rows[k]["ocr_tip"] = Tooltip(lbl, _OE.help_text())
+            # 3.3.0 owner: the key itself is named once, in How to use at the top of the page; a green line says
+            # only where to press it.
+            txt = self._helper_line_no_key(txt)
             if rows[k].get("grid"):                 # 2.112.0: one short line under the name
                 # nav phase 2 (never a state by color alone): a mark and a word - ✓ On / – Off / ⚠ - then what it's
                 # doing now (2.119.0: the gray line above it says what it does)

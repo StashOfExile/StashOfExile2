@@ -278,7 +278,7 @@ class MoneyMakersPage(StratViews, StratNewPage):
 
     def _mm_menu(self):
         return tk.Menu(self.root, tearoff=0, bg=C["panel2"], fg=C["text"], activebackground="#2c4a84",
-                       selectcolor=C["accent"])
+                       selectcolor=C["text"])
 
     def mm_drop_menu(self, key, at=None):
         """A dropdown's menu (radio items: the picked one has its mark). No tooltip while it's open."""

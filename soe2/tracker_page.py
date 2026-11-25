@@ -112,14 +112,14 @@ class TrackerPage:
         P2 = C["panel2"]
         row = tk.Frame(parent, bg=P2)
         line = tk.Frame(row, bg=P2)
-        tk.Label(line, text="How to use:", bg=P2, fg=C["text"], font=("Segoe UI", 10, "bold")).pack(side="left")
-        tk.Label(line, text="in game, press", bg=P2, fg=C["text"], font=("Segoe UI", 10)).pack(side="left",
-                                                                                              padx=(8, 8))
+        # 3.3.0 owner: the first wording read as generic. It names the key as yours and says what a press does.
+        tk.Label(line, text="Your Read Key is", bg=P2, fg=C["text"], font=("Segoe UI", 10, "bold")).pack(
+            side="left", padx=(0, 8))
         cap = tk.Label(line, text="", bg=C["bg"], fg=C["text"], font=("Segoe UI", 10, "bold"), padx=8, pady=1,
                        highlightthickness=1, highlightbackground=C["line"])
         cap.pack(side="left")
-        tk.Label(line, text="where a helper's green line says.", bg=P2, fg=C["text"],
-                 font=("Segoe UI", 10)).pack(side="left", padx=(8, 12))
+        tk.Label(line, text="One press in game runs the helper for what is on your screen.", bg=P2,
+                 fg=C["text"], font=("Segoe UI", 10)).pack(side="left", padx=(8, 12))
         link = tk.Label(line, text="Change key", bg=P2, fg=C["accent"], cursor="hand2",
                         font=("Segoe UI", 10, "underline"))
         link.pack(side="left")

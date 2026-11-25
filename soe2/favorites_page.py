@@ -221,7 +221,8 @@ class FavoritesPage:
             return
         if self.fav_view.get() != "Mine":
             r = self._fav_shared_one()
-            self.share_tool_greys(tools, {"open": bool(r), "take": bool(r)}, (r or {}).get("_post"))
+            self.share_tool_greys(tools, {"main": bool(r), "open": bool(r), "take": bool(r)},
+                                  (r or {}).get("_post"))
         else:
             sel = self.fav_tv.selection()
             ids = self._fav_ids(sel)
@@ -341,18 +342,22 @@ class FavoritesPage:
 
     def fav_view_changed(self):
         mine = self.fav_view.get() == "Mine"
+        self.fav_sel = None                                # the card on the right belongs to the view it came from
         if mine:
             self.fav_tv.delete(*self.fav_tv.get_children())
             self.fav_fill()
+            self.fav_show()
             return self.fav_tool_greys()
         self.share_fetch("trade", self.fav_shared_fill)
         self.fav_shared_fill()
+        self.fav_show()
 
     def fav_shared_fill(self):
         if getattr(self, "fav_view", None) is None or self.fav_view.get() == "Mine":
             return
         from .share_page import view_rows
         tv = self.fav_tv
+        keep = [i for i in tv.selection() if str(i).startswith(SHARED_PRE)]
         tv.delete(*tv.get_children())
         self.fav_shared = {}
         rows = view_rows(self.fav_view.get(), [], self.share_posts("trade"), self.share_official("trade"),
@@ -366,7 +371,11 @@ class FavoritesPage:
             iid = SHARED_PRE + (str(post["id"]) if post else f"o{n}")
             self.fav_shared[iid] = dict(r, data=d)
             by = (post.get("author") or {}).get("name") or d.get("author", "")
-            tv.insert("", "end", iid=iid, text="🔗 " + str(d.get("name", "")), values=("", by))
+            last = (self.favs().get(iid) or {}).get("last") or {}       # (searched this session: its price)
+            tv.insert("", "end", iid=iid, text="🔗 " + str(d.get("name", "")), values=(last.get("price") or "", by))
+        keep = [i for i in keep if tv.exists(i)]
+        if keep:
+            tv.selection_set(keep)
         self.fav_shared_greys()
         if rows:
             self.fav_empty.place_forget()
@@ -380,6 +389,22 @@ class FavoritesPage:
     def fav_shared_greys(self):
         return self.fav_tool_greys()
 
+    def fav_shared_show(self):
+        """A picked Community or Official favorite shows its search and its listings on the right, as yours do."""
+        sel = [i for i in self.fav_tv.selection() if str(i).startswith(SHARED_PRE)]
+        r = self._fav_shared_one()
+        if not r or len(sel) != 1:
+            return None
+        d = r["data"]
+        info = {"league": SETTINGS.get("league") or "", "query": copy.deepcopy(d.get("query") or {}),
+                "sort": copy.deepcopy(d.get("sort") or {"price": "asc"})}
+        g = self.favs().guest(sel[0], self._fav_shared_url(d), info, str(d.get("name") or "") or None)
+        if self.fav_sel == g["id"]:
+            return g
+        self.fav_sel = g["id"]
+        self.fav_show(first=True)
+        return g
+
     def fav_admin_official(self):
         post = (self._fav_shared_one() or {}).get("_post")
         if not post:
@@ -388,9 +413,14 @@ class FavoritesPage:
                                 self.fav_shared_fill)
 
     def _fav_shared_url(self, d):
+        """The trade site link of a shared favorite. 3.3.0 owner: it opened with any seller; it follows your
+        Seller setting, Instant Buyout unless you changed it, like your own favorites."""
         import json
+        from .trade import STATUS_CHOICES
         league = SETTINGS.get("league") or "Standard"
-        body = {"query": d.get("query") or {}, "sort": d.get("sort") or {"price": "asc"}}
+        q = copy.deepcopy(d.get("query") or {})
+        q["status"] = {"option": dict(STATUS_CHOICES).get(SETTINGS.get("status"), "securable")}
+        body = {"query": q, "sort": d.get("sort") or {"price": "asc"}}
         return (f"https://www.pathofexile.com/trade2/search/poe2/{quote(league)}?q="
                 + quote(json.dumps(body, separators=(",", ":"))))
 
@@ -461,7 +491,8 @@ class FavoritesPage:
         acts = []
         if getattr(self, "fav_view", None) is not None and self.fav_view.get() != "Mine":
             r = self._fav_shared_one()
-            return [("Trade Site", self.fav_shared_open, bool(r)), ("Add to Mine", self.fav_take, bool(r)),
+            return [("Search now", self.fav_search, bool(r), "Enter"),
+                    ("Trade Site", self.fav_shared_open, bool(r)), ("Add to Mine", self.fav_take, bool(r)),
                     ("Report…", lambda: self.share_report("trade", (r or {}).get("_post"), self.fav_shared_fill),
                      bool(r and r.get("_post")))] + self.share_admin_actions("trade", (r or {}).get("_post"),
                                                                              self.fav_shared_fill)
@@ -845,7 +876,8 @@ class FavoritesPage:
 
     def fav_selected(self):
         if getattr(self, "fav_view", None) is not None and self.fav_view.get() != "Mine":
-            return self.fav_shared_greys()
+            self.fav_shared_greys()
+            return self.fav_shared_show()
         self.fav_tool_greys()
         ids = self._fav_ids()
         fid = ids[0] if len(ids) == 1 and len(self.fav_tv.selection()) == 1 else None

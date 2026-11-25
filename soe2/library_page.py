@@ -34,18 +34,33 @@ class LibraryPage:
         purpose.bind("<Configure>", lambda e: purpose.config(wraplength=max(300, e.width - 24)))
         pane = ttk.PanedWindow(tab, orient="horizontal")
         pane.pack(fill="both", expand=True, padx=8, pady=(0, 8))
-        left = tk.Frame(pane, bg=C["panel"])
+        # 3.3.0 owner: the left side had no header strip and an old tab look. It is a titled panel like Item, and
+        # its two lists switch with the app's own tab bar.
+        lgo, left = chrome_section(pane, "Game Data", padx=0, pady=0)
         rgo, right = chrome_section(pane, "Item", padx=12, pady=8)              # 2.69.0
-        pane.add(left, weight=3)
+        pane.add(lgo, weight=3)
         pane.add(rgo, weight=2)
 
-        nb = ttk.Notebook(left)
-        nb.pack(fill="both", expand=True)
-        self.lib_nb = nb
-        tf = tk.Frame(nb, bg=C["panel"])
-        sf = tk.Frame(nb, bg=C["panel"])
-        nb.add(tf, text="Bases by class and group")
-        nb.add(sf, text="Modifier stats")
+        from .style import SegBar
+        P2 = C["panel2"]
+        trow = tk.Frame(left, bg=P2)
+        trow.pack(fill="x", padx=8, pady=8)
+        hold = tk.Frame(left, bg=C["panel"])
+        hold.pack(fill="both", expand=True)
+        tf = tk.Frame(hold, bg=C["panel"])
+        sf = tk.Frame(hold, bg=C["panel"])
+        pages = {"Bases": tf, "Modifier Stats": sf}
+
+        def show(name=None):
+            name = name or self.lib_tabs.get()
+            for n, fr in pages.items():
+                if n == name:
+                    fr.pack(fill="both", expand=True)
+                else:
+                    fr.pack_forget()
+        self.lib_tabs = SegBar(trow, list(pages), value="Bases", command=show, size=10, pad=(12, 4))
+        self.lib_tabs.pack(side="left")
+        show("Bases")
 
         self.lib_tree = ttk.Treeview(tf, columns=("defence", "values", "count"), show="tree headings")
         self.lib_tree.heading("#0", text="Class / base group / base")
