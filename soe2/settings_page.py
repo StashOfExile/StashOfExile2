@@ -474,9 +474,9 @@ class SettingsPage:
         # 2.59.0: settings that had no place in the app (only in settings.json)
         # 2.120.0 (UX pass 2: settings most players never need, in one place): the game's window title (was General ›
         # Game) (2.132.0: Hide the overlay from screen captures went back to Overlay › Options)
-        row = section("Advanced", "Over the game", "The overlay and the in-game keys work only while the window with "
-                                                   "this title is in front. Change it only if your game's window has "
-                                                   "another name.")
+        row = section("Advanced", "Over the game", "The overlay and the in-game keys work only while the game's window "
+                                                   "is in front. With the game open, Detect finds its window. You can "
+                                                   "also pick any open window from the list.")
         g = tk.Frame(row, bg=P2)
         g.pack(fill="x")
         tk.Label(g, text="Game window title", bg=P2, fg=C["text"]).grid(row=0, column=0, sticky="w", padx=(0, 8))
@@ -484,10 +484,19 @@ class SettingsPage:
         if "poe_title" not in self.ov_vars:
             self.ov_vars["poe_title"] = tk.StringVar(value=self._ensure_overlay().cfg.get("poe_title", "") or
                                                      "Path of Exile 2")
-        te = ttk.Entry(g, textvariable=self.ov_vars["poe_title"], width=24)
+        # 3.3.0 owner: a box to type a window's title in was no way to find it. A list of the open windows, the
+        # game's first, and Detect, which finds the game by its window class
+        from . import gamewin
+        te = ttk.Combobox(g, textvariable=self.ov_vars["poe_title"], width=30, state="readonly",
+                          postcommand=lambda: te.configure(values=gamewin.titles() or [self.ov_vars["poe_title"].get()]))
         te.grid(row=0, column=1, sticky="w")
-        te.bind("<FocusOut>", lambda e: self.ov_save())
-        te.bind("<Return>", lambda e: (self.ov_save(), self.root.focus_set()))
+        te.bind("<<ComboboxSelected>>", lambda e: (self.ov_save(), self.game_title_say("✓ Saved.")))
+        self.game_title_box = te
+        db = ttk.Button(g, text="Detect", width=0, command=self.game_title_detect)
+        db.grid(row=0, column=2, sticky="w", padx=(8, 0))
+        Tooltip(db, "Finds the game's window while the game is open, and uses its title")
+        self.game_title_msg = tk.Label(g, text="", bg=P2, fg=C["muted"], anchor="w")
+        self.game_title_msg.grid(row=1, column=0, columnspan=3, sticky="w", pady=(4, 0))
         # (2.132.0, feedback: it was in the wrong place: Hide the overlay from screen captures is
         # in Overlay › Options now, beside Lock position and Click-through)
         # 2.74.0: Under the hood (with the Mod book inside it) is hidden unless you want it - both keep working
@@ -1066,6 +1075,23 @@ class SettingsPage:
             pass
         if kid:                                    # 3.3.0 owner: the row was not lit. The tab builds its rows as
             self.root.after(150, lambda: self._hotkey_row_show(kid))     # it opens, so it is lit once they exist.
+
+    def game_title_say(self, text):
+        lab = getattr(self, "game_title_msg", None)
+        if lab is not None:
+            lab.config(text=text)
+
+    def game_title_detect(self, lister=None):
+        """-> the title found, or "". The game is told by its window class, not its title."""
+        from . import gamewin
+        found = gamewin.detect(lister)
+        if not found:
+            self.game_title_say("! The game is not open. Start it, then click Detect.")
+            return ""
+        self.ov_vars["poe_title"].set(found)
+        self.ov_save()
+        self.game_title_say(f"✓ Found the game: {found}")
+        return found
 
     def _hotkey_row_show(self, kid, secs=3.0):
         """Scroll one key's row into view and light it for a moment: a mark and a color, never color alone."""

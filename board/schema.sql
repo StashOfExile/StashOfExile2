@@ -164,3 +164,14 @@ CREATE TABLE IF NOT EXISTS events (id INTEGER PRIMARY KEY AUTOINCREMENT, kind TE
   start INTEGER NOT NULL, end INTEGER NOT NULL DEFAULT 0, link TEXT NOT NULL DEFAULT '', note TEXT NOT NULL DEFAULT '',
   status TEXT NOT NULL DEFAULT 'live', source TEXT NOT NULL DEFAULT '', by_id TEXT NOT NULL DEFAULT '',
   at INTEGER NOT NULL DEFAULT 0);
+-- 3.3.0: pooled prices kept per install (a hashed install id), so the pool is the middle of many players and fades
+-- with time. The older mod_prices, base_prices and gem_prices tables are read once into these, then left alone.
+CREATE TABLE IF NOT EXISTS mod_shares (league TEXT NOT NULL, base TEXT NOT NULL, sid TEXT NOT NULL, cid TEXT NOT NULL,
+  n INTEGER NOT NULL DEFAULT 0, w REAL NOT NULL DEFAULT 0, slog REAL NOT NULL DEFAULT 0, updated INTEGER NOT NULL,
+  PRIMARY KEY (league, base, sid, cid));
+CREATE TABLE IF NOT EXISTS base_shares (league TEXT NOT NULL, base TEXT NOT NULL, cid TEXT NOT NULL,
+  n INTEGER NOT NULL DEFAULT 0, w REAL NOT NULL DEFAULT 0, slog REAL NOT NULL DEFAULT 0, updated INTEGER NOT NULL,
+  PRIMARY KEY (league, base, cid));
+CREATE TABLE IF NOT EXISTS gem_shares (league TEXT NOT NULL, kind TEXT NOT NULL, level INTEGER NOT NULL,
+  name TEXT NOT NULL, cid TEXT NOT NULL, div REAL NOT NULL, updated INTEGER NOT NULL,
+  PRIMARY KEY (league, kind, level, name, cid));

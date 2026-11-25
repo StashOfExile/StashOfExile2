@@ -319,6 +319,9 @@ async function housekeeping(env) {
     env.DB.prepare("DELETE FROM sessions WHERE expires < ?").bind(now()),
     env.DB.prepare("DELETE FROM app_error_installs WHERE last < ?").bind(now() - 30 * 86400),     // 2.137.0
     env.DB.prepare("DELETE FROM downloads WHERE day < date('now', ?)").bind(`-${DOWNLOAD_DAYS} days`),     // 3.3.0
+    env.DB.prepare("DELETE FROM mod_shares WHERE updated < ?").bind(now() - SHARE_FADE),                  // 3.3.0
+    env.DB.prepare("DELETE FROM base_shares WHERE updated < ?").bind(now() - SHARE_FADE),
+    env.DB.prepare("DELETE FROM gem_shares WHERE updated < ?").bind(now() - GEM_DAYS * 86400),
     // 2.137.0: a flood of made-up errors can't fill the database - the newest 5,000 kinds stay
     env.DB.prepare("DELETE FROM app_errors WHERE sig NOT IN (SELECT sig FROM app_errors ORDER BY last DESC LIMIT 5000)"),
     env.DB.prepare(`DELETE FROM images WHERE created < ? AND NOT EXISTS (SELECT 1 FROM posts p WHERE instr(p.data, '"b:' || images.key || '"') > 0)
@@ -337,6 +340,16 @@ function sameText(a, b) {                  // constant-time compare for the admi
 // 2.85.0: new columns and tables on an existing database (each statement fails harmlessly once it's done)
 let migrated = false;
 const MIGRATIONS = [
+  // 3.3.0: pooled prices kept per install, so the pool is the middle of many players and moves with the market
+  `CREATE TABLE IF NOT EXISTS mod_shares (league TEXT NOT NULL, base TEXT NOT NULL, sid TEXT NOT NULL, cid TEXT NOT NULL,
+    n INTEGER NOT NULL DEFAULT 0, w REAL NOT NULL DEFAULT 0, slog REAL NOT NULL DEFAULT 0, updated INTEGER NOT NULL,
+    PRIMARY KEY (league, base, sid, cid))`,
+  `CREATE TABLE IF NOT EXISTS base_shares (league TEXT NOT NULL, base TEXT NOT NULL, cid TEXT NOT NULL,
+    n INTEGER NOT NULL DEFAULT 0, w REAL NOT NULL DEFAULT 0, slog REAL NOT NULL DEFAULT 0, updated INTEGER NOT NULL,
+    PRIMARY KEY (league, base, cid))`,
+  `CREATE TABLE IF NOT EXISTS gem_shares (league TEXT NOT NULL, kind TEXT NOT NULL, level INTEGER NOT NULL,
+    name TEXT NOT NULL, cid TEXT NOT NULL, div REAL NOT NULL, updated INTEGER NOT NULL,
+    PRIMARY KEY (league, kind, level, name, cid))`,
   // 3.3.0: the Calendar's events. Posted by admins only; a draft is one the board suggested and no admin approved yet
   `CREATE TABLE IF NOT EXISTS events (id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, name TEXT NOT NULL,
     start INTEGER NOT NULL, end INTEGER NOT NULL DEFAULT 0, link TEXT NOT NULL DEFAULT '', note TEXT NOT NULL DEFAULT '',
@@ -405,8 +418,26 @@ async function migrate(env) {
     try { await env.DB.prepare(sql).run(); } catch (_e) { /* already there */ }
   }
   try { await imageKeys(env); } catch (_e) { /* next time */ }
+  try { await seedShares(env); } catch (_e) { /* next time */ }
   try { await lbMulti(env); } catch (_e) { /* next time (migrated stays false below) */ migrated = false; return; }
   migrated = true;
+}
+
+// 3.3.0, once: the pooled prices from before per-install shares become one share, so nothing learned is lost.
+// It counts as a single install and fades like any other.
+async function seedShares(env) {
+  if (await metaGet(env, "shares_seeded")) return;
+  await env.DB.batch([
+    env.DB.prepare(`INSERT OR IGNORE INTO mod_shares (league, base, sid, cid, n, w, slog, updated)
+      SELECT league, base, sid, 'earlier', n, MIN(w, ${SHARE_CAP}), slog * MIN(w, ${SHARE_CAP}) / w, updated
+      FROM mod_prices WHERE w > 0`),
+    env.DB.prepare(`INSERT OR IGNORE INTO base_shares (league, base, cid, n, w, slog, updated)
+      SELECT league, base, 'earlier', n, MIN(w, ${SHARE_CAP * 3}), slog * MIN(w, ${SHARE_CAP * 3}) / w, updated
+      FROM base_prices WHERE w > 0`),
+    env.DB.prepare(`INSERT OR IGNORE INTO gem_shares (league, kind, level, name, cid, div, updated)
+      SELECT league, kind, level, name, 'earlier', div, updated FROM gem_prices`),
+  ]);
+  await metaSet(env, "shares_seeded", now());
 }
 
 // 3.0.6, once: leaderboard times - up to 10 per account / board / key / league / class instead of one. SQLite can't drop a
@@ -1208,6 +1239,11 @@ async function lbForget(env, me) {
 // ------------------------------------------------------------------ 2.31.0: the community Mod book
 const BATCH_EVERY = 45 * 60;                 // one summary per install per 45 minutes at most (the app sends hourly)
 const MAX_PAIRS = 600, MAX_VOTES = 400, W_CAP = 10;
+// 3.3.0: each install holds one share of a pooled price. Its weight is capped at SHARE_CAP, and a share fades to
+// nothing over SHARE_FADE seconds unless the install keeps seeing that mod. The pool is the middle of the shares
+// (pooled below): it follows the market and many players. "batches" sent to the app counts the installs behind it.
+const SHARE_CAP = 30, SHARE_FADE = 28 * 86400, GEM_DAYS = 14;
+const fadeSql = (t) => `MAX(0.0, 1.0 - (${t} - updated) * 1.0 / ${SHARE_FADE})`;
 const SID = /^[a-z_]+\.[A-Za-z0-9_.]{1,80}$/, KEY = /^.{2,200}$/s, VOTE = ["high", "normal", "ignore"];
 const MAP_RANKS = ["S", "A", "B", "C", "D", "Avoid"];
 const GEM_NAME = /^[a-z0-9' ,:-]{2,60}$/, GEM_KINDS = ["skill", "support", "spirit", "gem"];     // 2.132.0
@@ -1238,19 +1274,21 @@ async function modBatch(req, env) {
     for (const p of (Array.isArray(body.prices) ? body.prices : []).slice(0, MAX_PAIRS)) {
       if (!okBase(p?.base) || !SID.test(String(p?.sid)) || !okPrice(p?.med) || !(p?.n >= 1)) continue;
       const w = Math.min(Number(p.n) || 1, W_CAP);
-      stmts.push(env.DB.prepare(`INSERT INTO mod_prices (league, base, sid, n, w, slog, batches, updated)
-        VALUES (?1, ?2, ?3, ?4, ?5, ?6, 1, ?7) ON CONFLICT(league, base, sid) DO UPDATE SET n = n + ?4, w = w + ?5,
-        slog = slog + ?6, batches = batches + 1, updated = ?7`)
-        .bind(league, p.base, p.sid, Math.min(Math.floor(p.n), 500), w, w * Math.log(p.med), t));
+      stmts.push(env.DB.prepare(`INSERT INTO mod_shares (league, base, sid, cid, n, w, slog, updated)
+        VALUES (?1, ?2, ?3, ?8, ?4, ?5, ?6, ?7) ON CONFLICT(league, base, sid, cid) DO UPDATE SET
+        n = MIN(n + ?4, 100000), w = MIN(${SHARE_CAP}.0, w * ${fadeSql("?7")} + ?5),
+        slog = (slog * ${fadeSql("?7")} + ?6) * MIN(1.0, ${SHARE_CAP}.0 / (w * ${fadeSql("?7")} + ?5)), updated = ?7`)
+        .bind(league, p.base, p.sid, Math.min(Math.floor(p.n), 500), w, w * Math.log(p.med), t, cid));
       used++;
     }
     for (const b of (Array.isArray(body.bases) ? body.bases : []).slice(0, 100)) {
       if (!okBase(b?.base) || !okPrice(b?.med) || !(b?.n >= 1)) continue;
       const w = Math.min(Number(b.n) || 1, W_CAP * 3);
-      stmts.push(env.DB.prepare(`INSERT INTO base_prices (league, base, n, w, slog, batches, updated)
-        VALUES (?1, ?2, ?3, ?4, ?5, 1, ?6) ON CONFLICT(league, base) DO UPDATE SET n = n + ?3, w = w + ?4,
-        slog = slog + ?5, batches = batches + 1, updated = ?6`)
-        .bind(league, b.base, Math.min(Math.floor(b.n), 2000), w, w * Math.log(b.med), t));
+      stmts.push(env.DB.prepare(`INSERT INTO base_shares (league, base, cid, n, w, slog, updated)
+        VALUES (?1, ?2, ?7, ?3, ?4, ?5, ?6) ON CONFLICT(league, base, cid) DO UPDATE SET
+        n = MIN(n + ?3, 100000), w = MIN(${SHARE_CAP * 3}.0, w * ${fadeSql("?6")} + ?4),
+        slog = (slog * ${fadeSql("?6")} + ?5) * MIN(1.0, ${SHARE_CAP * 3}.0 / (w * ${fadeSql("?6")} + ?4)), updated = ?6`)
+        .bind(league, b.base, Math.min(Math.floor(b.n), 2000), w, w * Math.log(b.med), t, cid));
     }
   }
   for (const v of (Array.isArray(body.maps) ? body.maps : []).slice(0, MAX_VOTES)) {   // 2.32.0: map ranks
@@ -1276,16 +1314,17 @@ async function modBatch(req, env) {
     stmts.push(env.DB.prepare(`INSERT INTO unmatched_mods (text, cid, base, updated) VALUES (?1, ?2, ?3, ?4)
       ON CONFLICT(text, cid) DO UPDATE SET base = ?3, updated = ?4`).bind(text, cid, base, t));
   }
-  // 2.132.0 (feedback: "people are gonna get rate limited hard"): gem prices from players' own searches - the
-  // newest one wins (a gem's price moves); a book's gems are then priced from here instead of the trade site
+  // 2.132.0 (feedback: "people are gonna get rate limited hard"): gem prices from players' own searches; a book's
+  // gems are then priced from here instead of the trade site. 3.3.0: each install's newest price is kept, and the
+  // pool is the middle of them
   if (league) {
     for (const g of (Array.isArray(body.gems) ? body.gems : []).slice(0, 200)) {
       const name = String(g?.name ?? "").trim().toLowerCase(), kind = String(g?.kind ?? "");
       const level = Math.floor(Number(g?.level) || 0);
       if (!GEM_NAME.test(name) || !GEM_KINDS.includes(kind) || level < 0 || level > 40 || !okPrice(g?.div)) continue;
-      stmts.push(env.DB.prepare(`INSERT INTO gem_prices (league, kind, level, name, div, n, updated)
-        VALUES (?1, ?2, ?3, ?4, ?5, 1, ?6) ON CONFLICT(league, kind, level, name) DO UPDATE SET div = ?5, n = n + 1,
-        updated = ?6`).bind(league, kind, level, name, g.div, t));
+      stmts.push(env.DB.prepare(`INSERT INTO gem_shares (league, kind, level, name, cid, div, updated)
+        VALUES (?1, ?2, ?3, ?4, ?7, ?5, ?6) ON CONFLICT(league, kind, level, name, cid) DO UPDATE SET div = ?5,
+        updated = ?6`).bind(league, kind, level, name, g.div, t, cid));
     }
   }
   let votes = 0;
@@ -1304,25 +1343,67 @@ async function modBatch(req, env) {
 // 2.132.0: every gem price found in the last two weeks for a league (small: one row a gem and level)
 async function gemPrices(url, env) {
   const league = String(url.searchParams.get("league") || "").slice(0, 60);
-  const rows = await env.DB.prepare(`SELECT kind, level, name, div, updated, n FROM gem_prices WHERE league = ?
-    AND updated > ?`).bind(league, now() - 14 * 86400).all();
-  return json({ league, gems: rows.results.map((r) => [r.kind, r.level, r.name, r.div, r.updated, r.n]) });
+  const rows = await env.DB.prepare(`SELECT kind, level, name, div, updated FROM gem_shares WHERE league = ?
+    AND updated > ? ORDER BY kind, level, name`).bind(league, now() - GEM_DAYS * 86400).all();
+  return json({ league, gems: middleGems(rows.results) });
+}
+// 3.3.0: each install's share is one voice. A price is the weighted middle of the installs' own prices in log
+// terms, each weighted by its share as it fades: a few loud or old shares cannot pull it far from the rest.
+function pooled(rows, keyOf, t) {
+  const by = new Map();
+  for (const r of rows) {
+    const f = Math.max(0, 1 - (t - r.updated) / SHARE_FADE), w = r.w * f;
+    if (!(w > 0) || !(r.w > 0)) continue;
+    const k = keyOf(r);
+    if (!by.has(k)) by.set(k, { first: r, vals: [], n: 0 });
+    const g = by.get(k);
+    g.vals.push([r.slog / r.w, w]);
+    g.n += r.n;
+  }
+  for (const g of by.values()) {
+    g.vals.sort((a, b) => a[0] - b[0]);
+    const half = g.vals.reduce((sum, v) => sum + v[1], 0) / 2;
+    let run = 0;
+    g.mid = g.vals[g.vals.length - 1][0];
+    for (const [v, w] of g.vals) { run += w; if (run >= half) { g.mid = v; break; } }
+    g.installs = g.vals.length;
+  }
+  return by;
+}
+// one row a gem and level: the middle of the installs' prices, the newest time, and how many installs
+function middleGems(rows) {
+  const by = new Map();
+  for (const r of rows) {
+    const k = `${r.kind}|${r.level}|${r.name}`;
+    if (!by.has(k)) by.set(k, { kind: r.kind, level: r.level, name: r.name, divs: [], updated: 0 });
+    const g = by.get(k);
+    g.divs.push(r.div);
+    g.updated = Math.max(g.updated, r.updated);
+  }
+  return [...by.values()].map((g) => {
+    const d = g.divs.sort((a, b) => a - b), m = d.length >> 1;
+    const mid = d.length % 2 ? d[m] : (d[m - 1] + d[m]) / 2;
+    return [g.kind, g.level, g.name, Math.round(mid * 10000) / 10000, g.updated, d.length];
+  });
 }
 
 async function modStats(url, env) {
   const league = String(url.searchParams.get("league") || "").slice(0, 60);
-  const bases = await env.DB.prepare("SELECT base, n, w, slog, batches FROM base_prices WHERE league = ?").bind(league).all();
+  const t = now();
+  const bases = await env.DB.prepare(`SELECT base, n, w, slog, updated FROM base_shares WHERE league = ?1
+    AND updated > ?2`).bind(league, t - SHARE_FADE).all();
   // 2.133.0: "pool:" rows (gear, uniques, fallback searches) are kept for later study, not sent to every install
-  const rows = await env.DB.prepare(`SELECT base, sid, n, w, slog, batches FROM mod_prices WHERE league = ? AND n >= 3
-    AND base NOT LIKE 'pool:%'`)
-    .bind(league).all();
+  const rows = await env.DB.prepare(`SELECT base, sid, n, w, slog, updated FROM mod_shares WHERE league = ?1
+    AND updated > ?2 AND base NOT LIKE 'pool:%'`).bind(league, t - SHARE_FADE).all();
   const typical = {};
-  for (const b of bases.results) if (b.w > 0) typical[b.base] = b.slog / b.w;
-  const out = rows.results.map((r) => {
-    const lm = r.slog / r.w, base = typical[r.base];
-    return [r.base, r.sid, r.n, Math.round(Math.exp(lm) * 1000) / 1000,
-      base === undefined ? null : Math.round(Math.exp(lm - base) * 100) / 100, r.batches];
-  });
+  for (const [base, g] of pooled(bases.results, (r) => r.base, t)) typical[base] = g.mid;
+  const out = [];
+  for (const [, g] of pooled(rows.results, (r) => `${r.base}\u0000${r.sid}`, t)) {
+    if (g.n < 3) continue;
+    const base = typical[g.first.base];
+    out.push([g.first.base, g.first.sid, g.n, Math.round(Math.exp(g.mid) * 1000) / 1000,
+      base === undefined ? null : Math.round(Math.exp(g.mid - base) * 100) / 100, g.installs]);
+  }
   // 2.133.0: installs that sent a summary in the last 7 days (Community data sharing on) - a count, nothing else
   const active = (await env.DB.prepare("SELECT COUNT(*) AS n FROM contributors WHERE last >= ?").bind(now() - 7 * 86400).first()).n;
   return json({ league, stats: out, players: (await env.DB.prepare("SELECT COUNT(*) AS n FROM contributors").first()).n, active });
