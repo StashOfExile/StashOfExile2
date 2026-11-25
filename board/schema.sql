@@ -159,3 +159,8 @@ CREATE TABLE IF NOT EXISTS usage_pings (pid TEXT PRIMARY KEY, last INTEGER NOT N
 -- 3.3.0: how often the shared data is downloaded: a count per day, kind and app version, nothing about who
 CREATE TABLE IF NOT EXISTS downloads (day TEXT NOT NULL, what TEXT NOT NULL, v TEXT NOT NULL DEFAULT '',
   n INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (day, what, v));
+-- 3.3.0: the Calendar's events. Posted by admins only; a draft is one the board suggested and no admin approved yet
+CREATE TABLE IF NOT EXISTS events (id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, name TEXT NOT NULL,
+  start INTEGER NOT NULL, end INTEGER NOT NULL DEFAULT 0, link TEXT NOT NULL DEFAULT '', note TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'live', source TEXT NOT NULL DEFAULT '', by_id TEXT NOT NULL DEFAULT '',
+  at INTEGER NOT NULL DEFAULT 0);

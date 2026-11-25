@@ -17,6 +17,7 @@ from .style import C, over_app
 
 KEY = "calendar"
 TICK_MS = 20000
+PULL_SECS = 1800                   # the board's events are asked for when the app starts and every 30 minutes
 DEFAULT_LEADS = (86400, 0)
 VIEWS = ("Month", "List")
 
@@ -71,6 +72,10 @@ class CalendarPage:
         add.pack(side="right")
         Tooltip(add, "A reminder of your own on the picked day. It stays on this PC.")
         self.undo_button(bar, KEY, side="right", padx=(0, 8))
+        self.cal_post_btn = ttk.Button(bar, text="Post Event", width=0, command=self.cal_post)
+        Tooltip(self.cal_post_btn, "Admin: posts an event to the board. Every user's Calendar shows it.")
+        if self.cal_is_admin():
+            self.cal_post_btn.pack(side="right", padx=(0, 8))
         try:
             from .style import flowify
             flowify(bar)                                    # too narrow: the row wraps, nothing is cut off
@@ -90,6 +95,7 @@ class CalendarPage:
         self.cal_grid.bind("<Configure>", lambda e: self.cal_draw())
         self.cal_grid.bind("<Button-1>", self.cal_grid_click)
         self.cal_grid.bind("<Double-Button-1>", lambda e: (self.cal_grid_click(e), self.cal_add()))
+        self.cal_grid.bind("<Button-3>", self.cal_grid_menu)
         lst = self.cal_list_frame = tk.Frame(lf, bg=P1)
         tv = ttk.Treeview(lst, columns=("kind", "starts", "away", "remind"), show="tree headings", selectmode="browse")
         for cid, text, weight in (("#0", "Name", 5), ("kind", "Kind", 3), ("starts", "Starts", 4), ("away", "When", 3),
@@ -114,7 +120,30 @@ class CalendarPage:
         self.cal_empty = EmptyState(rf, "", "Nothing on this day\nAdd Reminder puts one of your own here.",
                                     button=("Add Reminder", self.cal_add))
         self.cal_view_changed(save=False)
+        self.cal_pulled_at = 0.0
         self.root.after(TICK_MS, self.cal_tick)
+        self.root.after(8000, self.cal_pull)
+
+    def cal_is_admin(self):
+        try:
+            return bool(self.share_is_admin())
+        except Exception:
+            return False
+
+    def cal_pull(self, then=None):
+        """The board's events, asked for off the window's thread and put in place on it."""
+        self.cal_pulled_at = time.time()
+
+        def done(rows):
+            if rows is not None:
+                CD.set_board(rows)
+                self.cal_changed()
+            if then:
+                then(rows)
+        try:
+            self.run_bg(CD.pull, done)
+        except Exception:
+            buglog.caught()
 
     def cal_kinds(self):
         return {k for k, v in self.cal_kind_vars.items() if v.get()}
@@ -249,6 +278,40 @@ class CalendarPage:
                 self.cal_refresh()
                 return
 
+    def cal_grid_menu(self, e):
+        """Right-click a day: it is picked, and a menu offers Add Reminder first, then what the day's event takes."""
+        from .listkit import _menu
+        self.cal_grid_click(e)
+        ev = self.cal_picked()
+        m = _menu(self.cal_grid)
+        m.add_command(label="Add Reminder…", command=self.cal_add)
+        try:
+            import tkinter.font as tkfont
+            bold = tkfont.nametofont("TkMenuFont").copy()
+            bold.configure(weight="bold")
+            m._soe2_bold = bold
+            m.entryconfigure(0, font=bold)
+        except tk.TclError:
+            pass
+        st = lambda on: "normal" if on else "disabled"       # noqa: E731
+        m.add_separator()
+        m.add_command(label="Change Reminder…", state=st(ev), command=self.cal_change_reminder)
+        m.add_command(label="Open Link", state=st(ev and ev.get("link")), command=self.cal_open_link)
+        m.add_separator()
+        m.add_command(label="Delete", state=st(CD.is_mine(ev)), accelerator="Del", command=self.cal_delete)
+        if self.cal_is_admin():
+            board = bool(ev) and not CD.is_mine(ev)
+            m.add_separator()
+            m.add_command(label="Admin: Post Event…", command=self.cal_post)
+            m.add_command(label="Admin: Edit Event…", state=st(board), command=self.cal_edit_event)
+            m.add_command(label="Admin: Delete Event", state=st(board), command=self.cal_delete_event)
+        self.cal_day_menu = m
+        try:
+            m.tk_popup(e.x_root, e.y_root)
+        finally:
+            m.grab_release()
+        return "break"
+
     def cal_fill_list(self, evs):
         tv = self.cal_tv
         keep = self.cal_pick
@@ -338,6 +401,19 @@ class CalendarPage:
             flowify(btns)
         except Exception:
             buglog.caught()
+        if self.cal_is_admin():                              # admins: change or delete a board event
+            tk.Frame(box, bg=C["line"], height=1).pack(fill="x", pady=(12, 8))
+            tk.Label(box, text="Admins only", bg=P1, fg=C["muted"], font=("Segoe UI", 9), anchor="w").pack(fill="x")
+            arow = tk.Frame(box, bg=P1)
+            arow.pack(fill="x", pady=(4, 0))
+            for text, fn, tip in (("Edit Event", self.cal_edit_event, "Changes it for every user"),
+                                  ("Delete Event", self.cal_delete_event,
+                                   "Deletes it from the board for every user. It cannot be brought back.")):
+                b = ttk.Button(arow, text=text, width=0, command=fn)
+                b.pack(side="left", padx=(0, 8))
+                Tooltip(b, tip if not CD.is_mine(ev) else "This one is yours, not a board event")
+                if CD.is_mine(ev):
+                    b.state(["disabled"])
 
     def cal_pick_event(self, eid):
         self.cal_pick = eid
@@ -346,9 +422,14 @@ class CalendarPage:
     # ---------------------------------------------------------------- acting
     def cal_menu_actions(self, _sel=None):
         ev = self.cal_picked()
-        return [("Change Reminder…", self.cal_change_reminder, bool(ev)),
+        acts = [("Change Reminder…", self.cal_change_reminder, bool(ev)),
                 ("Open Link", self.cal_open_link, bool(ev and ev.get("link"))), None,
                 ("Delete", self.cal_delete, CD.is_mine(ev), "Del")]
+        if self.cal_is_admin():
+            board = bool(ev) and not CD.is_mine(ev)
+            acts += [("Admin: Post Event…", self.cal_post, True), ("Admin: Edit Event…", self.cal_edit_event, board),
+                     ("Admin: Delete Event", self.cal_delete_event, board)]
+        return acts
 
     def cal_open_link(self):
         ev = self.cal_picked()
@@ -436,9 +517,9 @@ class CalendarPage:
         ttk.Button(drow, text="›", width=3, command=lambda: step(1)).pack(side="left")
         step(0)
         tk.Label(dlg, text="Time, on this PC's clock", bg=P2, fg=C["text"]).pack(anchor="w")
-        clock = tk.StringVar(value="20:00")
+        clock = tk.StringVar(value=CD.clock(CD.at(day[0], 20)))
         ttk.Entry(dlg, textvariable=clock, width=10).pack(anchor="w", pady=(2, 0))
-        tk.Label(dlg, text="Like 20:00 or 8pm.", bg=P2, fg=C["muted"]).pack(anchor="w", pady=(0, 8))
+        tk.Label(dlg, text=CD.clock_hint(), bg=P2, fg=C["muted"]).pack(anchor="w", pady=(0, 8))
         vars_ = self._cal_lead_boxes(dlg, (0,))
         tk.Label(dlg, text="Note", bg=P2, fg=C["text"]).pack(anchor="w", pady=(8, 0))
         note = tk.StringVar()
@@ -451,7 +532,7 @@ class CalendarPage:
         def save():
             hm = CD.parse_clock(clock.get())
             if hm is None:
-                return msg.config(text="That time is not clear. Write it like 20:00 or 8pm.")
+                return msg.config(text="That time is not clear. " + CD.clock_hint())
             got = CD.add_mine(name.get(), CD.at(day[0], *hm), note=note.get(),
                               leads=[s for s, v in vars_.items() if v.get()])
             if isinstance(got, str):
@@ -470,6 +551,119 @@ class CalendarPage:
         dlg.bind("<Return>", lambda e: save())
         ent.focus_set()
         self._cal_grab(dlg)
+        return dlg
+
+    # ---------------------------------------------------------------- admins: the board's events
+    def cal_edit_event(self):
+        ev = self.cal_picked()
+        if ev and not CD.is_mine(ev):
+            self.cal_post(ev)
+
+    def cal_delete_event(self):
+        ev = self.cal_picked()
+        if not ev or CD.is_mine(ev) or not self.cal_is_admin():
+            return None
+        from tkinter import messagebox
+        if not messagebox.askyesno("Delete from the board", f"Delete \"{ev['name']}\" from the Calendar?\n\n"
+                                   "It is removed for everyone and cannot be brought back.", parent=self.dlg_parent()):
+            return False
+        from . import board as B
+        self.run_bg(lambda: B.event_delete(CD.board_number(ev)), lambda res: self._cal_board_done(res))
+        return True
+
+    def _cal_board_done(self, res, dlg=None, msg=None):
+        """After an admin's post, change or delete: the list is asked for again, or the board's reason is shown."""
+        ok, why = res if isinstance(res, tuple) and len(res) == 2 else (False, "The board did not answer.")
+        if not ok:
+            if "404" in str(why):                            # an older board: its Calendar part is not live yet
+                why = "The board does not have the Calendar yet. It arrives with the next board update."
+            if msg is not None and msg.winfo_exists():
+                msg.config(text=str(why))
+            else:
+                from tkinter import messagebox
+                messagebox.showwarning("Calendar", str(why), parent=self.dlg_parent())
+            return False
+        if dlg is not None and dlg.winfo_exists():
+            dlg.destroy()
+        self.cal_pick = None
+        self.cal_pull()
+        return True
+
+    def cal_post(self, ev=None):
+        """Admin: post an event to the board, or change one. One box for both."""
+        from . import cleanguard
+        if not self.cal_is_admin():
+            return None
+        dlg = self._cal_dialog("Edit Event" if ev else "Post Event")
+        P2 = C["panel2"]
+        words = {f"{CD.mark(k)} {CD.word(k)}": k for k in CD.BOARD_KINDS}
+        tk.Label(dlg, text="Kind", bg=P2, fg=C["text"]).pack(anchor="w")
+        kind = tk.StringVar(value=next((w for w, k in words.items() if ev and k == ev["kind"]), ""))
+        ttk.Combobox(dlg, textvariable=kind, values=list(words), state="readonly", width=24).pack(anchor="w", pady=(2, 8))
+        tk.Label(dlg, text="Name", bg=P2, fg=C["text"]).pack(anchor="w")
+        name = tk.StringVar(value=ev["name"] if ev else "")
+        ent = ttk.Entry(dlg, textvariable=name, width=48)
+        ent.pack(fill="x", pady=(2, 8))
+
+        def when(title, ts, day0):
+            """A day with arrows and a time box. -> (the day holder, the time's text)"""
+            tk.Label(dlg, text=title, bg=P2, fg=C["text"]).pack(anchor="w")
+            row = tk.Frame(dlg, bg=P2)
+            row.pack(fill="x", pady=(2, 0))
+            day = [CD.local_day(ts) if ts else day0]
+            lab = tk.Label(row, text="", bg=P2, fg=C["text"], font=("Segoe UI", 10, "bold"), width=18)
+
+            def step(by):
+                day[0] = day[0] + _dt.timedelta(days=by)
+                lab.config(text=f"{CD.day_words(day[0])} {day[0].year}")
+            ttk.Button(row, text="‹", width=3, command=lambda: step(-1)).pack(side="left")
+            lab.pack(side="left")
+            ttk.Button(row, text="›", width=3, command=lambda: step(1)).pack(side="left")
+            step(0)
+            clock = tk.StringVar(value=CD.clock(ts if ts else CD.at(day0, 20)))
+            ttk.Entry(row, textvariable=clock, width=10).pack(side="left", padx=(12, 0))
+            return day, clock
+        sday, sclock = when("Starts, on this PC's clock", ev["start"] if ev else 0, self.cal_day)
+        tk.Label(dlg, text=CD.clock_hint() + " Every user sees it in their own time.", bg=P2, fg=C["muted"]).pack(
+            anchor="w", pady=(0, 8))
+        has_end = tk.BooleanVar(value=bool(ev and ev.get("end")))
+        ttk.Checkbutton(dlg, text="It has an end", variable=has_end).pack(anchor="w")
+        eday, eclock = when("Ends", ev["end"] if ev and ev.get("end") else 0, self.cal_day)
+        tk.Label(dlg, text="Link to its announcement", bg=P2, fg=C["text"]).pack(anchor="w", pady=(8, 0))
+        link = tk.StringVar(value=ev.get("link", "") if ev else "")
+        le = ttk.Entry(dlg, textvariable=link, width=48)
+        le.pack(fill="x", pady=(2, 0))
+        cleanguard.free(le)                                 # a web address, checked when it is saved
+        tk.Label(dlg, text="Starts with https://  Leave it empty for none.", bg=P2, fg=C["muted"]).pack(anchor="w",
+                                                                                                   pady=(0, 8))
+        tk.Label(dlg, text="Note", bg=P2, fg=C["text"]).pack(anchor="w")
+        note = tk.StringVar(value=ev.get("note", "") if ev else "")
+        ttk.Entry(dlg, textvariable=note, width=48).pack(fill="x", pady=(2, 8))
+        msg = tk.Label(dlg, text="", bg=P2, fg=C["red"], anchor="w", justify="left", wraplength=360)
+        msg.pack(fill="x")
+
+        def save():
+            s, e = CD.parse_clock(sclock.get()), CD.parse_clock(eclock.get())
+            if s is None or (has_end.get() and e is None):
+                return msg.config(text="That time is not clear. " + CD.clock_hint())
+            body = CD.event_body(words.get(kind.get()), name.get(), CD.at(sday[0], *s),
+                                 CD.at(eday[0], *e) if has_end.get() else 0, link.get(), note.get())
+            if isinstance(body, str):
+                return msg.config(text=body)
+            from . import board as B
+            msg.config(text="Sending…", fg=C["muted"])
+            num = CD.board_number(ev) if ev else None
+            self.run_bg(lambda: B.event_save(body, num),
+                        lambda res: (msg.winfo_exists() and msg.config(fg=C["red"]), self._cal_board_done(res, dlg, msg)))
+        row = tk.Frame(dlg, bg=P2)
+        row.pack(fill="x")
+        ttk.Button(row, text="Save" if ev else "Post", style="Primary.TButton", command=save).pack(side="right")
+        ttk.Button(row, text="Cancel", command=dlg.destroy).pack(side="right", padx=(0, 8))
+        dlg.bind("<Return>", lambda e: save())
+        ent.focus_set()
+        self._cal_grab(dlg)
+        dlg.cal_save, dlg.cal_vars = save, {"kind": kind, "name": name, "link": link, "note": note, "msg": msg,
+                                            "has_end": has_end, "sclock": sclock, "eclock": eclock}
         return dlg
 
     @staticmethod
@@ -491,6 +685,8 @@ class CalendarPage:
     def cal_tick(self):
         try:
             self.cal_fire()
+            if time.time() - getattr(self, "cal_pulled_at", 0) >= PULL_SECS:
+                self.cal_pull()
         except Exception:
             buglog.caught()
         try:

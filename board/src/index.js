@@ -337,6 +337,11 @@ function sameText(a, b) {                  // constant-time compare for the admi
 // 2.85.0: new columns and tables on an existing database (each statement fails harmlessly once it's done)
 let migrated = false;
 const MIGRATIONS = [
+  // 3.3.0: the Calendar's events. Posted by admins only; a draft is one the board suggested and no admin approved yet
+  `CREATE TABLE IF NOT EXISTS events (id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, name TEXT NOT NULL,
+    start INTEGER NOT NULL, end INTEGER NOT NULL DEFAULT 0, link TEXT NOT NULL DEFAULT '', note TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'live', source TEXT NOT NULL DEFAULT '', by_id TEXT NOT NULL DEFAULT '',
+    at INTEGER NOT NULL DEFAULT 0)`,
   // 3.3.0: how often the shared data is downloaded: a count per day, kind and app version, nothing about who
   `CREATE TABLE IF NOT EXISTS downloads (day TEXT NOT NULL, what TEXT NOT NULL, v TEXT NOT NULL DEFAULT '',
     n INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (day, what, v))`,
@@ -1328,7 +1333,7 @@ async function modStats(url, env) {
 // 3.3.0: an honest count - only the app at 3.1 or newer counts: those versions ping only after you say yes.
 // 3.3.0: the download count. One row per day, kind and app version; no id, no address, so it can't point at anyone.
 const DOWNLOADS = { "/mods/stats": "mod prices", "/mods/ratings": "mod ratings", "/maps/ratings": "map ranks",
-  "/gems": "gem prices", "/official": "official strats", "/campaign/zones": "campaign zones", "/lb": "leaderboards" };
+  "/gems": "gem prices", "/official": "official strats", "/campaign/zones": "campaign zones", "/lb": "leaderboards", "/events": "calendar events" };
 const DOWNLOAD_DAYS = 90, DOWNLOAD_VERSIONS = 40;      // made-up version names can't fill the table
 function appVersion(ua) {
   const m = /^StashOfExile2\/(\d{1,2}\.\d{1,3}\.\d{1,3})(?!\d)/.exec(String(ua ?? ""));
@@ -1355,6 +1360,71 @@ async function downloadList(env, me) {
   const rows = await env.DB.prepare("SELECT day, what, v, n FROM downloads ORDER BY day DESC, what, v LIMIT 2000").all();
   return json({ downloads: rows.results });
 }
+
+// ------------------------------------------------------------------ events, 3.3.0: the Calendar
+// Leagues, Twitch Drops campaigns, events and races. Anyone may read the live ones, with no account. Only those
+// canPostEvents allows may add, change or delete one: admins today. A contributor rank, if one is ever added, is
+// one more line in that function and nowhere else.
+const EVENT_KINDS = ["league", "drops", "event", "race"];
+const EVENT_NAME_MAX = 60, EVENT_NOTE_MAX = 400, EVENT_LINK_MAX = 300, EVENT_KEEP_DAYS = 30, EVENT_LIST_MAX = 200;
+const EVENT_FAR = 3 * 366 * 86400;                    // nothing is planned more than three years out
+const canPostEvents = (me) => !!me && !me.banned && !!me.admin;
+function eventProblem(d, nowSecs) {
+  if (!d || typeof d !== "object" || Array.isArray(d)) return "bad event";
+  if (!EVENT_KINDS.includes(d.kind)) return "pick a kind: league, drops, event or race";
+  const name = String(d.name ?? "").replace(/\s+/g, " ").trim();
+  if (!name) return "it needs a name";
+  if (name.length > EVENT_NAME_MAX) return `the name is over ${EVENT_NAME_MAX} letters`;
+  const bad = textProblem(name) || textProblem(String(d.note ?? ""));
+  if (bad) return bad;
+  if (String(d.note ?? "").length > EVENT_NOTE_MAX) return "the note is too long";
+  if (!Number.isInteger(d.start) || d.start <= 0 || Math.abs(d.start - nowSecs) > EVENT_FAR) return "that start is not a real date";
+  const end = d.end ?? 0;
+  if (!Number.isInteger(end) || end < 0 || (end && end < d.start) || end > d.start + EVENT_FAR) return "it ends before it starts";
+  const link = String(d.link ?? "");
+  if (link && (!/^https:\/\/[^\s<>"']+$/.test(link) || link.length > EVENT_LINK_MAX)) return "the link must start with https://";
+  return null;
+}
+const eventClean = (d) => ({ kind: d.kind, name: String(d.name).replace(/\s+/g, " ").trim(), start: d.start,
+  end: d.end ?? 0, link: String(d.link ?? ""), note: String(d.note ?? "").trim() });
+const eventOut = (r) => ({ id: `b${r.id}`, kind: r.kind, name: r.name, start: r.start, end: r.end, link: r.link,
+  note: r.note, by: "Official" });
+async function eventList(env) {
+  const since = now() - EVENT_KEEP_DAYS * 86400;
+  const rows = await env.DB.prepare(`SELECT id, kind, name, start, end, link, note FROM events
+    WHERE status = 'live' AND (start >= ?1 OR end >= ?1) ORDER BY start LIMIT ${EVENT_LIST_MAX}`).bind(since).all();
+  return json({ events: rows.results.map(eventOut) });
+}
+async function eventDrafts(env, me) {
+  if (!canPostEvents(me)) return fail(403, "admins only");
+  const rows = await env.DB.prepare(`SELECT id, kind, name, start, end, link, note, source FROM events
+    WHERE status = 'draft' ORDER BY at DESC LIMIT ${EVENT_LIST_MAX}`).all();
+  return json({ events: rows.results.map((r) => ({ ...eventOut(r), source: r.source })) });
+}
+async function eventSave(req, env, me, id = 0) {
+  if (!canPostEvents(me)) return fail(403, "admins only");
+  const d = await readBody(req);
+  const why = eventProblem(d, now());
+  if (why) return fail(400, why);
+  const e = eventClean(d);
+  if (id) {                                           // a change, or an admin approving a draft: it goes live
+    const done = await env.DB.prepare(`UPDATE events SET kind = ?1, name = ?2, start = ?3, end = ?4, link = ?5, note = ?6,
+      status = 'live', by_id = ?7, at = ?8 WHERE id = ?9`)
+      .bind(e.kind, e.name, e.start, e.end, e.link, e.note, me.id, now(), id).run();
+    if (!done?.meta?.changes) return fail(404, "no such event");
+    return json({ event: eventOut({ id, ...e }) });
+  }
+  const made = await env.DB.prepare(`INSERT INTO events (kind, name, start, end, link, note, status, by_id, at)
+    VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'live', ?7, ?8)`).bind(e.kind, e.name, e.start, e.end, e.link, e.note, me.id, now()).run();
+  return json({ event: eventOut({ id: made?.meta?.last_row_id, ...e }) }, 201);
+}
+async function eventDelete(env, me, id) {
+  if (!canPostEvents(me)) return fail(403, "admins only");
+  const done = await env.DB.prepare("DELETE FROM events WHERE id = ?1").bind(id).run();
+  if (!done?.meta?.changes) return fail(404, "no such event");
+  return json({ ok: true });
+}
+// events: end
 
 function countedVersion(ua) {
   const m = /^StashOfExile2\/(\d+)\.(\d+)/.exec(String(ua ?? ""));
@@ -1579,6 +1649,7 @@ export default {
       if (path === "/mods/unmatched") return unmatchedMods(env);
       if (path === "/maps/ratings") return mapRatings(env);
       if (path === "/campaign/zones") return campaignZones(env);
+      if (path === "/events" && req.method === "GET") return eventList(env);                // 3.3.0: no account needed
       if (path === "/bugs" && req.method === "POST") return bugReport(req, env);
       if (path === "/errors" && req.method === "POST") return errorBatch(req, env);       // 2.137.0
 
@@ -1609,6 +1680,11 @@ export default {
       if (path === "/me/inbox" && req.method === "GET") return inbox(env, me);
       if (path === "/errors" && req.method === "GET") return errorList(env, me, url);          // 2.137.0: admins
       if (path === "/downloads" && req.method === "GET") return downloadList(env, me);         // 3.3.0: admins
+      const ev = /^\/events\/(\d+)$/.exec(path);
+      if (path === "/events/drafts" && req.method === "GET") return eventDrafts(env, me);
+      if (path === "/events" && req.method === "POST") return eventSave(req, env, me);
+      if (ev && req.method === "PUT") return eventSave(req, env, me, Number(ev[1]));
+      if (ev && req.method === "DELETE") return eventDelete(env, me, Number(ev[1]));
       if (path === "/admin/names/sweep" && req.method === "POST") return sweepNames(env, me);
       if (path === "/review" && req.method === "GET") return reviewQueue(env, me);
       if (me.banned) return fail(403, "This account can't post on the board.");

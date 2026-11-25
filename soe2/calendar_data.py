@@ -150,6 +150,75 @@ def set_board(rows):
     save()
 
 
+LINK_MAX, NOTE_MAX, BOARD_MAX = 300, 400, 200
+BOARD_KINDS = tuple(k for k in ORDER if k != "mine")
+
+
+def clean_board_rows(rows):
+    """What the board sent, kept only when it is plain and sane: the app never trusts a download as it comes."""
+    from . import cleantext
+    out = []
+    if not isinstance(rows, list):
+        return out
+    num = lambda x: isinstance(x, (int, float)) and not isinstance(x, bool) and 0 <= x < 1e11     # noqa: E731
+    for r in rows[:BOARD_MAX]:
+        if not isinstance(r, dict):
+            continue
+        eid, name, link, note = r.get("id"), r.get("name"), r.get("link") or "", r.get("note") or ""
+        if not (isinstance(eid, str) and 0 < len(eid) <= 20 and eid.startswith("b") and eid[1:].isdigit()):
+            continue
+        if r.get("kind") not in BOARD_KINDS or not isinstance(name, str) or not num(r.get("start")):
+            continue
+        name = " ".join(name.split())[:NAME_MAX]
+        if not name or cleantext.problem(name) or not isinstance(link, str) or not isinstance(note, str):
+            continue
+        end = r.get("end") if num(r.get("end")) and r.get("end") >= r["start"] else 0
+        if link and (not link.startswith("https://") or len(link) > LINK_MAX or any(c.isspace() for c in link)):
+            link = ""
+        out.append({"id": eid, "kind": r["kind"], "name": name, "start": float(r["start"]), "end": float(end),
+                    "link": link, "note": "" if cleantext.problem(note) else note[:NOTE_MAX], "by": "Official"})
+    return out
+
+
+def pull(call=None):
+    """Ask the board for its events. -> the cleaned rows, or None when it did not answer. Nothing is saved here:
+    the window puts them in place with set_board, on its own thread."""
+    from . import board as B
+    if not B.configured():
+        return None
+    ok, res = (call or B.call)("GET", "/events")
+    if not ok or not isinstance(res, dict):
+        return None
+    return clean_board_rows(res.get("events"))
+
+
+def board_number(ev):
+    """The board's own number for one of its events: 'b12' -> 12."""
+    eid = str((ev or {}).get("id") or "")
+    return int(eid[1:]) if eid.startswith("b") and eid[1:].isdigit() else 0
+
+
+def event_body(kind, name, start, end=0, link="", note=""):
+    """What an admin's Post Event sends, or a line saying what is wrong with it."""
+    from . import cleantext
+    name = " ".join(str(name or "").split())
+    link = str(link or "").strip()
+    if kind not in BOARD_KINDS:
+        return "Pick what kind of event it is."
+    if not name:
+        return "It needs a name."
+    if len(name) > NAME_MAX:
+        return f"The name is over {NAME_MAX} letters."
+    if cleantext.problem(name) or cleantext.problem(note):
+        return "That wording is not allowed."
+    if end and end < start:
+        return "It ends before it starts."
+    if link and (not link.startswith("https://") or len(link) > LINK_MAX or any(c.isspace() for c in link)):
+        return "The link must start with https://"
+    return {"kind": kind, "name": name, "start": int(start), "end": int(end or 0), "link": link,
+            "note": str(note or "").strip()[:NOTE_MAX]}
+
+
 # ---------------------------------------------------------------- days and words
 def local_day(ts):
     return _dt.datetime.fromtimestamp(ts).date()
@@ -185,8 +254,24 @@ def day_words(day):
     return f"{_cal.day_abbr[day.weekday()]} {day.day} {_cal.month_abbr[day.month]}"
 
 
+def h24():
+    """True when the app's clock shows 24 hours: the same choice as the clock in the app's corner."""
+    try:
+        from . import shell
+        fmt = shell.CLOCK.get("format", "auto")
+        return shell.windows_24h() if fmt == "auto" else fmt == "24"
+    except Exception:
+        return True
+
+
 def clock(ts):
-    return _dt.datetime.fromtimestamp(ts).strftime("%H:%M")
+    """'8:00 PM' or '20:00', the way the app's own clock is set."""
+    t = _dt.datetime.fromtimestamp(ts)
+    return t.strftime("%H:%M") if h24() else t.strftime("%I:%M %p").lstrip("0")
+
+
+def clock_hint():
+    return "Like 20:00." if h24() else "Like 8pm or 8:30 PM."
 
 
 def away(ts, now=None):

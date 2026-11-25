@@ -16,9 +16,10 @@ NOW = ts(2026, 12, 2, 12, 0)
 class Base(unittest.TestCase):
     def setUp(self):
         CD.reset({})
-        p = mock.patch.object(CD, "save", lambda: True)
-        p.start()
-        self.addCleanup(p.stop)
+        for name, fn in (("save", lambda: True), ("h24", lambda: True)):
+            p = mock.patch.object(CD, name, fn)
+            p.start()
+            self.addCleanup(p.stop)
         self.addCleanup(CD.reset)
 
 
@@ -67,6 +68,89 @@ class Board(Base):
         self.assertEqual(CD.state()["remind"], {}, "a reminder for an event that is gone goes too")
 
 
+class FromTheBoard(Base):
+    ROW = {"id": "b7", "kind": "drops", "name": " Launch   drops ", "start": 1795000000, "end": 1795600000,
+           "link": "https://example.com/a", "note": "n", "by": "someone"}
+
+    def test_a_download_is_cleaned_before_it_is_kept(self):
+        rows = CD.clean_board_rows([self.ROW])
+        self.assertEqual(rows, [{"id": "b7", "kind": "drops", "name": "Launch drops", "start": 1795000000.0,
+                                 "end": 1795600000.0, "link": "https://example.com/a", "note": "n", "by": "Official"}])
+
+    def test_what_is_dropped(self):
+        bad = [dict(self.ROW, id="m1"), dict(self.ROW, id=7), dict(self.ROW, id="b" + "1" * 30),
+               dict(self.ROW, kind="mine"), dict(self.ROW, kind="x"), dict(self.ROW, name=5), dict(self.ROW, name="  "),
+               dict(self.ROW, start="soon"), dict(self.ROW, start=True), dict(self.ROW, start=-5), "junk", None, [1]]
+        self.assertEqual(CD.clean_board_rows(bad), [])
+        self.assertEqual(CD.clean_board_rows("not a list"), [])
+        self.assertEqual(CD.clean_board_rows({"a": 1}), [])
+        with mock.patch("soe2.cleantext.problem", lambda t: "bad" if "nasty" in str(t) else None):
+            self.assertEqual(CD.clean_board_rows([dict(self.ROW, name="nasty thing")]), [])
+            self.assertEqual(CD.clean_board_rows([dict(self.ROW, note="nasty")])[0]["note"], "")
+
+    def test_a_bad_link_or_end_is_blanked_not_trusted(self):
+        for link in ("http://example.com", "javascript:alert(1)", "https://x.com/ y", "https://x.com/" + "a" * 400, 5):
+            got = CD.clean_board_rows([dict(self.ROW, link=link)])
+            self.assertEqual([r["link"] for r in got], [""] if isinstance(link, str) else [], link)
+        self.assertEqual(CD.clean_board_rows([dict(self.ROW, end=5)])[0]["end"], 0)
+        self.assertEqual(len(CD.clean_board_rows([dict(self.ROW, id=f"b{i}") for i in range(500)])), CD.BOARD_MAX)
+
+    def test_pull_reads_events_and_saves_nothing(self):
+        with mock.patch("soe2.board.configured", lambda: True):
+            self.assertEqual(CD.pull(lambda m, p: (True, {"events": [self.ROW]}))[0]["id"], "b7")
+            self.assertIsNone(CD.pull(lambda m, p: (False, "down")))
+            self.assertIsNone(CD.pull(lambda m, p: (True, ["odd"])))
+            asked = []
+            CD.pull(lambda m, p: (asked.append((m, p)), (True, {}))[1])
+            self.assertEqual(asked, [("GET", "/events")])
+        with mock.patch("soe2.board.configured", lambda: False):
+            self.assertIsNone(CD.pull(lambda m, p: self.fail("no board, no call")))
+        self.assertEqual(CD.events(), [])
+
+    def test_reading_events_never_sends_the_board_key(self):
+        from soe2 import board as B
+        seen = []
+
+        class R:
+            status_code = 200
+
+            def json(self):
+                return {"events": []}
+
+        def get(method, url, **kw):
+            seen.append((method, url.rsplit("/", 1)[-1], "Authorization" in kw["headers"]))
+            return R()
+        with mock.patch.object(B, "configured", lambda: True), mock.patch.object(B, "url", lambda: "https://b"), \
+                mock.patch.object(B, "session", lambda: {"token": "secret"}):
+            B.call("GET", "/events", get=get)
+            B.call("POST", "/events", body={}, get=get)
+        self.assertEqual(seen, [("GET", "events", False), ("POST", "events", True)])
+
+    def test_what_an_admin_sends(self):
+        ok = CD.event_body("league", "  League  start ", 100.7, 0, " https://example.com/x ", " hi ")
+        self.assertEqual(ok, {"kind": "league", "name": "League start", "start": 100, "end": 0,
+                              "link": "https://example.com/x", "note": "hi"})
+        self.assertEqual(CD.event_body("mine", "x", 1), "Pick what kind of event it is.")
+        self.assertEqual(CD.event_body(None, "x", 1), "Pick what kind of event it is.")
+        self.assertEqual(CD.event_body("race", " ", 1), "It needs a name.")
+        self.assertIn("over 60", CD.event_body("race", "x" * 61, 1))
+        self.assertEqual(CD.event_body("race", "x", 10, 5), "It ends before it starts.")
+        self.assertEqual(CD.event_body("race", "x", 10, 0, "http://a.b"), "The link must start with https://")
+        self.assertEqual(CD.board_number({"id": "b12"}), 12)
+        self.assertEqual(CD.board_number({"id": "m3"}), 0)
+
+    def test_the_board_s_own_tests_pass(self):
+        import os
+        import shutil
+        import subprocess
+        if not shutil.which("node"):
+            self.skipTest("needs node")
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        r = subprocess.run(["node", os.path.join(root, "board", "test", "events.test.mjs")], capture_output=True,
+                           text=True, timeout=120)
+        self.assertIn("events: ok", r.stdout, r.stderr[-800:])
+
+
 class Days(Base):
     def test_month_grid_is_monday_first_and_whole_weeks(self):
         w = CD.weeks(2026, 12)
@@ -98,6 +182,18 @@ class Days(Base):
         self.assertEqual(CD.ends_line(e), "Not set")
         run = dict(e, start=NOW - 3600, end=ts(2026, 12, 18, 9))
         self.assertEqual(CD.when_line(run, NOW), "Live · ends Fri 18 Dec")
+
+    def test_times_follow_the_app_clock(self):
+        t = ts(2026, 12, 11, 20, 30)
+        self.assertEqual(CD.clock(t), "20:30")
+        self.assertEqual(CD.clock_hint(), "Like 20:00.")
+        with mock.patch.object(CD, "h24", lambda: False):
+            self.assertEqual(CD.clock(t), "8:30 PM")
+            self.assertEqual(CD.clock(ts(2026, 12, 11, 0, 5)), "12:05 AM")
+            self.assertEqual(CD.parse_clock(CD.clock(t)), (20, 30), "what the box shows can be read back")
+            self.assertIn("8pm", CD.clock_hint())
+            e = {"id": 1, "kind": "league", "name": "l", "start": ts(2026, 12, 11, 20), "end": 0}
+            self.assertEqual(CD.starts_line(e, NOW), "Fri 11 Dec, 8:00 PM · in 9 days")
 
     def test_clock(self):
         for text, want in (("20:00", (20, 0)), ("8pm", (20, 0)), ("2030", (20, 30)), ("9", (9, 0)), ("12am", (0, 0)),

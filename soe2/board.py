@@ -62,7 +62,9 @@ def call(method, path, params=None, body=None, get=None):
     if not configured():
         return False, "The community board isn't set up yet."
     import requests
-    tok = None if path.startswith(ANON) else session().get("token")
+    # 3.3.0: reading the Calendar's events needs no account, so the key is not sent with it
+    anon = path.startswith(ANON) or (method == "GET" and path == "/events")
+    tok = None if anon else session().get("token")
     headers = {"User-Agent": APP_UA, "X-SOE2": "1"}
     if tok:
         headers["Authorization"] = f"Bearer {tok}"
@@ -170,6 +172,25 @@ def admin(pid, action):
 
 def ban(user_id, banned=True):
     return call("POST", f"/users/{user_id}/ban", body={"banned": bool(banned)})
+
+
+def events():
+    """3.3.0: the Calendar's events, for everyone."""
+    return call("GET", "/events")
+
+
+def event_drafts():
+    """Admins: events the board suggested that nobody approved yet."""
+    return call("GET", "/events/drafts")
+
+
+def event_save(data, eid=None):
+    """Admins: post a new event, or change one. Saving a draft makes it live. eid is the board's own number."""
+    return call("PUT", f"/events/{int(eid)}", body=data) if eid else call("POST", "/events", body=data)
+
+
+def event_delete(eid):
+    return call("DELETE", f"/events/{int(eid)}")
 
 
 def official():

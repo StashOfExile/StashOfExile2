@@ -70,6 +70,13 @@ class Page(unittest.TestCase):
 
             def dlg_parent(self):
                 return self.root
+
+            def share_is_admin(self):
+                return self.admin
+
+            def run_bg(self, work, done):
+                return done(work())
+        H.admin = getattr(self, "ADMIN", False)
         self.h = H()
         self.h.root = self.root
         self.body = tk.Frame(self.root)
@@ -141,6 +148,23 @@ class Page(unittest.TestCase):
         self.assertEqual(len(self.h.cal_cells) % 7, 0)
         self.assertTrue(any(str(self.day.day) == t.split(" ")[0] for t in texts))
 
+    def test_right_click_on_a_day_offers_add_reminder_first(self):
+        self.h.cal_grid.config(width=700, height=500)
+        self.root.update()
+        self.h.cal_draw()
+        x0, y0, x1, y1, day = next(c for c in self.h.cal_cells if c[4] == self.day)
+
+        class E:
+            x, y, x_root, y_root = (x0 + x1) / 2, (y0 + y1) / 2, 0, 0
+        with mock.patch("tkinter.Menu.tk_popup", lambda *a, **k: None):
+            self.h.cal_day = None
+            self.h.cal_grid_menu(E)
+        self.assertEqual(self.h.cal_day, self.day, "the day under the mouse is picked")
+        m = self.h.cal_day_menu
+        labels = [m.entrycget(i, "label") for i in range(m.index("end") + 1) if m.type(i) == "command"]
+        self.assertEqual(labels, ["Add Reminder…", "Change Reminder…", "Open Link", "Delete"])
+        self.assertEqual(str(m.entrycget(labels.index("Delete") + 2, "state")), "disabled", "a board event")
+
     def test_remind_me_sets_then_clears(self):
         self.h.cal_remind_me("b1")
         self.assertEqual(CD.reminders({"id": "b1"}), [86400, 0])
@@ -165,6 +189,111 @@ class Page(unittest.TestCase):
             except tk.TclError:
                 continue
             self.assertNotIn("(", t, t)
+
+
+class AdminPage(Page):
+    ADMIN = True
+
+    def test_buttons_that_cannot_work_are_grey(self):
+        b = self.buttons(self.h.cal_day_box)
+        self.assertFalse(b["Edit Event"].instate(["disabled"]))
+        self.assertFalse(b["Delete Event"].instate(["disabled"]))
+        mine = CD.add_mine("Sell", CD.at(self.day, 9))
+        self.h.cal_pick = mine["id"]
+        self.h.cal_refresh()
+        b = self.buttons(self.h.cal_day_box)
+        self.assertTrue(b["Edit Event"].instate(["disabled"]), "yours is not a board event")
+        self.assertTrue(b["Delete Event"].instate(["disabled"]))
+
+    def test_right_click_on_a_day_offers_add_reminder_first(self):
+        self.h.cal_grid.config(width=700, height=500)
+        self.root.update()
+        self.h.cal_draw()
+        x0, y0, x1, y1, _d = next(c for c in self.h.cal_cells if c[4] == self.day)
+
+        class E:
+            x, y, x_root, y_root = (x0 + x1) / 2, (y0 + y1) / 2, 0, 0
+        with mock.patch("tkinter.Menu.tk_popup", lambda *a, **k: None):
+            self.h.cal_grid_menu(E)
+        m = self.h.cal_day_menu
+        labels = [m.entrycget(i, "label") for i in range(m.index("end") + 1) if m.type(i) == "command"]
+        self.assertEqual(labels[0], "Add Reminder…")
+        self.assertEqual(labels[-3:], ["Admin: Post Event…", "Admin: Edit Event…", "Admin: Delete Event"])
+
+    def test_post_event_is_there_and_still_one_orange_button(self):
+        self.assertTrue(self.h.cal_post_btn.winfo_manager())
+        self.assertNotEqual(str(self.h.cal_post_btn.cget("style")), "Primary.TButton")
+
+    def test_posting_sends_one_checked_event_and_reads_the_list_again(self):
+        sent, pulls = [], []
+        new = {"id": "b9", "kind": "race", "name": "Launch race", "start": CD.at(self.day, 20), "end": 0}
+        with mock.patch("soe2.board.event_save", lambda body, eid=None: (sent.append((body, eid)), (True, {}))[1]), \
+                mock.patch.object(CD, "pull", lambda call=None: (pulls.append(1), CD.clean_board_rows([new]))[1]), \
+                mock.patch.object(CD, "h24", lambda: True):
+            dlg = self.h.cal_post()
+            v = dlg.cal_vars
+            dlg.cal_save()
+            self.assertEqual(v["msg"].cget("text"), "Pick what kind of event it is.")
+            self.assertEqual(sent, [], "nothing is sent until it is right")
+            v["kind"].set("⚑ Race")
+            v["name"].set("Launch race")
+            v["link"].set("http://not-secure.example")
+            dlg.cal_save()
+            self.assertEqual(v["msg"].cget("text"), "The link must start with https://")
+            v["link"].set("")
+            v["sclock"].set("nonsense")
+            dlg.cal_save()
+            self.assertIn("not clear", v["msg"].cget("text"))
+            v["sclock"].set("20:00")
+            dlg.cal_save()
+        self.assertEqual(sent, [({"kind": "race", "name": "Launch race", "start": int(CD.at(self.day, 20)), "end": 0,
+                                  "link": "", "note": ""}, None)])
+        self.assertFalse(dlg.winfo_exists(), "the box closes once the board said yes")
+        self.assertEqual(pulls, [1])
+        self.assertEqual([e["id"] for e in CD.events()], ["b9"], "the Calendar shows what the board now has")
+
+    def test_the_board_s_no_is_shown_in_the_box(self):
+        with mock.patch("soe2.board.event_save", lambda body, eid=None: (False, "admins only")), \
+                mock.patch.object(CD, "h24", lambda: True):
+            dlg = self.h.cal_post()
+            dlg.cal_vars["kind"].set("◆ League")
+            dlg.cal_vars["name"].set("x")
+            dlg.cal_save()
+            self.assertEqual(dlg.cal_vars["msg"].cget("text"), "admins only")
+            self.assertTrue(dlg.winfo_exists())
+        with mock.patch("soe2.board.event_save", lambda body, eid=None: (False, "The board answered 404.")):
+            dlg.cal_save()
+            self.assertIn("does not have the Calendar yet", dlg.cal_vars["msg"].cget("text"))
+            dlg.destroy()
+
+    def test_edit_sends_the_board_number_and_delete_asks_first(self):
+        sent, gone = [], []
+        with mock.patch("soe2.board.event_save", lambda body, eid=None: (sent.append(eid), (True, {}))[1]), \
+                mock.patch("soe2.board.event_delete", lambda eid: (gone.append(eid), (True, {}))[1]), \
+                mock.patch.object(CD, "pull", lambda call=None: None), mock.patch.object(CD, "h24", lambda: True):
+            CD.set_board([{"id": "b4", "kind": "league", "name": "Start", "start": CD.at(self.day, 20), "end": 0}])
+            self.h.cal_pick = None
+            self.h.cal_refresh()
+            self.h.cal_edit_event()
+            box = [w for w in self.root.winfo_children() if isinstance(w, tk.Toplevel)][-1]
+            self.assertEqual(box.cal_vars["name"].get(), "Start")
+            box.cal_save()
+            self.assertEqual(sent, [4])
+            with mock.patch("tkinter.messagebox.askyesno", lambda *a, **k: False):
+                self.assertFalse(self.h.cal_delete_event())
+            self.assertEqual(gone, [])
+            with mock.patch("tkinter.messagebox.askyesno", lambda *a, **k: True):
+                self.assertTrue(self.h.cal_delete_event())
+            self.assertEqual(gone, [4])
+
+
+class NotAdmin(Page):
+    def test_no_admin_parts_for_everyone_else(self):
+        self.assertFalse(self.h.cal_post_btn.winfo_manager())
+        self.assertNotIn("Edit Event", self.buttons(self.h.cal_day_box))
+        self.assertIsNone(self.h.cal_post())
+        self.assertIsNone(self.h.cal_delete_event())
+        self.assertFalse(any(a and str(a[0]).startswith("Admin") for a in self.h.cal_menu_actions()))
 
 
 if __name__ == "__main__":
