@@ -575,7 +575,7 @@ class CalendarPage:
         """After an admin's post, change or delete: the list is asked for again, or the board's reason is shown."""
         ok, why = res if isinstance(res, tuple) and len(res) == 2 else (False, "The board did not answer.")
         if not ok:
-            if "404" in str(why):                            # an older board: its Calendar part is not live yet
+            if "404" in str(why) or str(why).strip().lower() == "not found":   # an older board: no Calendar part yet
                 why = "The board does not have the Calendar yet. It arrives with the next board update."
             if msg is not None and msg.winfo_exists():
                 msg.config(text=str(why))

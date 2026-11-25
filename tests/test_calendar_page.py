@@ -261,10 +261,12 @@ class AdminPage(Page):
             dlg.cal_save()
             self.assertEqual(dlg.cal_vars["msg"].cget("text"), "admins only")
             self.assertTrue(dlg.winfo_exists())
-        with mock.patch("soe2.board.event_save", lambda body, eid=None: (False, "The board answered 404.")):
-            dlg.cal_save()
-            self.assertIn("does not have the Calendar yet", dlg.cal_vars["msg"].cget("text"))
-            dlg.destroy()
+        for said in ("The board answered 404.", "not found"):   # the live board's own words, from the owner's test
+            with mock.patch("soe2.board.event_save", lambda body, eid=None, s=said: (False, s)):
+                dlg.cal_vars["msg"].config(text="")
+                dlg.cal_save()
+                self.assertIn("does not have the Calendar yet", dlg.cal_vars["msg"].cget("text"), said)
+        dlg.destroy()
 
     def test_edit_sends_the_board_number_and_delete_asks_first(self):
         sent, gone = [], []
