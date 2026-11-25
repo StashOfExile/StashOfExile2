@@ -1522,7 +1522,7 @@ async function eventDelete(env, me, id) {
 const STEAM_APPS = [[238960, "Path of Exile"], [2694490, "Path of Exile 2"]];
 const STEAM_FEED = "steam_community_announcements";       // the developer's own posts, never the press feeds
 const STEAM_EVERY = 6 * 3600, STEAM_FRESH = 21 * 86400, STEAM_MAX_NEW = 10, STEAM_KEEP = 180 * 86400;
-const STEAM_NOT = /\b(sale|mystery box|microtransactions?|supporter packs?|soundtrack|concept art|showcase|patch notes?|vods?|statistics|stats|winners|runners-up|highlights|interview|what we.re working on|competition)\b/i;
+const STEAM_NOT = /\b(sale|mystery box|microtransactions?|supporter packs?|soundtrack|concept art|showcase|patch notes?|vods?|statistics|stats|winners|runners-up|highlights|interview|what we.re working on|competition|skill effects|kirac.s vault|vault pass|armour sets?|pets?)\b/i;
 const MONTHS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
 function steamKind(title) {
   const t = String(title ?? "");
@@ -1558,7 +1558,7 @@ function steamDrafts(appid, items, nowSecs) {
     if (!kind || !name || textProblem(name)) continue;
     out.push({ kind, name, start: steamStart(it.title, it.date), source: `steam:${it.gid}`,
       link: `https://store.steampowered.com/news/app/${appid}`,
-      note: "Drafted from Steam news. Check the day and the time." });
+      note: "From Steam news. The time can change: check the link." });
   }
   return out;
 }
@@ -1580,8 +1580,10 @@ async function steamCheck(env, force = false) {
       if (added >= STEAM_MAX_NEW) break;
       const has = await env.DB.prepare("SELECT 1 AS x FROM events WHERE source = ?1 LIMIT 1").bind(d.source).all();
       if (has.results.length) continue;
+      // 3.3.0 owner: posted on its own unless AUTO_EVENTS is "0". An admin can still change or delete it
+      const status = env.AUTO_EVENTS === "0" ? "draft" : "live";
       await env.DB.prepare(`INSERT INTO events (kind, name, start, end, link, note, status, source, by_id, at)
-        VALUES (?1, ?2, ?3, 0, ?4, ?5, 'draft', ?6, '', ?7)`).bind(d.kind, d.name, d.start, d.link, d.note, d.source, now()).run();
+        VALUES (?1, ?2, ?3, 0, ?4, ?5, ?8, ?6, '', ?7)`).bind(d.kind, d.name, d.start, d.link, d.note, d.source, now(), status).run();
       added += 1;
     }
   }
