@@ -1536,17 +1536,51 @@ function steamKind(title) {
 }
 // "on November 13 PST", "June 25th PDT", "Tomorrow": the day a title names, at 20:00 UTC, or the post's own time.
 // The hour is a guess on purpose: the admin sets it before the draft goes live.
-function steamStart(title, posted) {
+// 3.3.0 owner: GGG names a time in its own zone, "1pm PST" or "11am NZDT". The board turns it into one moment, so
+// every app shows it in that player's own time. Hours from UTC; PT, ET and NZT follow daylight saving.
+const TZ_HOURS = { pst: -8, pdt: -7, mst: -7, mdt: -6, cst: -6, cdt: -5, est: -5, edt: -4, utc: 0, gmt: 0, bst: 1,
+  cet: 1, cest: 2, aest: 10, aedt: 11, nzst: 12, nzdt: 13 };
+function tzHours(zone, ms) {
+  const z = String(zone).toLowerCase();
+  if (z in TZ_HOURS) return TZ_HOURS[z];
+  const d = new Date(ms), mo = d.getUTCMonth();               // March to October is summer up north
+  const north = mo > 2 && mo < 10;
+  if (z === "pt") return north ? -7 : -8;
+  if (z === "et") return north ? -4 : -5;
+  if (z === "nzt") return north ? 12 : 13;
+  return null;
+}
+const TIME_RE = /\b(\d{1,2})(?::(\d{2}))?\s*(am|pm|a\.m\.|p\.m\.)?\s*\(?\s*(PST|PDT|PT|MST|MDT|CST|CDT|EST|EDT|ET|UTC|GMT|BST|CET|CEST|AEST|AEDT|NZST|NZDT|NZT)\b/i;
+// -> {h, m, zone, said} from a post's title or text: the first time with a zone
+function steamTime(text) {
+  const m = TIME_RE.exec(String(text ?? ""));
+  if (!m) return null;
+  let h = Number(m[1]);
+  const min = Number(m[2] ?? 0), ap = (m[3] ?? "").toLowerCase().replace(/\./g, "");
+  if (!ap && !m[2]) return null;                              // "13 PST" is a date's day: a time has am, pm or minutes
+  if (h > 23 || min > 59 || (ap && h > 12)) return null;
+  if (ap === "pm" && h < 12) h += 12;
+  if (ap === "am" && h === 12) h = 0;
+  return { h, m: min, zone: m[4], said: m[0].replace(/[()]/g, "").replace(/\s+/g, " ").trim() };
+}
+function steamStart(title, posted, body = "") {
   const t = String(title ?? "");
   const d = new Date(posted * 1000);
-  if (/\btomorrow\b/i.test(t)) return Math.floor(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1, 20) / 1000);
-  const m = new RegExp(`\\b(${MONTHS.join("|")})\\s+(\\d{1,2})(?:st|nd|rd|th)?\\b`, "i").exec(t);
+  const tm = steamTime(t) ?? steamTime(body);
+  const at = (y, mo, day) => {                                // the day, at GGG's stated time, else 20:00 UTC
+    if (!tm) return Date.UTC(y, mo, day, 20) / 1000;
+    const off = tzHours(tm.zone, Date.UTC(y, mo, day));
+    return off === null ? Date.UTC(y, mo, day, 20) / 1000 : Date.UTC(y, mo, day, tm.h - off, tm.m) / 1000;
+  };
+  if (/\btomorrow\b/i.test(t)) return Math.floor(at(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1));
+  const m = new RegExp(`\\b(${MONTHS.join("|")})\\s+(\\d{1,2})(?:st|nd|rd|th)?\\b`, "i").exec(t) ??
+    new RegExp(`\\b(${MONTHS.join("|")})\\s+(\\d{1,2})(?:st|nd|rd|th)?\\b`, "i").exec(String(body ?? ""));
   if (!m) return posted;
   const month = MONTHS.indexOf(m[1].toLowerCase()), day = Number(m[2]);
   if (day < 1 || day > 31) return posted;
-  let at = Date.UTC(d.getUTCFullYear(), month, day, 20) / 1000;
-  if (at < posted - 300 * 86400) at = Date.UTC(d.getUTCFullYear() + 1, month, day, 20) / 1000;   // a December post about January
-  return Math.floor(at);
+  let s = at(d.getUTCFullYear(), month, day);
+  if (s < posted - 300 * 86400) s = at(d.getUTCFullYear() + 1, month, day);   // a December post about January
+  return Math.floor(s);
 }
 function steamDrafts(appid, items, nowSecs) {
   const out = [];
@@ -1556,9 +1590,11 @@ function steamDrafts(appid, items, nowSecs) {
     const kind = steamKind(it.title);
     const name = it.title.replace(/\s+/g, " ").trim().slice(0, EVENT_NAME_MAX).trim();
     if (!kind || !name || textProblem(name)) continue;
-    out.push({ kind, name, start: steamStart(it.title, it.date), source: `steam:${it.gid}`,
+    const body = String(it.contents ?? "").slice(0, 2000);
+    const tm = steamTime(it.title) ?? steamTime(body);
+    out.push({ kind, name, start: steamStart(it.title, it.date, body), source: `steam:${it.gid}`,
       link: `https://store.steampowered.com/news/app/${appid}`,
-      note: "From Steam news. The time can change: check the link." });
+      note: tm ? `GGG's time: ${tm.said}.` : "From Steam news. The time can change: check the link." });
   }
   return out;
 }
@@ -1570,7 +1606,7 @@ async function steamCheck(env, force = false) {
   for (const [appid] of STEAM_APPS) {
     let items = [];
     try {
-      const res = await fetch(`https://api.steampowered.com/ISteamNews/GetNewsForApp/v2/?appid=${appid}&count=40&maxlength=1&feeds=${STEAM_FEED}`,
+      const res = await fetch(`https://api.steampowered.com/ISteamNews/GetNewsForApp/v2/?appid=${appid}&count=40&maxlength=600&feeds=${STEAM_FEED}`,
         { headers: { "User-Agent": "StashOfExile2-board (contact: stashofexile@gmail.com)" } });
       if (!res.ok) continue;
       items = (await res.json())?.appnews?.newsitems ?? [];
