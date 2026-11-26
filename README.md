@@ -14,9 +14,9 @@ StashOfExile2 is a free, open-source Windows and Linux companion for **Path of E
 
 | The Drawer, for one monitor | The Overlay over the game |
 |---|---|
-| ![The Drawer over the game's side, on Exchange Rates](docs/screenshots/drawer.png) | ![The overlay: the Bar, Notes, a price check card and Music Controls](docs/screenshots/overlay.png) |
+| ![The Drawer over the game's side, on the Dashboard](docs/screenshots/drawer.png) | ![The overlay in town: the bar, Notes, a price check card and Music Controls](docs/screenshots/overlay.png) |
 
-*Screenshots use sample data and made-up listings.*
+*Screenshots use sample data and made-up listings over a real game screen.*
 
 ## New in 3.3
 
