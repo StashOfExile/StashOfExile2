@@ -719,7 +719,7 @@ class StratNewPage:
             return None
         src = self.mm_new_fields()["source"]
         if src and not URL.search(src):
-            d["msg"] = ("✕ Source: paste its link too (https://…)", "bad")
+            d["msg"] = ("✕ Source: paste its link too, starting https://…", "bad")
             self.mm_new_cv.later(1)
             return None
         self.mm_new_loot_add()                          # (an item typed, not yet added)

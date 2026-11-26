@@ -393,7 +393,7 @@ def fetch_live(get=None, force=False, now=None):
     if not isinstance(d, dict) or not isinstance(d.get("strats"), list):
         return "error", "The strats file on GitHub could not be read."
     if d.get("schema", 1) > SCHEMA:
-        return "error", "New strats need a newer version of the app - update it (Settings > About)."
+        return "error", "New strats need a newer version of the app. Update it in Settings > About."
     have = shared()
     if _newness(d) <= _newness(have):
         return "same", len(have["strats"])
@@ -433,6 +433,7 @@ def tiers_text(wt):
 
 # ---------------------------------------------------------------- the .txt layout (opens in Notepad on any PC)
 TXT_HEAD = "STASHOFEXILE2 STRAT 1"
+# The labels below are the strat file format: changing one breaks every saved strat file
 TXT_FIELDS = (("name", "Name"), ("id", "ID (empty = made from the name)"), ("author", "Author"),
               ("updated", "Updated (YYYY-MM-DD)"), ("patch", "Game version"),
               ("league", "League (empty = the league of its game version)"), ("summary", "Summary"),
@@ -1106,7 +1107,7 @@ def per_hour(s, mine=None):
         how.append(f"▲ {score} found it useful.")
     you = (mine or {}).get("per_hour")
     if you is not None:
-        how.append(f"◆ You: {short_div(you)} div an hour over {mine.get('runs', 0)} runs (your Strat Tracker).")
+        how.append(f"◆ You: {short_div(you)} div an hour over {mine.get('runs', 0)} runs in your Strat Tracker.")
     count = f"{runs:g} runs" if isinstance(runs, (int, float)) else (f"▲ {score}" if isinstance(score, int) and score > 0
                                                                        else "estimate")
     return {"value": v, "low": min(lo, hi), "high": max(lo, hi), "how": " ".join(how), "count": count, "you": you}
@@ -1612,7 +1613,7 @@ _CSV_STRAT = (("name", "Name - needed"), ("id", "lower-case-with-dashes; empty =
               ("author", "needed"), ("updated", "YYYY-MM-DD"), ("patch", "game version, e.g. 0.4"),
               ("league", "the league it's for; empty = the league of its game version"),
               ("summary", "one line - needed"), ("category", " | ".join(CATEGORIES)),
-              ("type", "a type of the category (strats/README.md)"),
+              ("type", "a type of the category, from strats/README.md"),
               ("thinking", " | ".join(w for w, _d in THINKING.values())), ("clicks_per_hour", " | ".join(CLICKS)),
               ("waystone_tiers", "e.g. 14-16"), ("est_cost_div", "a run, e.g. 2 div or 50 ex"),
               ("est_profit_div", "an hour, e.g. 5-10 div"), ("regex", "a stash search"))

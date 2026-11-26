@@ -332,7 +332,7 @@ def advice(kind, rarity, n_mods, n_good):
         if n_mods < 2:
             return "One mod so far: Orb of Augmentation for the second."
         if n_good >= 2:
-            return "Both mods are good (S or A): Regal Orb, then Exalted Orbs to fill it."
+            return "Both mods are S or A: Regal Orb, then Exalted Orbs to fill it."
         if n_good == 1:
             return ("One good mod: your call - Regal + Exalt if that mod is rated S - see its rating below, "
                     "otherwise start over on another jewel.")

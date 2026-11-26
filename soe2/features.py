@@ -12,7 +12,7 @@ GROUPS = (
              "Price Checks, Mod Lab, Mod Book.",
      "modules": ("pricecheck", "modbook", "ratemods", "library")},
     {"key": "bulk", "name": "Bulk Pricing", "keys": "Ctrl+Alt+C",
-     "what": "Add many items in game with Ctrl+Alt+C (Manually Add): they're priced as a list, in the "
+     "what": "Add many items in game with Ctrl+Alt+C, under Manually Add: they're priced as a list, in the "
              "background. Best for tablets, waystones and jewels; price expensive gear with Price Checks.",
      "modules": ("checks",)},
     # nav phase 1: named as the sidebar names it (was "Game Overlay"); the Regex page is no longer in it - switching
@@ -23,7 +23,7 @@ GROUPS = (
      "modules": ("notes",)},                  # (nav phase 2: its page, Overlay, is in SHARED - Overlay Settings is gone)
     {"key": "planning", "name": "League tools", "keys": "",             # nav phase 1: the sidebar's group name (was
                                                                   # "Planning & Farming")
-     "what": "League Plan (your goals and farm plan), Map Library (rank every map) and Leaderboards (fastest "
+     "what": "League Plan for your goals and farm plan, Map Library to rank every map, and Leaderboards for fastest "
              "runs).",
      "modules": ("plan", "maps", "leaderboards")},
     {"key": "rates", "name": "Exchange Rates", "keys": "",

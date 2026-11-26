@@ -225,7 +225,7 @@ def type_chat(cmd, sender=None, sleep=time.sleep, clip=None, gid=0):
     send = sender or _send_keys
     if clip is None:
         from .clipread import take_now, write_text
-        clip = (lambda: take_now(gid, "Chat command (to put your clipboard back)") or "", write_text)
+        clip = (lambda: take_now(gid, "Chat command that puts your clipboard back") or "", write_text)
     read, write = clip
     old = read()
     hook = CLIP_HOOK[0]

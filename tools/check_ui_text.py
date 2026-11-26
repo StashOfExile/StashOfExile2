@@ -30,7 +30,9 @@ ALLOWED = re.compile(r"^(?:x86|MIT|SIL Open Font License|CC BY[^)]*|Apache[^)]*|
                      r"(?:Ctrl|Shift|Alt)\+[^()]{1,20}|F\d{1,2}|Del|Enter|Esc|[A-Z])$")
 SQL = re.compile(r"\b(?:SELECT|INSERT|UPDATE|DELETE|CREATE TABLE|WHERE)\b")
 CREDIT_FILES = ("soe2/about_page.py",)
-FILLER = re.compile(r"\b(seamless(ly)?|robust|powerful|simply|just|easily|really|please note|it is important to note)\b",
+# Strict UI copy limits (owner): no narration of how a feature works or when its data comes
+FILLER = re.compile(r"\b(seamless(ly)?|robust|powerful|simply|just|easily|really|please note|it is important to note|"
+                    r"will appear|appears? here|shows? (up )?here|to get started)\b",
                     re.I)
 FILLER_OK = re.compile(r"\bjust (now|rated)\b|Robust (Crossbow|\b)", re.I)
 FILLER_SKIP = ("soe2/greetings.py", "soe2/whatsnew.py", "soe2/class_icons.py", "soe2/stashlayouts.py")       # credits put a person's or a project's name in brackets after the work

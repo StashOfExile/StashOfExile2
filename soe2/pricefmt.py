@@ -21,10 +21,10 @@ def confidence(n_best, loosened, any_roll, ratio, unverifiable, dropped, age_h, 
         why.append(f"only {n_best} listings")
     if any_roll:
         score -= 35
-        why.append("searched with ANY roll (nothing at your rolls)")
+        why.append("searched with ANY roll: nothing at your rolls")
     elif loosened:
         score -= 15
-        why.append("averaged from looser searches (the exact search found too few)")
+        why.append("averaged from looser searches: the exact search found too few")
     if ratio is not None and ratio >= 5:
         score -= 25
         why.append(f"listing prices {ratio:.0f}x apart")
@@ -44,7 +44,7 @@ def confidence(n_best, loosened, any_roll, ratio, unverifiable, dropped, age_h, 
         score -= 5
     if skipped:
         score -= 10
-        why.append("listings priced in " + ", ".join(skipped) + " were left out (no exchange rate known)")
+        why.append("listings priced in " + ", ".join(skipped) + " were left out: no exchange rate known")
     if conflict:
         score -= 30
         why.append("earlier searches found higher prices for these mods")

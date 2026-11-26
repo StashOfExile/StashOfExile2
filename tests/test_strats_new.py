@@ -924,7 +924,7 @@ class Page(unittest.TestCase):
             self.assertIn("Monsters evolve faster.", cv.tips[f"am_{i}_0"], "the tile's tooltip")
             hover = [new for _it, _old, new in cv.lifts[f"am_{i}_0"]]
             self.assertIn({"text": "Monsters evolve faster."}, hover, "the details column on hover")
-            self.assertIn({"text": "What it does shows here when the game data has it."},
+            self.assertIn({"text": "No details yet."},
                           [new for _it, _old, new in cv.lifts[f"am_{i}_1"]], "a choice it lacks: the plain line")
             s = dict(NOW, id="mt", masters={m: [ch]})
             save_json(MM.MINE, [s])

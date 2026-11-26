@@ -25,7 +25,7 @@ def write_map_runs(path, sessions, current=None):
                 t = s.current_map_time() if live == i else m["time"]
                 w.writerow([_when(s.started), m["name"], m.get("level") or "", _when(m.get("first")), round(t or 0),
                             fmt_time(t), m.get("entries", 1), m.get("deaths", 0),
-                            "yes" if (t or 0) >= MIN_RUN_SECS else "no (under 30 s)"])
+                            "yes" if (t or 0) >= MIN_RUN_SECS else "no, under 30 s"])
                 n += 1
     return n
 

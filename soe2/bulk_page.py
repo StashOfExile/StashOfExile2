@@ -381,8 +381,7 @@ class BulkPage:
                 btn.pack(pady=(12, 0))
         else:
             t = self.pctab_current() if self.pctab_many() else None
-            e.set_text(f"{t['name'] + ' is' if t else 'Your list is'} empty\nHow to add items: hover an item in game "
-                       "and press Ctrl+Alt+C. It shows up here and gets priced - tablets, jewels, waystones and gear.")
+            e.set_text(f"{t['name'] + ' is' if t else 'Your list is'} empty\nHover an item in game and press Ctrl+Alt+C.")
             if btn.winfo_manager():
                 btn.pack_forget()
         # 3.3.0 owner: it sat off-center. It goes in the middle of the list itself, under the column names.
@@ -418,8 +417,7 @@ class BulkPage:
         flowify(f)
         # no row picked: what this side is, and one button (it picks the first row)
         from .chrome import EmptyState
-        self.bk_none = EmptyState(col, "⚖", "No item picked\nPick an item in the list: its price, its filters and "
-                                  "the cheapest listings show here.", button=("Show the first item", self.bk_autopick))
+        self.bk_none = EmptyState(col, "⚖", "No item picked\nPick an item in the list.", button=("Show the first item", self.bk_autopick))
         Tooltip(self.bk_none.btn, "Picks the first item in the list")
         # the item card, its listings and Advanced, scrolling
         box = self.bk_scroll = tk.Frame(col, bg=P1)

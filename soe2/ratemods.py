@@ -730,7 +730,7 @@ def players_text(p):
 def players_tip(p):
     if not p:
         if not votes_synced():
-            return ("The players' votes come with the community sync (once an hour) - none downloaded yet. Reading "
+            return ("The players' votes come with the community sync once an hour. None downloaded yet. Reading "
                     "them works with Community data sharing off too.")
         return (f"Players' votes show once a mod has at least {VOTE_MIN}. This one has fewer. With Community data "
                 "sharing on, your rating is a vote.")

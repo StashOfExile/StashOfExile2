@@ -15,7 +15,7 @@ from .style import C, SegBar, Tooltip
 
 ALL_LEAGUES = "All leagues"
 LEVEL_HEADER = "Area level"
-LEVEL_TIP = "The map's area level when it was run (Waystone tier 1 is area level 65, tier 16 is 80)"
+LEVEL_TIP = "The map's area level when it was run. Waystone tier 1 is area level 65; tier 16 is 80."
 TOPS = (5, 10, 20, 30, 50, 100)             # 2.104.1 (feedback): how many rows a board shows
 TIMES = ("mine", "best", "time")
 SUB = "   ↳"
@@ -359,8 +359,7 @@ class LeaderboardPage:
             kv.insert("", "end", iid=k, text=k, values=(LB.fmt(mb), LB.fmt(w.get("best")) if w else "-",
                                                          w.get("players", "") if w else ""))
         if not keys:
-            self.lb_msg.config(text="No times yet. Run maps with the overlay's session timer on, or play the campaign "
-                                    "with the Campaign Helper - your times show here." if self.lb_who.get() == "Mine"
+            self.lb_msg.config(text="No times yet." if self.lb_who.get() == "Mine"
                                else "", fg=C["muted"])
         if keys:
             self.lb_keys_empty.place_forget()
@@ -368,7 +367,7 @@ class LeaderboardPage:
             # 2.124.1 (feedback: no zone times seemed to be tracked): say when this board gets times
             self.lb_keys_empty.set_text(
                 "No times on this board yet\nA zone is timed from entering it to leaving it, while a character is "
-                "still in the campaign (not visits after it, and at least 10 s)." if self.lb_cat_key() == "zone" else
+                "still in the campaign, at least 10 s, and not visits after it." if self.lb_cat_key() == "zone" else
                 "No times on this board yet\nRun maps with the overlay's timer on, or play the campaign with the "
                 "Campaign Helper.")
             self.lb_keys_empty.place(relx=0.5, rely=0.45, anchor="center")
@@ -431,8 +430,7 @@ class LeaderboardPage:
             rows = d.get("rows") or []
             others = sum(1 for r in rows if not r.get("mine"))
             if rows and not others:                       # (say why it's only you - not a fault)
-                self.lb_msg.config(text="Only your time on this board so far. Other players' times show here once "
-                                        "they share theirs through Community data sharing.", fg=C["muted"])
+                self.lb_msg.config(text="Only your time so far.", fg=C["muted"])
             top = self.lb_top_n()
             for place, (_name, runs) in enumerate(self.lb_groups(rows)[:top]):
                 for j, r in enumerate(runs):
@@ -511,7 +509,7 @@ class LeaderboardPage:
         from .gamelog import find_log
         path = find_log(self.tracker_cfg().get("log_path")) if hasattr(self, "tracker_cfg") else None
         if not path:
-            self._say("Couldn't find the game's log (Client.txt). Pick it in the Overlay's Session timer options.", 8)
+            self._say("Couldn't find the game's log, Client.txt. Pick it in the Overlay's Session timer options.", 8)
             return None
         self._lb_rebuilding = True
         self.lb_rebuild_btn.state(["disabled"])

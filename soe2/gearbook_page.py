@@ -200,8 +200,7 @@ class GearBookPage:
                 ns.tv.selection_add(iid)
         rated = sum(1 for r in self.gb_rows(cat) if r["key"] in RULES)
         if cat == "unique" and ns.uname and not rows and not q:
-            ns.empty.config(text=f"No lines for {ns.uname} yet.\nPrice check one with Ctrl+Alt+C, in game or on the "
-                                 "trade site. Its lines show here, with every option of a choice line.")
+            ns.empty.config(text=f"No lines for {ns.uname} yet.\nPrice check one with Ctrl+Alt+C.")
             ns.empty.place(relx=0.5, rely=0.3, anchor="center")
         elif cat == "unique" and not ns.uname:
             ns.empty.config(text="Pick a unique above. Ones you've price checked come first.")
@@ -217,7 +216,7 @@ class GearBookPage:
         ns = self.rt[cat]
         keys = [ns.keys[i] for i in ns.tv.selection() if i in ns.keys]
         if not keys:
-            return self._say("Select lines first (Ctrl+A for all, Shift / Ctrl + click), then pick a rating.", 8)
+            return self._say("Select lines first, then pick a rating. Ctrl+A selects all; Shift+click or Ctrl+click selects several.", 8)
         RM.apply(keys, "ignore" if grade == TIER_F else grade)
         self.gb_reprice(keys)
         self.refresh_rules(cat)

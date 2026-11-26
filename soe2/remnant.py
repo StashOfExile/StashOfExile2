@@ -416,7 +416,7 @@ def ocr_available():
     try:
         from winrt.windows.media.ocr import OcrEngine  # noqa: F401
     except Exception:
-        return "Windows' text reader (OCR) isn't part of this build"
+        return "Windows' OCR text reader isn't part of this build"
     try:
         return "" if _engine() is not None else "no OCR language: add English in Windows Settings > Language"
     except Exception as e:

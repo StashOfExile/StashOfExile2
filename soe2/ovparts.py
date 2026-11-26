@@ -64,7 +64,7 @@ class OverlayParts:
         where = getattr(self, "_mr_in", None) or getattr(self, "_mr_last", None)
         if where:
             return self.maprank_prompt(where)
-        self._say("Rank a map from the Map Library (Overlay ↳ Map Library), or click this while you're in one.", 6)
+        self._say("Rank a map from the Map Library at Overlay ↳ Map Library, or click this while you're in one.", 6)
         return None
 
     def maprank_prompt(self, name):

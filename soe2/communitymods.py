@@ -42,9 +42,9 @@ WHAT = ("Community data sharing is off until you say yes. If you turn it on, the
 # new upload that rides on this switch gets a line here.
 DETAILS = (
     ("Mod prices your price checks see", "a summary only - how many listings and their middle price, per mod, for any item "
-     "you price-check (gear too)", "better "
+     "you price-check, gear too", "better "
      "prices for everyone in the Mod Book, most of all early in a league"),
-    ("Your Mod Book ratings", "the S-F tier you set for a mod (F means ignore)", "the pooled ratings that decide which mods "
+    ("Your Mod Book ratings", "the S-F tier you set for a mod. F means ignore.", "the pooled ratings that decide which mods "
      "matter"),
     ("Your map ranks", "the rank you gave a map", "the community map ranks"),
     ("Your best times", "map, boss, trial and act times with your class, level, deaths and league - under your "

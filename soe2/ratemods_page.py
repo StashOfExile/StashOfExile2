@@ -54,7 +54,7 @@ F_LETTER = ("Segoe UI", 18, "bold")
 
 
 def grade_label(g):
-    return "F (ignore)" if g == "ignore" else g
+    return "F - ignore" if g == "ignore" else g
 
 
 def on_top(w, keep=None):
@@ -959,7 +959,7 @@ class RateModsPage:
             cv.text(bx0 + 12, by0 + 12, title, F_CAP, fill=cv.c("text_muted"))
             yy = by0 + 34
             if not rows:
-                cv.text(bx0 + 12, yy, "That's the last one here." if ci == 0 else "The mods you rate show here.",
+                cv.text(bx0 + 12, yy, "That's the last one here." if ci == 0 else "No mods rated yet.",
                         F_SMALL, fill=cv.c("text_muted"))
                 yy += 22
             for ri, r in enumerate(rows):
@@ -1539,7 +1539,7 @@ class RateModsPage:
                             outline=cv.c("border_light"), tags=("headbox",))
         cv.text(bx + 8, head_h / 2, "", F_SMALL, anchor="center", tags=("headbox", "headmark"))
         cv.acts["headbox"] = self.rm_tick_all
-        cv.tips["headbox"] = "Tick every row shown (again: none)"
+        cv.tips["headbox"] = "Tick every row shown. Again: none."
         y = head_h
         if not groups:
             q = self.rm_qv.get().strip()
@@ -1611,7 +1611,7 @@ class RateModsPage:
                     fill=cv.c("magic"), width=mx1 - mx0 - 24, tags=(f"mod:{i}",))
         bottom = cv.bottom(t, y + 26)
         cv.acts[f"mod:{i}"] = lambda e=e: self.rm_tpick_row(e)
-        cv.tips[f"mod:{i}"] = "Open it on the card (One at a Time)" if self.rm_narrow else "Show it in the side panel"
+        cv.tips[f"mod:{i}"] = "Open it on the card in One at a Time" if self.rm_narrow else "Show it in the side panel"
         if not narrow and e.get("kind"):                      # 3.3.0 owner: its kind, in words, under the mod
             t2 = cv.text(mx0 + 12, bottom + 2, e["kind"], F_SMALL, fill=cv.c("text_muted"), width=mx1 - mx0 - 24)
             bottom = cv.bottom(t2, bottom + 16)

@@ -868,7 +868,7 @@ class PriceCheckPage:
             self.pc_chips = {}
             if not recs:
                 tk.Label(box, text=f"No recent check has “{q}”." if q and allrecs else
-                         f"Your last {PC_MAX} checks show here.", bg=C["panel"], fg=C["muted"],
+                         "No checks yet.", bg=C["panel"], fg=C["muted"],
                          font=("Segoe UI", 9)).pack(side="left")
             used = 0
             for rid, text, fg, hb in want:
@@ -1103,7 +1103,7 @@ class PriceCheckPage:
         total = rec.get("total") if rec.get("total") is not None else len(rec.get("prices") or [])
         mid = fmt_div(rec["est"]) if rec.get("est") is not None else "-"
         tip = [f"Listings with the ticked mods: {total:,}",
-               f"Middle (half cheaper, half dearer) of the {min(5, len(prices)) or 5} cheapest: {mid}"]
+               f"Middle - half cheaper, half dearer - of the {min(5, len(prices)) or 5} cheapest: {mid}"]
         rng = ""
         if conv:
             import statistics
@@ -1555,9 +1555,7 @@ class PriceCheckPage:
             self.pc_verdict_paint(None)
             self.pcv.shown_rid = None                    # (no card: nothing to draw again for a new width)
             self._pc_card_sig_last = None
-            tk.Label(self.pc_left, text=f"No item yet. Hover an item in game and press {pc_key_label()}: its price "
-                                        "and the trade site's cheapest listings show here.\n\nCtrl+Alt+C adds items "
-                                        "to Bulk Pricing.", bg=P2, fg=C["muted"], font=("Segoe UI", 10),
+            tk.Label(self.pc_left, text=f"No item yet: hover an item in game and press {pc_key_label()}.", bg=P2, fg=C["muted"], font=("Segoe UI", 10),
                      justify="left", anchor="nw", wraplength=360).pack(fill="x", pady=(0, 12))
             ttk.Button(self.pc_left, text="Price check settings",
                        command=lambda: self.settings_open("Price checking", "pc_single")).pack(anchor="w")

@@ -180,7 +180,7 @@ class PCList(tk.Frame):
             if not rows:
                 total = len(self.app.pc_recs()) if hasattr(self.app, "pc_recs") else 0
                 msg = ("Nothing matches. Clear the search or pick All." if total else
-                       "Every item you price shows here, newest first.\nIn game: hover an item and press your price check key.")
+                       "No price checks yet: hover an item in game and press your price check key.")
                 cv.create_text(12, 16, text=msg, anchor="nw", font=("Segoe UI", 9), fill=mut, width=w - 24)
             for i, r in enumerate(rows):
                 y0 = i * ROW_H

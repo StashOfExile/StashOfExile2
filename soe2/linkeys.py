@@ -522,7 +522,7 @@ def start(kw):
     shortcuts). kw.active when one runs; kw.err says why the X one couldn't."""
     from .linsys import hypr_socket
     if hypr_socket():
-        STATE["x11"] = "not used on Hyprland (its pass-through binds tell the app)"
+        STATE["x11"] = "not used on Hyprland: its pass-through binds tell the app"
         threading.Thread(target=HyprBinds(kw).run, daemon=True, name="soe2-hyprbinds").start()
         STATE["hypr"] = True
     else:

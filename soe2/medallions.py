@@ -25,8 +25,8 @@ MEDALLIONS = {
     # rerolling the cards on offer is worth more than rerolling a restricted room
     "Hayoxi's Medallion": ("Reroll restricted", "Rerolls a restricted room", 4),
     "Puhuarte's Medallion": ("Reroll cards", "Rerolls the room cards on offer", 5),
-    "Xopec's Medallion": ("Crystal capacity", "Crystal capacity +6 (up to 60)", 6),
-    "Azcapa's Medallion": ("Medallion slot", "Medallion capacity +1 (up to 6)", 7),
+    "Xopec's Medallion": ("Crystal capacity", "Crystal capacity +6, up to 60", 6),
+    "Azcapa's Medallion": ("Medallion slot", "Medallion capacity +1, up to 6", 7),
     "Zantipi's Medallion": ("Waystone modifier", "Adds a random waystone modifier to the temple", 1),
 }
 HIGH_ROOMS = ("Corruption Chamber", "Sacrificial Chamber", "Thaumaturge", "Alchemy Lab", "Smithy")

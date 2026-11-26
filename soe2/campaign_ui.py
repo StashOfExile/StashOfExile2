@@ -28,7 +28,7 @@ POP_GOOD, POP_BAD, POP_WARN = "#7fd9a0", "#e05a4f", "#ffb347"
 # The Campaign Helper's switches (Overlay › Options › Campaign Helper and the route card's Options ▾ - one setting each)
 CAMP_OPTS = (("ask_route", "Ask which route when a campaign starts"),          # 2.89.0
              ("optional", "Optional zones"), ("tips", "Tips"),
-             ("warn", "Ask about rewards in town (Got it / Not yet)"),
+             ("warn", "Ask about rewards in town: Got it or Not yet"),
              ("popups", "Pop-ups: boss down, left a fight, too low"),
              ("off_at_maps", "Hide it in maps"))   # 2.89.2: "Splits" said nothing to most players
 
@@ -552,7 +552,7 @@ class CampaignUI:
     def camp_got_tip():
         from . import identity as ID
         if not ID.known():
-            return "Shows once the game's log names your character, or you pick it under YOU."
+            return "No character yet. Pick one under YOU."
         return CP.got_how(CP.got_so_far())
 
     # ---------------------------------------------------------------- 3.3.0 owner: which character is this?

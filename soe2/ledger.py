@@ -24,7 +24,7 @@ from .config import load_json, save_json
 FILE = "farm_ledger.json"
 OLD_RUNS = "money_runs.json"
 EVERY = 5                    # runs between logs, by default (each setup has its own)
-COUNTING = {"auto": "By itself - each new map you enter (Client.txt)", "key": "With a key after each run"}
+COUNTING = {"auto": "By itself: each new map you enter, from Client.txt", "key": "With a key after each run"}
 ATLAS_TREES = ("Atlas passive tree", "Breach", "Delirium", "Ritual", "Expedition", "Abyss", "Essence", "Strongbox",
                "Rogue Exiles", "Shrines", "Overseer", "Temple")
 

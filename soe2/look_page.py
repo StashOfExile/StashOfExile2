@@ -26,7 +26,7 @@ from .config import SETTINGS
 NAME = "Read Key"                   # (names.py)
 SET_BUTTON = "Set the Read Key"
 # the game's everyday keys (its defaults) and keys that mean something everywhere: never the Read Key
-GAME_KEYS = {0x09: "Tab (the game's map key)", 0x0D: "Enter (the game's chat)", 0x20: "Space",
+GAME_KEYS = {0x09: "Tab, the game's map key", 0x0D: "Enter, the game's chat key", 0x20: "Space",
              0x1B: "Esc", 0x08: "Backspace", 0x10: "Shift", 0x11: "Ctrl", 0x12: "Alt"}
 AREA_WORDS = {"map": "in a map", "hideout": "in your hideout", "town": "in a town", "other": "in this area",
               "login": "at the character screen"}

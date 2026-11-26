@@ -356,7 +356,7 @@ class MoneyMakersPage(StratViews, StratNewPage):
             self.mm_content_vars = {}
             for group, tags in MM.content_groups().items():
                 sub = self._mm_menu()
-                sub.add_command(label="Any (clear)", command=lambda: self.mm_content_pick(None))
+                sub.add_command(label="Any - clears it", command=lambda: self.mm_content_pick(None))
                 for t in tags:
                     v = tk.BooleanVar(value=t in self.mm_content)
                     self.mm_content_vars[t] = v
@@ -1084,7 +1084,7 @@ class MoneyMakersPage(StratViews, StratNewPage):
         if not s:
             return
         path = filedialog.asksaveasfilename(parent=self.root, defaultextension=".csv", initialfile=s["id"] + ".csv",
-                                            filetypes=[("Strat guide (CSV - Excel, Google Sheets)", "*.csv"),
+                                            filetypes=[("Strat guide CSV for Excel or Google Sheets", "*.csv"),
                                                        ("Strat (JSON)", "*.json")])
         return self.mm_write_strat(s, path)
 
@@ -1154,7 +1154,7 @@ class MoneyMakersPage(StratViews, StratNewPage):
         self.mm_show_mine()
         msg = f"Added {added} strat{'s' if added != 1 else ''} to Mine."
         if bad:
-            msg += "\nLeft out (not in the standard layout): " + "; ".join(bad[:3])
+            msg += "\nLeft out, not in the standard layout: " + "; ".join(bad[:3])
         self.app_toast(msg, "Import strat")
         return added
 
@@ -1248,7 +1248,7 @@ class MoneyMakersPage(StratViews, StratNewPage):
         """2.132.6: set a one-liner's type and tags (the strats' lists)."""
         o = self.mm_one_current()
         if not o or o["origin"] != "mine":
-            self._say("Pick one of your own one-liners (Mine) to tag it.", 5)
+            self._say("Pick one of your own one-liners from Mine to tag it.", 5)
             return None
         w = tk.Toplevel(self.root)
         w.title("Type & tags")
@@ -1349,7 +1349,7 @@ class MoneyMakersPage(StratViews, StratNewPage):
     def mm_one_post(self):
         o = self.mm_one_current()
         if not o or o["origin"] != "mine":
-            self._say("Pick one of your own tips (From: Mine) to post it.", 6)
+            self._say("Pick one of your own tips from From: Mine to post it.", 6)
             return None
         if not self.cm_need_sharing(self.mm_one_post) or self.mm_need_login("post"):
             return None

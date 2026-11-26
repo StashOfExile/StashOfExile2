@@ -58,7 +58,7 @@ class FavoursPage:
         except Exception:
             ready = False
         if not ready:                                     # (no window title to look for: nothing to read - decided
-            fv_log("the Favours title isn't learned yet and no text reader (OCR) can find it")    # before any picture)
+            fv_log("the Favours title isn't learned yet and no OCR text reader can find it")    # before any picture)
             return None
         try:
             self.mp_art_fetch()                           # (3.1: poe.ninja's pictures into the art cache, once)

@@ -5,7 +5,7 @@ class Leaderboards(Module):
     """2.86.0: Overlay ↳ Leaderboards - campaign, maps, bosses and trials; yours and everyone's."""
     key, title, short, icon, kind = "leaderboards", "Leaderboards", "Leaderboards", "🏆", "tool"
     parent = None                      # UI overhaul: its own page (was under Overlay - it isn't an overlay setting)
-    blurb = "Your fastest campaign acts, maps, pinnacle fights and trials - and everyone's (Community data sharing)."
+    blurb = "Your fastest campaign acts, maps, pinnacle fights and trials, and everyone's with Community data sharing on."
 
     def build(self, body):
         self.app.build_leaderboards(body)

@@ -134,7 +134,7 @@ class RumoursPage:
                 if sure:
                     f.write("Found: " + ", ".join(i for _r, i, _b in rows) + "\n")
                 else:
-                    f.write("Not the card (none of its own lines were read) - nothing shown.\n")
+                    f.write("Not the card: none of its own lines were read. Nothing shown.\n")
         except Exception:
             buglog.caught()
 

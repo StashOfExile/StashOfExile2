@@ -442,7 +442,7 @@ class FavoritesPage:
         if d.get("tags"):
             f["tags"] = list(d["tags"])
         self.favs().save()
-        self.fav_say(f"\"{f['name']}\" is in your favorites (Mine).", C["green"])
+        self.fav_say(f"\"{f['name']}\" is in your favorites, under Mine.", C["green"])
         return f
 
     def fav_post(self):

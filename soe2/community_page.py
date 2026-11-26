@@ -200,7 +200,7 @@ class CommunityPage:
             if not path:
                 return False
         ok, why = B.export_key(path)
-        self.cy_say("Saved. Keep that file to yourself; delete it once the other PC uses it." if ok else why)
+        self.cy_say("Saved. Delete the file after the other PC uses it." if ok else why)
         return ok
 
     def cy_import_key(self, path=None):

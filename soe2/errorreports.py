@@ -39,7 +39,7 @@ _lock = threading.Lock()
 WHAT = ("Off until you say yes. Sends what went wrong in the app - where in the code and the error's type - so it can "
         "be fixed. No names, items, chat or files.")
 DETAILS = (
-    ("Errors the app hit", "where in the code (file and line) and the error's type, like ValueError - never its "
+    ("Errors the app hit", "where in the code, file and line, and the error's type, like ValueError - never its "
      "message", "finding and fixing bugs, most often before anyone reports them"),
     ("Freezes and crashes", "the same: where it happened", "the same"),
     ("Trade site errors", "the error number and the site's short answer, like \"Unknown stat provided\" - never "

@@ -238,7 +238,7 @@ class SettingsPage:
             p = int(round((1 - float(factor)) * 100))
         except (TypeError, ValueError):
             p = 10
-        return "0% (exact)" if p <= 0 else f"{p}% below"
+        return "0% - exact" if p <= 0 else f"{p}% below"
 
     def on_fine(self, key):
         spec = next(f for f in self.FINE if f[0] == key)
@@ -554,7 +554,7 @@ class SettingsPage:
         Tooltip(ch, "Keep your data somewhere else like a USB stick or the app's own folder for a portable copy. It's "
                     "copied there and the old folder is kept.")
         # 2.59.0: the game's log file. UI overhaul (owner): beside Data folder - both are where files live - and one line
-        row = section("Advanced", "Game log", "The game's own log (Client.txt): the timer and the helpers read it.")
+        row = section("Advanced", "Game log", "The game's own log, Client.txt: the timer and the helpers read it.")
         self.set_anchors["game"] = row.master
         self.log_path_lbl = tk.Label(row, text="", bg=P2, fg=C["text"], anchor="w")
         self.log_path_lbl.pack(side="left")

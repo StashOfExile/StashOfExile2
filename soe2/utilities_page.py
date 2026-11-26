@@ -524,7 +524,7 @@ class UtilitiesPage:
             self._say("Notes is switched off: Overlay › On the Overlay › Notes.", 10)
             return False
         ov.show_notes()
-        self._say("Notes is on the overlay bar (Notes ▾) and shows while the game is in front. Double-click a tab to "
+        self._say("Notes is on the overlay bar, under Notes ▾, and shows while the game is in front. Double-click a tab to "
                   "rename it; right-click for more.", 10)
         return True
 

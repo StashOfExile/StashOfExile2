@@ -269,7 +269,7 @@ class OverlayRates:
             b.pack(anchor="w", pady=(8, 0))
             b.bind("<Button-1>", lambda e: self.ovr_pick(), add="+")
         elif not RATES.table:
-            tk.Label(body, text="No rates yet - they load once the league is set.", bg=P["bg"], fg=P["muted"],
+            tk.Label(body, text="No rates yet: set your league.", bg=P["bg"], fg=P["muted"],
                      font=(font, self.ov_font(9))).pack(anchor="w")
         else:
             for cid, name, txt in rows:

@@ -366,7 +366,7 @@ class Dashboard(tk.Canvas):
                                     "address of GGG's Path of Exile 2 patch-notes forum.")
         if not rows:
             self.create_text(x0 + 20, y + top + rh / 2, anchor="w", font=plain_f, fill=mut, width=x1 - x0 - 40,
-                             text="No patch notes yet. The newest show here once the board has read the forum.")
+                             text="No patch notes yet.")
             return y + h + GAP
         import webbrowser
         for i, n in enumerate(rows):
@@ -531,7 +531,7 @@ class Dashboard(tk.Canvas):
             self.tips["cal_drafts"] = "Admin: events the board drafted from Steam news. None reaches a user until you post it."
         if not rows:
             self.create_text(x0 + 20, y + top + rh / 2, anchor="w", font=plain_f, fill=mut, width=x1 - x0 - 40,
-                             text="Nothing coming up yet. Leagues, Twitch Drops, events and races show here.")
+                             text="Nothing coming up yet.")
             return y + h + GAP
         fonts = self._line_fonts
         col = max(fonts[bold].measure(CD.label(e)) for e in rows) + 24
@@ -1047,7 +1047,7 @@ class Dashboard(tk.Canvas):
             rows = recs[:4]
             ry = y + 56
             if not rows:
-                self.create_text(PAD + 20, ry + 8, text=f"Your price checks show here. In game: hover an item, press {pc_key}.",
+                self.create_text(PAD + 20, ry + 8, text=f"No price checks yet: hover an item in game, press {pc_key}.",
                                  anchor="nw", font=("Segoe UI", 10), fill=mut, width=lw - 40)
             rar = {"Unique": t.c("unique", "#af6025"), "Rare": t.c("rare", "#ffff77"), "Magic": t.c("magic", "#8f9bff")}
             for i, r in enumerate(rows):
