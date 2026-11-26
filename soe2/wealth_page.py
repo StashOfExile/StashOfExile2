@@ -282,7 +282,7 @@ class WealthPage:
 
     W_PAGES = ("Overview", "Snapshots")          # P3 (2.105.1): no Stash tabs page
     SNAP_WHY = {"counted": "Counted currency", "scanned": "Scanned stash", "prices updated": "Prices updated",
-                "synced": "Synced tabs (old)", "rares priced": "Rares priced (old)", "session start": "Session start",
+                "synced": "Old synced tabs", "rares priced": "Old rares priced", "session start": "Session start",
                 "session end": "Session end"}
 
     def wealth_show_page(self, name=None):
@@ -303,14 +303,14 @@ class WealthPage:
         ("Scan stash", "Reads your Currency, Abyss, Delirium, Breach, Expedition, Ritual, Essence, Fragments and "
                        "Socketables tabs from the screen. You check the numbers before they're saved. Only looks: no keys, no clicks; the "
                        "picture is never kept."),
-        ("Count by hand", "For a currency Scan stash can't read (More ▾): press it, then hover each stack in game "
+        ("Count by hand", "For a currency Scan stash can't read, under More ▾: press it, then hover each stack in game "
                          "and press Ctrl+C - stacks of the same currency add up. Double-click a quantity to change "
                          "it; select rows (Ctrl+A for all) and press Delete to remove them."),
         ("Prices", "Currency, fragments and other stackables come from poe.ninja. An item "
                    "poe.ninja doesn't list says not found on poe.ninja and isn't in the total."),
         ("Total and What moved it", "Total is everything added up; the chart shows it over time (Daily shows the change "
                                     "per day). What moved it splits the week's change into prices and amounts, and "
-                                    "shows each item's week (click it)."),
+                                    "shows each item's week. Click it."),
         ("Snapshots", "Each count, scan or price update saves your total, so the chart and the Session timer can "
                       "show how much you made. Wealth ↳ Snapshots: pick one to look back, a second to compare."),
     ]
@@ -1278,7 +1278,7 @@ class WealthPage:
             bars = [b for b in bars if span_s is None or b[0] >= now - span_s]
             if not bars:
                 cv.create_text(4, h // 2, anchor="w", fill=C["muted"], font=("Segoe UI", 9),
-                               text="Daily change shows once you've counted on two different days.")
+                               text="No daily change yet.")
                 return
             m = max(abs(v) for _, v in bars) or 1
             mid = pad_t + (h - pad_t - pad_b) / 2

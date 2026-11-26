@@ -404,7 +404,7 @@ class StratViews:
                                    "you post it.", "＋ New strat", self.mm_add)
         elif view == "Community":
             if B.configured():
-                head, body, btn, fn = ("No community strats yet", "Strats other players posted show here.",
+                head, body, btn, fn = ("No community strats yet", "Strats other players posted.",
                                        "↻ Refresh", self.mm_refresh)
             else:
                 head, body, btn, fn = ("The community board isn't set up yet", "Official strats come with the app.",
@@ -571,9 +571,9 @@ class StratViews:
                 ("▲ Upvote", "t_vote", self.mm_one_vote, bool(post),
                  "Upvote the picked community tip" if post else "Pick a community tip to upvote it"),
                 ("📤 Post", "t_post", self.mm_one_post, mine, "Share your picked tip on the community board" if mine
-                 else "Pick one of your own tips (From: Mine) to post it"),
+                 else "Pick one of your own tips from From: Mine to post it"),
                 ("🏷 Tags…", "t_tags", self.mm_one_tags, mine, "Set the picked tip's type and tags" if mine
-                 else "Pick one of your own tips (From: Mine) to tag it")):
+                 else "Pick one of your own tips from From: Mine to tag it")):
             f = ("Segoe UI", 10)
             if bx + cv.tw(text, f) + 32 > x1 - 18:
                 y += 42
@@ -717,7 +717,7 @@ class StratViews:
         if post.get("pending") or (post.get("mine") and post.get("suggestions")):
             extra = [f"{post['pending']} change waiting for reviewers"] if post.get("pending") else []
             if post.get("mine") and post.get("suggestions"):
-                extra.append(f"{post['suggestions']} suggested edit(s) for you (More ▾ › Suggestions)")
+                extra.append(f"{post['suggestions']} suggested edits for you in More ▾ › Suggestions")
             ty = cv.bottom(cv.text(tx, ty + 4, " · ".join(extra), f9, fill=cv.c("text_muted"), width=wr - tx), ty) + 4
         bottom = max(ty + ip - 8, y + ip + isz + ip)
         got = cv.icon(MM.tablet_of(s), x0 + ip, (y + bottom) / 2, isz, anchor="w")
@@ -755,7 +755,7 @@ class StratViews:
         return [("More ▾", "h_more", lambda: self.mm_more_at("h_more"), "ghost",
                  "Everything you can do with this strat: edit, export, post, upvote, suggest an edit, report…"),
                 ("Run this strat", "h_run", lambda: self.mm_run(self.mm_sel), "primary",
-                 "Opens the Strat Tracker on this strat: log your runs, see what it really made.")]
+                 "Opens the Strat Tracker on this strat: log your runs, see what it made.")]
 
     def _mm_tiles(self, cv, s, mine, pad, y, W, narrow):
         """Per hour, Cost per map, Waystone, Atlas master - each says how its number came (ⓘ). A tile with nothing
@@ -959,7 +959,7 @@ class StratViews:
                 p = prices.get(str(idx))
                 cv.tips[tag] = (f"{it.get('name') or sl['base']} ×{sl['count']}" +
                                 ("".join("\n★ " + km for km in it.get("key_mods") or [])) +
-                                (f"\n~{p:.2f} div today (trade site)" if p is not None else "\nno price checked yet") +
+                                (f"\n~{p:.2f} div today on the trade site" if p is not None else "\nno price checked yet") +
                                 "\nClick: copy its stash search, or open the Trade Site")
                 cv.acts[tag] = lambda it=it, tg=tag: self.mm_item_menu(it, tg)
             else:
@@ -1123,7 +1123,7 @@ class StratViews:
         cv.create_line(dx0, yy2, dx0 + dw, yy2, fill=cv.c("border"))
         yy2 += 12
         hn = cv.text(dx0, yy2 + 8, "Hover a choice", ("Segoe UI", 10, "bold"), fill=cv.c("text_strong"), anchor="w")
-        none = "What it does shows here when the game data has it."
+        none = "No details yet."
         whats = {ch: MM.master_text(tab, ch) for ch in MM.MASTERS[tab]}
         room = 0                                          # (the longest one's height: Clear picks stays put)
         for w_ in [none] + [x_ for x_ in whats.values() if x_]:

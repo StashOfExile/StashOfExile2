@@ -321,7 +321,7 @@ class AlertsPage:
         self.al_card_where, self.al_card_size = wcb, scb
         # 2.119.0 (UX pass): Client.txt not found - one banner here (it was the same red line on every helper)
         ban = tk.Frame(box, bg=C["warn_bg"], padx=8, pady=8, highlightthickness=1, highlightbackground=C["red"])
-        tk.Label(ban, text="⚠ The game's log (Client.txt) wasn't found. Breach, Ritual, Campaign, Trade whispers and "
+        tk.Label(ban, text="⚠ The game's log, Client.txt, wasn't found. Breach, Ritual, Campaign, Trade whispers and "
                            "more need it.", bg=C["warn_bg"], fg=C["text"], font=sm, anchor="w", justify="left",
                  wraplength=520).pack(side="left", fill="x", expand=True)
         find_it = ttk.Button(ban, text="Find it…", command=self.tracker_pick_log)
@@ -417,7 +417,7 @@ class AlertsPage:
                          f"Press {LOOK} in your hideout with the Uncharted Waters card open: each rumor "
                          f"gets the island it leads to and your Map Library rank for it."),
                         ("Runeshape tips", self.al_rtips, lambda: self.remnant_tips_changed(self.al_rtips.get()),
-                         "A small list next to the prices: the runeshapes players rate best for loot (S and A tier).")]}
+                         "A small list next to the prices: the S and A tier runeshapes players rate best for loot.")]}
 
         def more_opts(key, oc):
             """The options that aren't on / off chips: a list, a choice, a link. -> [(words, widget)]"""

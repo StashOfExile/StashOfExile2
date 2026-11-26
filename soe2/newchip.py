@@ -17,7 +17,7 @@ from .config import SETTINGS, save_json
 
 NAME = "NEW chip"                      # (names.py)
 WORD = "NEW"
-TIP = "New in 3.0 - this chip goes once you've opened or used it."
+TIP = "New in 3.0."
 SINCE = "3.0.0"
 
 # feature (its name in names.FEATURES) -> where it lives: the rail's page, and the tab of that page whose opening

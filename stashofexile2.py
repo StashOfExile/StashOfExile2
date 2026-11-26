@@ -4012,7 +4012,7 @@ def main():
         return
     if config.APP_VERSION != APP_VERSION or soe2.__version__ != APP_VERSION:
         _fail(f"This launcher is version {APP_VERSION}, but the soe2 folder next to it is version {config.APP_VERSION}.\n\n"
-              "Use the launcher that came with that folder (or the folder that came with this launcher).")
+              "Use the launcher that came with that folder, or the folder that came with this launcher.")
         return
     from soe2.app import main as run
     run()

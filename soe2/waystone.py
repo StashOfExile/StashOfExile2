@@ -125,7 +125,7 @@ def parse_waystone(text):
     if area is not None:
         notes.append(f"area level {area} (shown only: waystones are searched by their tier)")
     if other:
-        notes.append("not searched (the app has no trade filter for it): " + ", ".join(other))
+        notes.append("not searched: the app has no trade filter for it: " + ", ".join(other))
     out = {"class": "Waystone", "gear": True, "waystone": True, "gclass": "waystone", "rarity": rarity, "name": name,
            "base": base, "tier": tier, "mods": mods, "uses": None, "corrupted": corrupted, "quality": 0, "sockets": 0,
            "ilvl": next((int(x.group(1)) for l in lines for x in [re.match(r"Item Level:\s*(\d+)", l)] if x), None),

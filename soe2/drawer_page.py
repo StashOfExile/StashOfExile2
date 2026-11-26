@@ -658,7 +658,7 @@ class DrawerHost:
     def drawer_dock(self):
         """⇤ Drawer: the shape is remembered (needs a Drawer key)."""
         if not self.drawer_key_label():
-            self.app_toast("Set a Drawer key first (Settings › Keybinds).", "Drawer", kind="warning")
+            self.app_toast("Set a Drawer key first in Settings › Keybinds.", "Drawer", kind="warning")
             self.drawer_strip_paint()
             return
         st = self.drawer_st
@@ -1126,7 +1126,7 @@ class DrawerHost:
                  font=("Segoe UI", 9)).pack(side="left", padx=(8, 0))
         tip = tk.Label(r1, text="ⓘ", bg=P2, fg=C["muted"], font=("Segoe UI", 10), cursor="question_arrow")
         tip.pack(side="left", padx=(8, 0), anchor="n")
-        Tooltip(tip, "Drawer: the app over the game's side, from the top of the game to just above the skill bar. "
+        Tooltip(tip, "Drawer: the app over the game's side, from the top of the game to above the skill bar. "
                      "The Drawer key shows it and puts it away, and so do Esc and a click on the game. "
                      "Set the key in Settings › Keybinds. If Ctrl+Shift+Space switches your keyboard layout, set F3 instead. Full window: a normal "
                      "window, where you left it.")
@@ -1161,7 +1161,7 @@ class DrawerHost:
             self._drawer_seg.pick(SHAPE_WORD.get(self.drawer_st.shape, "Full window"), notify=False)
             self._drawer_side_seg.pick(str(self.drawer_cfg()["side"]).title(), notify=False)
             has_key = bool(self.drawer_key_label())
-            self._drawer_rb_tip.text = "" if has_key else "Set a Drawer key first (Settings › Keybinds)"
+            self._drawer_rb_tip.text = "" if has_key else "Set a Drawer key first in Settings › Keybinds"
             k = self.drawer_key_label()
             self._drawer_note.config(text=(f"{k} shows the app and puts it away. Change it in Settings › Keybinds." if k else
                                            "No Drawer key: set one in Settings › Keybinds to use the Drawer."))
@@ -1472,7 +1472,7 @@ class DrawerStrip(tk.Frame):
         self.say.config(text=text)
         tips = {"full": "Full window: a normal window, where you left it - remembered",
                 "dock": "Drawer: the app over the game's side - remembered" if k else
-                        "Set a Drawer key first (Settings \u203a Keybinds)",
+                        "Set a Drawer key first in Settings › Keybinds",
                 "away": "Put away" + (f" ({k} or Esc)" if k else " (Esc)") + ": the app is off screen",
                 "side": "Move to the " + ("right" if side == "left" else "left") + " side of the game"}
         for key, (b, tip) in self.btns.items():

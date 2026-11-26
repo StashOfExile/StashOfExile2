@@ -94,7 +94,7 @@ def anoint_rows():
         for n, rec, stats in d["rows"]:
             em = [names.get(r, r) for r in rec]
             k = ", ".join(dict.fromkeys(em)) + " · anoint, instil, amulet"
-            out.append({"n": n, "g": ANOINTS, "c": "Anoint (amulet)", "k": k, "t": stats, "a": em, "ln": n.lower(),
+            out.append({"n": n, "g": ANOINTS, "c": "Amulet Anoint", "k": k, "t": stats, "a": em, "ln": n.lower(),
                         "lk": k.lower(), "lt": (stats or "").lower()})
         return out
     except Exception:

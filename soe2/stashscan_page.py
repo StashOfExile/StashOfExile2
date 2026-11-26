@@ -26,7 +26,7 @@ def _cls(name):
     return "Stackable Currency"
 
 
-WILD_NAME = "? (wildcard slot)"
+WILD_NAME = "? - wildcard slot"
 
 
 class StashScanPage:

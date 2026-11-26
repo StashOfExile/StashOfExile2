@@ -131,7 +131,7 @@ def loosen_offer(rec, ticked):
     mods = [m for m in ticked if m.get("sid") and not str(m["sid"]).startswith(("equip:", "map:")) and _loosenable(m)]
     if nxt is None or not mods:
         return None
-    return {"next": f"every value {nxt}% looser (Min lower, Max higher)", "loosen": nxt,
+    return {"next": f"every value {nxt}% looser: Min lower, Max higher", "loosen": nxt,
             "mods": [ov_key(m) for m in mods]}
 
 
@@ -337,7 +337,7 @@ class Engine(StratCostJobs, threading.Thread):
             if os.path.exists(cache) and time.time() - os.path.getmtime(cache) < 86400:
                 data = load_json(_gd.TRADE_ITEMS_FILE, {})
             else:
-                STATUS("Downloading the trade site's item list (once a day)...")
+                STATUS("Downloading the trade site's item list...")
                 data = call("GET", BASE + "/data/items")
                 save_json(_gd.TRADE_ITEMS_FILE, data)
             _gd.set_trade_items(data)
@@ -719,12 +719,12 @@ class Engine(StratCostJobs, threading.Thread):
         if relaxed:
             label = ("no listing has all these mods together - left out the "
                      + "; ".join(f"{t}-tier {', '.join(n)}" for t, n in relaxed)
-                     + ", so it's a floor (those mods add to it)")
+                     + ", so it's a floor: those mods add to it")
         elif alone:
             label = (f"no listing has all these mods together - priced on {alone} alone, so it's a floor (the other "
                      f"mods add to it)")
         elif any_roll:
-            label = ("nothing found at your rolls - searched with ANY roll: price is a floor (a high roll can be worth more)")
+            label = ("nothing found at your rolls. Searched with ANY roll, so the price is a floor: a high roll can be worth more")
         elif len(stages) == 1:
             label = stages[0]["name"] + (" (enough listings, other searches skipped)" if len(plan) > 1 else "")
         else:
@@ -733,7 +733,7 @@ class Engine(StratCostJobs, threading.Thread):
             label += " · few listings"
         skipped = sorted({c for s_ in stages for c in s_.get("unk", ())})
         if skipped:
-            label += " · ⚠ listings priced in " + ", ".join(skipped) + " left out (no exchange rate)"
+            label += " · ⚠ listings priced in " + ", ".join(skipped) + " left out: no exchange rate"
         spread = SETTINGS.get("spread_warn") or 0
         rough = False
         if used:
@@ -907,7 +907,7 @@ class Engine(StratCostJobs, threading.Thread):
         elif base_steps:
             label = chosen["name"]
         elif dropped:
-            label = f"{len(opt) - dropped} of {len(opt)} ☑ mods had to match (exact search found too few)"
+            label = f"{len(opt) - dropped} of {len(opt)} ☑ mods had to match: the exact search found too few"
         label += f" · {how.lower()}"
         if thin:
             label += " · few listings"
@@ -927,7 +927,7 @@ class Engine(StratCostJobs, threading.Thread):
                 label += " · few listings: priced at the cheapest"
         status_any = SETTINGS.get("status") == "Any"               # 2.41.0: say when offline sellers count
         if status_any:
-            label += " · Listings: Any counts offline / whisper-only sellers (Instant Buyout is closer to real sales)"
+            label += " · Listings: Any counts offline and whisper-only sellers. Instant Buyout is closer to real sales."
         spread = SETTINGS.get("spread_warn") or 0
         rough = bool(spread and ratio and ratio >= spread)
         if rough:                                          # 2.3.0: a rough price instead of no price
@@ -976,7 +976,7 @@ class Engine(StratCostJobs, threading.Thread):
         if pred is not None and not any_roll and first and first["n"] >= need and first.get("est"):
             MARKET.log_prediction(base, pred, first["est"], len(comp))        # guess vs the real all-mods search
         if pred is not None:
-            bits.append(f"Model: {len(comp)} similar stored listings (last 2 days) would have said about {fmt_div(pred)}.")
+            bits.append(f"Model: {len(comp)} similar stored listings from the last 2 days would have said about {fmt_div(pred)}.")
             n_, hits_, _r = MARKET.accuracy(base)
             if est is not None and not wide and n_ >= 20 and hits_ / n_ >= 0.7 and est < 0.5 * pred:
                 conflict = True

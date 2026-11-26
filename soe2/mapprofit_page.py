@@ -1035,7 +1035,7 @@ class MapProfitPage:
         """The line under the list: which maps are in it, how a map's number is worked out, and where it's kept."""
         return (f"Back from a map, press {self.look_key_text()} with your inventory open. A map's loot = what your "
                 f"inventory gained since your last read at home. No read before a map? It still counts: all you came "
-                f"back with except Top Up supplies (marked ≈). On your PC only - never uploaded or shared.")
+                f"back with, except Top Up supplies, marked ≈. On your PC only - never uploaded or shared.")
 
     def mp_chart_draw(self):
         """Bars: profit per day (All Time, Daily) or per hour (Hourly). Hover a bar for its numbers."""

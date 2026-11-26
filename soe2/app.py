@@ -123,11 +123,11 @@ MISC_ROWS = (("corrupted", "Corrupted"), ("twice_corrupted", "Twice Corrupted"),
              ("unidentified", "Unidentified"), ("foreseeing", "Foreseeing"))
 # what "Yes" keeps, for each Miscellaneous filter's tip (the trade site's own names)
 MISC_WHAT = {"corrupted": "corrupted listings", "twice_corrupted": "twice corrupted listings",
-             "fractured": "listings with a fractured mod (it can't be changed)",
+             "fractured": "listings with a fractured mod, which can't be changed",
              "desecrated": "listings with a desecrated mod", "sanctified": "sanctified listings",
-             "mirrored": "mirrored listings (copies that can't be changed)",
+             "mirrored": "mirrored listings, which can't be changed",
              "unrevealed": "listings with an unrevealed desecrated mod", "crafted": "listings with a crafted mod",
-             "cultivated": "Cultivated Vaal Uniques (a unique with a mutated mod)",
+             "cultivated": "Cultivated Vaal Uniques: a unique with a Cultivation mod",
              "unidentified": "unidentified listings"}
 # owner decision C: the trade site's other numbers a copied item can have - Trade filters, off until ticked
 EXTRA_NUMS = (("aps", "Attacks per second", "equipment_filters", "aps"),
@@ -144,7 +144,7 @@ FLOAT_OPTS = ("aps", "crit", "reload")       # numbers with decimals (Min / Max)
 def misc_tip(key, label):
     """One line: what a Miscellaneous filter's Yes / No / Any keep."""
     if key == "foreseeing":
-        return "Foreseeing: the trade site's own Yes / No filter (its filter list doesn't say more about it)."
+        return "Foreseeing: the trade site's own Yes / No filter."
     return f"{label} - Yes: only {MISC_WHAT[key]}. No: none of those. Any: either."
 
 
@@ -406,6 +406,7 @@ class App(CalendarPage, DataReportsPage, BulkPage, SettingsPage, GearBookPage, P
         from . import listkit                        # 2.12.0: keys, right-click menus and striped rows everywhere
         listkit.install(self)
         SETTINGS.setdefault("poe2db_key", "Ctrl+Shift+D")
+        SETTINGS.setdefault("ninja_key", "Ctrl+Shift+N")         # 3.3.0 owner: opens poe.ninja
         SETTINGS.setdefault("copy_marker", True)            # 2.19.0: a mark where you pressed Ctrl+Alt+C
         SETTINGS.setdefault("copy_marker_secs", 10)         # 2.24.0: how long it stays
         SETTINGS.setdefault("copy_marker_hold", False)      # 2.24.0: or until Esc is tapped twice (2.25.0)
@@ -1309,8 +1310,7 @@ class App(CalendarPage, DataReportsPage, BulkPage, SettingsPage, GearBookPage, P
                 kb.itemconfigure(t_, state="normal" if right <= e.width - 8 else "hidden")
         kb.bind("<Configure>", place_scope, add="+")
 
-    EMPTY_TEXT = ("Nothing to price yet\nHover an item in game and press Ctrl+Alt+C: it shows up here and gets "
-                  "priced. Tablets, jewels, waystones and gear - weapons, armor, rings, uniques.")
+    EMPTY_TEXT = "Nothing to price yet\nHover an item in game and press Ctrl+Alt+C."
 
     @property
     def empty_text(self):
@@ -2596,7 +2596,7 @@ class App(CalendarPage, DataReportsPage, BulkPage, SettingsPage, GearBookPage, P
         where = None
         try:
             if text and self._clip_ignored(text):            # our own chat-command paste (and putting yours back)
-                self.last_clip, where = text, "nothing (the app's own chat command)"
+                self.last_clip, where = text, "nothing: the app's own chat command"
             elif text and text.lstrip().startswith("Item Class:"):
                 self.last_clip = text
                 if self.mm_new_wants(text):                  # 3.0.6: Farming Strategies › New strat is open: a
@@ -2614,7 +2614,7 @@ class App(CalendarPage, DataReportsPage, BulkPage, SettingsPage, GearBookPage, P
                     self.last_heard = time.time()
                     where = self.accept_clip(text) or "Bulk Pricing"     # (3.0.6: where it really went)
                 else:
-                    where = "nothing (not your copy key)"
+                    where = "nothing: not your copy key"
         except Exception:
             self.log_error("reading the clipboard")
         if where is None:                                    # nothing, or not an item: say why, from the text alone
@@ -2654,7 +2654,7 @@ class App(CalendarPage, DataReportsPage, BulkPage, SettingsPage, GearBookPage, P
             self.keys.combo_time = time.time()                         # yours - and a fresh watcher goes in
             return True
         if text.lstrip().startswith("Item Class:"):
-            self.status_text = ("Ignored an item copy that wasn't made with your Ctrl+Alt+C (another tool?). "
+            self.status_text = ("Ignored an item copy that wasn't made with your Ctrl+Alt+C. Another tool may have made it. "
                                 "Wrong? Settings > Keybinds > \"Also add items copied another way\"")
             self.status_until = time.time() + 8
         return False
@@ -2734,7 +2734,7 @@ class App(CalendarPage, DataReportsPage, BulkPage, SettingsPage, GearBookPage, P
                 buglog.caught()
         if not text.lstrip().startswith("Item Class:"):          # something else on the clipboard
             if text != self.own_clip:                            # (our own "copy name" isn't worth mentioning)
-                self.status_text, self.status_until = "Heard a copy, but it isn't an item (ignored)", time.time() + 6
+                self.status_text, self.status_until = "Heard a copy that isn't an item. Ignored.", time.time() + 6
             return "nothing - not an item"
         from . import features as FEAT
         if not FEAT.on("bulk") and text != self.own_clip:        # 2.131.0: Bulk Pricing is off (Features)
@@ -3438,7 +3438,7 @@ class App(CalendarPage, DataReportsPage, BulkPage, SettingsPage, GearBookPage, P
         if mark == "sold":                                # 2.21.0: what it really sold for
             typed_sold = (getattr(self, "sold_var", None).get().strip() if getattr(self, "sold_var", None) else "")
             if len(sel) != 1 or not parse_price(typed_sold):
-                return self._say("Type what it sold for in the item's panel (for example 3 div, 150 chaos, 40 ex), then press "
+                return self._say("Type what it sold for in the item's panel, like 3 div, 150 chaos or 40 ex, then press "
                                  "Mark as sold.", 10)
         self.undo = [(r["id"], r.get("mark", "new"), r.get("list_price")) for r in recs]
         self.undo_deleted = []
@@ -4161,7 +4161,7 @@ class App(CalendarPage, DataReportsPage, BulkPage, SettingsPage, GearBookPage, P
             k = ns.keys.get(i)
             keys |= set(k if isinstance(k, list) else [k] if k else [])
         if not keys:
-            return self._say("Select mods first (Ctrl+A for all, Shift / Ctrl + click), then pick a rating.", 8)
+            return self._say("Select mods first, then pick a rating. Ctrl+A selects all; Shift+click or Ctrl+click selects several.", 8)
         RM.apply(sorted(keys), "ignore" if tier == TIER_F else tier)
         from .ratemods import key_for
         affected = [rid for rid, rec in self.records.items() if rec.get("mark", "new") == "new"
@@ -4323,7 +4323,7 @@ class App(CalendarPage, DataReportsPage, BulkPage, SettingsPage, GearBookPage, P
                     buglog.caught()
         u = SETTINGS["price_unit"]
         if u not in ("auto", "divine") and not RATES.value(u):
-            self._say("No exchange rate for that currency yet (Exchange Rates loads them): prices stay in divines "
+            self._say("No exchange rate for that currency yet. Prices stay in divines until Exchange Rates loads them "
                       "until it has one.", 8)
 
     def price_manually(self, rec):
@@ -4609,7 +4609,7 @@ class App(CalendarPage, DataReportsPage, BulkPage, SettingsPage, GearBookPage, P
         sel = [int(i) for i in self.tree.selection()]
         gone = [(rid, self.records[rid]) for rid in sel if rid in self.records]
         if not gone:
-            return self._say("Select the items to delete first (click, Shift+click or Ctrl+click for several).", 8)
+            return self._say("Select the items to delete first. Shift+click or Ctrl+click selects several.", 8)
         kids = list(self.tree.get_children())
         first = min((kids.index(str(r)) for r in sel if str(r) in kids), default=0)
         for rid, rec in gone:
@@ -4942,7 +4942,7 @@ class App(CalendarPage, DataReportsPage, BulkPage, SettingsPage, GearBookPage, P
                     if it.get("waystone") and it.get("area_level"):   # searched by its tier; owner decision C: the
                         y = self._card_opt_row(cv, rec, "area_level", f"Area level: {it['area_level']}",   # area
                                                it["area_level"], y, w)                                # level if ticked
-                        TagTip(cv, "cardopt_area_level", "Ticked: only waystones of this area level (Min / Max). "
+                        TagTip(cv, "cardopt_area_level", "Ticked: only waystones of this area level, set by Min and Max. "
                                                          "Unticked: searched by its tier only.")
                 if dl:
                     way_rows()
@@ -5060,7 +5060,7 @@ class App(CalendarPage, DataReportsPage, BulkPage, SettingsPage, GearBookPage, P
                 if (srch.get("gem") or {}).get("level"):
                     y = self._card_opt_row(cv, rec, "gem_level", f"Gem level: {srch['gem']['level']}",
                                            srch["gem"]["level"], y, w)
-                    TagTip(cv, "cardopt_gem_level", "Ticked: gems of this level or more (Min / Max). "
+                    TagTip(cv, "cardopt_gem_level", "Ticked: gems of this level or more, set by Min and Max. "
                                                     "Unticked: any level.")
                 for key, label, group, fid in EXTRA_NUMS:
                     v = nums.get(key)
@@ -5069,7 +5069,7 @@ class App(CalendarPage, DataReportsPage, BulkPage, SettingsPage, GearBookPage, P
                     shown = f"{v:.2f}" if key in ("aps", "reload") else f"{v:g}%" if key in ("crit", "block") else f"{v}"
                     y = self._card_opt_row(cv, rec, key, f"{label}: {shown}", v, y, w, lower=key == "reload")
                     TagTip(cv, f"cardopt_{key}", f"Ticked: only listings with this {label.lower()} - "
-                           + ("at most yours (Max)" if key == "reload" else "yours or more (Min)")
+                           + ("at most yours: Max" if key == "reload" else "yours or more: Min")
                            + ", as the trade site counts it. Unticked: any.")
             # Round 18: a waystone's own numbers (Item Rarity, Pack Size ...) first, as the card over the game has them
             # owner (every item card - Price Checks, Bulk Pricing, Favorites): Base and Properties, Requirements,
@@ -5572,7 +5572,7 @@ class App(CalendarPage, DataReportsPage, BulkPage, SettingsPage, GearBookPage, P
         row = tk.Frame(fr, bg=P)
         row.pack(fill="x", pady=(4, 0))
         tips = {"S": "S - the price hangs on it", "A": "A - high", "B": "B - adds a little", "C": "C", "D": "D",
-                "F": "F - ignore (buyers don't pay for it)"}
+                "F": "F - ignore: buyers don't pay for it"}
         for i_, g_ in enumerate(("S", "A", "B", "C", "D", "F")):
             b_ = tk.Button(row, text=g_, bg=C["panel"], fg=C["text"], activebackground=C["odd"],
                            activeforeground=C["text"], relief="flat", bd=0, highlightthickness=1,
@@ -5602,7 +5602,7 @@ class App(CalendarPage, DataReportsPage, BulkPage, SettingsPage, GearBookPage, P
                 self.show_detail(rec)
             return None
         self.card_thumb(rec, m, key, grade)
-        self.status_text, self.status_until = ("Rated F (doesn't matter) - pricing again…" if grade == "ignore" else
+        self.status_text, self.status_until = ("Rated F, doesn't matter. Pricing again…" if grade == "ignore" else
                                                f"Rated {grade} - pricing again…"), time.time() + 6
         self.reprice([rec["id"]])
         return grade
@@ -5896,7 +5896,7 @@ class App(CalendarPage, DataReportsPage, BulkPage, SettingsPage, GearBookPage, P
         """2.60.0: How it's priced - what was searched, why this confidence, each search."""
         P2 = C["panel2"]
         if rec["state"] != "done":
-            tk.Label(d, text="Not priced yet - the searches show here when it is.", bg=P2, fg=C["muted"],
+            tk.Label(d, text="Not priced yet.", bg=P2, fg=C["muted"],
                      anchor="w").pack(fill="x")
             return
         for txt, fg in ((rec.get("label"), C["text"]), ("; ".join(rec.get("conf_why") or []), C["muted"]),
@@ -5960,7 +5960,7 @@ class App(CalendarPage, DataReportsPage, BulkPage, SettingsPage, GearBookPage, P
                 bot.pack(fill="x")
                 res = f"{s_['n']} listing{'s' if s_['n'] != 1 else ''} found"
                 if v.get("bad") and not v.get("unverifiable"):
-                    res += f" · {v['bad']} dropped (lacked a mod)"
+                    res += f" · {v['bad']} dropped: lacked a mod"
                 tk.Label(bot, text=res, bg=P1, fg=C["muted"], font=("Segoe UI", 9), anchor="w").pack(side="left")
                 right = ""
                 if s_.get("est") is not None and s_["n"]:
@@ -6084,7 +6084,7 @@ class App(CalendarPage, DataReportsPage, BulkPage, SettingsPage, GearBookPage, P
                            and self.mb_base_ok(e.get("base", ""), cat)),
                           key=lambda e: (e.get("floor") is None, -(e.get("floor") or 0)))
             note = ("The old Mod Book, kept as it was and no longer updated. Mods it found valuable carry on as learned "
-                    "'High' (see Mod priority); this league's own data overrules them.")
+                    "'High' in Mod priority. This league's own data overrules them.")
         tv = ttk.Treeview(self.mem_frame, columns=[c[0] for c in cols], show="headings")
         for cid, title, w, anchor in cols:
             tv.heading(cid, text=title)
@@ -6135,7 +6135,7 @@ class App(CalendarPage, DataReportsPage, BulkPage, SettingsPage, GearBookPage, P
         n_obs, n_list = MARKET.counts()
         if n_obs == 0:
             return ("Nothing has been recorded yet for this league.\nThe page fills in after items finish pricing with real trade-site "
-                    "searches (items that only say NO MATCH or fail with an error record nothing).")
+                    "searches. Items that only say NO MATCH or fail with an error record nothing.")
         if n_list == 0:
             return (f"{n_obs} searches are recorded, but no listing details were stored.\n"
                     f"Last recording problem: {MARKET.last_error or 'none seen - the listings may have had unknown currencies or no matching mod text.'}"
@@ -6143,8 +6143,8 @@ class App(CalendarPage, DataReportsPage, BulkPage, SettingsPage, GearBookPage, P
         view = self.mem_view.get()
         why = "\n\n" + MARKET.rec_summary() + self._mem_examples()
         if view == "Mod priority":
-            return (f"{n_list} listings stored. A mod appears here once 8 listings have it and 8 do not.\n"
-                    "Try the 'Single mods' view to see everything stored so far." + why)
+            return (f"{n_list} listings stored, too few for any mod yet.\n"
+                    "Try the Single mods view." + why)
         return f"{n_obs} searches and {n_list} listings are stored, but none of them carry mods the app could read." + why
 
     @staticmethod
@@ -6171,7 +6171,7 @@ class App(CalendarPage, DataReportsPage, BulkPage, SettingsPage, GearBookPage, P
             else:
                 says = "Normal"
             if mine == "ignore" and says == "High":
-                check, kind = "⚠ ignored (your rule or the built-in default), but the data says it's valuable", "warn"
+                check, kind = "⚠ ignored by your rule or the built-in default, but the data says it's valuable", "warn"
             elif mine == "high" and says == "Normal":
                 check, kind = "your S/A isn't backed by the data yet", "warn"
             elif mine == "high" and says == "High":
@@ -6417,7 +6417,7 @@ def main():
     app = App(root)
     if CRASHED[0]:                     # 2.115.0: Report it - the form, filled in, with the crash in the app's log
         root.after(6000, lambda: app.app_toast(
-            "The app closed by itself last time. Where it was (code locations only - nothing about you) is in the "
+            "The app closed by itself last time. Where it was, code locations only and nothing about you, is in the "
             "app's log; Report it sends it to be fixed.", "The app closed by itself",
             actions=[("Report it", lambda: app.bug_report_open(
                 "The app closed by itself", "It closed by itself while I was ... (what were you doing?)")),

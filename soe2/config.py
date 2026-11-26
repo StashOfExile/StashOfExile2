@@ -114,7 +114,7 @@ def move_data(new_dir):
     wrote = wrote or reset
     if not wrote:
         return False, "Couldn't save the new place - nothing was changed."
-    return True, "Copied. Restart the app to use the new folder (the old one is kept)."
+    return True, "Copied. Restart the app to use the new folder. The old one is kept."
 
 
 DATA_FILES = ["settings.json", "session.json", "modbook.json", "modbook.backup.json", "mod_rules.json", "community_rules.json",

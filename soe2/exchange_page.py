@@ -114,7 +114,7 @@ class ExchangePage:
         tv.delete(*tv.get_children())
         self.cmp_how = {}
         if not tbl or len(tbl) < 2:
-            self.cmp_note.config(text="No rates yet. They load from poe.ninja once your league is set.")
+            self.cmp_note.config(text="No rates yet: set your league.")
             return
         if cid is None:
             self.cmp_note.config(text="Pick a currency to see what one is worth in each of the others.")

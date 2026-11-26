@@ -154,7 +154,7 @@ class AboutPage:
                 "Written with AI (Claude), and open about it. Anyone may use it, change it and share it under the "
                 "AGPL-3.0 license - and anything made from it stays open source too.",
                 "It reads the game's log file (Client.txt), and your clipboard or screen only once per key press - "
-                "a copy key in the game, or your Read Key (Ctrl+Shift+R as the app comes, or a key you pick that the game doesn't use). "
+                "a copy key in the game, or your Read Key: Ctrl+Shift+R, or a key you pick that the game doesn't use. "
                 "Never on a timer or a click; each read shows for a second. Never the game's memory, and it "
                 "respects the trade site's limits. One key press = one action.",
                 "Prices come from the official trade site and poe.ninja.",

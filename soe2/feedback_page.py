@@ -180,7 +180,7 @@ class FeedbackPage:
         f = tk.Frame(win, bg=P1, padx=16, pady=12)
         f.pack(fill="both", expand=True)
         tk.Label(f, text="Report a bug", bg=P1, fg=C["accent"], font=("Segoe UI", 12, "bold"), anchor="w").pack(fill="x")
-        tk.Label(f, text="It becomes an issue on GitHub (StashOfExile/StashOfExile2), and the developer is told on Discord. "
+        tk.Label(f, text="It becomes an issue on GitHub at StashOfExile/StashOfExile2, and the developer is told on Discord. "
                          "Your account and character names and your Windows user name are taken out - below is exactly "
                          "what goes, word for word. It's public: don't paste whispers or chat.", bg=P1,
                  fg=C["muted"], font=("Segoe UI", 9), wraplength=600, justify="left", anchor="w").pack(fill="x",

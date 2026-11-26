@@ -291,7 +291,7 @@ class RemnantPage:
             t0 = time.time()
             try:
                 self.remnant_names_values(league)
-                RM.log(f"prices fetched in {time.time() - t0:.1f} s (ahead of a book)")
+                RM.log(f"prices fetched in {time.time() - t0:.1f} s, ahead of a book")
             except Exception:
                 buglog.caught()
             finally:

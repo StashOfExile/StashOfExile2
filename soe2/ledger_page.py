@@ -345,7 +345,7 @@ class LedgerPage:
         f = tk.Frame(parent, bg=P1)
         inner = tk.Frame(f, bg=P1)
         inner.place(relx=0.5, rely=0.42, anchor="center")
-        tk.Label(inner, text="Does a farming setup really make money?", bg=P1, fg="#ffffff",
+        tk.Label(inner, text="Does a farming setup make money?", bg=P1, fg="#ffffff",
                  font=("Segoe UI", 18, "bold")).pack()
         tk.Label(inner, text="The Strat Tracker works it out from your own runs: what a run costs, what its loot is "
                              "worth, and how many divines an hour that makes.", bg=P1, fg=C["text"],
@@ -354,7 +354,7 @@ class LedgerPage:
         steps.pack()
         for i, (t, d) in enumerate((("Make a setup", "Ctrl+Alt+C your waystone and tablets in game. The app prices "
                                                      "them, so it knows what one run costs."),
-                                    ("Just play", "Runs are counted by themselves from the game's log file. Nothing "
+                                    ("Play", "Runs are counted by themselves from the game's log file. Nothing "
                                                   "acts in the game."),
                                     ("Log your loot", "Every few runs a box asks for your drops (Ctrl+Alt+C each). You "
                                                       "get profit per run and div / hour."))):
@@ -449,7 +449,7 @@ class LedgerPage:
             chips.append(", ".join(f"{t.get('count', 1)}× {t['base'] or t['name']}" for t in ver["tablets"]))
         if ver["atlas"]["trees"]:
             chips.append("Atlas: " + ", ".join(f"{t['name']} {t.get('points', 0)}" for t in ver["atlas"]["trees"]))
-        line = (f"Strat: {strat['name']}" if strat else "Your own setup (no strat)") + \
+        line = (f"Strat: {strat['name']}" if strat else "Your own setup, no strat") + \
             f"  ·  a run costs {_d(cost)}" + (f" ({unknown} without a price)" if unknown else "")
         self.fl_sub.config(text=line + ("  ·  " + "  ·  ".join(chips) if chips else
                                         "  ·  Edit setup: add your waystone and tablets"))
@@ -521,7 +521,7 @@ class LedgerPage:
                        font=("Segoe UI", 9, "bold"))
         rows = L.loot_table(self.fl_logs_shown())
         if not rows:
-            cv.create_text(w // 2, 64, text="Your drops show here once you log loot", fill=C["muted"],
+            cv.create_text(w // 2, 64, text="No drops yet.", fill=C["muted"],
                            font=("Segoe UI", 9))
             return
         top = rows[:3]
@@ -885,14 +885,14 @@ class LedgerPage:
     def fl_show_loot(self, l):
         lines = [f"{r['qty']}× {r['name']}  -  " + ("no price" if r.get("total") is None else
                                                     f"{r['total']:.2f}d ({r['each']:.3f} each)")
-                 for r in l.get("items") or []] or ["No loot was copied for this log (only its total)."]
+                 for r in l.get("items") or []] or ["No loot was copied for this log, only its total."]
         messagebox.showinfo("Loot of this log", "\n".join(lines), parent=self.dlg_parent())
 
     # ================================================================ export / import
     def fl_export_menu(self):
         b = self.fl_export_btn
         m = menu_theme(self.root)
-        m.add_command(label="CSV - logs (Excel, Google Sheets)", command=lambda: self.fl_export("logs"))
+        m.add_command(label="CSV logs for Excel or Google Sheets", command=lambda: self.fl_export("logs"))
         m.add_command(label="CSV - every drop", command=lambda: self.fl_export("loot"))
         m.add_command(label="CSV - logs of every setup", command=lambda: self.fl_export("all"))
         m.add_command(label="Setup file for a friend's Strat Tracker", command=lambda: self.fl_export("json"))
@@ -1021,7 +1021,7 @@ class LedgerPage:
         self.mm_page.pick("Find", notify=False)
         self.mm_show_page()
         self.mm_show_mine(st["id"])
-        self.app_toast(f"\"{st['name']}\" is saved in Farming Strategies › Find (From: Mine). Before it can go to the community "
+        self.app_toast(f"\"{st['name']}\" is saved in Farming Strategies › Find, under From: Mine. Before it can go to the community "
                        f"strats it needs: {', '.join(p.replace('missing ', '') for p in probs[:4])}. Fill those in, "
                        "then press 📤 Post to Community.", "Upload a strat", secs=30)
 
@@ -1849,7 +1849,7 @@ class LedgerPage:
 
     def fl_ed_shot_set(self, ref, how):
         if not ref:
-            self._say("No picture on the clipboard - take a screenshot (Win+Shift+S, or Print Screen) and press "
+            self._say("No picture on the clipboard. Take a screenshot with Win+Shift+S or Print Screen, then press "
                       "Ctrl+V again." if how == "paste" else "That file isn't a picture the app can read.", 8)
             return None
         self.fl_ed_ver["atlas"]["image"] = ref
@@ -1991,7 +1991,7 @@ class LedgerPage:
         lines = [("✓" if not {"what it is", "one line"} & set(miss) else "○") + "  What it is, one line",
                  ("✓" if not {"Thoughts per click", "Clicks per hour"} & set(miss) else "○") + "  Thoughts per click, clicks",
                  ("✓" if "steps" not in miss else "○") + "  Steps",
-                 f"{'✓' if gd['tags'] or content else '○'}  {len(gd['tags'])} tags, {len(content)} content (step 4)",
+                 f"{'✓' if gd['tags'] or content else '○'}  {len(gd['tags'])} tags, {len(content)} content, step 4",
                  f"{'✓' if self.fl_ed_ver['atlas'].get('image') else '○'}  Atlas screenshot (optional)"]
         lbl.config(text="\n".join(lines) + ("" if not miss else "\n\nStill needed: " + ", ".join(miss)))
         try:
@@ -2148,8 +2148,7 @@ class LedgerPage:
         lines = [f"Cost of one run: {per:.3f}d"] + [f"{lab}: {v:.3f}" for lab, v in parts]
         if unknown:
             lines.append(f"\n{unknown} item(s) still without a price - type it on the item")
-        self.fl_ed_cost_lbl.config(text="\n".join(lines[1:]) or "Add your waystone and tablets - their part of "
-                                                                 "a run shows here.")
+        self.fl_ed_cost_lbl.config(text="\n".join(lines[1:]) or "Add your waystone and tablets.")
         self.fl_ed_cost_lbl.full = "\n".join(lines)
         big = getattr(self, "fl_ed_cost_big", None)
         if big is not None:

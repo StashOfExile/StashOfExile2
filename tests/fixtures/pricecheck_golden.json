@@ -3191,7 +3191,7 @@
     "min_max": {
      "min": 13
     },
-    "note": "Fire part of a hybrid resistance - counted in the total Elemental Resistance (tick it to search on it too)",
+    "note": "Fire part of a hybrid resistance - counted in the total Elemental Resistance. Tick it to search on it too.",
     "shown": "15% total to Fire Resistance",
     "sid": "pseudo.pseudo_total_fire_resistance",
     "text": "#% total to Fire Resistance",
@@ -10536,7 +10536,7 @@
    "name": "Grim Turf",
    "notes": [
     "area level 81 (shown only: waystones are searched by their tier)",
-    "not searched (the app has no trade filter for it): Delirium Chance: +10%"
+    "not searched: the app has no trade filter for it: Delirium Chance: +10%"
    ],
    "quality": 0,
    "rarity": "Rare",

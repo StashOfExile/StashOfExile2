@@ -272,8 +272,8 @@ def capture_tool(env=None, path=None):
         if L.which("grim", path) and desk not in ("gnome", "ubuntu", "pop", "kde", "plasma"):
             return "grim", "Wayland (wlroots)"
         if L.has_x(env):
-            return "mss", "Wayland through XWayland (may be black - see linux/README.md)"
-        return None, "Wayland with no capture tool (install grim, or use an X11 session)"
+            return "mss", "Wayland through XWayland. The picture may be black; see linux/README.md."
+        return None, "Wayland with no capture tool. Install grim, or use an X11 session."
     if L.has_x(env):
         return "mss", "X11"
     return None, "no desktop session"
@@ -289,7 +289,7 @@ def capture_check(env=None, path=None):
     if tool == "mss":
         import importlib.util
         if importlib.util.find_spec("mss") is None:
-            return "fix", "the mss module is missing", "pip install mss (the release build has it)"
+            return "fix", "the mss module is missing", "pip install mss. The release build has it."
         if "XWayland" in why:
             return "warn", f"mss - {why}", ("if the helpers read nothing: install grim / spectacle / "
                                             "gnome-screenshot, or log in with an X11 session")

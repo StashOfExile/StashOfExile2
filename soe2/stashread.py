@@ -81,7 +81,7 @@ def available():
         import cv2  # noqa: F401
         import numpy  # noqa: F401
     except Exception:
-        return "needs OpenCV (pip install opencv-python numpy)"
+        return "needs OpenCV: pip install opencv-python numpy"
     return ""
 
 

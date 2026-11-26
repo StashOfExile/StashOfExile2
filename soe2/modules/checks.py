@@ -5,7 +5,7 @@ from ..config import PAGE_CHECKS
 class PriceChecks(Module):
     key, title, icon = "checks", PAGE_CHECKS, "⚖"
     parent = None                      # nav phase 1: its own row in Trade (2.80.0-UI overhaul: a child of Price Checks)
-    blurb = "Price many items at once: hover each in game and press Ctrl+Alt+C (Manually Add)."
+    blurb = "Price many items at once: hover each in game and press Ctrl+Alt+C, Manually Add."
 
     def build(self, body):
         self.app.build_checks(body)

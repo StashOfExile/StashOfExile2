@@ -10,6 +10,10 @@ one fails. Rewrite it instead of adding it to the baseline. To shrink the baseli
     python tools/check_ui_text.py --update
 which drops the lines that no longer exist and never adds new ones.
 
+3.3.0 owner, Google developer style: no hype or filler words in UI text either - "seamless", "robust",
+"powerful", "simply", "just", "easily", "really", "please note". Greetings and What's New history are left as
+written; "just now" and Mod Lab's "Just rated" name a time, not filler; item names like Robust Crossbow are the game's.
+
 Run: python tools/check_ui_text.py - it exits with 1 and lists each new string."""
 import ast
 import io
@@ -21,9 +25,17 @@ import tokenize
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BASELINE = os.path.join(ROOT, "tools", "ui_text_baseline.txt")
 ASIDE = re.compile(r"[A-Za-z0-9.,'’%+?!]\s\(([A-Za-z][^()]{0,80})\)")
-ALLOWED = re.compile(r"^(?:x86|MIT|SIL Open Font License|CC BY[^)]*|Apache[^)]*|BSD[^)]*)$")
+# 3.3.0 owner: a keyboard shortcut after an action, "Undo (Ctrl+Z)", is how apps write it - allowed
+ALLOWED = re.compile(r"^(?:x86|MIT|SIL Open Font License|CC BY[^)]*|Apache[^)]*|BSD[^)]*|optional|"
+                     r"(?:Ctrl|Shift|Alt)\+[^()]{1,20}|F\d{1,2}|Del|Enter|Esc|[A-Z])$")
 SQL = re.compile(r"\b(?:SELECT|INSERT|UPDATE|DELETE|CREATE TABLE|WHERE)\b")
-CREDIT_FILES = ("soe2/about_page.py",)       # credits put a person's or a project's name in brackets after the work
+CREDIT_FILES = ("soe2/about_page.py",)
+# Strict UI copy limits (owner): no narration of how a feature works or when its data comes
+FILLER = re.compile(r"\b(seamless(ly)?|robust|powerful|simply|just|easily|really|please note|it is important to note|"
+                    r"will appear|appears? here|shows? (up )?here|to get started)\b",
+                    re.I)
+FILLER_OK = re.compile(r"\bjust (now|rated)\b|Robust (Crossbow|\b)", re.I)
+FILLER_SKIP = ("soe2/greetings.py", "soe2/whatsnew.py", "soe2/class_icons.py", "soe2/stashlayouts.py")       # credits put a person's or a project's name in brackets after the work
 
 
 def files():
@@ -62,6 +74,9 @@ def hits():
             s = t.string
             if t.start[0] in docs or re.match(r"^[rRbB]{1,2}['\"]", s) or SQL.search(s):
                 continue
+            if rel not in FILLER_SKIP and FILLER.search(FILLER_OK.sub("", s)):
+                out.append((rel, t.start[0], s.strip()))
+                continue
             for m in ASIDE.finditer(s):
                 inner = m.group(1)
                 if ALLOWED.match(inner) or rel in CREDIT_FILES and m.start() < 80 and "the " not in inner:
@@ -95,7 +110,7 @@ def main(argv):
         return 0
     new = [(r, ln, s) for r, ln, s in found if key(r, s) not in base]
     if new:
-        print("A parenthesis aside in UI text - put the detail in the tooltip, or say it without brackets:")
+        print("UI text with a parenthesis aside or a filler word - say it plainly, detail in the tooltip:")
         for r, ln, s in new:
             print(f"  {r}:{ln}: {s[:140]}")
         return 1

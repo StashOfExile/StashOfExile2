@@ -188,7 +188,7 @@ class Market:
                     rs["currencies"].add(str(r["price"][1]))
             pairs = [(r, d) for r, d in pairs if d is not None]            # a listing in a currency with no rate is left out
             if kept and not pairs:
-                self.last_error = f"all {len(kept)} listings were in currencies with no exchange rate (see currency_log.txt)"
+                self.last_error = f"all {len(kept)} listings were in currencies with no exchange rate. See currency_log.txt."
             divs = [d for _, d in pairs]
             with self.lock:
                 self.db.execute("INSERT INTO obs VALUES (?,?,?,?,?,?,?,?,?,?)",
@@ -869,7 +869,7 @@ class Market:
     def accuracy_text(self):
         n, hits, ratio = self.accuracy()
         if n < 5:
-            txt = f"Model check: {n} guess{'es' if n != 1 else ''} checked so far - too few to say anything (it needs 100 per tablet type before it may set a price)."
+            txt = f"Model check: {n} guess{'es' if n != 1 else ''} checked so far - too few to say anything. It needs 100 per tablet type before it sets a price."
         else:
             txt = (f"Model check: its own guess landed within 25% of the real search {hits} of {n} times ({hits / n:.0%})"
                    f", typical guess {ratio:.2f}x the real price. It may only set a price at 100 checks and 99%.")

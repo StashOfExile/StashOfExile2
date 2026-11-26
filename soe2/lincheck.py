@@ -125,7 +125,7 @@ def report(env=None, path=None, running=None):
         out.append(("Client.txt", OK, _short(log), ""))
     else:
         out.append(("Client.txt", FIX, "not found",
-                    "start the game once (Steam / Proton writes it to steamapps/common/Path of Exile 2/logs), "
+                    "start the game once. Steam or Proton writes it to steamapps/common/Path of Exile 2/logs. "
                     "or pick it in Settings › Advanced › Game log"))
     return out
 
@@ -162,7 +162,7 @@ def main(argv=None):
     print(f"StashOfExile2 {APP_VERSION} - Linux check")
     print(text(rows))
     print(summary(rows))
-    print("Report a bug: https://github.com/StashOfExile/StashOfExile2/issues (paste these lines)")
+    print("Report a bug at https://github.com/StashOfExile/StashOfExile2/issues and paste these lines")
     return 1 if any(r[1] == FIX for r in rows) else 0
 
 

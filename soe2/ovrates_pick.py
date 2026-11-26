@@ -339,7 +339,7 @@ class RatesPicker:
             self.empty_all.pack_forget()
         else:
             self.empty_all.configure(text="No currency matches. Try fewer letters." if self.ids else
-                                     "No rates yet. They load from poe.ninja once your league is set.")
+                                     "No rates yet: set your league.")
             self.empty_all.pack(fill="x")
         self.all_cv.yview_moveto(0)
 

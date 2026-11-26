@@ -253,7 +253,7 @@ def hybrid_split(mods, totals):
             t["group"] = "pseudo"
             if el != "Chaos":
                 t["auto"] = "ignore"
-                t["note"] += " - counted in the total Elemental Resistance (tick it to search on it too)"
+                t["note"] += " - counted in the total Elemental Resistance. Tick it to search on it too."
             else:
                 t["auto"] = "normal"
             out.append(t)

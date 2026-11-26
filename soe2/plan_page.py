@@ -938,7 +938,7 @@ class FocusPokes:
         try:
             F.log_event(kind, data, ak)
         except Exception:
-            self.log_error("League Plan (log)")
+            self.log_error("League Plan log")
 
     def focus_tick(self, now=None):
         """-> the poke shown, or None."""

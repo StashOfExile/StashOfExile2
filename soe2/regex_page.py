@@ -512,7 +512,7 @@ class RegexPage:
         kind = self.rx_kind.get()
         keys = [rule_key(kind, norm(l)) for l in (m.get("lines") or [m["line"]])]
         menu = menu_theme(self.root)
-        for label, imp in (("★ Valuable (Mod Book: High)", "high"), ("Normal", "normal"), ("Not worth anything (F - ignore)", "ignore")):
+        for label, imp in (("★ Valuable: Mod Book High", "high"), ("Normal", "normal"), ("Not worth anything: F - ignore", "ignore")):
             menu.add_command(label=label, command=lambda i=imp: (self.set_rules(keys, i), self.rx_refresh_values()))
         menu.tk_popup(e.x_root, e.y_root)
 
@@ -1044,13 +1044,13 @@ class RegexPage:
             f["search"] = r.get("search", "")
         self.rx_favs.append(f)
         self.rx_fav_changed()
-        self._say(f"\"{f['name']}\" is in your Favorites (Mine).", 6)
+        self._say(f"\"{f['name']}\" is in your Favorites, under Mine.", 6)
         return f
 
     def rx_fav_tags(self):
         f = (self._rx_fav_sel() or [None])[0]
         if not f or not self._rx_one_mine():
-            return self._say("Pick one of yours (Mine) to tag it.", 5)
+            return self._say("Pick one of yours from Mine to tag it.", 5)
 
         def save(tags):
             f["tags"] = tags
@@ -1060,7 +1060,7 @@ class RegexPage:
     def rx_fav_post(self):
         f = (self._rx_fav_sel() or [None])[0]
         if not f or not self._rx_one_mine():
-            return self._say("Pick one of yours (Mine) to post it.", 5)
+            return self._say("Pick one of yours from Mine to post it.", 5)
         s = self.rx_fav_search(f)
         if not s:
             return self._say("That search is empty.", 5)
@@ -1084,7 +1084,7 @@ class RegexPage:
     def rx_fav_hotkey(self):
         f = (self._rx_fav_sel() or [None])[0]
         if not f or not self._rx_one_mine():
-            return self._say("Pick one of yours (Mine) first.", 5)
+            return self._say("Pick one of yours from Mine first.", 5)
         return self.rx_key_assign(f"preset:{f['kind']}:{f['name']}")
 
     def rx_fav_rename(self):

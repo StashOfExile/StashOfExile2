@@ -64,7 +64,7 @@ def read_link(link, call=None, base=None):
         except Exception as ex:
             msg = str(ex)
             if msg.startswith("404"):
-                return None, "The trade site doesn't know that search any more (old links expire). Open it on the " \
+                return None, "The trade site doesn't know that search any more: old links expire. Open it on the " \
                              "site, change any filter and copy the address again."
             return None, f"Couldn't read that link from the trade site ({msg[:80]})."
         qid = code

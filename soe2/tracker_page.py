@@ -28,6 +28,7 @@ DEFAULT_KEYS = {"key_pause": "Pause",            # 2.74.3: the keyboard's Pause 
                 "key_overlay": "F6"}             # Ctrl+Alt+S is gone - Ctrl+Alt keys got in the way of game input)           # 2.59.0: F6 shows / hides the whole overlay       # 2.10.0: set once, change them in Options
 # 2.127.0: Settings › Keybinds › ↺ Defaults - every keybind as the app comes (key id as all_hotkeys gives it)
 DEFAULT_HOTKEYS = {"checks:pc_key": "Ctrl+D", "checks:pc_close_key": "Esc", "checks:poe2db_key": "Ctrl+Shift+D",
+                   "checks:ninja_key": "Ctrl+Shift+N",  # 3.3.0 owner
                    "tracker:key_pause": DEFAULT_KEYS["key_pause"],
                    "tracker:key_overlay": DEFAULT_KEYS["key_overlay"], "tracker:key_camp_prev": "",
                    "tracker:key_camp_next": "", "checks:ledger_key": "Ctrl+Alt+N", "overlay:hideout_key": "F1",
@@ -293,8 +294,7 @@ class TrackerPage:
         tv.pack(fill="both", expand=True)
         self.tk_maps = tv
         from .chrome import EmptyState                    # 2.120.0: one empty look everywhere (P4, 2.108.0: it said
-        self.tk_maps_empty = EmptyState(pm, "🗺", "No maps yet this session\nPress Start session, then run maps - "
-                                                 "each one shows here with its time.")   # nothing)
+        self.tk_maps_empty = EmptyState(pm, "🗺", "No maps yet this session\nPress Start session.")   # nothing)
         self.tk_maps_empty.place(relx=0.5, rely=0.45, anchor="center")
         self.list_register("tracker", tv)
         self.tk_pages["This session's maps"] = pm
@@ -318,7 +318,7 @@ class TrackerPage:
         self.tk_pages["Past sessions"] = ph
         self.tk_pages["Map stats"] = self._tracker_stats_page(body)
         # (nav phase 2: the options are the Overlay page's other tabs - build_ov_settings)
-        tk.Label(body, text="Reads only Path of Exile 2's own log file (Client.txt) on your PC: never the game's memory, "
+        tk.Label(body, text="Reads only Path of Exile 2's own log file, Client.txt, on your PC: never the game's memory, "
                             "never its servers, never sends keys or clicks.", bg=P1, fg=C["steel"], font=("Segoe UI", 9),
                  anchor="w").pack(side="bottom", fill="x", padx=12, pady=(0, 8))
         self.tracker_view()
@@ -459,8 +459,7 @@ class TrackerPage:
             self.tk_stats_sum.config(text=f"{runs:,} map runs · {len(st)} different maps · most run: {most[0]} "
                                           f"({most[1]['runs']}) · fastest: {fast[0]} in {fmt_time(fast[1]['best'])}")
         else:
-            self.tk_stats_sum.config(text="No maps yet: start a session and run some maps - they show up here, with "
-                                          "your best times.")
+            self.tk_stats_sum.config(text="No maps yet.")
         self.tracker_draw_daily()
         if keep and tv.exists(keep[0]):
             tv.selection_set(keep[0])
@@ -480,7 +479,7 @@ class TrackerPage:
         for i, r in enumerate(d["list"][:10]):
             tags = ("live",) if r.get("live") else (("gold",) if i == 0 else ())
             bv.insert("", "end", values=(i + 1, fmt_time(r["time"]),
-                                         "now (running)" if r.get("live") else
+                                         "now, running" if r.get("live") else
                                          datetime.fromtimestamp(r["when"]).strftime("%b %d %H:%M"),
                                          r["level"] or "-", r["deaths"]), tags=tags)
 
@@ -570,7 +569,7 @@ class TrackerPage:
             nums.append((label, v, self.tracker_options_changed, lines.get(k, "")))
         self.ingame_clock_var = tk.BooleanVar(value=bool(cfg.get("clock", True)))     # 2.39.0 (2.52.0: was in Settings)
         nums.append(("Clock", self.ingame_clock_var, self.on_ingame_clock,
-                     "The time of day (Settings › Appearance › Clock says how it reads)."))
+                     "The time of day. Settings › Appearance › Clock sets how it reads."))
         no, nb = chrome_section(po, "Numbers", "The Session timer's numbers on the overlay.")
         no.pack(fill="x", pady=(0, 8))
         self._ov_rows(nb, nums)
@@ -1050,7 +1049,7 @@ class TrackerPage:
         return "ask"
 
     def tracker_game_ask(self):
-        msg = "Path of Exile 2 isn't running any more (closed or crashed). End this session?"
+        msg = "Path of Exile 2 closed or crashed. End this session?"
         self._tk_strip(msg, [("End session", self.tracker_game_end), ("Keep it going", self.tracker_game_keep)])
         self.tk_game_toast = self.app_toast(msg + " The time since it closed isn't counted.", "Session",
                                             actions=[("End session", self.tracker_game_end),
@@ -1077,7 +1076,7 @@ class TrackerPage:
         self._tk_strip_close()
         g = getattr(self, "tk_game", None) or {}
         g["seen"], g["restored"] = False, False
-        self._say("The session is kept (paused). Resume it when you're back - or the game coming back does.", 8)
+        self._say("The session is kept and paused. Resume it when you're back, or it resumes when the game does.", 8)
 
     def tracker_restore_live(self, now=None):
         """2.127.0 (feedback): the session that was running when the app last closed, updated or crashed. Under
@@ -1104,7 +1103,7 @@ class TrackerPage:
         self.tk_pause_btn.config(state="normal", text="Resume")
         self.tracker_fill_maps()
         self.tracker_draw()
-        self._say("Your session from before the app closed is back (paused until the game is in front).", 10)
+        self._say("Your session from before the app closed is back. It stays paused until the game is in front.", 10)
         if self.tk_overlay is None:
             self.tracker_overlay_show()
         return "restored"
@@ -1458,33 +1457,31 @@ class TrackerPage:
         tc = self.tracker_cfg()
         # 2.57.0 (feedback: every key in Settings › Hotkeys, nowhere else): the third field is the group the key
         # belongs to (a heading on the Hotkeys page); every key but Ctrl+Alt+C is set here and only here
-        rows = [("Show or hide the app", SETTINGS.get("drawer_key", "Ctrl+Shift+Space"), "App",
+        # 3.3.0 owner: short action names, the way games and apps label their keybinds
+        rows = [("Show/Hide App", SETTINGS.get("drawer_key", "Ctrl+Shift+Space"), "App",
                  "checks:drawer_key"),                        # drawer build: the Drawer key
-                ("Price check the item under the mouse", SETTINGS.get("pc_key", "Ctrl+D"), "Price Checks",
-                 "checks:pc_key"),
-                ("Close the price check", SETTINGS.get("pc_close_key", "Esc"),
+                ("Price Check", SETTINGS.get("pc_key", "Ctrl+D"), "Price Checks", "checks:pc_key"),
+                ("Close Price Check", SETTINGS.get("pc_close_key", "Esc"),
                  "Price Checks", "checks:pc_close_key"),      # 2.121.1
-                ("Add the item under the mouse to Bulk Pricing", "Ctrl+Alt+C", "Bulk Pricing", None),
-                ("Open poe2db's modifier list in your browser", SETTINGS.get("poe2db_key", ""), "Tools",
-                 "checks:poe2db_key"),                        # (2.98.3: its own group - not Bulk Pricing)
-                ("Pause or resume the session timer", tc.get("key_pause", ""), "Overlay",
-                 "tracker:key_pause"),
-                ("Show or hide the overlay", tc.get("key_overlay", ""), "Overlay", "tracker:key_overlay"),
-                ("Go back one campaign step", tc.get("key_camp_prev", ""), "Overlay", "tracker:key_camp_prev"),
-                ("Go on to the next campaign step", tc.get("key_camp_next", ""), "Overlay", "tracker:key_camp_next"),
-                ("Read the screen once for the helpers",
-                 self.look_key(), "Overlay", "checks:look_key"),       # GGG policy (Nov 2026)
-                ("Mark a run as done in the Strat Tracker", SETTINGS.get("ledger_key") or "Ctrl+Alt+N",
+                ("Add to Bulk Pricing", "Ctrl+Alt+C", "Bulk Pricing", None),
+                ("Open poe2db", SETTINGS.get("poe2db_key", ""), "Tools", "checks:poe2db_key"),
+                ("Open poe.ninja", SETTINGS.get("ninja_key", ""), "Tools", "checks:ninja_key"),
+                ("Pause/Resume Timer", tc.get("key_pause", ""), "Overlay", "tracker:key_pause"),
+                ("Show/Hide Overlay", tc.get("key_overlay", ""), "Overlay", "tracker:key_overlay"),
+                ("Previous Campaign Step", tc.get("key_camp_prev", ""), "Overlay", "tracker:key_camp_prev"),
+                ("Next Campaign Step", tc.get("key_camp_next", ""), "Overlay", "tracker:key_camp_next"),
+                ("Screen Read", self.look_key(), "Overlay", "checks:look_key"),       # GGG policy (Nov 2026)
+                ("Mark Run Done", SETTINGS.get("ledger_key") or "Ctrl+Alt+N",
                  "Farming Strategies", "checks:ledger_key"),
-                ("Go to hideout", oc.get("hideout_key", ""), "Chat commands", "overlay:hideout_key")]
+                ("Go to Hideout", oc.get("hideout_key", ""), "Chat commands", "overlay:hideout_key")]
         rx = self.rx_keys() if hasattr(self, "rx_keys") else []
         at = next((n + 1 for n, r in enumerate(rows) if r[2] == "Tools"), len(rows))
         for i, k in enumerate(rx):                     # 2.132.7: Regex keys - each copies one favorite (Regex › Favorites)
-            rows.insert(at + i, (f"Regex key {i + 1}: copy {self.rx_ref_label(k['fav'])}", k.get("key", ""), "Regex",
+            rows.insert(at + i, (f"Regex: {self.rx_ref_label(k['fav'])}", k.get("key", ""), "Regex",
                                  f"rxkey:{i}"))
         for i, c in enumerate(oc.get("commands", []) or []):
             if c.get("cmd"):
-                rows.append((f"Send the chat command {c.get('name') or c.get('cmd', '')}", c.get("key", ""), "Chat commands",
+                rows.append((f"Send {c.get('name') or c.get('cmd', '')}", c.get("key", ""), "Chat commands",
                              f"cmd:{i}"))
         return rows
 

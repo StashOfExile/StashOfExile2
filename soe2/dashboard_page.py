@@ -113,6 +113,18 @@ def share_prompt_due():
     return not SETTINGS.get("share_prices") and not SETTINGS.get("dash_share_asked")
 
 
+def usage_prompt_due():
+    """3.3.0 owner: Count me as a user is asked once on the Dashboard too, beside data sharing."""
+    from . import usage as US
+    return not US.on() and not SETTINGS.get("dash_usage_asked")
+
+
+def usage_prompt_answer(yes):
+    from . import usage as US
+    SETTINGS["dash_usage_asked"] = True
+    US.set_on(bool(yes))                                     # saves the settings itself
+
+
 def share_prompt_answer(app, yes):
     SETTINGS["dash_share_asked"] = True
     if yes and hasattr(app, "cm_set_sharing"):
@@ -126,7 +138,7 @@ def share_prompt_answer(app, yes):
 # bit - told the way you'd show a friend something cool. No sales words, nothing telling you what to do.
 # (page, tab, line icon, name, headline, how it works, the best bit)
 WORTH = (
-    ("leaderboards", None, "trophy", "Leaderboards", "You already have a *best time*. You just haven't seen it.",
+    ("leaderboards", None, "trophy", "Leaderboards", "You already have a *best time*. You haven't seen it yet.",
      "The game writes down every zone you enter. So the app already knows how long each *map*, *boss* and *act* took "
      "you, without you pressing anything.", "Your best sits next to everyone else's."),
     ("regex", None, "regex", "Regex", "Stop reading *60 items* one by one.",
@@ -344,14 +356,9 @@ class Dashboard(tk.Canvas):
         h = top + max(1, len(rows)) * rh + 8
         self._card(x0, y, x1, y + h)
         _hid, up = self._head(x0, y, x1, "Patch Notes")
-        self.create_text(x1 - 20, y + 22 - up, text="From GGG's forum", anchor="ne", font=plain_f, fill=mut,
-                         tags=("pn_src",))
-        self.tips["pn_src"] = ("Every patch and hotfix for Path of Exile 2, read from GGG's forum once an hour by "
-                               "the community board. Click a patch to read it all.")
         feed, quiet = PN.admin_state()
         if quiet and self._is_admin():                       # admins: the board read nothing for a week
-            ox = self.bbox(self.find_withtag("pn_src")[0])[0]
-            self.create_text(ox - 20, y + 22 - up, anchor="ne", tags=("pn_feed",), fill=acc,
+            self.create_text(x1 - 20, y + 22 - up, anchor="ne", tags=("pn_feed",), fill=acc,
                              text="● Feed needs a look" if feed else "● Set the forum address",
                              font=("Segoe UI", 10, "underline" if self.hover == "pn_feed" else "bold"))
             self.acts["pn_feed"] = self._pn_set_feed
@@ -359,7 +366,7 @@ class Dashboard(tk.Canvas):
                                     "address of GGG's Path of Exile 2 patch-notes forum.")
         if not rows:
             self.create_text(x0 + 20, y + top + rh / 2, anchor="w", font=plain_f, fill=mut, width=x1 - x0 - 40,
-                             text="No patch notes yet. The newest show here once the board has read the forum.")
+                             text="No patch notes yet.")
             return y + h + GAP
         import webbrowser
         for i, n in enumerate(rows):
@@ -374,7 +381,6 @@ class Dashboard(tk.Canvas):
             self.create_text(x0 + 20, ry + rh / 2, anchor="w", text=n["title"], width=room, tags=(tag,),
                              font=("Segoe UI", 10, "bold underline") if lit else bold, fill=acc if lit else brass)
             self.acts[tag] = lambda u=n["url"]: webbrowser.open(u)
-            self.tips[tag] = "Open the full patch notes on GGG's forum."
         return y + h + GAP
 
     def _is_admin(self):
@@ -424,6 +430,21 @@ class Dashboard(tk.Canvas):
         if tip:
             self.tips[tag] = tip
         return x0
+
+    # ---- 3.3.0 owner: the one-time Count me as a user question
+    def _usage_prompt(self, x0, y, x1, narrow):
+        t = TH.ST.theme
+        h = 132 if narrow else 84
+        self._card(x0, y, x1, y + h)
+        self.create_text(x0 + 20, y + 16, text="Count me as a user?", anchor="nw",
+                         font=("Segoe UI", 12, "bold"), fill=t.c("text_strong"))
+        self.create_text(x0 + 20, y + 44, text="A random id every 10 minutes, so we know how many people play. "
+                         "Nothing else.", anchor="nw", font=("Segoe UI", 10), fill=t.c("text_muted"),
+                         width=(x1 - x0 - 40) if narrow else 0)
+        by = y + h - 44 - 20 if narrow else y + 20
+        bx = self._button(x1 - 20, by, "No thanks", "us_no", lambda: (usage_prompt_answer(False), self.later())) - 12
+        self._button(bx, by, "Yes, count me", "us_yes", lambda: (usage_prompt_answer(True), self.later()))
+        return y + h
 
     # ---- 3.3.0 owner: the one-time sharing question
     def _share_prompt(self, x0, y, x1, narrow):
@@ -510,7 +531,7 @@ class Dashboard(tk.Canvas):
             self.tips["cal_drafts"] = "Admin: events the board drafted from Steam news. None reaches a user until you post it."
         if not rows:
             self.create_text(x0 + 20, y + top + rh / 2, anchor="w", font=plain_f, fill=mut, width=x1 - x0 - 40,
-                             text="Nothing coming up yet. Leagues, Twitch Drops, events and races show here.")
+                             text="Nothing coming up yet.")
             return y + h + GAP
         fonts = self._line_fonts
         col = max(fonts[bold].measure(CD.label(e)) for e in rows) + 24
@@ -881,6 +902,8 @@ class Dashboard(tk.Canvas):
         narrow = W < 900 or bool(look and look())            # D3: in the Drawer the tiles and Start cards wrap, 2 a row
         if share_prompt_due():                               # 3.3.0 owner: asked once, here, while sharing is off
             y = self._share_prompt(PAD, y, W - PAD, narrow) + GAP
+        if usage_prompt_due():                               # and Count me as a user, beside it
+            y = self._usage_prompt(PAD, y, W - PAD, narrow) + GAP
 
         if vis["empty"]:                                     # every part is off: one line, one button
             self._card(PAD, y, W - PAD, y + 150)
@@ -1024,7 +1047,7 @@ class Dashboard(tk.Canvas):
             rows = recs[:4]
             ry = y + 56
             if not rows:
-                self.create_text(PAD + 20, ry + 8, text=f"Your price checks show here. In game: hover an item, press {pc_key}.",
+                self.create_text(PAD + 20, ry + 8, text=f"No price checks yet: hover an item in game, press {pc_key}.",
                                  anchor="nw", font=("Segoe UI", 10), fill=mut, width=lw - 40)
             rar = {"Unique": t.c("unique", "#af6025"), "Rare": t.c("rare", "#ffff77"), "Magic": t.c("magic", "#8f9bff")}
             for i, r in enumerate(rows):

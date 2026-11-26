@@ -109,16 +109,17 @@ class UtilitiesPage:
                     return True
         except Exception:
             buglog.caught()
-        try:                                           # 2.12.0: the poe2db key - in game or in the app only
-            k = parse_key(SETTINGS.get("poe2db_key") or "")
-            if k and k == (vk, ctrl, alt, shift):
-                from .overlay import game_active, POE_TITLE
-                if game_active((getattr(self, "overlay", None) and self.overlay.cfg.get("poe_title")) or POE_TITLE) \
-                        or self.app_in_front():
-                    self.ui_q.put(("quicklink", "poe2db"))
-                    return True
-        except Exception:
-            buglog.caught()
+        for site, setting in (("poe2db", "poe2db_key"), ("ninja", "ninja_key")):   # 3.3.0: poe.ninja too
+            try:                                       # in game or in the app only
+                k = parse_key(SETTINGS.get(setting) or "")
+                if k and k == (vk, ctrl, alt, shift):
+                    from .overlay import game_active, POE_TITLE
+                    if game_active((getattr(self, "overlay", None) and self.overlay.cfg.get("poe_title")) or
+                                   POE_TITLE) or self.app_in_front():
+                        self.ui_q.put(("quicklink", site))
+                        return True
+            except Exception:
+                buglog.caught()
         try:
             if self.tracker_on_key(vk, ctrl, alt, shift):
                 return True
@@ -320,7 +321,7 @@ class UtilitiesPage:
             tk.Label(cg, text=t, bg=P2, fg=C["muted"], font=("Segoe UI", 9, "bold"), anchor="w").grid(row=0, column=col,
                                                                                                    sticky="w")
         self.ov_vars["hideout_key"] = tk.StringVar(value=ov.get("hideout_key", ""))
-        self.chat_keys_lbl = tk.Label(cg, text="Go to hideout", bg=P2, fg=C["text"], anchor="w")
+        self.chat_keys_lbl = tk.Label(cg, text="Go to Hideout", bg=P2, fg=C["text"], anchor="w")
         self.chat_keys_lbl.grid(row=1, column=0, sticky="w", padx=(0, 8), pady=1)
         self.chat_hideout_kc = KeyCapture(cg, self.ov_vars["hideout_key"], width=12,
                                           on_change=lambda t: self.root.after(10, self.chat_key_set))
@@ -502,6 +503,10 @@ class UtilitiesPage:
         from .listkit import open_poe2db
         if which == "poe2db" and open_poe2db():
             self._say("Opened poe2db's modifier list in your browser.", 5)
+        elif which == "ninja":
+            from .listkit import open_ninja
+            if open_ninja():
+                self._say("Opened poe.ninja in your browser.", 5)
 
     def chat_status(self):
         cfg = self.overlay.cfg if getattr(self, "overlay", None) else {}
@@ -519,7 +524,7 @@ class UtilitiesPage:
             self._say("Notes is switched off: Overlay › On the Overlay › Notes.", 10)
             return False
         ov.show_notes()
-        self._say("Notes is on the overlay bar (Notes ▾) and shows while the game is in front. Double-click a tab to "
+        self._say("Notes is on the overlay bar, under Notes ▾, and shows while the game is in front. Double-click a tab to "
                   "rename it; right-click for more.", 10)
         return True
 

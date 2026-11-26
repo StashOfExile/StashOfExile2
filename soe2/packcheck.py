@@ -11,9 +11,9 @@ FIRST_DELAY_MS = 25_000           # after start, so the first screen is never wa
 LOOK_MS = 30 * 60_000             # a long-running app looks at the clock this often; it only fetches when a day is up
 
 
-CRAFT_TIP = ("The Craft Helper's data (types, steps, how the market picks a letter) for the game patch shown. "
+CRAFT_TIP = ("The Craft Helper's data: types, steps and how the market picks a letter, for the game patch shown. "
              "One small public download from GitHub, nothing about you is sent.")
-CAMP_TIP = ("The Campaign guide's data (acts, zones, rewards). One small public download from GitHub, nothing about "
+CAMP_TIP = ("The Campaign guide's data: acts, zones and rewards. One small public download from GitHub, nothing about "
             "you is sent.")
 
 

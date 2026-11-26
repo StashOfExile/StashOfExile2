@@ -1766,7 +1766,7 @@ class KeyCapture(tk.Label):
             self.config(text="Press a key…", fg=C["accent"], highlightbackground=C["accent"])
         else:
             v = self.var.get().strip()
-            self.config(text=key_label(v) if v else "click to set", fg=C["text"] if v else C["muted"],
+            self.config(text=key_label(v) if v else "Not set", fg=C["text"] if v else C["muted"],
                         highlightbackground=C["line"])
 
     def start(self):

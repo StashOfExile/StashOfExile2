@@ -1325,7 +1325,7 @@ def full_plan(board, cards=(), medals=(), medal_rooms=(), prev=()):
     pays = any(VALUE.get(f, 0) >= PAYS or any(v in TOUCH.get(f, ()) or v in PARTNER.get(f, ()) for v in rooms.values())
                for f in card_fams)
     if card_fams and "Puhuarte's Medallion" in held and not pays:
-        notes.append("Nothing in your cards pays: reroll them (Puhuarte's Medallion).")
+        notes.append("Nothing in your cards pays: reroll them with Puhuarte's Medallion.")
     # (one line, not five): the medallions kept for a later run, together
     keep_meds = [n.split("Keep the ")[1].split(" medallion")[0] for n in notes
                  if n.startswith("Keep the ") and " medallion" in n]
@@ -1338,5 +1338,5 @@ def full_plan(board, cards=(), medals=(), medal_rooms=(), prev=()):
         if why.startswith("beside ") and fam in ROOMS and len(chains) < 4:
             chains.append(f"{fam} beside the {why[7:]}: they raise each other.")
     if any(not c.startswith("Path to") for c in chains):
-        chains.append("No chain touches a ✕ square (a reward room).")
+        chains.append("No chain touches a ✕ square, a reward room.")
     return {"plan": plan, "targets": targets, "notes": notes, "chains": chains, "path_cards": path_cards}

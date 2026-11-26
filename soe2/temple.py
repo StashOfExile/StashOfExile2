@@ -102,6 +102,6 @@ def count_text(st):
     if not st:
         return "Crystals ?"
     if st.get("old"):
-        return f"Crystals {st['have']}/{st['most']}? (before your last run)"
+        return f"Crystals {st['have']}/{st['most']}? - before your last run"
     n = runs(st)
     return f"Crystals {st['have']}/{st['most']} ({n} run{'' if n == 1 else 's'})"

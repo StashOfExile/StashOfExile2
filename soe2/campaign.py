@@ -954,8 +954,7 @@ def level_how(you, zone):
     """The level check's hover: the numbers and the rule."""
     lv = level_check(you, zone)
     if not lv:
-        return ("Your level shows after your next level-up (the game's log says it then)." if not you else
-                "The zone's level shows once you enter a campaign zone.")
+        return ("No level yet." if not you else "No zone level yet.")
     st, n, safe = lv
     now = {"ok": "in range", "under": f"{n} under", "over": f"{n} over"}[st]
     return (f"You {you}, zone {zone}: {now}.\n"
