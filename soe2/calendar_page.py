@@ -649,7 +649,7 @@ class CalendarPage:
         many = tk.BooleanVar(value=first != last)            # a Shift-clicked range comes filled in
         ttk.Checkbutton(dlg, text="It runs for more than one day", variable=many, style="Card.TCheckbutton").pack(anchor="w")
         day_row("Last day", day2)
-        tk.Label(dlg, text="Time, on this PC's clock", bg=P2, fg=C["text"]).pack(anchor="w")
+        tk.Label(dlg, text="Time", bg=P2, fg=C["text"]).pack(anchor="w")
         trow, clock = self._cal_time(dlg)
         trow.pack(anchor="w", pady=(2, 8))
         vars_ = self._cal_lead_boxes(dlg, (0,))

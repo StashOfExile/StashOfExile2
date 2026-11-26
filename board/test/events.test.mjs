@@ -43,7 +43,7 @@ const fetchStub = async (url, opts) => {
   return { ok: true, json: async () => ({ appnews: { newsitems: FEEDS[appid] ?? [] } }) };
 };
 const E = new Function("json", "fail", "now", "readBody", "textProblem", "metaGet", "metaSet", "fetch",
-  code + "; return { eventProblem, eventList, eventDrafts, eventSave, eventDelete, canPostEvents, steamKind, steamStart, steamDrafts, steamCheck, eventCheckNow };")(json, fail, now, readBody, textProblem, metaGet, metaSet, fetchStub);
+  code + "; return { eventProblem, eventList, eventDrafts, eventSave, eventDelete, canPostEvents, steamKind, steamStart, steamTime, steamDrafts, steamCheck, eventCheckNow };")(json, fail, now, readBody, textProblem, metaGet, metaSet, fetchStub);
 
 const admin = { id: "a1", admin: 1 }, user = { id: "u1", admin: 0 }, banned = { id: "a2", admin: 1, banned: 1 };
 const good = { kind: "league", name: "  League   start ", start: NOW + 86400, end: 0, link: "https://example.com/x", note: "" };
@@ -216,5 +216,17 @@ assert.equal(raw.prepare("SELECT COUNT(*) AS n FROM events WHERE status = 'live'
   NOW += 7 * 3600;
   await E.steamCheck(live, true);
   assert.deepEqual((await E.eventList(live)).body.events.map((e) => e.name), ["Covens of Umbra Twitch Drops"], "live at once");
+}
+
+// 3.3.0 owner: GGG's own time and zone become one moment, shown in each player's time
+{
+  const posted = Date.UTC(2026, 10, 20) / 1000;
+  assert.equal(E.steamStart("Path of Exile 2 Full Release on December 11", posted, "Launches December 11 at 1pm PST (10am NZDT December 12)."),
+    Date.UTC(2026, 11, 11, 21, 0) / 1000, "1pm PST is 21:00 UTC");
+  assert.equal(E.steamStart("Twitch Drops start December 12 at 11am NZDT", posted), Date.UTC(2026, 11, 11, 22, 0) / 1000, "11am NZDT is 22:00 UTC the day before");
+  assert.equal(E.steamStart("Race on July 4 at 2:30 PM PT", Date.UTC(2026, 5, 1) / 1000), Date.UTC(2026, 6, 4, 21, 30) / 1000, "PT in summer is PDT");
+  assert.equal(E.steamTime("Launches December 11 PST"), null, "a zone with no time is not a time");
+  assert.equal(E.steamTime("at 1pm PST")?.said, "1pm PST");
+  assert.equal(E.steamStart("Full Release on December 11 PST", posted), Date.UTC(2026, 11, 11, 20) / 1000, "no time: 20:00 UTC as before");
 }
 console.log("events: ok");
