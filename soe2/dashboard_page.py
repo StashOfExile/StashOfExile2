@@ -369,18 +369,31 @@ class Dashboard(tk.Canvas):
                              text="No patch notes yet.")
             return y + h + GAP
         import webbrowser
+        from . import newchip
         for i, n in enumerate(rows):
             ry = y + top + i * rh
             if i:
                 self.create_line(x0 + 20, ry, x1 - 20, ry, fill=t.c("border"))
             tag = f"pn_{i}"
             lit = self.hover == tag
-            day = time.strftime("%b %d", time.localtime(n["date"])) if n.get("date") else ""
-            did = self.create_text(x1 - 20, ry + rh / 2, anchor="e", text=day, font=plain_f, fill=mut, tags=(tag,))
-            room = max(80, self.bbox(did)[0] - x0 - 40)
-            self.create_text(x0 + 20, ry + rh / 2, anchor="w", text=n["title"], width=room, tags=(tag,),
-                             font=("Segoe UI", 10, "bold underline") if lit else bold, fill=acc if lit else brass)
-            self.acts[tag] = lambda u=n["url"]: webbrowser.open(u)
+            tx = x0 + 20
+            if PN.is_new(n):                                 # 3.3.0 owner: NEW until you open it
+                from .sidebar import ink_on                  # the same chip as the rail's
+                from .style import C
+                tx = newchip.draw(self, tx, ry + rh / 2, C["accent"], ink_on(C["accent"]), anchor="w", size=8) + 8
+            # 3.3.0 owner: "<title> - Steam - Wed, September 2, 2026"
+            tail = " - ".join(p for p in (PN.source_of(n), PN.day_of(n)) if p)
+            tid = self.create_text(tx, ry + rh / 2, anchor="w", text=n["title"], tags=(tag,),
+                                   font=("Segoe UI", 10, "bold underline") if lit else bold, fill=acc if lit else brass)
+            if tail:
+                self.create_text(self.bbox(tid)[2], ry + rh / 2, anchor="w", text=" - " + tail, font=plain_f,
+                                 fill=mut, tags=(tag,))
+
+            def go(u=n["url"]):
+                PN.mark_seen(u)
+                webbrowser.open(u)
+                self.later()
+            self.acts[tag] = go
         return y + h + GAP
 
     def _is_admin(self):

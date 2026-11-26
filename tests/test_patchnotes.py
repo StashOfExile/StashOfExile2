@@ -34,3 +34,27 @@ class FromBoard(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Rows(unittest.TestCase):
+    def test_source_and_day(self):
+        n = {"title": "x", "url": "https://store.steampowered.com/news/app/2694490/view/1", "at": 1788393600}
+        self.assertEqual(PN.source_of(n), "Steam")
+        self.assertEqual(PN.source_of({"url": "https://www.pathofexile.com/forum/view-thread/1"}), "GGG Forum")
+        self.assertRegex(PN.day_of(n), r"^[A-Z][a-z]{2}, [A-Z][a-z]+ \d{1,2}, 20\d\d$")
+
+    def test_new_after_the_first_list_until_opened(self):
+        from soe2.config import SETTINGS
+        keep = {k: SETTINGS.get(k) for k in ("patch_known", "patch_new")}
+        try:
+            SETTINGS.pop("patch_known", None); SETTINGS.pop("patch_new", None)
+            with mock.patch("soe2.patchnotes.save_json"):
+                PN._note_new([{"url": "a"}])
+                self.assertFalse(PN.is_new({"url": "a"}))
+                PN._note_new([{"url": "b"}, {"url": "a"}])
+                self.assertTrue(PN.is_new({"url": "b"}))
+                PN.mark_seen("b")
+                self.assertFalse(PN.is_new({"url": "b"}))
+        finally:
+            for k, v in keep.items():
+                SETTINGS.pop(k, None) if v is None else SETTINGS.__setitem__(k, v)
